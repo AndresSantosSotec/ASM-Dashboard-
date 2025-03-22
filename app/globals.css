@@ -1,0 +1,230 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 232 65% 26%; /* Based on #213362 */
+    --card: 0 0% 100%;
+    --card-foreground: 232 65% 26%; /* Based on #213362 */
+    --popover: 0 0% 100%;
+    --popover-foreground: 232 65% 26%; /* Based on #213362 */
+    --primary: 232 65% 26%; /* #213362 - navy blue */
+    --primary-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
+    --secondary: 45 50% 82%; /* #EBDDB7 - light gold */
+    --secondary-foreground: 232 65% 26%;
+    --muted: 45 50% 82%; /* #EBDDB7 - light gold */
+    --muted-foreground: 232 65% 26%;
+    --accent: 43 36% 52%; /* #B7A053 - medium gold */
+    --accent-foreground: 232 65% 26%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 43 36% 52%; /* #B7A053 - medium gold */
+    --input: 43 36% 52%; /* #B7A053 - medium gold */
+    --ring: 232 65% 26%; /* #213362 - navy blue */
+    --chart-1: 43 36% 52%; /* #B7A053 - medium gold */
+    --chart-2: 41 41% 45%; /* #A48644 - darker gold */
+    --chart-3: 232 65% 26%; /* #213362 - navy blue */
+    --chart-4: 45 50% 82%; /* #EBDDB7 - light gold */
+    --chart-5: 244 76% 12%; /* #10072F - very dark navy */
+    --radius: 0.5rem;
+    --sidebar-background: 232 65% 26%; /* #213362 - navy blue */
+    --sidebar-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
+    --sidebar-primary: 43 36% 52%; /* #B7A053 - medium gold */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 45 50% 82%; /* #EBDDB7 - light gold */
+    --sidebar-accent-foreground: 232 65% 26%; /* #213362 - navy blue */
+    --sidebar-border: 43 36% 52%; /* #B7A053 - medium gold */
+    --sidebar-ring: 43 36% 52%; /* #B7A053 - medium gold */
+  }
+  .dark {
+    --background: 244 76% 12%; /* #10072F - very dark navy */
+    --foreground: 45 50% 82%; /* #EBDDB7 - light gold */
+    --card: 244 76% 12%; /* #10072F - very dark navy */
+    --card-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
+    --popover: 244 76% 12%; /* #10072F - very dark navy */
+    --popover-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
+    --primary: 43 36% 52%; /* #B7A053 - medium gold */
+    --primary-foreground: 232 65% 26%; /* #213362 - navy blue */
+    --secondary: 232 65% 26%; /* #213362 - navy blue */
+    --secondary-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
+    --muted: 232 65% 26%; /* #213362 - navy blue */
+    --muted-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
+    --accent: 41 41% 45%; /* #A48644 - darker gold */
+    --accent-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
+    --border: 43 36% 52%; /* #B7A053 - medium gold */
+    --input: 43 36% 52%; /* #B7A053 - medium gold */
+    --ring: 45 50% 82%; /* #EBDDB7 - light gold */
+    --chart-1: 43 36% 52%; /* #B7A053 - medium gold */
+    --chart-2: 41 41% 45%; /* #A48644 - darker gold */
+    --chart-3: 45 50% 82%; /* #EBDDB7 - light gold */
+    --chart-4: 232 65% 26%; /* #213362 - navy blue */
+    --chart-5: 244 76% 12%; /* #10072F - very dark navy */
+    --sidebar-background: 244 76% 12%; /* #10072F - very dark navy */
+    --sidebar-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
+    --sidebar-primary: 43 36% 52%; /* #B7A053 - medium gold */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 43 36% 52%; /* #B7A053 - medium gold */
+    --sidebar-accent-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
+    --sidebar-border: 43 36% 52%; /* #B7A053 - medium gold */
+    --sidebar-ring: 43 36% 52%; /* #B7A053 - medium gold */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom styles for modern aesthetic */
+.asm-gradient {
+  background: linear-gradient(135deg, #213362 0%, #10072f 100%);
+}
+
+.asm-gold-gradient {
+  background: linear-gradient(135deg, #ebddb7 0%, #a48644 100%);
+}
+
+.asm-sidebar-item {
+  @apply transition-all duration-200 rounded-md;
+}
+
+.asm-sidebar-item:hover {
+  @apply bg-asm-medium-gold/20;
+}
+
+.asm-sidebar-item.active {
+  @apply bg-asm-medium-gold text-white font-medium;
+}
+
+.asm-card {
+  @apply border border-asm-medium-gold/30 shadow-sm hover:shadow-md transition-shadow duration-300;
+}
+
+.asm-button {
+  @apply bg-asm-navy text-asm-light-gold hover:bg-asm-navy/90 transition-colors;
+}
+
+.asm-gold-button {
+  @apply bg-asm-medium-gold text-white hover:bg-asm-dark-gold transition-colors;
+}
+
+/* Animaciones para el sidebar y overlay */
+@keyframes slideInFromLeft {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slideIn {
+  animation: slideInFromLeft 0.3s ease-in-out forwards;
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-in-out forwards;
+}
+
+/* Mejoras de responsividad */
+@media (max-width: 1023px) {
+  .mobile-sidebar-open {
+    overflow: hidden;
+  }
+
+  .hamburger-btn {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+  }
+
+  .hamburger-btn:hover {
+    background-color: rgba(183, 160, 83, 0.1);
+  }
+
+  .hamburger-btn:active {
+    transform: scale(0.95);
+  }
+}
+
+/* Estilos para el botón de hamburguesa */
+.hamburger-icon {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hamburger-icon span,
+.hamburger-icon span::before,
+.hamburger-icon span::after {
+  position: absolute;
+  width: 20px;
+  height: 2px;
+  background-color: currentColor;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+.hamburger-icon span::before,
+.hamburger-icon span::after {
+  content: "";
+}
+
+.hamburger-icon span::before {
+  transform: translateY(-6px);
+}
+
+.hamburger-icon span::after {
+  transform: translateY(6px);
+}
+
+/* Animación del botón de hamburguesa */
+.hamburger-icon.active span {
+  background-color: transparent;
+}
+
+.hamburger-icon.active span::before {
+  transform: rotate(45deg);
+}
+
+.hamburger-icon.active span::after {
+  transform: rotate(-45deg);
+}
+
