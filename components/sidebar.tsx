@@ -102,6 +102,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
     },
     {
       title: "Finanzas y Pagos",
+      href: "/finanzas-pagos",
       icon: <DollarSign className="h-5 w-5" />,
       variant: "ghost",
     },
