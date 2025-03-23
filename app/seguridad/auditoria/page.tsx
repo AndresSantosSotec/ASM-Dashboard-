@@ -234,7 +234,7 @@ export default function LogsAuditoria() {
                   <TableCell>{log.ip}</TableCell>
                   <TableCell>
                     <Badge
-                      variant={log.nivel === "Info" ? "default" : log.nivel === "Alerta" ? "warning" : "destructive"}
+                      variant={log.nivel === "Info" ? "default" : log.nivel === "Alerta" ? "secondary" : "destructive"}
                     >
                       {log.nivel}
                     </Badge>
@@ -249,4 +249,3 @@ export default function LogsAuditoria() {
     </div>
   )
 }
-

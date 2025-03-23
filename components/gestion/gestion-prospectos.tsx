@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Filter, MoreHorizontal, Eye, Edit2, Trash2, UserPlus } from "lucide-react"
@@ -12,6 +12,7 @@ import EditarProspecto from "./editar-prospecto"
 import ConfirmarInscripcion from "./confirmar-inscripcion"
 import CambiarEstado from "./cambiar-estado"
 
+// Esta interfaz la usas en tu tabla
 interface Prospecto {
   id: string
   nombre: string
@@ -22,50 +23,61 @@ interface Prospecto {
   ultimoCambio: string
 }
 
-const prospectos: Prospecto[] = [
-  {
-    id: "1",
-    nombre: "Juan Pérez",
-    email: "juan@example.com",
-    telefono: "1234567890",
-    departamento: "Guatemala",
-    estado: "Nuevo",
-    ultimoCambio: "30/9/2023",
-  },
-  {
-    id: "2",
-    nombre: "María García",
-    email: "maria@example.com",
-    telefono: "0987654321",
-    departamento: "Quetzaltenango",
-    estado: "En proceso",
-    ultimoCambio: "1/10/2023",
-  },
-  {
-    id: "3",
-    nombre: "Carlos López",
-    email: "carlos@example.com",
-    telefono: "5555555555",
-    departamento: "Escuintla",
-    estado: "Perdido",
-    ultimoCambio: "2/10/2023",
-  },
-  {
-    id: "4",
-    nombre: "Ana Martínez",
-    email: "ana@example.com",
-    telefono: "9876543210",
-    departamento: "Sacatepéquez",
-    estado: "Nuevo",
-    ultimoCambio: "3/10/2023",
-  },
-]
-
 export default function GestionProspectos() {
+  const [prospectos, setProspectos] = useState<Prospecto[]>([])
+  const [loading, setLoading] = useState<boolean>(false)
+  const [error, setError] = useState<string>("")
   const [selectedProspecto, setSelectedProspecto] = useState<Prospecto | null>(null)
   const [modalType, setModalType] = useState<"detalles" | "editar" | "confirmar" | null>(null)
   const [showEstadoMenu, setShowEstadoMenu] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+  useEffect(() => {
+    const fetchProspectos = async () => {
+      setLoading(true)
+      setError("")
+
+      try {
+        // Ajusta la URL según tu backend (ejemplo con Laravel)
+        const url = "http://127.0.0.1:8000/api/prospectos"
+        const res = await fetch(url)
+
+        console.log("Respuesta de fetch, status:", res.status)
+
+        if (!res.ok) {
+          throw new Error(`Error al obtener prospectos: status ${res.status}`)
+        }
+
+        const json = await res.json()
+        console.log("JSON recibido:", json)
+
+        // Mapeamos los campos que tu API devuelve (nombre_completo, correo_electronico, etc.)
+        // a los que usa tu tabla (nombre, email, etc.)
+        const prospectosTransformados = json.data.map((item: any) => ({
+          // En tu tabla usas strings como 'id', aquí nos aseguramos de convertir si es numérico.
+          id: String(item.id),
+          nombre: item.nombre_completo,
+          email: item.correo_electronico,
+          telefono: item.telefono,
+          // Asigna algo para "departamento" si no existe en la base de datos.
+          departamento: item.empresa_donde_labora_actualmente ?? "Sin Departamento",
+          // Podrías venirlo leyendo de la BD, o bien asignar un valor según la lógica que manejes.
+          estado: "Nuevo",
+          // Mapeamos "ultimoCambio" a updated_at (o el campo que desees)
+          ultimoCambio: item.updated_at ?? "N/A",
+        }))
+
+        setProspectos(prospectosTransformados)
+
+      } catch (err: any) {
+        setError(err.message || "Error inesperado")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchProspectos()
+  }, [])
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -116,6 +128,9 @@ export default function GestionProspectos() {
           Filtros
         </Button>
       </div>
+
+      {loading && <p className="p-4">Cargando prospectos...</p>}
+      {error && <p className="p-4 text-red-500">{error}</p>}
 
       <div className="overflow-x-auto">
         <table className="w-full">
@@ -222,6 +237,7 @@ export default function GestionProspectos() {
         </table>
       </div>
 
+      {/* Modales */}
       {selectedProspecto && modalType === "detalles" && (
         <DetallesProspecto
           prospecto={selectedProspecto}
@@ -264,4 +280,3 @@ export default function GestionProspectos() {
     </div>
   )
 }
-
