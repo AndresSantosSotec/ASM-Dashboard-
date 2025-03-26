@@ -1,10 +1,11 @@
 "use client"
 
+import Swal from 'sweetalert2'
 import axios from "axios"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -30,6 +31,7 @@ import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 
+// Definimos el esquema de validación con zod
 const formSchema = z.object({
   fecha: z.date({ required_error: "La fecha es requerida" }),
   nombreCompleto: z.string().min(1, "El nombre es requerido"),
@@ -45,13 +47,30 @@ const formSchema = z.object({
   nota2: z.string().optional(),
   nota3: z.string().optional(),
   cierre: z.string().optional(),
+  // Campos para ubicación
+  pais: z.string({ required_error: "El país es requerido" }),
+  departamento: z.string({ required_error: "El departamento es requerido" }),
+  municipio: z.string({ required_error: "El municipio es requerido" }),
 })
 
 type FormData = z.infer<typeof formSchema>
 
+// Componente principal
 export default function CapturaProspectos() {
   const [loading, setLoading] = useState(false)
 
+  // Estado para almacenar los programas
+  const [programas, setProgramas] = useState<
+    { id: number; abreviatura: string; nombre_del_programa: string; meses: number }[]
+  >([])
+
+  // Estados para la ubicación (Guatemala)
+  const [departamentos, setDepartamentos] = useState<
+    { id: number; nombre: string; municipios: { id: number; nombre: string }[] }[]
+  >([])
+  const [municipios, setMunicipios] = useState<{ id: number; nombre: string }[]>([])
+
+  // useForm con defaultValues para país=1 (Guatemala)
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -69,32 +88,97 @@ export default function CapturaProspectos() {
       nota2: "",
       nota3: "",
       cierre: "",
+      pais: "1", // Guatemala
+      departamento: "",
+      municipio: "",
     },
   })
 
+  // Obtener la lista de programas
+  useEffect(() => {
+    const fetchProgramas = async () => {
+      try {
+        const response = await axios.get("http://localhost:8000/api/programas")
+        setProgramas(response.data)
+      } catch (error) {
+        console.error("❌ Error al obtener programas:", error)
+      }
+    }
+    fetchProgramas()
+  }, [])
+
+  // Al montar el componente, obtener la estructura de departamentos y municipios de Guatemala
+  useEffect(() => {
+    const fetchUbicacionGuatemala = async () => {
+      try {
+        // Suponiendo que /api/ubicacion/1 retorna la estructura del país con sus departamentos y municipios
+        const response = await axios.get("http://localhost:8000/api/ubicacion/1")
+        const data = response.data
+        // Guardamos en estado los departamentos
+        setDepartamentos(data.departamentos)
+      } catch (error) {
+        console.error("❌ Error al obtener ubicación de Guatemala:", error)
+      }
+    }
+    fetchUbicacionGuatemala()
+  }, [])
+
+  // Función para cuando el usuario seleccione un departamento
+  const handleDepartamentoChange = (value: string) => {
+    // Actualizamos el valor del formulario
+    form.setValue("departamento", value)
+    // Buscamos el departamento en nuestro estado
+    const dept = departamentos.find((d) => d.id.toString() === value)
+    // Actualizamos la lista de municipios
+    if (dept) {
+      setMunicipios(dept.municipios)
+    } else {
+      setMunicipios([])
+    }
+    // Resetear el municipio si se cambia de departamento
+    form.setValue("municipio", "")
+  }
+
+  // Función para cuando el usuario seleccione un municipio
+  const handleMunicipioChange = (value: string) => {
+    form.setValue("municipio", value)
+  }
+
+  // Manejo de envío del formulario
   const onSubmit = async (data: FormData) => {
     try {
       setLoading(true)
+      // Convertimos la fecha a formato YYYY-MM-DD
+      const fechaFormateada = data.fecha.toISOString().split("T")[0]
       const response = await axios.post("http://localhost:8000/api/prospectos", {
         ...data,
-        fecha: data.fecha.toISOString().split("T")[0], // YYYY-MM-DD
+        fecha: fechaFormateada,
       })
-
       console.log("✅ Prospecto guardado:", response.data)
-      alert("✅ Prospecto guardado exitosamente")
+      Swal.fire({
+        icon: 'success',
+        title: 'Guardado',
+        text: 'Prospecto guardado exitosamente',
+      })
       form.reset()
     } catch (error: any) {
       console.error("❌ Error al guardar prospecto:", error.response?.data || error.message)
-      alert("❌ Ocurrió un error al guardar el prospecto")
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Ocurrió un error al guardar el prospecto',
+      })
     } finally {
       setLoading(false)
     }
   }
 
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         <div className="bg-white p-6 rounded-lg shadow-sm space-y-6">
+          {/* Campos principales */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Fecha */}
             <FormField
@@ -207,7 +291,7 @@ export default function CapturaProspectos() {
               )}
             />
 
-            {/* Empresa */}
+            {/* Empresa donde labora */}
             <FormField
               control={form.control}
               name="empresaDondeLaboraActualmente"
@@ -268,25 +352,36 @@ export default function CapturaProspectos() {
             )}
           />
 
+          {/* Programa de Interés */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Interés */}
             <FormField
               control={form.control}
               name="interes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Interés</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ingrese el interés" {...field} />
-                  </FormControl>
+                  <FormLabel>Programa de Interés</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccione un programa" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {programas.map((programa) => (
+                        <SelectItem key={programa.id} value={programa.id.toString()}>
+                          {programa.abreviatura} - {programa.nombre_del_programa} ({programa.meses} meses)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
           </div>
 
+          {/* Seguimientos */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Seguimientos */}
             {["nota1", "nota2", "nota3"].map((name, idx) => (
               <FormField
                 key={name}
@@ -323,8 +418,92 @@ export default function CapturaProspectos() {
               </FormItem>
             )}
           />
+
+          {/* Sección de Ubicación */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* País (Fijo Guatemala) */}
+            <FormField
+              control={form.control}
+              name="pais"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>País</FormLabel>
+                  <Select disabled value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Guatemala" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="1">Guatemala</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Departamento (Elegible por el usuario) */}
+            <FormField
+              control={form.control}
+              name="departamento"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Departamento</FormLabel>
+                  <Select
+                    onValueChange={(value) => handleDepartamentoChange(value)}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccione un departamento" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {departamentos.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id.toString()}>
+                          {dept.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Municipio (Elegible por el usuario) */}
+            <FormField
+              control={form.control}
+              name="municipio"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Municipio</FormLabel>
+                  <Select
+                    onValueChange={(value) => handleMunicipioChange(value)}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccione un municipio" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {municipios.map((mun) => (
+                        <SelectItem key={mun.id} value={mun.id.toString()}>
+                          {mun.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
         </div>
 
+        {/* Botones */}
         <div className="flex justify-end gap-4">
           <Button
             variant="outline"

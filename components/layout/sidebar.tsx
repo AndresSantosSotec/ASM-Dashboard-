@@ -32,6 +32,10 @@ import {
   Phone,
   FileCheck,
   Send,
+  Key,
+  LogIn,
+  Database,
+  Clock,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -708,6 +712,109 @@ export default function Sidebar({ open, className }: SidebarProps) {
             </div>
             {expandedSections["seguridad"] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>
+
+          {expandedSections["seguridad"] && (
+            <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
+              {/* Dashboard Seguridad */}
+              <Link
+                href="/seguridad/dashboard"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/dashboard" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  } transition-colors duration-200`}
+              >
+                <LayoutDashboard size={16} className="mr-2" />
+                <span>Dashboard Seguridad</span>
+              </Link>
+
+              {/* 2FA */}
+              <Link
+                href="/seguridad/2fa"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/2fa" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  } transition-colors duration-200`}
+              >
+                <Key size={16} className="mr-2" />
+                <span>Autenticación 2FA</span>
+              </Link>
+
+              {/* Accesos */}
+              <Link
+                href="/seguridad/accesos"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/accesos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  } transition-colors duration-200`}
+              >
+                <LogIn size={16} className="mr-2" />
+                <span>Accesos</span>
+              </Link>
+
+              {/* Auditoría */}
+              <Link
+                href="/seguridad/auditoria"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/auditoria" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  } transition-colors duration-200`}
+              >
+                <Activity size={16} className="mr-2" />
+                <span>Auditoría</span>
+              </Link>
+
+              {/* Políticas */}
+              <Link
+                href="/seguridad/politicas"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/politicas" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  } transition-colors duration-200`}
+              >
+                <FileText size={16} className="mr-2" />
+                <span>Políticas</span>
+              </Link>
+
+              {/* Respaldo */}
+              <Link
+                href="/seguridad/respaldos"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/respaldo" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  } transition-colors duration-200`}
+              >
+                <Database size={16} className="mr-2" />
+                <span>Respaldo</span>
+              </Link>
+
+              {/* Roles */}
+              <Link
+                href="/seguridad/roles"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/roles" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  } transition-colors duration-200`}
+              >
+                <Users size={16} className="mr-2" />
+                <span>Roles</span>
+              </Link>
+
+              {/* Sesiones */}
+              <Link
+                href="/seguridad/sesiones"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/sesiones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  } transition-colors duration-200`}
+              >
+                <Clock size={16} className="mr-2" />
+                <span>Sesiones</span>
+              </Link>
+
+              {/* Usuarios */}
+              <Link
+                href="/seguridad/usuarios"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/usuarios" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  } transition-colors duration-200`}
+              >
+                <UserCheck size={16} className="mr-2" />
+                <span>Usuarios</span>
+              </Link>
+              {/*Permisos*/}
+              <Link
+                href="/seguridad/permisos"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/permisos" ?
+                  "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+              >
+                <Shield size={16} className="mr-2" />
+                <span>Permisos</span>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 

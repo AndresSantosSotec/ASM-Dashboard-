@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AlertTriangle, Clock, Key, Lock, RefreshCw, Save, Shield, User } from "lucide-react"
+import { AlertTriangle, Clock, FileText, Key, Lock, RefreshCw, Save, Shield, User } from "lucide-react"
 
 export default function PoliticasSeguridad() {
   return (

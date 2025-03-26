@@ -5,83 +5,108 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Edit, Search, Trash, UserPlus, Users, Shield } from "lucide-react"
+import { Edit, Search, Trash, UserPlus, Users, Shield, Plus, Save, X } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import * as z from "zod"
+
+// Datos de ejemplo de usuarios (convertidos a estado para actualizar)
+const initialUsuarios = [
+  {
+    id: 1,
+    nombre: "Juan Pérez",
+    email: "juan.perez@ejemplo.com",
+    rol: "Administrador",
+    estado: "Activo",
+    ultimoAcceso: "2023-05-15 10:30",
+  },
+  {
+    id: 2,
+    nombre: "María López",
+    email: "maria.lopez@ejemplo.com",
+    rol: "Docente",
+    estado: "Activo",
+    ultimoAcceso: "2023-05-14 15:45",
+  },
+  {
+    id: 3,
+    nombre: "Carlos Rodríguez",
+    email: "carlos.rodriguez@ejemplo.com",
+    rol: "Estudiante",
+    estado: "Inactivo",
+    ultimoAcceso: "2023-05-10 09:15",
+  },
+  {
+    id: 4,
+    nombre: "Ana Martínez",
+    email: "ana.martinez@ejemplo.com",
+    rol: "Administrativo",
+    estado: "Activo",
+    ultimoAcceso: "2023-05-15 08:20",
+  },
+  {
+    id: 5,
+    nombre: "Roberto Sánchez",
+    email: "roberto.sanchez@ejemplo.com",
+    rol: "Docente",
+    estado: "Activo",
+    ultimoAcceso: "2023-05-13 14:10",
+  },
+  {
+    id: 6,
+    nombre: "Laura Gómez",
+    email: "laura.gomez@ejemplo.com",
+    rol: "Estudiante",
+    estado: "Activo",
+    ultimoAcceso: "2023-05-12 11:30",
+  },
+  {
+    id: 7,
+    nombre: "Pedro Díaz",
+    email: "pedro.diaz@ejemplo.com",
+    rol: "Administrativo",
+    estado: "Inactivo",
+    ultimoAcceso: "2023-05-08 16:45",
+  },
+  {
+    id: 8,
+    nombre: "Sofía Hernández",
+    email: "sofia.hernandez@ejemplo.com",
+    rol: "Docente",
+    estado: "Activo",
+    ultimoAcceso: "2023-05-14 10:20",
+  },
+]
+
+// Definición del esquema para crear un usuario
+const usuarioSchema = z.object({
+  nombre: z.string().min(1, "El nombre es requerido"),
+  email: z.string().email("Correo electrónico inválido"),
+  rol: z.string().min(1, "El rol es requerido"),
+  estado: z.string().default("Activo"),
+})
+
+type Usuario = z.infer<typeof usuarioSchema>
 
 export default function GestionUsuarios() {
+  const [usuarios, setUsuarios] = useState(initialUsuarios)
   const [searchTerm, setSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState("todos")
+  // Estado para abrir el modal de "Crear Usuario"
+  const [isUserDialogOpen, setIsUserDialogOpen] = useState(false)
 
-  // Datos de ejemplo
-  const usuarios = [
-    {
-      id: 1,
-      nombre: "Juan Pérez",
-      email: "juan.perez@ejemplo.com",
-      rol: "Administrador",
-      estado: "Activo",
-      ultimoAcceso: "2023-05-15 10:30",
-    },
-    {
-      id: 2,
-      nombre: "María López",
-      email: "maria.lopez@ejemplo.com",
-      rol: "Docente",
-      estado: "Activo",
-      ultimoAcceso: "2023-05-14 15:45",
-    },
-    {
-      id: 3,
-      nombre: "Carlos Rodríguez",
-      email: "carlos.rodriguez@ejemplo.com",
-      rol: "Estudiante",
-      estado: "Inactivo",
-      ultimoAcceso: "2023-05-10 09:15",
-    },
-    {
-      id: 4,
-      nombre: "Ana Martínez",
-      email: "ana.martinez@ejemplo.com",
-      rol: "Administrativo",
-      estado: "Activo",
-      ultimoAcceso: "2023-05-15 08:20",
-    },
-    {
-      id: 5,
-      nombre: "Roberto Sánchez",
-      email: "roberto.sanchez@ejemplo.com",
-      rol: "Docente",
-      estado: "Activo",
-      ultimoAcceso: "2023-05-13 14:10",
-    },
-    {
-      id: 6,
-      nombre: "Laura Gómez",
-      email: "laura.gomez@ejemplo.com",
-      rol: "Estudiante",
-      estado: "Activo",
-      ultimoAcceso: "2023-05-12 11:30",
-    },
-    {
-      id: 7,
-      nombre: "Pedro Díaz",
-      email: "pedro.diaz@ejemplo.com",
-      rol: "Administrativo",
-      estado: "Inactivo",
-      ultimoAcceso: "2023-05-08 16:45",
-    },
-    {
-      id: 8,
-      nombre: "Sofía Hernández",
-      email: "sofia.hernandez@ejemplo.com",
-      rol: "Docente",
-      estado: "Activo",
-      ultimoAcceso: "2023-05-14 10:20",
-    },
-  ]
-
-  // Filtrar usuarios según la búsqueda y la pestaña activa
+  // Filtrar usuarios según búsqueda y pestaña activa
   const filteredUsuarios = usuarios.filter((usuario) => {
     const matchesSearch =
       usuario.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -94,11 +119,36 @@ export default function GestionUsuarios() {
     return matchesSearch
   })
 
+  // Formulario para crear usuario
+  const userForm = useForm<Usuario>({
+    resolver: zodResolver(usuarioSchema),
+    defaultValues: {
+      nombre: "",
+      email: "",
+      rol: "",
+      estado: "Activo",
+    },
+  })
+
+  const handleUserSubmit = (data: Usuario) => {
+    // Asignamos un nuevo id y dejamos "ultimoAcceso" vacío o "N/A"
+    const newUser = {
+      id: usuarios.length + 1,
+      nombre: data.nombre,
+      email: data.email,
+      rol: data.rol,
+      estado: data.estado,
+      ultimoAcceso: "N/A",
+    }
+    setUsuarios([...usuarios, newUser])
+    setIsUserDialogOpen(false)
+  }
+
   return (
     <div className="container mx-auto py-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Gestión de Usuarios</h1>
-        <Button className="bg-blue-600 hover:bg-blue-700">
+        <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => setIsUserDialogOpen(true)}>
           <UserPlus className="mr-2 h-4 w-4" />
           Nuevo Usuario
         </Button>
@@ -207,7 +257,84 @@ export default function GestionUsuarios() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Modal para crear usuario */}
+      <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Crear Usuario</DialogTitle>
+            <DialogDescription>
+              Completa el formulario para crear un nuevo usuario.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...userForm}>
+            <form onSubmit={userForm.handleSubmit(handleUserSubmit)} className="space-y-4">
+              <FormField
+                control={userForm.control}
+                name="nombre"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Nombre" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={userForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Correo electrónico" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={userForm.control}
+                name="rol"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Rol</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Rol" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={userForm.control}
+                name="estado"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Estado</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Estado" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsUserDialogOpen(false)}>
+                  <X className="mr-2 h-4 w-4" />
+                  Cancelar
+                </Button>
+                <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+                  <Save className="mr-2 h-4 w-4" />
+                  Crear Usuario
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
-

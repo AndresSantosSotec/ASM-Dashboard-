@@ -356,7 +356,7 @@ export default function RespaldosSeguridad() {
                                 ? "secondary"
                                 : tarea.tipo === "Diferencial"
                                   ? "outline"
-                                  : "warning"
+                                  : "destructive"
                           }
                         >
                           {tarea.tipo}
