@@ -1,112 +1,135 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Clock, LogOut, Monitor, RefreshCw, Smartphone, Tablet } from "lucide-react"
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Clock, LogOut, Monitor, RefreshCw, Smartphone, Tablet } from "lucide-react";
+
+// Definir la interfaz para las sesiones
+interface Session {
+  id: number;
+  usuario: string;
+  email: string;
+  rol: string;
+  ip: string;
+  inicio: string;
+  duracion: string;
+  dispositivo: string;
+  tipo: string;
+  activa: boolean;
+}
+
+// URL base de tu servidor Laravel (CORREGIDO)
+const LARAVEL_API_URL = "http://localhost:8000";
 
 export default function SesionesActivas() {
-  // Datos de ejemplo
-  const sesiones = [
-    {
-      id: 1,
-      usuario: "Juan Pérez",
-      email: "juan.perez@ejemplo.com",
-      rol: "Administrador",
-      ip: "192.168.1.100",
-      inicio: "2023-05-15 10:30:45",
-      duracion: "01:45:22",
-      dispositivo: "Windows / Chrome",
-      tipo: "Desktop",
-      activa: true,
-    },
-    {
-      id: 2,
-      usuario: "María López",
-      email: "maria.lopez@ejemplo.com",
-      rol: "Docente",
-      ip: "192.168.1.101",
-      inicio: "2023-05-15 09:15:22",
-      duracion: "02:30:45",
-      dispositivo: "MacOS / Safari",
-      tipo: "Desktop",
-      activa: true,
-    },
-    {
-      id: 3,
-      usuario: "Carlos Rodríguez",
-      email: "carlos.rodriguez@ejemplo.com",
-      rol: "Estudiante",
-      ip: "192.168.1.102",
-      inicio: "2023-05-15 08:45:10",
-      duracion: "00:15:33",
-      dispositivo: "Android / Chrome",
-      tipo: "Mobile",
-      activa: false,
-    },
-    {
-      id: 4,
-      usuario: "Ana Martínez",
-      email: "ana.martinez@ejemplo.com",
-      rol: "Administrativo",
-      ip: "192.168.1.103",
-      inicio: "2023-05-15 11:20:33",
-      duracion: "00:45:12",
-      dispositivo: "Windows / Edge",
-      tipo: "Desktop",
-      activa: true,
-    },
-    {
-      id: 5,
-      usuario: "Roberto Sánchez",
-      email: "roberto.sanchez@ejemplo.com",
-      rol: "Docente",
-      ip: "192.168.1.104",
-      inicio: "2023-05-15 10:10:05",
-      duracion: "01:50:30",
-      dispositivo: "iOS / Safari",
-      tipo: "Tablet",
-      activa: true,
-    },
-    {
-      id: 6,
-      usuario: "Laura Gómez",
-      email: "laura.gomez@ejemplo.com",
-      rol: "Estudiante",
-      ip: "192.168.1.105",
-      inicio: "2023-05-15 09:05:18",
-      duracion: "00:30:45",
-      dispositivo: "Windows / Firefox",
-      tipo: "Desktop",
-      activa: false,
-    },
-  ]
+  // Tipamos el estado para que sea un arreglo de Session
+  const [sessionList, setSessionList] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const [sessionList, setSessionList] = useState(sesiones)
+  // Obtén el token almacenado
+  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
 
-  // Función para cerrar una sesión
-  const cerrarSesion = (id: number) => {
-    setSessionList(sessionList.map((sesion) => (sesion.id === id ? { ...sesion, activa: false } : sesion)))
-  }
+  // Función para cargar las sesiones desde el API
+  const fetchSessions = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${LARAVEL_API_URL}/api/sessions`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      // Si la ruta no existe o Laravel devuelve un error, es posible que response no sea JSON
+      const data = await response.json().catch(() => {
+        throw new Error("La respuesta no es JSON");
+      });
+
+      if (response.ok) {
+        setSessionList(data.sessions); // data.sessions debe coincidir con la interfaz Session[]
+      } else {
+        console.error("Error al obtener las sesiones", data.error);
+      }
+    } catch (error) {
+      console.error("Error al conectar con el API", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Cargar sesiones al montar el componente
+  useEffect(() => {
+    fetchSessions();
+  }, []);
+
+  // Función para cerrar una sesión individual
+  const cerrarSesion = async (id: number) => {
+    try {
+      const response = await fetch(`${LARAVEL_API_URL}/api/sessions/${id}/close`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json().catch(() => {
+        throw new Error("La respuesta no es JSON");
+      });
+
+      if (response.ok) {
+        // Actualiza la lista local tras cerrar la sesión
+        setSessionList(
+          sessionList.map((sesion) =>
+            sesion.id === id ? { ...sesion, activa: false } : sesion
+          )
+        );
+      } else {
+        console.error("Error al cerrar la sesión", data.error);
+      }
+    } catch (error) {
+      console.error("Error al conectar con el API", error);
+    }
+  };
 
   // Función para cerrar todas las sesiones
-  const cerrarTodasSesiones = () => {
-    setSessionList(sessionList.map((sesion) => ({ ...sesion, activa: false })))
-  }
+  const cerrarTodasSesiones = async () => {
+    try {
+      const response = await fetch(`${LARAVEL_API_URL}/api/sessions/close-all`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json().catch(() => {
+        throw new Error("La respuesta no es JSON");
+      });
+
+      if (response.ok) {
+        // Marca todas las sesiones como inactivas
+        setSessionList(sessionList.map((sesion) => ({ ...sesion, activa: false })));
+      } else {
+        console.error("Error al cerrar todas las sesiones", data.error);
+      }
+    } catch (error) {
+      console.error("Error al conectar con el API", error);
+    }
+  };
 
   // Contar sesiones por tipo de dispositivo
-  const desktopSessions = sessionList.filter((s) => s.tipo === "Desktop" && s.activa).length
-  const mobileSessions = sessionList.filter((s) => s.tipo === "Mobile" && s.activa).length
-  const tabletSessions = sessionList.filter((s) => s.tipo === "Tablet" && s.activa).length
+  const desktopSessions = sessionList.filter((s) => s.tipo === "Desktop" && s.activa).length;
+  const mobileSessions = sessionList.filter((s) => s.tipo === "Mobile" && s.activa).length;
+  const tabletSessions = sessionList.filter((s) => s.tipo === "Tablet" && s.activa).length;
 
   return (
     <div className="container mx-auto py-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Sesiones Activas</h1>
         <div>
-          <Button variant="outline" className="mr-2">
+          <Button variant="outline" className="mr-2" onClick={fetchSessions}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Actualizar
           </Button>
@@ -128,7 +151,9 @@ export default function SesionesActivas() {
                 <Clock className="h-8 w-8 text-blue-600 mr-3" />
                 <div>
                   <p className="text-sm text-gray-500">Sesiones Activas</p>
-                  <p className="text-2xl font-bold">{sessionList.filter((s) => s.activa).length}</p>
+                  <p className="text-2xl font-bold">
+                    {sessionList.filter((s) => s.activa).length}
+                  </p>
                 </div>
               </div>
             </div>
@@ -165,65 +190,78 @@ export default function SesionesActivas() {
 
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Usuario</TableHead>
-                <TableHead>Rol</TableHead>
-                <TableHead>IP</TableHead>
-                <TableHead>Inicio de Sesión</TableHead>
-                <TableHead>Duración</TableHead>
-                <TableHead>Dispositivo</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sessionList.map((sesion) => (
-                <TableRow key={sesion.id} className={!sesion.activa ? "opacity-60" : ""}>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{sesion.usuario}</div>
-                      <div className="text-sm text-gray-500">{sesion.email}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{sesion.rol}</TableCell>
-                  <TableCell>{sesion.ip}</TableCell>
-                  <TableCell>{sesion.inicio}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center">
-                      <Clock className="h-3 w-3 mr-1 text-gray-500" />
-                      {sesion.duracion}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center">
-                      {sesion.tipo === "Desktop" && <Monitor className="h-4 w-4 mr-1 text-green-600" />}
-                      {sesion.tipo === "Mobile" && <Smartphone className="h-4 w-4 mr-1 text-yellow-600" />}
-                      {sesion.tipo === "Tablet" && <Tablet className="h-4 w-4 mr-1 text-purple-600" />}
-                      {sesion.dispositivo}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={sesion.activa ? "success" : "secondary"}>
-                      {sesion.activa ? "Activa" : "Cerrada"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {sesion.activa && (
-                      <Button variant="destructive" size="sm" onClick={() => cerrarSesion(sesion.id)}>
-                        <LogOut className="h-4 w-4 mr-1" />
-                        Cerrar Sesión
-                      </Button>
-                    )}
-                  </TableCell>
+          {loading ? (
+            <p>Cargando sesiones...</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Usuario</TableHead>
+                  <TableHead>Rol</TableHead>
+                  <TableHead>IP</TableHead>
+                  <TableHead>Inicio de Sesión</TableHead>
+                  <TableHead>Duración</TableHead>
+                  <TableHead>Dispositivo</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {sessionList.map((sesion) => (
+                  <TableRow key={sesion.id} className={!sesion.activa ? "opacity-60" : ""}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{sesion.usuario}</div>
+                        <div className="text-sm text-gray-500">{sesion.email}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>{sesion.rol}</TableCell>
+                    <TableCell>{sesion.ip}</TableCell>
+                    <TableCell>{sesion.inicio}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center">
+                        <Clock className="h-3 w-3 mr-1 text-gray-500" />
+                        {sesion.duracion}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center">
+                        {sesion.tipo === "Desktop" && (
+                          <Monitor className="h-4 w-4 mr-1 text-green-600" />
+                        )}
+                        {sesion.tipo === "Mobile" && (
+                          <Smartphone className="h-4 w-4 mr-1 text-yellow-600" />
+                        )}
+                        {sesion.tipo === "Tablet" && (
+                          <Tablet className="h-4 w-4 mr-1 text-purple-600" />
+                        )}
+                        {sesion.dispositivo}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={sesion.activa ? "success" : "secondary"}>
+                        {sesion.activa ? "Activa" : "Cerrada"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {sesion.activa && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => cerrarSesion(sesion.id)}
+                        >
+                          <LogOut className="h-4 w-4 mr-1" />
+                          Cerrar Sesión
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
-

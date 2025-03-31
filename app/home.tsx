@@ -1,7 +1,4 @@
-"use client"
-
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+// app/page.tsx
 import TabNavigation from "@/components/tab-navigation"
 import CaptacionesPanel from "@/components/captaciones-panel"
 import AnalisisPanel from "@/components/analisis-panel"
@@ -15,13 +12,7 @@ import CorreosEnviados from "@/components/correos-enviados"
 import MisProspectos from "@/components/mis-prospectos"
 import CalendarioSemanal from "@/components/calendario-semanal"
 
-// Esta página Home ya no necesita chequear localStorage para `isAuthenticated`,
-// pues el MainLayout se encarga de verificar la existencia del token.
-
 export default function Home() {
-  // Si el MainLayout determina que no hay token, redirige automáticamente.
-  // Por ello, no necesitamos hacer nada más aquí.
-
   return (
     <>
       <TabNavigation />

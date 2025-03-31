@@ -10,7 +10,6 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "American School of Management",
   description: "Sistema de Gestión Académica",
-    generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -28,7 +27,3 @@ export default function RootLayout({
     </html>
   )
 }
-
-
-
-import './globals.css'

@@ -1,44 +1,13 @@
 "use client"
 
 import { useState, type ReactNode } from "react"
-import {
-  BarChart2,
-  Calendar,
-  ChevronDown,
-  ChevronRight,
-  FileText,
-  Home,
-  Mail,
-  Settings,
-  Shield,
-  Users,
-  DollarSign,
-  BookOpen,
-  ClipboardList,
-  Activity,
-  Copy,
-  UserCheck,
-  Plus,
-  FileSignature,
-  BarChart,
-  LayoutDashboard,
-  GraduationCapIcon,
-  CreditCard,
-  Bell,
-  Award,
-  Medal,
-  PieChart,
-  RefreshCw,
-  Phone,
-  FileCheck,
-  Send,
-  Key,
-  LogIn,
-  Database,
-  Clock,
+import {BarChart2,Calendar,ChevronDown,ChevronRight,FileText,Home,Mail,Settings,Shield,Users,DollarSign,
+BookOpen,ClipboardList,Activity,Copy,UserCheck,Plus,FileSignature,BarChart,LayoutDashboard,GraduationCapIcon,
+CreditCard,Bell,Award,Medal,PieChart,RefreshCw,Phone,FileCheck,Send,Key,LogIn,Database,Clock,LogOut
 } from "lucide-react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import axios from "axios"
+import { useRouter, usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 
 interface SidebarProps {
@@ -54,6 +23,7 @@ interface SidebarItem {
 }
 
 export default function Sidebar({ open, className }: SidebarProps) {
+  const router = useRouter() // Se obtiene el router para redireccionar
   const pathname = usePathname()
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     prospectos: false,
@@ -74,6 +44,32 @@ export default function Sidebar({ open, className }: SidebarProps) {
     }))
   }
 
+  // Función para cerrar sesión: elimina el indicador de autenticación y redirige a "/login"
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem("token")
+      if (token) {
+        await axios.post(
+          "http://localhost:8000/api/logout",
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        )
+      }
+    } catch (error) {
+      console.error(error)
+    } finally {
+      // Limpia todo rastro de token/usuario en el navegador
+      localStorage.removeItem("token")
+      localStorage.removeItem("user")
+      // Redirige a la pantalla de login
+      router.push("/login")
+    }
+  }
+
   return (
     <div
       className={`${open ? "w-64" : "w-0 -translate-x-full"} transition-all duration-300 asm-gradient border-r border-asm-medium-gold/30 flex flex-col h-full overflow-y-auto ${cn("pb-12", className)}`}
@@ -83,20 +79,26 @@ export default function Sidebar({ open, className }: SidebarProps) {
           <div className="w-12 h-12 bg-asm-light-gold rounded-full mb-2 flex items-center justify-center">
             <span className="text-asm-navy font-bold text-xl">ASM</span>
           </div>
-          <span className="text-asm-light-gold font-semibold text-sm text-center">American School of Management</span>
+          <span className="text-asm-light-gold font-semibold text-sm text-center">
+            American School of Management
+          </span>
         </Link>
       </div>
 
       <div className="flex-1 py-4 overflow-y-auto px-3">
         <Link
           href="/"
-          className={`flex items-center px-4 py-2 mb-2 rounded-md ${pathname === "/" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+          className={`flex items-center px-4 py-2 mb-2 rounded-md ${
+            pathname === "/" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+          } transition-colors duration-200`}
         >
           <Home size={18} className="mr-2" />
           <span>Inicio</span>
         </Link>
 
-        <div className="px-4 py-2 text-xs font-medium text-asm-light-gold/70 uppercase tracking-wider">Módulos</div>
+        <div className="px-4 py-2 text-xs font-medium text-asm-light-gold/70 uppercase tracking-wider">
+          Módulos
+        </div>
 
         {/* Prospectos y Asesores (expandible) */}
         <div className="mb-1">
@@ -115,135 +117,195 @@ export default function Sidebar({ open, className }: SidebarProps) {
             <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
               <Link
                 href="/gestion"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/gestion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/gestion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Users size={16} className="mr-2" />
                 <span>Gestión de Prospectos</span>
               </Link>
               <Link
                 href="/captura"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/captura" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/captura" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Plus size={16} className="mr-2" />
                 <span>Captura de Prospectos</span>
               </Link>
               <Link
                 href="/leads-asignados"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/leads-asignados" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/leads-asignados" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <FileText size={16} className="mr-2" />
                 <span>Leads Asignados</span>
               </Link>
               <Link
                 href="/seguimiento"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguimiento" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/seguimiento" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <ClipboardList size={16} className="mr-2" />
                 <span>Panel de Seguimiento</span>
               </Link>
               <Link
                 href="/importar-leads"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/importar-leads" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/importar-leads" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <FileText size={16} className="mr-2" />
                 <span>Importar Leads</span>
               </Link>
               <Link
                 href="/interacciones-leads"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/interacciones-leads" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/interacciones-leads" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Users size={16} className="mr-2" />
                 <span>Interacciones con Leads</span>
               </Link>
               <Link
                 href="/tareas-asesor"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/tareas-asesor" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/tareas-asesor" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <ClipboardList size={16} className="mr-2" />
                 <span>Tareas del Asesor</span>
               </Link>
 
               {/* Activities ahora dentro de Prospectos y Asesores */}
-              <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">Activities</div>
+              <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
+                Activities
+              </div>
               <Link
                 href="/correos"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/correos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/correos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Mail size={16} className="mr-2" />
                 <span>Correos</span>
               </Link>
               <Link
                 href="/calendario"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/calendario" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/calendario" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Calendar size={16} className="mr-2" />
                 <span>Calendario</span>
               </Link>
 
               {/* Integraciones */}
-              <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">Integraciones</div>
+              <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
+                Integraciones
+              </div>
               <Link
                 href="/envio-correos"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/envio-correos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/envio-correos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Mail size={16} className="mr-2" />
                 <span>Formulario de Correos</span>
               </Link>
               <Link
                 href="/programacion-tareas"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/programacion-tareas" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/programacion-tareas" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Calendar size={16} className="mr-2" />
                 <span>Programación de Tareas</span>
               </Link>
 
               {/* Admin Panel ahora dentro de Prospectos y Asesores */}
-              <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">Admin Panel</div>
+              <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
+                Admin Panel
+              </div>
               <Link
                 href="/admin"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/admin" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Users size={16} className="mr-2" />
                 <span>Gestión de Leads</span>
               </Link>
               <Link
                 href="/admin?tab=advisors"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin" && new URLSearchParams(window.location.search).get("tab") === "advisors" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/admin" &&
+                  new URLSearchParams(window.location.search).get("tab") === "advisors"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <UserCheck size={16} className="mr-2" />
                 <span>Asesores</span>
               </Link>
               <Link
                 href="/admin?tab=performance"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin" && new URLSearchParams(window.location.search).get("tab") === "performance" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/admin" &&
+                  new URLSearchParams(window.location.search).get("tab") === "performance"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <BarChart2 size={16} className="mr-2" />
                 <span>Rendimiento</span>
               </Link>
               <Link
                 href="/admin?tab=reports"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin" && new URLSearchParams(window.location.search).get("tab") === "reports" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/admin" &&
+                  new URLSearchParams(window.location.search).get("tab") === "reports"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <FileText size={16} className="mr-2" />
                 <span>Reportes</span>
               </Link>
               <Link
                 href="/admin?tab=advisorActivity"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin" && new URLSearchParams(window.location.search).get("tab") === "advisorActivity" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/admin" &&
+                  new URLSearchParams(window.location.search).get("tab") === "advisorActivity"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Activity size={16} className="mr-2" />
                 <span>Actividad Diaria</span>
               </Link>
               <Link
                 href="/admin?tab=duplicates"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin" && new URLSearchParams(window.location.search).get("tab") === "duplicates" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/admin" &&
+                  new URLSearchParams(window.location.search).get("tab") === "duplicates"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Copy size={16} className="mr-2" />
                 <span>Duplicados</span>
               </Link>
               <Link
                 href="/admin?tab=settings"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin" && new URLSearchParams(window.location.search).get("tab") === "settings" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/admin" &&
+                  new URLSearchParams(window.location.search).get("tab") === "settings"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Settings size={16} className="mr-2" />
                 <span>Configuración</span>
@@ -269,59 +331,81 @@ export default function Sidebar({ open, className }: SidebarProps) {
             <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
               <Link
                 href="/inscripcion/ficha"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/ficha" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/inscripcion/ficha" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <FileText size={16} className="mr-2" />
                 <span>Ficha de Inscripción</span>
               </Link>
               <Link
                 href="/inscripcion/revision"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/revision" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/inscripcion/revision" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <FileText size={16} className="mr-2" />
                 <span>Revisión de Fichas</span>
               </Link>
               <Link
                 href="/firma"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/firma" || pathname.startsWith("/firma/") ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/firma" || pathname.startsWith("/firma/") ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <FileSignature size={16} className="mr-2" />
                 <span>Firma Digital</span>
               </Link>
-              <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">Documentos</div>
+              <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
+                Documentos
+              </div>
               <Link
                 href="/documentos"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/documentos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/documentos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <FileText size={16} className="mr-2" />
                 <span>Validación de Documentos</span>
               </Link>
               <Link
                 href="/documentos/gestion"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/documentos/gestion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/documentos/gestion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <FileText size={16} className="mr-2" />
                 <span>Gestión de Documentos</span>
               </Link>
-              <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">Reportes</div>
+              <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
+                Reportes
+              </div>
               <Link
                 href="/reportes-avanzados"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/reportes-avanzados" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/reportes-avanzados" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <BarChart size={16} className="mr-2" />
                 <span>Reportes Avanzados</span>
               </Link>
-              <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">Administración</div>
+              <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
+                Administración
+              </div>
               <Link
                 href="/inscripcion/admin/periodos"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/admin/periodos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/inscripcion/admin/periodos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Calendar size={16} className="mr-2" />
                 <span>Periodos de Inscripción</span>
               </Link>
               <Link
                 href="/inscripcion/admin/flujos"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/admin/flujos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/inscripcion/admin/flujos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Activity size={16} className="mr-2" />
                 <span>Flujos de Aprobación</span>
@@ -347,49 +431,63 @@ export default function Sidebar({ open, className }: SidebarProps) {
             <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
               <Link
                 href="/academico/programas"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/programas" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/academico/programas" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <BookOpen size={16} className="mr-2" />
                 <span>Programas Académicos</span>
               </Link>
               <Link
                 href="/academico/usuarios"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/usuarios" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/academico/usuarios" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Users size={16} className="mr-2" />
                 <span>Gestión de Usuarios</span>
               </Link>
               <Link
                 href="/academico/programacion"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/programacion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/academico/programacion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Calendar size={16} className="mr-2" />
                 <span>Programación de Cursos</span>
               </Link>
               <Link
                 href="/academico/asignacion"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/asignacion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/academico/asignacion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <ClipboardList size={16} className="mr-2" />
                 <span>Asignación de Cursos</span>
               </Link>
               <Link
                 href="/academico/estatus-alumno"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/estatus-alumno" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/academico/estatus-alumno" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <UserCheck size={16} className="mr-2" />
                 <span>Estatus Académico</span>
               </Link>
               <Link
                 href="/academico/estado-sistema"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/estado-sistema" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/academico/estado-sistema" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Activity size={16} className="mr-2" />
                 <span>Estatus General</span>
               </Link>
               <Link
                 href="/academico/ranking"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/ranking" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/academico/ranking" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <BarChart2 size={16} className="mr-2" />
                 <span>Ranking Académico</span>
@@ -415,28 +513,38 @@ export default function Sidebar({ open, className }: SidebarProps) {
             <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
               <Link
                 href="/docente"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/docente" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <LayoutDashboard size={16} className="mr-2" />
                 <span>Portal Docente</span>
               </Link>
               <Link
                 href="/docente/cursos"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/cursos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/docente/cursos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <BookOpen size={16} className="mr-2" />
                 <span>Mis Cursos</span>
               </Link>
               <Link
                 href="/docente/alumnos"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/alumnos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/docente/alumnos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Users size={16} className="mr-2" />
                 <span>Alumnos</span>
               </Link>
               <Link
                 href="/docente/material"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/material" || pathname === "/docente/material/nuevo" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/docente/material" || pathname === "/docente/material/nuevo"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <FileText size={16} className="mr-2" />
                 <span>Material Didáctico</span>
@@ -444,42 +552,58 @@ export default function Sidebar({ open, className }: SidebarProps) {
               {/* Eliminada la opción de Evaluaciones */}
               <Link
                 href="/docente/mensajes"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/mensajes" || pathname === "/docente/invitaciones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/docente/mensajes" || pathname === "/docente/invitaciones"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Mail size={16} className="mr-2" />
                 <span>Mensajería e Invitaciones</span>
               </Link>
               <Link
                 href="/docente/medallero"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/medallero" || pathname === "/docente/insignias" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/docente/medallero" || pathname === "/docente/insignias"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Medal size={16} className="mr-2" />
                 <span>Medallero e Insignias</span>
               </Link>
               <Link
                 href="/docente/mi-aprendizaje"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/mi-aprendizaje" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/docente/mi-aprendizaje" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <BookOpen size={16} className="mr-2" />
                 <span>Mi Aprendizaje</span>
               </Link>
               <Link
                 href="/docente/calendario"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/calendario" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/docente/calendario" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Calendar size={16} className="mr-2" />
                 <span>Calendario</span>
               </Link>
               <Link
                 href="/docente/notificaciones"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/notificaciones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/docente/notificaciones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Bell size={16} className="mr-2" />
                 <span>Notificaciones</span>
               </Link>
               <Link
                 href="/docente/certificaciones"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/certificaciones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/docente/certificaciones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Award size={16} className="mr-2" />
                 <span>Certificaciones</span>
@@ -505,66 +629,83 @@ export default function Sidebar({ open, className }: SidebarProps) {
             <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
               <Link
                 href="/estudiantes"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/estudiantes" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <LayoutDashboard size={16} className="mr-2" />
                 <span>Dashboard Estudiantil</span>
               </Link>
               <Link
                 href="/estudiantes/documentos"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/documentos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/estudiantes/documentos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <FileText size={16} className="mr-2" />
                 <span>Documentos</span>
               </Link>
               <Link
                 href="/estudiantes/pagos"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/pagos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/estudiantes/pagos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <DollarSign size={16} className="mr-2" />
                 <span>Gestión de Pagos</span>
               </Link>
               <Link
                 href="/estudiantes/ranking"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/ranking" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/estudiantes/ranking" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Award size={16} className="mr-2" />
                 <span>Ranking Estudiantil</span>
               </Link>
               <Link
                 href="/estudiantes/calendario"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/calendario" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/estudiantes/calendario" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Calendar size={16} className="mr-2" />
                 <span>Calendario Académico</span>
               </Link>
               <Link
                 href="/estudiantes/notificaciones"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/notificaciones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/estudiantes/notificaciones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Bell size={16} className="mr-2" />
                 <span>Notificaciones</span>
               </Link>
               <Link
                 href="/estudiantes/perfil"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/perfil" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/estudiantes/perfil" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <UserCheck size={16} className="mr-2" />
                 <span>Mi Perfil</span>
               </Link>
               <Link
                 href="/estudiantes/estado-cuenta"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/estado-cuenta" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/estudiantes/estado-cuenta" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <CreditCard size={16} className="mr-2" />
                 <span>Estado de Cuenta</span>
               </Link>
               <Link
-                href="/estudiantes/chat-docente" // Cambiar la ruta a la correcta
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/chat-docente" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                  } transition-colors duration-200`}
+                href="/estudiantes/chat-docente" // Cambiar la ruta a la correcta si es necesario
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/estudiantes/chat-docente" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
-                <Mail size={16} className="mr-2" /> {/* Cambiar el ícono a uno más representativo */}
+                <Mail size={16} className="mr-2" /> {/* Puedes cambiar el ícono si lo consideras necesario */}
                 <span>Chat Docente</span>
               </Link>
             </div>
@@ -588,49 +729,63 @@ export default function Sidebar({ open, className }: SidebarProps) {
             <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
               <Link
                 href="/finanzas/dashboard"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/dashboard" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/finanzas/dashboard" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <PieChart size={16} className="mr-2" />
                 <span>Dashboard Financiero</span>
               </Link>
               <Link
                 href="/finanzas/estado-cuenta"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/estado-cuenta" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/finanzas/estado-cuenta" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <FileText size={16} className="mr-2" />
                 <span>Estado de Cuenta</span>
               </Link>
               <Link
                 href="/finanzas/gestion-pagos"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/gestion-pagos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/finanzas/gestion-pagos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <CreditCard size={16} className="mr-2" />
                 <span>Gestión de Pagos</span>
               </Link>
               <Link
                 href="/finanzas/conciliacion"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/conciliacion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/finanzas/conciliacion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <RefreshCw size={16} className="mr-2" />
                 <span>Conciliación Bancaria</span>
               </Link>
               <Link
                 href="/finanzas/seguimiento-cobros"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/seguimiento-cobros" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/finanzas/seguimiento-cobros" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Phone size={16} className="mr-2" />
                 <span>Seguimiento de Cobros</span>
               </Link>
               <Link
                 href="/finanzas/reportes"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/reportes" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/finanzas/reportes" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <BarChart size={16} className="mr-2" />
                 <span>Reportes Financieros</span>
               </Link>
               <Link
                 href="/finanzas/configuracion"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/configuracion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/finanzas/configuracion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Settings size={16} className="mr-2" />
                 <span>Configuración</span>
@@ -656,42 +811,54 @@ export default function Sidebar({ open, className }: SidebarProps) {
             <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
               <Link
                 href="/admin/dashboard"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/dashboard" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/admin/dashboard" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <LayoutDashboard size={16} className="mr-2" />
                 <span>Dashboard Administrativo</span>
               </Link>
               <Link
                 href="/admin/programacion-cursos"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/programacion-cursos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/admin/programacion-cursos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Calendar size={16} className="mr-2" />
                 <span>Programación de Cursos</span>
               </Link>
               <Link
                 href="/admin/reportes-matricula"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/reportes-matricula" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/admin/reportes-matricula" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <FileCheck size={16} className="mr-2" />
                 <span>Reportes de Matrícula</span>
               </Link>
               <Link
                 href="/admin/reporte-graduaciones"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/reporte-graduaciones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/admin/reporte-graduaciones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <GraduationCapIcon size={16} className="mr-2" />
                 <span>Reporte de Graduaciones</span>
               </Link>
               <Link
                 href="/admin/plantillas-mailing"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/plantillas-mailing" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/admin/plantillas-mailing" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Send size={16} className="mr-2" />
                 <span>Plantillas y Mailing</span>
               </Link>
               <Link
                 href="/admin/configuracion"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/configuracion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/admin/configuracion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Settings size={16} className="mr-2" />
                 <span>Configuración General</span>
@@ -718,8 +885,9 @@ export default function Sidebar({ open, className }: SidebarProps) {
               {/* Dashboard Seguridad */}
               <Link
                 href="/seguridad/dashboard"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/dashboard" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                  } transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/seguridad/dashboard" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <LayoutDashboard size={16} className="mr-2" />
                 <span>Dashboard Seguridad</span>
@@ -728,8 +896,9 @@ export default function Sidebar({ open, className }: SidebarProps) {
               {/* 2FA */}
               <Link
                 href="/seguridad/2fa"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/2fa" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                  } transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/seguridad/2fa" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Key size={16} className="mr-2" />
                 <span>Autenticación 2FA</span>
@@ -738,8 +907,9 @@ export default function Sidebar({ open, className }: SidebarProps) {
               {/* Accesos */}
               <Link
                 href="/seguridad/accesos"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/accesos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                  } transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/seguridad/accesos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <LogIn size={16} className="mr-2" />
                 <span>Accesos</span>
@@ -748,8 +918,9 @@ export default function Sidebar({ open, className }: SidebarProps) {
               {/* Auditoría */}
               <Link
                 href="/seguridad/auditoria"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/auditoria" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                  } transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/seguridad/auditoria" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Activity size={16} className="mr-2" />
                 <span>Auditoría</span>
@@ -758,28 +929,31 @@ export default function Sidebar({ open, className }: SidebarProps) {
               {/* Políticas */}
               <Link
                 href="/seguridad/politicas"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/politicas" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                  } transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/seguridad/politicas" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <FileText size={16} className="mr-2" />
                 <span>Políticas</span>
               </Link>
 
               {/* Respaldo */}
-              <Link
+              {/* <Link
                 href="/seguridad/respaldos"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/respaldo" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                  } transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/seguridad/respaldo" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Database size={16} className="mr-2" />
                 <span>Respaldo</span>
-              </Link>
+              </Link> */}
 
               {/* Roles */}
               <Link
                 href="/seguridad/roles"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/roles" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                  } transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/seguridad/roles" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Users size={16} className="mr-2" />
                 <span>Roles</span>
@@ -788,8 +962,9 @@ export default function Sidebar({ open, className }: SidebarProps) {
               {/* Sesiones */}
               <Link
                 href="/seguridad/sesiones"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/sesiones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                  } transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/seguridad/sesiones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Clock size={16} className="mr-2" />
                 <span>Sesiones</span>
@@ -798,17 +973,19 @@ export default function Sidebar({ open, className }: SidebarProps) {
               {/* Usuarios */}
               <Link
                 href="/seguridad/usuarios"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/usuarios" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                  } transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/seguridad/usuarios" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <UserCheck size={16} className="mr-2" />
                 <span>Usuarios</span>
               </Link>
-              {/*Permisos*/}
+              {/* Permisos */}
               <Link
                 href="/seguridad/permisos"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/permisos" ?
-                  "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
+                className={`flex items-center px-4 py-1.5 rounded-md ${
+                  pathname === "/seguridad/permisos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                } transition-colors duration-200`}
               >
                 <Shield size={16} className="mr-2" />
                 <span>Permisos</span>
@@ -819,7 +996,15 @@ export default function Sidebar({ open, className }: SidebarProps) {
       </div>
 
       <div className="mt-auto p-4 border-t border-asm-medium-gold/30">
-        <div className="flex items-center text-asm-light-gold text-xs">
+        {/* Botón de Cerrar Sesión */}
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center px-4 py-2 rounded-md text-red-400 hover:bg-red-500/10 transition-colors duration-200"
+        >
+          <LogOut size={18} className="mr-2" />
+          <span>Cerrar Sesión</span>
+        </button>
+        <div className="flex items-center text-asm-light-gold text-xs mt-4">
           <Settings size={14} className="mr-2" />
           <span>American School of Management © 2025</span>
         </div>
@@ -827,4 +1012,3 @@ export default function Sidebar({ open, className }: SidebarProps) {
     </div>
   )
 }
-

@@ -12,15 +12,18 @@ export default function LeadsConvertidos() {
 
       <div className="p-4">
         <div className="grid grid-cols-7 gap-1">
-          {Array.from({ length: 35 }).map((_, i) => (
-            <div
-              key={i}
-              className="aspect-square rounded"
-              style={{
-                backgroundColor: `rgba(59, 130, 246, ${Math.random() * 0.8 + 0.1})`,
-              }}
-            ></div>
-          ))}
+          {Array.from({ length: 35 }).map((_, i) => {
+            // Calcula la opacidad de forma determinista:
+            // Se genera un valor entre 0.1 y 0.9
+            const opacity = (0.1 + (i / 34) * 0.8).toFixed(3)
+            return (
+              <div
+                key={i}
+                className="aspect-square rounded"
+                style={{ backgroundColor: `rgba(59, 130, 246, ${opacity})` }}
+              ></div>
+            )
+          })}
         </div>
         <div className="mt-2 flex justify-between text-xs text-gray-500">
           <span>En Proceso</span>
@@ -30,4 +33,3 @@ export default function LeadsConvertidos() {
     </div>
   )
 }
-
