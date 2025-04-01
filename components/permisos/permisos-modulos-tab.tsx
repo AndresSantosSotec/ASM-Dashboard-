@@ -114,7 +114,10 @@ export default function PermisosModulosTab() {
       modulo.descripcion.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
-  const handleOpenDialog = (modulo = null, editing = false) => {
+  const handleOpenDialog = (
+    modulo: { id: number; nombre: string; descripcion: string; vistas: number; activo: boolean } | null = null,
+    editing = false,
+  ) => {
     setCurrentModulo(modulo)
     setIsEditing(editing)
 
@@ -137,7 +140,9 @@ export default function PermisosModulosTab() {
 
   const onSubmit = (data: z.infer<typeof moduloSchema>) => {
     if (isEditing) {
-      setModulos(modulos.map((m) => (m.id === currentModulo.id ? { ...m, ...data } : m)))
+      if (currentModulo) {
+        setModulos(modulos.map((m) => (m.id === currentModulo.id ? { ...m, ...data } : m)))
+      }
     } else {
       setModulos([...modulos, { ...data, id: modulos.length + 1, vistas: 0 }])
     }

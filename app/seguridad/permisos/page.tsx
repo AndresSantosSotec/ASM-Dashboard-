@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import PermisosUsuariosTab from "@/components/permisos/permisos-usuarios-tab"
+import PermisosRolesTab from "@/components/permisos/permisos-roles-tab"
 import PermisosModulosTab from "@/components/permisos/permisos-modulos-tab"
 import PermisosVistasTab from "@/components/permisos/permisos-vistas-tab"
 
@@ -20,13 +21,18 @@ export default function PermisosPage() {
       </div>
 
       <Tabs defaultValue="usuarios" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        {/* Cambia grid-cols-3 por grid-cols-4 para 4 pestañas */}
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
+          <TabsTrigger value="roles">Roles</TabsTrigger>
           <TabsTrigger value="modulos">Módulos y Vistas</TabsTrigger>
           <TabsTrigger value="asignacion">Asignación de Permisos</TabsTrigger>
         </TabsList>
         <TabsContent value="usuarios" className="py-4">
           <PermisosUsuariosTab />
+        </TabsContent>
+        <TabsContent value="roles" className="py-4">
+          <PermisosRolesTab />
         </TabsContent>
         <TabsContent value="modulos" className="py-4">
           <PermisosModulosTab />
@@ -38,4 +44,3 @@ export default function PermisosPage() {
     </div>
   )
 }
-
