@@ -1,197 +1,282 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Search, Save, X, Filter } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
+import { useState, useEffect } from "react";
+import axios from "axios";
+import Swal from "sweetalert2";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Search, Save, X, Filter } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
-// Datos de permisos basados en los módulos reales del sistema Blue Atlas
-const permisosData = [
-  {
-    modulo: "Prospectos y Asesores",
-    permisos: [
-      { id: 1, menu: "Gestión de Prospectos", submenu: "Gestión de Prospectos", estado: 100 },
-      { id: 2, menu: "Captura de Prospectos", submenu: "Captura de Prospectos", estado: 100 },
-      { id: 3, menu: "Leads Asignados", submenu: "Leads Asignados", estado: 100 },
-      { id: 4, menu: "Panel de Seguimiento", submenu: "Panel de Seguimiento", estado: 100 },
-      { id: 5, menu: "Importar Leads", submenu: "Importar Leads", estado: 100 },
-      { id: 6, menu: "Interacciones con Leads", submenu: "Interacciones con Leads", estado: 100 },
-      { id: 7, menu: "Tareas del Asesor", submenu: "Tareas del Asesor", estado: 100 },
-      { id: 8, menu: "Correos", submenu: "Correos", estado: 100 },
-      { id: 9, menu: "Calendario", submenu: "Calendario", estado: 100 },
-      { id: 10, menu: "Formulario de Correos", submenu: "Formulario de Correos", estado: 100 },
-      { id: 11, menu: "Programación de Tareas", submenu: "Programación de Tareas", estado: 100 },
-      { id: 12, menu: "Gestión de Leads", submenu: "Gestión de Leads", estado: 100 },
-      { id: 13, menu: "Asesores", submenu: "Asesores", estado: 100 },
-      { id: 14, menu: "Rendimiento", submenu: "Rendimiento", estado: 100 },
-      { id: 15, menu: "Reportes", submenu: "Reportes", estado: 100 },
-      { id: 16, menu: "Actividad Diaria", submenu: "Actividad Diaria", estado: 100 },
-      { id: 17, menu: "Duplicados", submenu: "Duplicados", estado: 100 },
-      { id: 18, menu: "Configuración", submenu: "Configuración", estado: 100 },
-    ],
-  },
-  {
-    modulo: "Inscripción",
-    permisos: [
-      { id: 1, menu: "Ficha de Inscripción", submenu: "Ficha de Inscripción", estado: 100 },
-      { id: 2, menu: "Revisión de Fichas", submenu: "Revisión de Fichas", estado: 100 },
-      { id: 3, menu: "Firma Digital", submenu: "Firma Digital", estado: 80 },
-      { id: 4, menu: "Documentos", submenu: "Validación de Documentos", estado: 100 },
-      { id: 5, menu: "Documentos", submenu: "Gestión de Documentos", estado: 100 },
-      { id: 6, menu: "Reportes", submenu: "Reportes Avanzados", estado: 100 },
-      { id: 7, menu: "Administración", submenu: "Periodos de Inscripción", estado: 100 },
-      { id: 8, menu: "Administración", submenu: "Flujos de Aprobación", estado: 80 },
-    ],
-  },
-  {
-    modulo: "Académico",
-    permisos: [
-      { id: 1, menu: "Programas Académicos", submenu: "Programas Académicos", estado: 100 },
-      { id: 2, menu: "Gestión de Usuarios", submenu: "Gestión de Usuarios", estado: 100 },
-      { id: 3, menu: "Programación de Cursos", submenu: "Programación de Cursos", estado: 100 },
-      { id: 4, menu: "Asignación de Cursos", submenu: "Asignación de Cursos", estado: 100 },
-      { id: 5, menu: "Estatus Académico", submenu: "Estatus Académico", estado: 100 },
-      { id: 6, menu: "Estatus General", submenu: "Estatus General", estado: 100 },
-      { id: 7, menu: "Ranking Académico", submenu: "Ranking Académico", estado: 100 },
-    ],
-  },
-  {
-    modulo: "Docentes",
-    permisos: [
-      { id: 1, menu: "Portal Docente", submenu: "Portal Docente", estado: 100 },
-      { id: 2, menu: "Mis Cursos", submenu: "Mis Cursos", estado: 100 },
-      { id: 3, menu: "Alumnos", submenu: "Alumnos", estado: 100 },
-      { id: 4, menu: "Material Didáctico", submenu: "Material Didáctico", estado: 100 },
-      { id: 5, menu: "Mensajería e Invitaciones", submenu: "Mensajería e Invitaciones", estado: 100 },
-      { id: 6, menu: "Medallero e Insignias", submenu: "Medallero e Insignias", estado: 80 },
-      { id: 7, menu: "Mi Aprendizaje", submenu: "Mi Aprendizaje", estado: 100 },
-      { id: 8, menu: "Calendario", submenu: "Calendario", estado: 100 },
-      { id: 9, menu: "Notificaciones", submenu: "Notificaciones", estado: 100 },
-      { id: 10, menu: "Certificaciones", submenu: "Certificaciones", estado: 80 },
-    ],
-  },
-  {
-    modulo: "Estudiantes",
-    permisos: [
-      { id: 1, menu: "Dashboard Estudiantil", submenu: "Dashboard Estudiantil", estado: 100 },
-      { id: 2, menu: "Documentos", submenu: "Documentos", estado: 100 },
-      { id: 3, menu: "Gestión de Pagos", submenu: "Gestión de Pagos", estado: 100 },
-      { id: 4, menu: "Ranking Estudiantil", submenu: "Ranking Estudiantil", estado: 100 },
-      { id: 5, menu: "Calendario Académico", submenu: "Calendario Académico", estado: 100 },
-      { id: 6, menu: "Notificaciones", submenu: "Notificaciones", estado: 100 },
-      { id: 7, menu: "Mi Perfil", submenu: "Mi Perfil", estado: 100 },
-      { id: 8, menu: "Estado de Cuenta", submenu: "Estado de Cuenta", estado: 100 },
-    ],
-  },
-  {
-    modulo: "Finanzas y Pagos",
-    permisos: [
-      { id: 1, menu: "Dashboard Financiero", submenu: "Dashboard Financiero", estado: 100 },
-      { id: 2, menu: "Estado de Cuenta", submenu: "Estado de Cuenta", estado: 100 },
-      { id: 3, menu: "Gestión de Pagos", submenu: "Gestión de Pagos", estado: 100 },
-      { id: 4, menu: "Conciliación Bancaria", submenu: "Conciliación Bancaria", estado: 80 },
-      { id: 5, menu: "Seguimiento de Cobros", submenu: "Seguimiento de Cobros", estado: 100 },
-      { id: 6, menu: "Reportes Financieros", submenu: "Reportes Financieros", estado: 100 },
-      { id: 7, menu: "Configuración", submenu: "Configuración", estado: 100 },
-    ],
-  },
-  {
-    modulo: "Administración",
-    permisos: [
-      { id: 1, menu: "Dashboard Administrativo", submenu: "Dashboard Administrativo", estado: 100 },
-      { id: 2, menu: "Programación de Cursos", submenu: "Programación de Cursos", estado: 100 },
-      { id: 3, menu: "Reportes de Matrícula", submenu: "Reportes de Matrícula", estado: 100 },
-      { id: 4, menu: "Reporte de Ingresos", submenu: "Reporte de Ingresos", estado: 100 },
-      { id: 5, menu: "Plantillas y Mailing", submenu: "Plantillas y Mailing", estado: 100 },
-      { id: 6, menu: "Configuración General", submenu: "Configuración General", estado: 100 },
-    ],
-  },
-  {
-    modulo: "Seguridad",
-    permisos: [
-      { id: 1, menu: "Usuarios", submenu: "Gestión de usuarios", estado: 100 },
-      { id: 2, menu: "Roles", submenu: "Gestión de roles", estado: 100 },
-      { id: 3, menu: "Permisos", submenu: "Asignación de permisos", estado: 100 },
-      { id: 4, menu: "Auditoría", submenu: "Logs de auditoría", estado: 100 },
-      { id: 5, menu: "Políticas", submenu: "Políticas de seguridad", estado: 100 },
-    ],
-  },
-]
+// Interfaces actualizadas para incluir más datos del usuario
+interface Usuario {
+  id: string;
+  nombre: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  cargo: string;
+}
+
+interface Module {
+  id: number;
+  name: string;
+  description?: string;
+  status: boolean;
+  view_count: number;
+  icon?: string;
+  order_num?: number;
+  views?: ModuleView[];
+}
+
+interface ModuleView {
+  id: number;
+  module_id: number;
+  menu: string;
+  submenu?: string;
+  view_path: string;
+  status: boolean;
+  order_num: number;
+}
 
 export default function PermisosVistasTab() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedModulo, setSelectedModulo] = useState("todos")
-  const [selectedUsuario, setSelectedUsuario] = useState<string | null>(null)
-  const [selectedPermisos, setSelectedPermisos] = useState<number[]>([])
-  const [expandedModulos, setExpandedModulos] = useState<string[]>(["Prospectos y Asesores"])
+  // Estados para usuarios y permisos
+  const [selectedUsuario, setSelectedUsuario] = useState<string | null>(null);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [modules, setModules] = useState<Module[]>([]);
+  const [selectedModule, setSelectedModule] = useState<string>("todos");
+  const [selectedPermisos, setSelectedPermisos] = useState<number[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [expandedModules, setExpandedModules] = useState<number[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  const modulos = ["todos", ...permisosData.map((m) => m.modulo)]
+  // Cargar usuarios desde la API
+  useEffect(() => {
+    const fetchUsuarios = async () => {
+      try {
+        const response = await axios.get("http://localhost:8000/api/users");
+        console.log("Respuesta de usuarios:", response.data);
+        // Si la respuesta viene en response.data.data, ajusta aquí
+        const usuariosTransformados = response.data.map((user: any) => ({
+          id: String(user.id),
+          nombre: user.username,
+          email: user.email,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          cargo: user.rol || "Sin cargo",
+        }));
+        setUsuarios(usuariosTransformados);
+      } catch (error) {
+        console.error("Error al obtener usuarios:", error);
+      }
+    };
+    fetchUsuarios();
+  }, []);
 
-  // Usuarios del sistema
-  const usuarios = [
-    { id: "1", nombre: "Juan Pérez", cargo: "Administrador" },
-    { id: "2", nombre: "María López", cargo: "Asesor" },
-    { id: "3", nombre: "Carlos Rodríguez", cargo: "Docente" },
-    { id: "4", nombre: "Ana Martínez", cargo: "Estudiante" },
-    { id: "5", nombre: "Roberto Sánchez", cargo: "Administrativo" },
-  ]
 
-  const filteredPermisos = permisosData.filter(
-    (moduloData) => selectedModulo === "todos" || moduloData.modulo === selectedModulo,
-  )
+  // Cargar módulos y sus vistas
+  useEffect(() => {
+    const fetchModulesWithViews = async () => {
+      try {
+        const modulesRes = await axios.get("http://localhost:8000/api/modules");
+        const modulesData: Module[] = modulesRes.data;
+        const modulesWithViews = await Promise.all(
+          modulesData.map(async (module) => {
+            try {
+              const viewsRes = await axios.get(`http://localhost:8000/api/modules/${module.id}/views`);
+              const views: ModuleView[] = viewsRes.data.data;
+              return { ...module, views };
+            } catch (error) {
+              console.error(`Error al obtener vistas del módulo ${module.id}:`, error);
+              return { ...module, views: [] };
+            }
+          })
+        );
+        setModules(modulesWithViews);
+      } catch (error) {
+        console.error("Error al obtener módulos:", error);
+      }
+    };
+    fetchModulesWithViews();
+  }, []);
 
-  const handleToggleModulo = (modulo: string) => {
-    setExpandedModulos((prev) => (prev.includes(modulo) ? prev.filter((m) => m !== modulo) : [...prev, modulo]))
-  }
+  // Opciones para el selector de módulos
+  const moduleOptions = ["todos", ...modules.map((m) => m.name)];
+  const filteredModules =
+    selectedModule === "todos" ? modules : modules.filter((m) => m.name === selectedModule);
 
+  // Cuando se selecciona un usuario, cargar sus permisos asignados
+  useEffect(() => {
+    const fetchUserPermissions = async () => {
+      if (!selectedUsuario) return;
+      setIsLoading(true);
+      try {
+        const response = await axios.get(`http://localhost:8000/api/userpermissions?user_id=${selectedUsuario}`);
+        if (response.data.success) {
+          const permisosIds = response.data.data.map((perm: any) => perm.permission_id);
+          setSelectedPermisos(permisosIds);
+        } else {
+          setSelectedPermisos([]);
+        }
+      } catch (error) {
+        console.error("Error al cargar permisos del usuario:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchUserPermissions();
+  }, [selectedUsuario]);
+
+  // Manejo de selección/deselección de vistas
   const handleTogglePermiso = (id: number) => {
-    setSelectedPermisos((prev) => (prev.includes(id) ? prev.filter((permId) => permId !== id) : [...prev, id]))
-  }
+    setSelectedPermisos((prev) =>
+      prev.includes(id) ? prev.filter((permId) => permId !== id) : [...prev, id]
+    );
+  };
 
-  const handleSelectAllModulo = (modulo: string, checked: boolean) => {
-    const moduloPermisos = permisosData.find((m) => m.modulo === modulo)?.permisos || []
-
+  const handleSelectAllModule = (moduleId: number, views: ModuleView[], checked: boolean) => {
+    const viewsIds = views.map((v) => v.id);
     if (checked) {
-      // Añadir todos los permisos del módulo que no estén ya seleccionados
-      const permisosIds = moduloPermisos.map((p) => p.id)
-      setSelectedPermisos((prev) => [...new Set([...prev, ...permisosIds])])
+      setSelectedPermisos((prev) => [...new Set([...prev, ...viewsIds])]);
     } else {
-      // Quitar todos los permisos del módulo
-      const permisosIds = moduloPermisos.map((p) => p.id)
-      setSelectedPermisos((prev) => prev.filter((id) => !permisosIds.includes(id)))
+      setSelectedPermisos((prev) => prev.filter((id) => !viewsIds.includes(id)));
     }
-  }
+  };
 
-  const handleSavePermisos = () => {
-    // Aquí iría la lógica para guardar los permisos asignados
-    alert(`Permisos asignados al usuario ${selectedUsuario}: ${selectedPermisos.join(", ")}`)
-  }
+  const handleToggleModule = (moduleId: number) => {
+    setExpandedModules((prev) =>
+      prev.includes(moduleId) ? prev.filter((id) => id !== moduleId) : [...prev, moduleId]
+    );
+  };
 
-  const getEstadoBadge = (estado: number) => {
-    if (estado === 100) {
-      return <Badge className="bg-green-600 hover:bg-green-600">100%</Badge>
-    } else if (estado === 0) {
-      return <Badge variant="destructive">0%</Badge>
-    } else if (estado >= 80) {
-      return <Badge className="bg-yellow-600 hover:bg-yellow-600">{estado}%</Badge>
-    } else {
-      return <Badge className="bg-red-500 hover:bg-red-500">{estado}%</Badge>
+  // Guardar permisos y mostrar feedback con SweetAlert
+  const handleSavePermisos = async () => {
+    if (!selectedUsuario) {
+      Swal.fire("Error", "No hay usuario seleccionado para guardar permisos", "error");
+      return;
     }
-  }
+    setIsSaving(true);
+    try {
+      const payload = {
+        user_id: selectedUsuario,
+        permissions: selectedPermisos,
+      };
+      const response = await axios.post("http://localhost:8000/api/userpermissions", payload);
+      if (response.data.success) {
+        Swal.fire("Éxito", "Permisos actualizados correctamente", "success");
+      } else {
+        Swal.fire("Error", response.data.message || "Error desconocido", "error");
+      }
+    } catch (error: any) {
+      console.error("Error al guardar permisos:", error);
+      Swal.fire("Error", "Ocurrió un error al guardar los permisos", "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Renderizado de vistas para cada módulo
+  const renderModuleViews = (module: Module) => {
+    if (!module.views || module.views.length === 0) return null;
+    const filteredViews = module.views.filter((view) =>
+      view.menu.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (view.submenu && view.submenu.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+    return (
+      <>
+        <div
+          className="bg-blue-600 text-white p-3 cursor-pointer flex justify-between items-center"
+          onClick={() => handleToggleModule(module.id)}
+        >
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id={`module-${module.id}-select-all`}
+              className="border-white data-[state=checked]:bg-white data-[state=checked]:text-blue-600"
+              checked={module.views.every((v) => selectedPermisos.includes(v.id))}
+              onCheckedChange={(checked) => handleSelectAllModule(module.id, module.views!, !!checked)}
+              onClick={(e) => e.stopPropagation()}
+            />
+            <span className="font-medium">Módulo: {module.name}</span>
+          </div>
+          <div className="text-white">
+            {expandedModules.includes(module.id) ? <X className="h-5 w-5" /> : <Filter className="h-5 w-5" />}
+          </div>
+        </div>
+        {expandedModules.includes(module.id) && (
+          <div className="p-0">
+            <Table>
+              <TableHeader className="bg-gray-100">
+                <TableRow>
+                  <TableHead className="w-[50px]">{/* Columna de selección */}</TableHead>
+                  <TableHead className="w-[50px]">#</TableHead>
+                  <TableHead>Menú</TableHead>
+                  <TableHead>Submenú</TableHead>
+                  <TableHead className="text-center">Estado</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredViews.map((view) => (
+                  <TableRow key={view.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedPermisos.includes(view.id)}
+                        onCheckedChange={() => handleTogglePermiso(view.id)}
+                      />
+                    </TableCell>
+                    <TableCell>{view.id}</TableCell>
+                    <TableCell>{view.menu}</TableCell>
+                    <TableCell>{view.submenu}</TableCell>
+                    <TableCell className="text-center">
+                      {view.status ? (
+                        <Badge className="bg-green-600 hover:bg-green-600">Activo</Badge>
+                      ) : (
+                        <Badge variant="destructive">Inactivo</Badge>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </>
+    );
+  };
 
   return (
     <div className="space-y-6">
+      {/* Información de usuario */}
       <Card>
         <CardHeader>
           <CardTitle>Información de usuario</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-sm text-muted-foreground">Nombre de usuario</label>
               <Select value={selectedUsuario || ""} onValueChange={setSelectedUsuario}>
@@ -207,155 +292,68 @@ export default function PermisosVistasTab() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <label className="text-sm text-muted-foreground">Cargo</label>
-              <Input
-                value={selectedUsuario ? usuarios.find((u) => u.id === selectedUsuario)?.cargo || "" : ""}
-                readOnly
-                className="mt-1 bg-muted"
-              />
-            </div>
-            <div>
-              <label className="text-sm text-muted-foreground">Tipo de usuario</label>
-              <Input value={selectedUsuario ? "Usuario del sistema" : ""} readOnly className="mt-1 bg-muted" />
-            </div>
+            {selectedUsuario && (
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Detalles del usuario</p>
+                <p className="text-sm">
+                  <strong>Nombre completo:</strong>{" "}
+                  {usuarios.find((u) => u.id === selectedUsuario)?.first_name}{" "}
+                  {usuarios.find((u) => u.id === selectedUsuario)?.last_name}
+                </p>
+                <p className="text-sm">
+                  <strong>Correo:</strong>{" "}
+                  {usuarios.find((u) => u.id === selectedUsuario)?.email}
+                </p>
+              </div>
+            )}
           </div>
+          {selectedUsuario && (
+            <div className="mt-2">
+              <label className="text-sm text-muted-foreground">Tipo de usuario</label>
+              <Input value="Usuario del sistema" readOnly className="mt-1 bg-muted" />
+            </div>
+          )}
+          {isLoading && <p className="text-sm text-gray-600">Cargando permisos...</p>}
         </CardContent>
       </Card>
 
+      {/* Permisos (módulos y vistas) */}
       <Card>
         <CardHeader>
           <CardTitle>Permisos disponibles</CardTitle>
-          <CardDescription>Asigna permisos al usuario seleccionado</CardDescription>
+          <CardDescription>Asigna vistas (permisos) al usuario seleccionado</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <div className="p-4 flex flex-col md:flex-row justify-between gap-4">
-            <div className="flex flex-col md:flex-row gap-2 w-full">
-              <div className="relative w-full md:w-64">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar permisos..."
-                  className="pl-8"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <Select value={selectedModulo} onValueChange={setSelectedModulo}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Filtrar por módulo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {modulos.map((modulo) => (
-                      <SelectItem key={modulo} value={modulo}>
-                        {modulo === "todos" ? "Todos los módulos" : modulo}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="relative w-full md:w-64">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar vistas..."
+                className="pl-8"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
             <div className="flex items-center space-x-2">
-              <Checkbox
-                id="todos-permisos"
-                checked={
-                  selectedPermisos.length > 0 &&
-                  permisosData.flatMap((m) => m.permisos).every((p) => selectedPermisos.includes(p.id))
-                }
-                onCheckedChange={(checked) => {
-                  if (checked) {
-                    // Seleccionar todos los permisos
-                    setSelectedPermisos(permisosData.flatMap((m) => m.permisos.map((p) => p.id)))
-                  } else {
-                    // Deseleccionar todos
-                    setSelectedPermisos([])
-                  }
-                }}
-              />
-              <label htmlFor="todos-permisos" className="text-sm font-medium">
-                Todos los permisos
-              </label>
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={selectedModule} onValueChange={setSelectedModule}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filtrar por módulo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {moduleOptions.map((modulo) => (
+                    <SelectItem key={modulo} value={modulo}>
+                      {modulo === "todos" ? "Todos los módulos" : modulo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-
           <div className="border-t">
-            {filteredPermisos.map((moduloData) => (
-              <div key={moduloData.modulo} className="border-b">
-                <div
-                  className="bg-blue-600 text-white p-3 cursor-pointer flex justify-between items-center"
-                  onClick={() => handleToggleModulo(moduloData.modulo)}
-                >
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`modulo-${moduloData.modulo}`}
-                      className="border-white data-[state=checked]:bg-white data-[state=checked]:text-blue-600"
-                      checked={moduloData.permisos.every((p) => selectedPermisos.includes(p.id))}
-                      onCheckedChange={(checked) => {
-                        handleSelectAllModulo(moduloData.modulo, !!checked)
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                    <label htmlFor={`modulo-${moduloData.modulo}`} className="font-medium text-white">
-                      Módulo de {moduloData.modulo}
-                    </label>
-                  </div>
-                  <div className="text-white">
-                    {expandedModulos.includes(moduloData.modulo) ? (
-                      <X className="h-5 w-5" />
-                    ) : (
-                      <Filter className="h-5 w-5" />
-                    )}
-                  </div>
-                </div>
-
-                {expandedModulos.includes(moduloData.modulo) && (
-                  <div className="p-0">
-                    <Table>
-                      <TableHeader className="bg-gray-100">
-                        <TableRow>
-                          <TableHead className="w-[50px]">
-                            <Checkbox
-                              id={`select-all-${moduloData.modulo}`}
-                              checked={moduloData.permisos.every((p) => selectedPermisos.includes(p.id))}
-                              onCheckedChange={(checked) => {
-                                handleSelectAllModulo(moduloData.modulo, !!checked)
-                              }}
-                            />
-                          </TableHead>
-                          <TableHead className="w-[50px]">#</TableHead>
-                          <TableHead>Módulo</TableHead>
-                          <TableHead>Menú</TableHead>
-                          <TableHead>Submenú</TableHead>
-                          <TableHead className="text-center">Estado</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {moduloData.permisos
-                          .filter(
-                            (permiso) =>
-                              permiso.submenu.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                              permiso.menu.toLowerCase().includes(searchTerm.toLowerCase()),
-                          )
-                          .map((permiso) => (
-                            <TableRow key={permiso.id}>
-                              <TableCell>
-                                <Checkbox
-                                  checked={selectedPermisos.includes(permiso.id)}
-                                  onCheckedChange={() => handleTogglePermiso(permiso.id)}
-                                />
-                              </TableCell>
-                              <TableCell>{permiso.id}</TableCell>
-                              <TableCell>{moduloData.modulo}</TableCell>
-                              <TableCell>{permiso.menu}</TableCell>
-                              <TableCell>{permiso.submenu}</TableCell>
-                              <TableCell className="text-center">{getEstadoBadge(permiso.estado)}</TableCell>
-                            </TableRow>
-                          ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
+            {filteredModules.map((module) => (
+              <div key={module.id} className="border-b">
+                {renderModuleViews(module)}
               </div>
             ))}
           </div>
@@ -365,13 +363,15 @@ export default function PermisosVistasTab() {
             <X className="mr-2 h-4 w-4" />
             Cancelar
           </Button>
-          <Button onClick={handleSavePermisos} disabled={!selectedUsuario}>
-            <Save className="mr-2 h-4 w-4" />
-            Guardar Permisos
+          <Button onClick={handleSavePermisos} disabled={!selectedUsuario || isSaving}>
+            {isSaving ? "Guardando..." : (
+              <>
+                <Save className="mr-2 h-4 w-4" /> Guardar Permisos
+              </>
+            )}
           </Button>
         </CardFooter>
       </Card>
     </div>
-  )
+  );
 }
-

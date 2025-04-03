@@ -340,18 +340,27 @@ export default function RankingAcademico() {
           {/* Top 3 estudiantes */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             {students.slice(0, 3).map((student, index) => (
-              <Card key={student.id} className={
-                index === 0 ? "bg-amber-50 border-amber-200" : 
-                index === 1 ? "bg-gray-50 border-gray-200" : 
-                "bg-orange-50 border-orange-200"
-              }>
+              <Card
+                key={student.id}
+                className={
+                  index === 0
+                    ? "bg-amber-50 border-amber-200"
+                    : index === 1
+                    ? "bg-gray-50 border-gray-200"
+                    : "bg-orange-50 border-orange-200"
+                }
+              >
                 <CardContent className="pt-6">
                   <div className="flex flex-col items-center text-center">
-                    <div className={
-                      index === 0 ? "bg-amber-100 p-3 rounded-full mb-3" : 
-                      index === 1 ? "bg-gray-200 p-3 rounded-full mb-3" : 
-                      "bg-orange-100 p-3 rounded-full mb-3"
-                    }>
+                    <div
+                      className={
+                        index === 0
+                          ? "bg-amber-100 p-3 rounded-full mb-3"
+                          : index === 1
+                          ? "bg-gray-200 p-3 rounded-full mb-3"
+                          : "bg-orange-100 p-3 rounded-full mb-3"
+                      }
+                    >
                       {index === 0 ? (
                         <Trophy className="h-8 w-8 text-amber-600" />
                       ) : index === 1 ? (
@@ -371,8 +380,8 @@ export default function RankingAcademico() {
                         <span>Progreso</span>
                         <span>{Math.round((student.credits / student.totalCredits) * 100)}%</span>
                       </div>
-                      <Progress 
-                        value={(student.credits / student.totalCredits) * 100} 
+                      <Progress
+                        value={(student.credits / student.totalCredits) * 100}
                         className="h-1.5"
                       />
                     </div>
@@ -402,7 +411,7 @@ export default function RankingAcademico() {
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
-                
+
                 <Select value={programFilter} onValueChange={setProgramFilter}>
                   <SelectTrigger>
                     <SelectValue placeholder="Programa" />
@@ -416,7 +425,7 @@ export default function RankingAcademico() {
                     ))}
                   </SelectContent>
                 </Select>
-                
+
                 <Select value={semesterFilter} onValueChange={setSemesterFilter}>
                   <SelectTrigger>
                     <SelectValue placeholder="Semestre" />
@@ -430,7 +439,7 @@ export default function RankingAcademico() {
                     ))}
                   </SelectContent>
                 </Select>
-                
+
                 <Select value={sortBy} onValueChange={setSortBy}>
                   <SelectTrigger>
                     <SelectValue placeholder="Ordenar por" />
@@ -442,7 +451,7 @@ export default function RankingAcademico() {
                     <SelectItem value="credits">Créditos</SelectItem>
                   </SelectContent>
                 </Select>
-                
+
                 <Button variant="outline">
                   <Filter className="h-4 w-4 mr-2" />
                   Aplicar filtros
@@ -481,11 +490,15 @@ export default function RankingAcademico() {
                         <TableRow key={student.id}>
                           <TableCell className="font-medium text-center">
                             {student.ranking <= 3 ? (
-                              <div className={
-                                student.ranking === 1 ? "text-amber-500" : 
-                                student.ranking === 2 ? "text-gray-500" : 
-                                "text-orange-500"
-                              }>
+                              <div
+                                className={
+                                  student.ranking === 1
+                                    ? "text-amber-500"
+                                    : student.ranking === 2
+                                    ? "text-gray-500"
+                                    : "text-orange-500"
+                                }
+                              >
                                 {student.ranking}
                                 {student.ranking === 1 ? (
                                   <Trophy className="h-4 w-4 inline ml-1" />
@@ -501,40 +514,97 @@ export default function RankingAcademico() {
                           </TableCell>
                           <TableCell>
                             <div className="font-medium">{student.name}</div>
-                            <div className="text-sm text-gray-500">
-                              {student.program}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              Semestre {student.semester}
+                            <div className="text-sm text-gray-500">{student.program}</div>
+                            <div className="text-xs text-gray-500">Semestre {student.semester}</div>
+                          </TableCell>
+                          <TableCell>
+                            <div
+                              className={`text-lg font-bold ${
+                                student.gpa >= 9
+                                  ? "text-green-600"
+                                  : student.gpa >= 8
+                                  ? "text-blue-600"
+                                  : student.gpa >= 7
+                                  ? "text-amber-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {student.gpa.toFixed(1)}
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className={`text-lg font-bold ${
-                              student.gpa >= 9 ? "text-green-600" : 
-                              student.gpa >= 8 ? "text-blue-600" : 
-                              student.gpa >= 7 ? "text-amber-600" : "text-red-600"
-                            }`}>
-                \
-
-\
-
-\
-
-\
-
-\
-
-\
-
-\
-
-\
-
-\
-
-\
-
-\
-
-\
-
+                            <div className="flex flex-col">
+                              <span>{Math.round((student.credits / student.totalCredits) * 100)}%</span>
+                              <Progress
+                                value={(student.credits / student.totalCredits) * 100}
+                                className="h-1.5"
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {renderRankingChange(student.ranking, student.previousRanking)}
+                          </TableCell>
+                          <TableCell>
+                            {student.badges.length > 0 ? (
+                              student.badges.map((badge, i) => (
+                                <Badge key={i} variant="outline" className="bg-white mr-1">
+                                  {badge}
+                                </Badge>
+                              ))
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="courses">
+          <Card>
+            <CardHeader>
+              <CardTitle>Rendimiento por Curso</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Curso</TableHead>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Periodo</TableHead>
+                      <TableHead>Estudiantes</TableHead>
+                      <TableHead>Promedio</TableHead>
+                      <TableHead>Tasa de Aprobación</TableHead>
+                      <TableHead>Mejor Estudiante</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {courses.map((course) => (
+                      <TableRow key={course.id}>
+                        <TableCell>{course.name}</TableCell>
+                        <TableCell>{course.code}</TableCell>
+                        <TableCell>{course.period}</TableCell>
+                        <TableCell>{course.students}</TableCell>
+                        <TableCell>{course.averageGrade.toFixed(1)}</TableCell>
+                        <TableCell>{Math.round(course.passingRate * 100)}%</TableCell>
+                        <TableCell>
+                          {course.topStudent.name} ({course.topStudent.grade.toFixed(1)})
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
