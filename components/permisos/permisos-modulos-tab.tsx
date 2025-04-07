@@ -1,18 +1,125 @@
 "use client";
+
+import React from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {Table,TableBody,TableCell,TableHead,TableHeader,TableRow,} from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, Save, X, Plus, Edit, Trash, CheckCircle, XCircle } from "lucide-react";
-import {Dialog,DialogContent,DialogDescription,DialogFooter,DialogHeader,DialogTitle,} from "@/components/ui/dialog";
-import {Form,FormControl,FormField,FormItem,FormLabel,FormMessage,} from "@/components/ui/form";
+import {
+  Search,
+  Save,
+  X,
+  Plus,
+  Edit,
+  Trash,
+  CheckCircle,
+  XCircle,
+  BarChart2,
+  Calendar,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Home,
+  Mail,
+  Settings,
+  Shield,
+  Users,
+  DollarSign,
+  BookOpen,
+  ClipboardList,
+  Activity,
+  Copy,
+  UserCheck,
+  FileSignature,
+  BarChart,
+  LayoutDashboard,
+  GraduationCapIcon,
+  CreditCard,
+  Bell,
+  Award,
+  Medal,
+  PieChart,
+  RefreshCw,
+  Phone,
+  FileCheck as FileCheckIcon,
+  Send,
+  Key,
+  LogIn,
+  Database,
+  Clock,
+  LogOut,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+
+// ----------------------------------------------------------------------
+// Mapeo de iconos: relaciona el nombre del icono con el componente
+// ----------------------------------------------------------------------
+const iconMap: { [key: string]: React.ElementType } = {
+  BarChart2,
+  Calendar,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Home,
+  Mail,
+  Settings,
+  Shield,
+  Users,
+  DollarSign,
+  BookOpen,
+  ClipboardList,
+  Activity,
+  Copy,
+  UserCheck,
+  Plus,
+  FileSignature,
+  BarChart,
+  LayoutDashboard,
+  GraduationCapIcon,
+  CreditCard,
+  Bell,
+  Award,
+  Medal,
+  PieChart,
+  RefreshCw,
+  Phone,
+  FileCheck: FileCheckIcon,
+  Send,
+  Key,
+  LogIn,
+  Database,
+  Clock,
+  LogOut,
+};
 
 // ===============================
 // INTERFACES Y ESQUEMAS
@@ -25,6 +132,7 @@ interface Modulo {
   descripcion: string;
   vistas: number;
   activo: boolean;
+  icono?: string;
 }
 
 // Esquema para validación de Módulos
@@ -32,6 +140,7 @@ const moduloSchema = z.object({
   nombre: z.string().min(2, "El nombre es requerido"),
   descripcion: z.string().min(2, "La descripción es requerida"),
   activo: z.boolean().default(true),
+  icono: z.string().optional(),
 });
 
 // Interfaz para Vista del Módulo
@@ -43,6 +152,7 @@ export interface Vista {
   view_path: string;
   status: boolean;
   order_num: number;
+  icono?: string;
 }
 
 // Esquema para validación de Vistas
@@ -56,6 +166,7 @@ const vistaSchema = z.object({
     (a) => Number(a),
     z.number({ invalid_type_error: "El orden debe ser un número" })
   ),
+  icono: z.string().optional(),
 });
 
 // ===============================
@@ -76,6 +187,7 @@ export default function PermisosModulosTab() {
       nombre: "",
       descripcion: "",
       activo: true,
+      icono: "",
     },
   });
 
@@ -91,12 +203,15 @@ export default function PermisosModulosTab() {
     descripcion: moduleData.description,
     vistas: moduleData.view_count,
     activo: moduleData.status,
+    icono: moduleData.icono || "",
   });
 
   const fetchModulos = async () => {
     try {
       const response = await axios.get("http://localhost:8000/api/modules");
-      const modulosTransformados = response.data.map((m: any) => transformModule(m));
+      const modulosTransformados = response.data.map((m: any) =>
+        transformModule(m)
+      );
       setModulos(modulosTransformados);
     } catch (error) {
       console.error("Error al obtener los módulos:", error);
@@ -118,12 +233,14 @@ export default function PermisosModulosTab() {
         nombre: modulo.nombre,
         descripcion: modulo.descripcion,
         activo: modulo.activo,
+        icono: modulo.icono || "",
       });
     } else {
       form.reset({
         nombre: "",
         descripcion: "",
         activo: true,
+        icono: "",
       });
     }
     setIsDialogOpen(true);
@@ -136,6 +253,7 @@ export default function PermisosModulosTab() {
         name: data.nombre,
         description: data.descripcion,
         status: data.activo,
+        icono: data.icono,
       };
       if (isEditing && currentModulo) {
         const response = await axios.put(
@@ -143,9 +261,16 @@ export default function PermisosModulosTab() {
           payload
         );
         const moduloActualizado = transformModule(response.data);
-        setModulos(modulos.map((m) => (m.id === currentModulo.id ? moduloActualizado : m)));
+        setModulos(
+          modulos.map((m) =>
+            m.id === currentModulo.id ? moduloActualizado : m
+          )
+        );
       } else {
-        const response = await axios.post("http://localhost:8000/api/modules", payload);
+        const response = await axios.post(
+          "http://localhost:8000/api/modules",
+          payload
+        );
         const nuevoModulo = transformModule(response.data);
         setModulos([...modulos, nuevoModulo]);
       }
@@ -160,9 +285,14 @@ export default function PermisosModulosTab() {
       const modulo = modulos.find((m) => m.id === id);
       if (!modulo) return;
       const payload = { status: !modulo.activo };
-      const response = await axios.put(`http://localhost:8000/api/modules/${id}`, payload);
+      const response = await axios.put(
+        `http://localhost:8000/api/modules/${id}`,
+        payload
+      );
       const moduloActualizado = transformModule(response.data);
-      setModulos(modulos.map((m) => (m.id === id ? moduloActualizado : m)));
+      setModulos(
+        modulos.map((m) => (m.id === id ? moduloActualizado : m))
+      );
     } catch (error) {
       console.error("Error al actualizar el estado:", error);
     }
@@ -171,43 +301,37 @@ export default function PermisosModulosTab() {
   const handleDeleteModulo = async (id: number) => {
     try {
       // Verificar si el módulo tiene vistas
-      const modulo = modulos.find(m => m.id === id);
-      
+      const modulo = modulos.find((m) => m.id === id);
       if (modulo && modulo.vistas > 0) {
         // Mostrar una advertencia al usuario
         const result = await Swal.fire({
-          title: 'Advertencia',
-          text: 'Este módulo contiene vistas asociadas. Al eliminarlo, también se eliminarán todas sus vistas. ¿Desea continuar?',
-          icon: 'warning',
+          title: "Advertencia",
+          text: "Este módulo contiene vistas asociadas. Al eliminarlo, también se eliminarán todas sus vistas. ¿Desea continuar?",
+          icon: "warning",
           showCancelButton: true,
-          confirmButtonText: 'Sí, eliminar',
-          cancelButtonText: 'Cancelar'
+          confirmButtonText: "Sí, eliminar",
+          cancelButtonText: "Cancelar",
         });
-        
         if (!result.isConfirmed) {
           return;
         }
       }
-      
       await axios.delete(`http://localhost:8000/api/modules/${id}`);
       setModulos(modulos.filter((m) => m.id !== id));
-      
       // Mostrar mensaje de éxito
       Swal.fire({
-        title: 'Éxito',
-        text: 'Módulo eliminado correctamente',
-        icon: 'success',
+        title: "Éxito",
+        text: "Módulo eliminado correctamente",
+        icon: "success",
         timer: 2000,
-        showConfirmButton: false
+        showConfirmButton: false,
       });
     } catch (error) {
       console.error("Error al eliminar el módulo:", error);
-      
-      // Mostrar mensaje de error
       Swal.fire({
-        title: 'Error',
-        text: 'No se pudo eliminar el módulo. Es posible que tenga vistas asociadas.',
-        icon: 'error'
+        title: "Error",
+        text: "No se pudo eliminar el módulo. Es posible que tenga vistas asociadas.",
+        icon: "error",
       });
     }
   };
@@ -271,10 +395,16 @@ export default function PermisosModulosTab() {
                       <Button
                         variant="default"
                         size="icon"
-                        className={`h-7 w-7 ${modulo.activo ? "" : "bg-green-600 hover:bg-green-700"}`}
+                        className={`h-7 w-7 ${
+                          modulo.activo ? "" : "bg-green-600 hover:bg-green-700"
+                        }`}
                         onClick={() => handleToggleStatus(modulo.id)}
                       >
-                        {modulo.activo ? <XCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
+                        {modulo.activo ? (
+                          <XCircle className="h-4 w-4" />
+                        ) : (
+                          <CheckCircle className="h-4 w-4" />
+                        )}
                       </Button>
                       <Button
                         variant="destructive"
@@ -287,18 +417,33 @@ export default function PermisosModulosTab() {
                     </div>
                   </TableCell>
                   <TableCell>{modulo.id}</TableCell>
-                  <TableCell className="font-medium">{modulo.nombre}</TableCell>
+                  <TableCell className="font-medium flex items-center">
+                    {modulo.icono &&
+                      iconMap[modulo.icono] &&
+                      React.createElement(iconMap[modulo.icono], {
+                        className: "h-4 w-4 mr-1",
+                      })}
+                    {modulo.nombre}
+                  </TableCell>
                   <TableCell>{modulo.descripcion}</TableCell>
                   <TableCell className="text-center">
-                    <Badge variant="outline" className="bg-blue-50">{modulo.vistas}</Badge>
+                    <Badge variant="outline" className="bg-blue-50">
+                      {modulo.vistas}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-center">
                     {modulo.activo ? (
-                      <Badge variant="success" className="bg-green-100 text-green-800 hover:bg-green-100">
+                      <Badge
+                        variant="success"
+                        className="bg-green-100 text-green-800 hover:bg-green-100"
+                      >
                         <CheckCircle className="mr-1 h-3 w-3" /> Activo
                       </Badge>
                     ) : (
-                      <Badge variant="destructive" className="bg-red-100 text-red-800 hover:bg-red-100">
+                      <Badge
+                        variant="destructive"
+                        className="bg-red-100 text-red-800 hover:bg-red-100"
+                      >
                         <XCircle className="mr-1 h-3 w-3" /> Inactivo
                       </Badge>
                     )}
@@ -314,7 +459,9 @@ export default function PermisosModulosTab() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>{isEditing ? "Editar Módulo" : "Nuevo Módulo"}</DialogTitle>
+            <DialogTitle>
+              {isEditing ? "Editar Módulo" : "Nuevo Módulo"}
+            </DialogTitle>
             <DialogDescription>
               {isEditing
                 ? "Modifica los datos del módulo existente."
@@ -351,21 +498,80 @@ export default function PermisosModulosTab() {
               />
               <FormField
                 control={form.control}
+                name="icono"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Icono</FormLabel>
+                    <FormControl>
+                      <select {...field} className="input">
+                        <option value="">Selecciona un icono</option>
+                        <option value="BarChart2">BarChart2</option>
+                        <option value="Calendar">Calendar</option>
+                        <option value="ChevronDown">ChevronDown</option>
+                        <option value="ChevronRight">ChevronRight</option>
+                        <option value="FileText">FileText</option>
+                        <option value="Home">Home</option>
+                        <option value="Mail">Mail</option>
+                        <option value="Settings">Settings</option>
+                        <option value="Shield">Shield</option>
+                        <option value="Users">Users</option>
+                        <option value="DollarSign">DollarSign</option>
+                        <option value="BookOpen">BookOpen</option>
+                        <option value="ClipboardList">ClipboardList</option>
+                        <option value="Activity">Activity</option>
+                        <option value="Copy">Copy</option>
+                        <option value="UserCheck">UserCheck</option>
+                        <option value="Plus">Plus</option>
+                        <option value="FileSignature">FileSignature</option>
+                        <option value="BarChart">BarChart</option>
+                        <option value="LayoutDashboard">LayoutDashboard</option>
+                        <option value="GraduationCapIcon">GraduationCapIcon</option>
+                        <option value="CreditCard">CreditCard</option>
+                        <option value="Bell">Bell</option>
+                        <option value="Award">Award</option>
+                        <option value="Medal">Medal</option>
+                        <option value="PieChart">PieChart</option>
+                        <option value="RefreshCw">RefreshCw</option>
+                        <option value="Phone">Phone</option>
+                        <option value="FileCheck">FileCheck</option>
+                        <option value="Send">Send</option>
+                        <option value="Key">Key</option>
+                        <option value="LogIn">LogIn</option>
+                        <option value="Database">Database</option>
+                        <option value="Clock">Clock</option>
+                        <option value="LogOut">LogOut</option>
+                      </select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="activo"
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
                     <div className="space-y-0.5">
                       <FormLabel>Módulo Activo</FormLabel>
-                      <p className="text-sm text-muted-foreground">El módulo estará disponible en el sistema</p>
+                      <p className="text-sm text-muted-foreground">
+                        El módulo estará disponible en el sistema
+                      </p>
                     </div>
                     <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
                     </FormControl>
                   </FormItem>
                 )}
               />
               <DialogFooter className="gap-2 sm:gap-0">
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsDialogOpen(false)}
+                >
                   <X className="mr-2 h-4 w-4" /> Cancelar
                 </Button>
                 <Button type="submit">
@@ -385,14 +591,17 @@ export default function PermisosModulosTab() {
         modules={modulos}
         onViewCreated={(nuevaVista: Vista) => {
           // Actualizamos el contador de vistas en el módulo seleccionado
-          setModulos(modulos.map(m =>
-            m.id === nuevaVista.module_id ? { ...m, vistas: m.vistas + 1 } : m
-          ));
+          setModulos(
+            modulos.map((m) =>
+              m.id === nuevaVista.module_id ? { ...m, vistas: m.vistas + 1 } : m
+            )
+          );
         }}
       />
     </div>
   );
 }
+
 // ===============================
 // COMPONENTE: ModuleViewModal (para creación de vistas)
 // ===============================
@@ -403,8 +612,13 @@ interface ModuleViewModalProps {
   onViewCreated: (nuevaVista: Vista) => void;
 }
 
-function ModuleViewModal({ isOpen, onClose, modules, onViewCreated }: ModuleViewModalProps) {
-  // Extendemos el esquema de vista para incluir module_id y convertimos order_num a número
+function ModuleViewModal({
+  isOpen,
+  onClose,
+  modules,
+  onViewCreated,
+}: ModuleViewModalProps) {
+  // Extendemos el esquema de vista para incluir module_id y el campo icono
   const extendedVistaSchema = vistaSchema.extend({
     module_id: z.number({ required_error: "El módulo es requerido" }),
   });
@@ -412,31 +626,57 @@ function ModuleViewModal({ isOpen, onClose, modules, onViewCreated }: ModuleView
   const form = useForm<z.infer<typeof extendedVistaSchema>>({
     resolver: zodResolver(extendedVistaSchema),
     defaultValues: {
-      module_id: modules.length > 0 ? modules[0].id : 0,
+      module_id: 0,
       menu: "",
       submenu: "",
       view_path: "",
       status: true,
       order_num: 1,
+      icono: "",
     },
   });
+
+  // Actualizamos el valor de module_id cuando la lista de módulos cambie
+  useEffect(() => {
+    if (modules.length > 0) {
+      form.setValue("module_id", modules[0].id);
+    }
+  }, [modules, form]);
+
   const onSubmit = async (data: z.infer<typeof extendedVistaSchema>) => {
     try {
-      // Extraemos module_id y el resto de los datos
       const { module_id, ...payload } = data;
+      // Validación extra: asegurar que module_id sea un valor válido (diferente de 0)
+      if (!module_id || module_id === 0) {
+        Swal.fire({
+          title: "Error",
+          text: "Por favor, selecciona un módulo válido.",
+          icon: "error",
+        });
+        return;
+      }
+      console.log("Enviando solicitud para crear vista en el módulo:", module_id);
+      // Se incluye el campo icono en el payload
       const response = await axios.post(
         `http://localhost:8000/api/modules/${module_id}/views`,
-        payload
+        { ...payload, icono: data.icono }
       );
+      console.log("Respuesta del servidor:", response.data);
       const nuevaVista: Vista = response.data.data;
       onViewCreated(nuevaVista);
       onClose();
       form.reset();
-    } catch (error) {
-      console.error("Error al crear la vista:", error);
+    } catch (error: any) {
+      console.error("Error al crear la vista:", error.response?.data || error);
+      Swal.fire({
+        title: "Error",
+        text:
+          error.response?.data?.message ||
+          "Ocurrió un error al crear la vista.",
+        icon: "error",
+      });
     }
   };
-  
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -449,7 +689,7 @@ function ModuleViewModal({ isOpen, onClose, modules, onViewCreated }: ModuleView
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {/* Select para elegir el módulo; convertimos el valor a número */}
+            {/* Select para elegir el módulo */}
             <FormField
               control={form.control}
               name="module_id"
@@ -460,13 +700,19 @@ function ModuleViewModal({ isOpen, onClose, modules, onViewCreated }: ModuleView
                     <select
                       {...field}
                       className="input"
-                      onChange={(e) => field.onChange(Number(e.target.value))}
+                      onChange={(e) =>
+                        field.onChange(Number(e.target.value))
+                      }
                     >
-                      {modules.map((modulo) => (
-                        <option key={modulo.id} value={modulo.id}>
-                          {modulo.nombre}
-                        </option>
-                      ))}
+                      {modules && modules.length > 0 ? (
+                        modules.map((modulo) => (
+                          <option key={modulo.id} value={modulo.id}>
+                            {modulo.nombre}
+                          </option>
+                        ))
+                      ) : (
+                        <option value={0}>No hay módulos</option>
+                      )}
                     </select>
                   </FormControl>
                   <FormMessage />
@@ -493,7 +739,11 @@ function ModuleViewModal({ isOpen, onClose, modules, onViewCreated }: ModuleView
                 <FormItem>
                   <FormLabel>Submenú</FormLabel>
                   <FormControl>
-                    <Input placeholder="Nombre del submenú (opcional)" {...field} value={field.value ?? ""} />
+                    <Input
+                      placeholder="Nombre del submenú (opcional)"
+                      {...field}
+                      value={field.value ?? ""}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -507,6 +757,56 @@ function ModuleViewModal({ isOpen, onClose, modules, onViewCreated }: ModuleView
                   <FormLabel>Ruta de la Vista</FormLabel>
                   <FormControl>
                     <Input placeholder="/ruta/de/la/vista" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="icono"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Icono</FormLabel>
+                  <FormControl>
+                    <select {...field} className="input">
+                      <option value="">Selecciona un icono</option>
+                      <option value="BarChart2">BarChart2</option>
+                      <option value="Calendar">Calendar</option>
+                      <option value="ChevronDown">ChevronDown</option>
+                      <option value="ChevronRight">ChevronRight</option>
+                      <option value="FileText">FileText</option>
+                      <option value="Home">Home</option>
+                      <option value="Mail">Mail</option>
+                      <option value="Settings">Settings</option>
+                      <option value="Shield">Shield</option>
+                      <option value="Users">Users</option>
+                      <option value="DollarSign">DollarSign</option>
+                      <option value="BookOpen">BookOpen</option>
+                      <option value="ClipboardList">ClipboardList</option>
+                      <option value="Activity">Activity</option>
+                      <option value="Copy">Copy</option>
+                      <option value="UserCheck">UserCheck</option>
+                      <option value="Plus">Plus</option>
+                      <option value="FileSignature">FileSignature</option>
+                      <option value="BarChart">BarChart</option>
+                      <option value="LayoutDashboard">LayoutDashboard</option>
+                      <option value="GraduationCapIcon">GraduationCapIcon</option>
+                      <option value="CreditCard">CreditCard</option>
+                      <option value="Bell">Bell</option>
+                      <option value="Award">Award</option>
+                      <option value="Medal">Medal</option>
+                      <option value="PieChart">PieChart</option>
+                      <option value="RefreshCw">RefreshCw</option>
+                      <option value="Phone">Phone</option>
+                      <option value="FileCheck">FileCheck</option>
+                      <option value="Send">Send</option>
+                      <option value="Key">Key</option>
+                      <option value="LogIn">LogIn</option>
+                      <option value="Database">Database</option>
+                      <option value="Clock">Clock</option>
+                      <option value="LogOut">LogOut</option>
+                    </select>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -532,7 +832,10 @@ function ModuleViewModal({ isOpen, onClose, modules, onViewCreated }: ModuleView
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
                   <FormLabel>Vista Activa</FormLabel>
                   <FormControl>
-                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
                   </FormControl>
                 </FormItem>
               )}

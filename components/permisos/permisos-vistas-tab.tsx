@@ -98,7 +98,6 @@ export default function PermisosVistasTab() {
     fetchUsuarios();
   }, []);
 
-
   // Cargar módulos y sus vistas
   useEffect(() => {
     const fetchModulesWithViews = async () => {

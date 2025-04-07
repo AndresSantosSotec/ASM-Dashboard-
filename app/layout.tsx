@@ -4,6 +4,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import MainLayout from "@/components/layout/main-layout"
 import { ThemeProvider } from "@/components/theme-provider"
+import { Suspense } from "react"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -20,9 +21,11 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <MainLayout>{children}</MainLayout>
-        </ThemeProvider>
+        <Suspense fallback={<div>Cargando...</div>}>
+          <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+            <MainLayout>{children}</MainLayout>
+          </ThemeProvider>
+        </Suspense>
       </body>
     </html>
   )

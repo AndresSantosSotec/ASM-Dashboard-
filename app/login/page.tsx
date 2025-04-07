@@ -31,12 +31,16 @@ export default function LoginPage() {
         password,
       })
 
-      // Si el login fue exitoso, el backend responde con token y datos del usuario
-      const { token, user } = response.data
+      // Muestra la respuesta completa en consola para depuración
+      console.log("Respuesta del login:", response.data)
 
-      // Almacena el token y/o la info de usuario
+      // Extrae token, user y permissions de la respuesta
+      const { token, user, permissions } = response.data
+
+      // Almacena el token, el usuario y los permisos en localStorage
       localStorage.setItem("token", token)
       localStorage.setItem("user", JSON.stringify(user))
+      localStorage.setItem("permissions", JSON.stringify(permissions))
 
       // Redirige al dashboard
       router.push("/")
@@ -47,7 +51,6 @@ export default function LoginPage() {
       setIsLoading(false)
     }
   }
-
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-asm-navy to-blue-900 p-4">
@@ -61,7 +64,11 @@ export default function LoginPage() {
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
-            {error && <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded">{error}</div>}
+            {error && (
+              <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                {error}
+              </div>
+            )}
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium">
                 Correo Electrónico
@@ -159,4 +166,3 @@ export default function LoginPage() {
     </div>
   )
 }
-
