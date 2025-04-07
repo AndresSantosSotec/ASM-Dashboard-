@@ -35,9 +35,10 @@ export default function LoginPage() {
       console.log("Respuesta del login:", response.data)
 
       // Extrae token, user y permissions de la respuesta
-      const { token, user, permissions } = response.data
+      const { id, token, user, permissions } = response.data
 
       // Almacena el token, el usuario y los permisos en localStorage
+      localStorage.setItem("userId", id)
       localStorage.setItem("token", token)
       localStorage.setItem("user", JSON.stringify(user))
       localStorage.setItem("permissions", JSON.stringify(permissions))

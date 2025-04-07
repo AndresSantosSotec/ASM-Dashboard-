@@ -107,14 +107,12 @@ export default function CapturaProspectos() {
     fetchProgramas()
   }, [])
 
-  // Al montar el componente, obtener la estructura de departamentos y municipios de Guatemala
+  // Obtener la estructura de departamentos y municipios de Guatemala
   useEffect(() => {
     const fetchUbicacionGuatemala = async () => {
       try {
-        // Suponiendo que /api/ubicacion/1 retorna la estructura del país con sus departamentos y municipios
         const response = await axios.get("http://localhost:8000/api/ubicacion/1")
         const data = response.data
-        // Guardamos en estado los departamentos
         setDepartamentos(data.departamentos)
       } catch (error) {
         console.error("❌ Error al obtener ubicación de Guatemala:", error)
@@ -125,17 +123,13 @@ export default function CapturaProspectos() {
 
   // Función para cuando el usuario seleccione un departamento
   const handleDepartamentoChange = (value: string) => {
-    // Actualizamos el valor del formulario
     form.setValue("departamento", value)
-    // Buscamos el departamento en nuestro estado
     const dept = departamentos.find((d) => d.id.toString() === value)
-    // Actualizamos la lista de municipios
     if (dept) {
       setMunicipios(dept.municipios)
     } else {
       setMunicipios([])
     }
-    // Resetear el municipio si se cambia de departamento
     form.setValue("municipio", "")
   }
 
@@ -148,12 +142,23 @@ export default function CapturaProspectos() {
   const onSubmit = async (data: FormData) => {
     try {
       setLoading(true)
-      // Convertimos la fecha a formato YYYY-MM-DD
       const fechaFormateada = data.fecha.toISOString().split("T")[0]
-      const response = await axios.post("http://localhost:8000/api/prospectos", {
-        ...data,
-        fecha: fechaFormateada,
-      })
+      // Recuperar el token almacenado (clave "token")
+      const token = localStorage.getItem("token")
+      // Imprimir el token en consola para depuración
+      console.log("Token:", token)
+      const response = await axios.post(
+        "http://localhost:8000/api/prospectos",
+        {
+          ...data,
+          fecha: fechaFormateada,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      )
       console.log("✅ Prospecto guardado:", response.data)
       Swal.fire({
         icon: 'success',
@@ -172,7 +177,6 @@ export default function CapturaProspectos() {
       setLoading(false)
     }
   }
-
 
   return (
     <Form {...form}>
@@ -443,7 +447,7 @@ export default function CapturaProspectos() {
               )}
             />
 
-            {/* Departamento (Elegible por el usuario) */}
+            {/* Departamento */}
             <FormField
               control={form.control}
               name="departamento"
@@ -472,7 +476,7 @@ export default function CapturaProspectos() {
               )}
             />
 
-            {/* Municipio (Elegible por el usuario) */}
+            {/* Municipio */}
             <FormField
               control={form.control}
               name="municipio"

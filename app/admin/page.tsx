@@ -398,66 +398,6 @@ export default function AdminPanel() {
         </Button>
       </div>
 
-      {/* Tabs principales del panel de administración */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-        <TabsList className="w-full grid grid-cols-5 h-auto">
-          <TabsTrigger value="general" className="py-3 flex items-center gap-2">
-            <LayoutDashboard className="h-4 w-4" />
-            General
-          </TabsTrigger>
-          <TabsTrigger value="reportes" className="py-3 flex items-center gap-2">
-            <BarChart2 className="h-4 w-4" />
-            Reportes
-          </TabsTrigger>
-          <TabsTrigger value="academico" className="py-3 flex items-center gap-2">
-            <BookOpen className="h-4 w-4" />
-            Académico
-          </TabsTrigger>
-          <TabsTrigger value="comunicaciones" className="py-3 flex items-center gap-2">
-            <Mail className="h-4 w-4" />
-            Comunicaciones
-          </TabsTrigger>
-          <TabsTrigger value="estudiantes" className="py-3 flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Estudiantes
-          </TabsTrigger>
-        </TabsList>
-
-
-
-        {/* Contenido de la pestaña Reportes */}
-        <TabsContent value="reportes">
-          <div className="p-4 text-center">
-            <h2 className="text-xl font-semibold mb-2">Sección de Reportes</h2>
-            <p className="text-gray-500">Aquí se mostrarán los reportes del sistema.</p>
-          </div>
-        </TabsContent>
-
-        {/* Contenido de la pestaña Académico */}
-        <TabsContent value="academico">
-          <div className="p-4 text-center">
-            <h2 className="text-xl font-semibold mb-2">Sección Académica</h2>
-            <p className="text-gray-500">Aquí se mostrarán los datos académicos.</p>
-          </div>
-        </TabsContent>
-
-        {/* Contenido de la pestaña Comunicaciones */}
-        <TabsContent value="comunicaciones">
-          <div className="p-4 text-center">
-            <h2 className="text-xl font-semibold mb-2">Sección de Comunicaciones</h2>
-            <p className="text-gray-500">Aquí se mostrarán las comunicaciones del sistema.</p>
-          </div>
-        </TabsContent>
-
-        {/* Contenido de la pestaña Estudiantes */}
-        <TabsContent value="estudiantes">
-          <div className="p-4 text-center">
-            <h2 className="text-xl font-semibold mb-2">Sección de Estudiantes</h2>
-            <p className="text-gray-500">Aquí se mostrarán los datos de estudiantes.</p>
-          </div>
-        </TabsContent>
-      </Tabs>
-
       {/* Panel de Administración de Leads y otras opciones */}
       <div className="mt-8">
         <h2 className="text-xl font-bold mb-4">Panel de Administración de Prospectos</h2>

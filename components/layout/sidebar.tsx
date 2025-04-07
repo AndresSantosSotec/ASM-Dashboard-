@@ -213,80 +213,9 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 } transition-colors duration-200`}
               >
                 <Users size={16} className="mr-2" />
-                <span>Gestión de Leads</span>
+                <span>Panel de Administacion</span>
               </Link>
-              <Link
-                href="/admin?tab=advisors"
-                className={`flex items-center px-4 py-1.5 rounded-md ${
-                  pathname === "/admin" &&
-                  new URLSearchParams(window.location.search).get("tab") === "advisors"
-                    ? "bg-asm-medium-gold text-white"
-                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                } transition-colors duration-200`}
-              >
-                <UserCheck size={16} className="mr-2" />
-                <span>Asesores</span>
-              </Link>
-              <Link
-                href="/admin?tab=performance"
-                className={`flex items-center px-4 py-1.5 rounded-md ${
-                  pathname === "/admin" &&
-                  new URLSearchParams(window.location.search).get("tab") === "performance"
-                    ? "bg-asm-medium-gold text-white"
-                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                } transition-colors duration-200`}
-              >
-                <BarChart2 size={16} className="mr-2" />
-                <span>Rendimiento</span>
-              </Link>
-              <Link
-                href="/admin?tab=reports"
-                className={`flex items-center px-4 py-1.5 rounded-md ${
-                  pathname === "/admin" &&
-                  new URLSearchParams(window.location.search).get("tab") === "reports"
-                    ? "bg-asm-medium-gold text-white"
-                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                } transition-colors duration-200`}
-              >
-                <FileText size={16} className="mr-2" />
-                <span>Reportes</span>
-              </Link>
-              <Link
-                href="/admin?tab=advisorActivity"
-                className={`flex items-center px-4 py-1.5 rounded-md ${
-                  pathname === "/admin" &&
-                  new URLSearchParams(window.location.search).get("tab") === "advisorActivity"
-                    ? "bg-asm-medium-gold text-white"
-                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                } transition-colors duration-200`}
-              >
-                <Activity size={16} className="mr-2" />
-                <span>Actividad Diaria</span>
-              </Link>
-              <Link
-                href="/admin?tab=duplicates"
-                className={`flex items-center px-4 py-1.5 rounded-md ${
-                  pathname === "/admin" &&
-                  new URLSearchParams(window.location.search).get("tab") === "duplicates"
-                    ? "bg-asm-medium-gold text-white"
-                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                } transition-colors duration-200`}
-              >
-                <Copy size={16} className="mr-2" />
-                <span>Duplicados</span>
-              </Link>
-              <Link
-                href="/admin?tab=settings"
-                className={`flex items-center px-4 py-1.5 rounded-md ${
-                  pathname === "/admin" &&
-                  new URLSearchParams(window.location.search).get("tab") === "settings"
-                    ? "bg-asm-medium-gold text-white"
-                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                } transition-colors duration-200`}
-              >
-                <Settings size={16} className="mr-2" />
-                <span>Configuración</span>
-              </Link>
+
             </div>
           )}
         </div>
