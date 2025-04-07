@@ -202,29 +202,6 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <span>Calendario</span>
               </Link>
 
-              {/* Integraciones */}
-              <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
-                Integraciones
-              </div>
-              <Link
-                href="/envio-correos"
-                className={`flex items-center px-4 py-1.5 rounded-md ${
-                  pathname === "/envio-correos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                } transition-colors duration-200`}
-              >
-                <Mail size={16} className="mr-2" />
-                <span>Formulario de Correos</span>
-              </Link>
-              <Link
-                href="/programacion-tareas"
-                className={`flex items-center px-4 py-1.5 rounded-md ${
-                  pathname === "/programacion-tareas" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                } transition-colors duration-200`}
-              >
-                <Calendar size={16} className="mr-2" />
-                <span>Programación de Tareas</span>
-              </Link>
-
               {/* Admin Panel ahora dentro de Prospectos y Asesores */}
               <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
                 Admin Panel
