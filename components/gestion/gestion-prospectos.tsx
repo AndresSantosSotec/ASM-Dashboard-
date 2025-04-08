@@ -3,8 +3,8 @@
 import { useState, useEffect, useMemo } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Filter, MoreHorizontal, Eye, Edit2, Trash2, UserPlus } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from "@/components/ui/select"
+import { Filter, MoreHorizontal, Eye, Edit2, UserPlus } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,29 +42,30 @@ export default function GestionProspectos() {
   const [estadoFilter, setEstadoFilter] = useState<string>("todos")
 
   // Estados para paginación
-  // Puede ser "5", "10", "20" o "all" (para mostrar todos)
   const [pageSize, setPageSize] = useState<string>("5")
   const [currentPage, setCurrentPage] = useState<number>(1)
 
-  // Carga inicial de prospectos
+  // Carga inicial de prospectos (se envía el token de autenticación)
   useEffect(() => {
     const fetchProspectos = async () => {
       setLoading(true)
       setError("")
-
       try {
+        const token = localStorage.getItem("token")
         const url = "http://127.0.0.1:8000/api/prospectos"
-        const res = await fetch(url)
+        const res = await fetch(url, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        })
         console.log("Respuesta de fetch, status:", res.status)
-
         if (!res.ok) {
           throw new Error(`Error al obtener prospectos: status ${res.status}`)
         }
-
         const json = await res.json()
         console.log("JSON recibido:", json)
-
-        // Mapeamos los datos del backend a nuestro modelo
+        // Mapeamos los datos del backend a nuestro modelo de prospecto
         const prospectosTransformados = json.data.map((item: any) => ({
           id: String(item.id),
           nombre: item.nombre_completo,
@@ -129,23 +130,19 @@ export default function GestionProspectos() {
         p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.telefono.toLowerCase().includes(searchTerm.toLowerCase())
-
       const matchesEstado =
         estadoFilter === "todos"
           ? true
           : p.estado.toLowerCase() === estadoFilter.toLowerCase()
-
       return matchesSearch && matchesEstado
     })
   }, [prospectos, searchTerm, estadoFilter])
 
   // Paginación: cálculo de prospectos a mostrar
   const paginatedProspectos = useMemo(() => {
-    // Si el usuario selecciona "all", mostramos todos
     if (pageSize === "all") {
       return filteredProspectos
     }
-    // Convertir pageSize a número
     const size = Number(pageSize)
     const startIndex = (currentPage - 1) * size
     const endIndex = startIndex + size
@@ -161,7 +158,7 @@ export default function GestionProspectos() {
   // Cambiar el tamaño de página
   const handlePageSizeChange = (value: string) => {
     setPageSize(value)
-    setCurrentPage(1) // Reiniciamos a la página 1
+    setCurrentPage(1)
   }
 
   // Navegación entre páginas
@@ -176,26 +173,30 @@ export default function GestionProspectos() {
     }
   }
 
+  // Extraer el usuario actual del localStorage para condicionar la UI si es administrador
+  const storedUser = localStorage.getItem("user")
+  const currentUser = storedUser ? JSON.parse(storedUser) : null
+
   return (
     <div className="bg-white rounded-lg shadow">
       {/* Filtros superiores */}
       <div className="p-4 border-b flex flex-wrap gap-4">
-        {/* Búsqueda por nombre, email o teléfono */}
         <Input
           placeholder="Buscar prospectos..."
           className="max-w-xs"
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value)
-            setCurrentPage(1) // Resetear a la página 1 al cambiar búsqueda
+            setCurrentPage(1)
           }}
         />
-
-        {/* Filtro por estado */}
-        <Select value={estadoFilter} onValueChange={(value) => {
-          setEstadoFilter(value)
-          setCurrentPage(1) // Resetear a la página 1 al cambiar estado
-        }}>
+        <Select
+          value={estadoFilter}
+          onValueChange={(value) => {
+            setEstadoFilter(value)
+            setCurrentPage(1)
+          }}
+        >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Todos los estados" />
           </SelectTrigger>
@@ -209,7 +210,6 @@ export default function GestionProspectos() {
             <SelectItem value="Promesa de pago">Promesa de pago</SelectItem>
           </SelectContent>
         </Select>
-
         <Button variant="outline">
           <Filter className="h-4 w-4 mr-2" />
           Filtros
@@ -287,9 +287,19 @@ export default function GestionProspectos() {
                     >
                       <Edit2 className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {/* Ejemplo: Si el usuario es administrador se muestra un botón extra (se puede reutilizar para edición avanzada) */}
+                    {currentUser && currentUser.rol === "administrador" && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setSelectedProspecto(prospecto)
+                          setModalType("editar")
+                        }}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button variant="ghost" size="icon">
                       <UserPlus className="h-4 w-4" />
                     </Button>
@@ -300,6 +310,14 @@ export default function GestionProspectos() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedProspecto(prospecto)
+                            setModalType("editar")
+                          }}
+                        >
+                          Actualizar Prospecto
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => {
                             setSelectedProspecto(prospecto)
@@ -338,7 +356,6 @@ export default function GestionProspectos() {
 
       {/* Controles de paginación */}
       <div className="flex items-center justify-end gap-2 p-4">
-        {/* Seleccionar tamaño de página */}
         <Select value={pageSize} onValueChange={handlePageSizeChange}>
           <SelectTrigger className="w-[120px]">
             <SelectValue placeholder="Paginación" />
@@ -351,7 +368,6 @@ export default function GestionProspectos() {
           </SelectContent>
         </Select>
 
-        {/* Botones Anterior / Siguiente */}
         {pageSize !== "all" && (
           <>
             <Button variant="outline" onClick={handlePrevPage} disabled={currentPage === 1}>
