@@ -1,297 +1,322 @@
 "use client"
 
-import { useState } from "react"
-import { Search, Plus, Upload, MoreHorizontal, ChevronLeft, ChevronRight, UserPlus, Zap } from "lucide-react"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { useState, useEffect, useMemo } from "react"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Button } from "@/components/ui/button"
+import { Filter } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
 
-// Mock data
-const mockLeads = [
-  {
-    id: "1",
-    name: "Juan Pérez",
-    email: "juan@example.com",
-    phone: "1234567890",
-    status: "Nuevo",
-    assignedTo: "Carlos Rodríguez",
-  },
-  {
-    id: "2",
-    name: "María García",
-    email: "maria@example.com",
-    phone: "9876543210",
-    status: "En seguimiento",
-    assignedTo: "Ana López",
-  },
-  {
-    id: "3",
-    name: "Pedro Sánchez",
-    email: "pedro@example.com",
-    phone: "5555555555",
-    status: "Convertido",
-    assignedTo: "Carlos Rodríguez",
-  },
-  {
-    id: "4",
-    name: "Ana Martínez",
-    email: "ana@example.com",
-    phone: "1112223333",
-    status: "No interesado",
-    assignedTo: "Sin asignar",
-  },
-]
+// Interfaz para prospecto (ajusta según tus campos)
+interface Prospecto {
+  id: string
+  nombre: string
+  email: string
+  telefono: string
+  departamento: string
+  estado: string
+  ultimoCambio: string
+}
 
-// Mock advisors
-const mockAdvisors = [
-  {
-    id: "1",
-    name: "Carlos Rodríguez",
-    specialty: "Marketing",
-    currentLoad: 12,
-  },
-  {
-    id: "2",
-    name: "Ana López",
-    specialty: "Finanzas",
-    currentLoad: 8,
-  },
-  {
-    id: "3",
-    name: "Miguel Hernández",
-    specialty: "Tecnología",
-    currentLoad: 15,
-  },
-  {
-    id: "4",
-    name: "Laura Martínez",
-    specialty: "Recursos Humanos",
-    currentLoad: 10,
-  },
-]
+export default function GestionProspectos() {
+  const [prospectos, setProspectos] = useState<Prospecto[]>([])
+  const [loading, setLoading] = useState<boolean>(false)
+  const [error, setError] = useState<string>("")
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
 
-export function LeadManagement() {
-  const [importLeadsModalOpen, setImportLeadsModalOpen] = useState(false)
-  const [manualAssignModalOpen, setManualAssignModalOpen] = useState(false)
-  const [autoAssignModalOpen, setAutoAssignModalOpen] = useState(false)
-  const [selectedLead, setSelectedLead] = useState<any>(null)
-  const [selectedAdvisor, setSelectedAdvisor] = useState<string>("")
-  const { toast } = useToast()
+  // Estados para filtros
+  const [searchTerm, setSearchTerm] = useState<string>("")
+  const [estadoFilter, setEstadoFilter] = useState<string>("todos")
 
-  const handleAssignLead = (leadId: string) => {
-    const lead = mockLeads.find((l) => l.id === leadId)
-    setSelectedLead(lead)
-    setManualAssignModalOpen(true)
-  }
+  // Estados para paginación
+  const [pageSize, setPageSize] = useState<string>("5")
+  const [currentPage, setCurrentPage] = useState<number>(1)
 
-  const handleManualAssign = () => {
-    if (!selectedAdvisor) {
-      toast({
-        title: "Error",
-        description: "Por favor seleccione un asesor",
-        variant: "destructive",
-      })
-      return
+  // Estado para el usuario actual obtenido de localStorage (se carga en el cliente)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+
+  // Carga inicial de prospectos (se envía el token de autenticación)
+  useEffect(() => {
+    const fetchProspectos = async () => {
+      setLoading(true)
+      setError("")
+      try {
+        const token = localStorage.getItem("token")
+        const url = "http://127.0.0.1:8000/api/prospectos"
+        const res = await fetch(url, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        })
+        if (!res.ok) {
+          throw new Error(`Error al obtener prospectos: status ${res.status}`)
+        }
+        const json = await res.json()
+        // Mapeamos los datos del backend a nuestro modelo de prospecto
+        const prospectosTransformados = json.data.map((item: any) => ({
+          id: String(item.id),
+          nombre: item.nombre_completo,
+          email: item.correo_electronico,
+          telefono: item.telefono,
+          departamento: item.empresa_donde_labora_actualmente ?? "Sin Departamento",
+          estado: item.status || "No contactado",
+          ultimoCambio: item.updated_at ?? "N/A",
+        }))
+        setProspectos(prospectosTransformados)
+      } catch (err: any) {
+        setError(err.message || "Error inesperado")
+      } finally {
+        setLoading(false)
+      }
     }
+    fetchProspectos()
+  }, [])
 
-    // Aquí iría la lógica para asignar el lead al asesor
-    toast({
-      title: "Lead asignado",
-      description: `El lead ${selectedLead?.name} ha sido asignado a ${mockAdvisors.find((a) => a.id === selectedAdvisor)?.name}`,
-    })
-    setManualAssignModalOpen(false)
-    setSelectedLead(null)
-    setSelectedAdvisor("")
+  // Cargar el usuario actual (solo en el cliente)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedUser = localStorage.getItem("user")
+      if (storedUser) {
+        setCurrentUser(JSON.parse(storedUser))
+      }
+    }
+  }, [])
+
+  // Seleccionar/deseleccionar todos
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(prospectos.map((p) => p.id))
+    } else {
+      setSelectedIds([])
+    }
   }
 
-  const handleAutoAssign = () => {
-    // Aquí iría la lógica para asignar automáticamente los leads
-    toast({
-      title: "Asignación automática completada",
-      description: "Los leads han sido asignados automáticamente a los asesores según su carga y especialidad",
+  // Seleccionar/deseleccionar uno
+  const handleSelectOne = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedIds([...selectedIds, id])
+    } else {
+      setSelectedIds(selectedIds.filter((i) => i !== id))
+    }
+  }
+
+  // Asignar color según estado
+  const getEstadoColor = (estado: string) => {
+    switch (estado.toLowerCase()) {
+      case "no contactado":
+        return "bg-gray-100 text-gray-800"
+      case "en seguimiento":
+        return "bg-blue-100 text-blue-800"
+      case "le interesa a futuro":
+        return "bg-yellow-100 text-yellow-800"
+      case "perdido":
+        return "bg-red-100 text-red-800"
+      case "inscrito":
+        return "bg-green-100 text-green-800"
+      case "promesa de pago":
+        return "bg-pink-100 text-pink-800"
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
+  }
+
+  // Filtrado por búsqueda y estado
+  const filteredProspectos = useMemo(() => {
+    return prospectos.filter((p) => {
+      const matchesSearch =
+        p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.telefono.toLowerCase().includes(searchTerm.toLowerCase())
+      const matchesEstado =
+        estadoFilter === "todos"
+          ? true
+          : p.estado.toLowerCase() === estadoFilter.toLowerCase()
+      return matchesSearch && matchesEstado
     })
-    setAutoAssignModalOpen(false)
+  }, [prospectos, searchTerm, estadoFilter])
+
+  // Paginación: cálculo de prospectos a mostrar
+  const paginatedProspectos = useMemo(() => {
+    if (pageSize === "all") {
+      return filteredProspectos
+    }
+    const size = Number(pageSize)
+    const startIndex = (currentPage - 1) * size
+    const endIndex = startIndex + size
+    return filteredProspectos.slice(startIndex, endIndex)
+  }, [filteredProspectos, currentPage, pageSize])
+
+  // Número total de páginas
+  const totalPages = useMemo(() => {
+    if (pageSize === "all") return 1
+    return Math.ceil(filteredProspectos.length / Number(pageSize))
+  }, [filteredProspectos, pageSize])
+
+  // Cambiar el tamaño de página
+  const handlePageSizeChange = (value: string) => {
+    setPageSize(value)
+    setCurrentPage(1)
+  }
+
+  // Navegación entre páginas
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1)
+    }
+  }
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1)
+    }
   }
 
   return (
-    <Card className="shadow-soft">
-      <CardHeader>
-        <CardTitle>Gestión de Leads</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
-            <Input placeholder="Buscar leads..." className="w-full sm:w-[300px]" />
-            <Button variant="outline" className="w-full sm:w-auto">
-              <Search className="h-4 w-4 mr-2" />
-              Buscar
-            </Button>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button className="w-full sm:w-auto">
-              <Plus className="h-4 w-4 mr-2" />
-              Agregar Lead
-            </Button>
-            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setImportLeadsModalOpen(true)}>
-              <Upload className="h-4 w-4 mr-2" />
-              Importar Leads
-            </Button>
-            <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setAutoAssignModalOpen(true)}>
-              <Zap className="h-4 w-4 mr-2" />
-              Asignación Automática
-            </Button>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Teléfono</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Asignado a</TableHead>
-                <TableHead>Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockLeads.map((lead) => (
-                <TableRow key={lead.id}>
-                  <TableCell>{lead.name}</TableCell>
-                  <TableCell>{lead.email}</TableCell>
-                  <TableCell>{lead.phone}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        lead.status === "Nuevo"
-                          ? "default"
-                          : lead.status === "En seguimiento"
-                            ? "secondary"
-                            : lead.status === "Convertido"
-                              ? "success"
-                              : "outline"
+    <div className="bg-white rounded-lg shadow">
+      {/* Filtros superiores */}
+      <div className="p-4 border-b flex flex-wrap gap-4">
+        <Input
+          placeholder="Buscar prospectos..."
+          className="max-w-xs"
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value)
+            setCurrentPage(1)
+          }}
+        />
+        <Select
+          value={estadoFilter}
+          onValueChange={(value) => {
+            setEstadoFilter(value)
+            setCurrentPage(1)
+          }}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Todos los estados" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos</SelectItem>
+            <SelectItem value="No contactado">No contactado</SelectItem>
+            <SelectItem value="En seguimiento">En seguimiento</SelectItem>
+            <SelectItem value="Le interesa a futuro">Le interesa a futuro</SelectItem>
+            <SelectItem value="Perdido">Perdido</SelectItem>
+            <SelectItem value="Inscrito">Inscrito</SelectItem>
+            <SelectItem value="Promesa de pago">Promesa de pago</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="outline">
+          <Filter className="h-4 w-4 mr-2" />
+          Filtros
+        </Button>
+      </div>
+
+      {loading && <p className="p-4">Cargando prospectos...</p>}
+      {error && <p className="p-4 text-red-500">{error}</p>}
+
+      {/* Tabla de prospectos */}
+      <div className="overflow-x-auto p-4">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={selectedIds.length === prospectos.length}
+                  onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
+                />
+              </TableHead>
+              <TableHead>Nombre</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Teléfono</TableHead>
+              <TableHead>Departamento</TableHead>
+              <TableHead>Estado</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paginatedProspectos.length > 0 ? (
+              paginatedProspectos.map((prospecto) => (
+                <TableRow key={prospecto.id} className="hover:bg-gray-50">
+                  <TableCell className="w-10">
+                    <Checkbox
+                      checked={selectedIds.includes(prospecto.id)}
+                      onCheckedChange={(checked) =>
+                        handleSelectOne(prospecto.id, checked as boolean)
                       }
-                    >
-                      {lead.status}
-                    </Badge>
+                    />
                   </TableCell>
-                  <TableCell>{lead.assignedTo}</TableCell>
+                  <TableCell>{prospecto.nombre}</TableCell>
+                  <TableCell>{prospecto.email}</TableCell>
+                  <TableCell>{prospecto.telefono}</TableCell>
+                  <TableCell>{prospecto.departamento}</TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleAssignLead(lead.id)}>
-                          <UserPlus className="h-4 w-4 mr-2" />
-                          Asignar a asesor
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>Editar</DropdownMenuItem>
-                        <DropdownMenuItem>Ver detalles</DropdownMenuItem>
-                        <DropdownMenuItem>Eliminar</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className="flex flex-col">
+                      <Badge className={getEstadoColor(prospecto.estado)}>
+                        {prospecto.estado}
+                      </Badge>
+                      <span className="text-xs text-gray-500 mt-1">
+                        Último cambio: {prospecto.ultimoCambio}
+                      </span>
+                    </div>
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-        <div className="flex items-center justify-end space-x-2 py-4">
-          <Button variant="outline" size="sm">
-            <ChevronLeft className="h-4 w-4 mr-2" />
-            Anterior
-          </Button>
-          <Button variant="outline" size="sm">
-            Siguiente
-            <ChevronRight className="h-4 w-4 ml-2" />
-          </Button>
-        </div>
-      </CardContent>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={6} className="py-4 text-center text-gray-500">
+                  No se encontraron prospectos.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
-      {/* Modal para asignación manual de leads */}
-      <Dialog open={manualAssignModalOpen} onOpenChange={setManualAssignModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Asignar Lead a Asesor</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Lead seleccionado</Label>
-              <div className="p-2 border rounded-md">
-                <p className="font-medium">{selectedLead?.name}</p>
-                <p className="text-sm text-gray-500">{selectedLead?.email}</p>
-                <p className="text-sm text-gray-500">{selectedLead?.phone}</p>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="advisor">Seleccionar Asesor</Label>
-              <Select value={selectedAdvisor} onValueChange={setSelectedAdvisor}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar asesor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {mockAdvisors.map((advisor) => (
-                    <SelectItem key={advisor.id} value={advisor.id}>
-                      {advisor.name} - {advisor.specialty} ({advisor.currentLoad} leads)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setManualAssignModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleManualAssign}>Asignar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Controles de paginación */}
+      <div className="flex items-center justify-end gap-2 p-4">
+        <Select value={pageSize} onValueChange={handlePageSizeChange}>
+          <SelectTrigger className="w-[120px]">
+            <SelectValue placeholder="Paginación" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="5">5</SelectItem>
+            <SelectItem value="10">10</SelectItem>
+            <SelectItem value="20">20</SelectItem>
+            <SelectItem value="all">Todos</SelectItem>
+          </SelectContent>
+        </Select>
 
-      {/* Modal para asignación automática de leads */}
-      <Dialog open={autoAssignModalOpen} onOpenChange={setAutoAssignModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Asignación Automática de Leads</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <p>
-              La asignación automática distribuirá los leads no asignados entre los asesores disponibles, considerando
-              su carga actual de trabajo y especialidad.
-            </p>
-            <div className="bg-blue-50 p-4 rounded-md">
-              <h4 className="font-medium text-blue-700 mb-2">Criterios de asignación:</h4>
-              <ul className="list-disc pl-5 text-sm text-blue-700 space-y-1">
-                <li>Carga de trabajo actual del asesor</li>
-                <li>Especialidad del asesor vs. interés del lead</li>
-                <li>Rendimiento histórico del asesor</li>
-                <li>Idioma preferido del lead</li>
-              </ul>
-            </div>
-            <div className="bg-amber-50 p-4 rounded-md">
-              <h4 className="font-medium text-amber-700">Resumen:</h4>
-              <p className="text-sm text-amber-700">Se asignarán 2 leads no asignados a 4 asesores disponibles.</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAutoAssignModalOpen(false)}>
-              Cancelar
+        {pageSize !== "all" && (
+          <>
+            <Button variant="outline" onClick={handlePrevPage} disabled={currentPage === 1}>
+              Anterior
             </Button>
-            <Button onClick={handleAutoAssign}>Iniciar Asignación Automática</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Card>
+            <span className="text-sm text-gray-600">
+              Página {currentPage} de {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              onClick={handleNextPage}
+              disabled={currentPage === totalPages || totalPages === 0}
+            >
+              Siguiente
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
   )
 }
-

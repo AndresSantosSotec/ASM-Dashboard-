@@ -1,9 +1,20 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import { Search, Mail } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -12,74 +23,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Search, Mail } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-// Tipos de datos
+// Interfaz para prospecto (ajustable a tus campos)
 interface Prospecto {
-  id: number
+  id: string
   nombre: string
   email: string
   telefono: string
   departamento: string
-  estado: "Nuevo" | "En proceso" | "Contactado" | "Calificado"
+  estado: string
+  ultimoCambio: string
 }
-
-// Datos de ejemplo
-const prospectos: Prospecto[] = [
-  {
-    id: 1,
-    nombre: "Juan Pérez",
-    email: "juan.perez@example.com",
-    telefono: "12345678",
-    departamento: "Guatemala",
-    estado: "Nuevo",
-  },
-  {
-    id: 2,
-    nombre: "María García",
-    email: "maria.garcia@example.com",
-    telefono: "55551234",
-    departamento: "Quetzaltenango",
-    estado: "En proceso",
-  },
-  {
-    id: 3,
-    nombre: "Carlos López",
-    email: "carlos.lopez@example.com",
-    telefono: "33334444",
-    departamento: "Escuintla",
-    estado: "Contactado",
-  },
-  {
-    id: 4,
-    nombre: "Ana Martínez",
-    email: "ana.martinez@example.com",
-    telefono: "77778888",
-    departamento: "Sacatepéquez",
-    estado: "Calificado",
-  },
-  {
-    id: 5,
-    nombre: "Roberto Gómez",
-    email: "roberto.gomez@example.com",
-    telefono: "99991111",
-    departamento: "Petén",
-    estado: "Nuevo",
-  },
-  {
-    id: 6,
-    nombre: "Laura Sánchez",
-    email: "laura.sanchez@example.com",
-    telefono: "44442222",
-    departamento: "Izabal",
-    estado: "En proceso",
-  },
-]
 
 // Plantillas de correo predefinidas
 const plantillasCorreo = [
@@ -106,8 +61,17 @@ const plantillasCorreo = [
   },
 ]
 
-export default function EmailSystem() {
-  const [searchTerm, setSearchTerm] = useState("")
+export default function GestionProspectosEmail() {
+  // Estados para manejo de prospectos obtenidos de la API
+  const [prospectos, setProspectos] = useState<Prospecto[]>([])
+  const [loading, setLoading] = useState<boolean>(false)
+  const [error, setError] = useState<string>("")
+
+  // Estados para filtros de búsqueda y estado
+  const [searchTerm, setSearchTerm] = useState<string>("")
+  const [estadoFilter, setEstadoFilter] = useState<string>("todos")
+
+  // Estados para el envío de correo individual o masivo
   const [selectedProspecto, setSelectedProspecto] = useState<Prospecto | null>(null)
   const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [emailData, setEmailData] = useState({
@@ -115,223 +79,358 @@ export default function EmailSystem() {
     asunto: "",
     mensaje: "",
   })
-  const [selectedFilter, setSelectedFilter] = useState("todos")
   const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null)
+  // Flag para saber si se está enviando correo masivo
+  const [isBulkEmail, setIsBulkEmail] = useState(false)
+  // Estados para selección múltiple en el data table
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
 
-  // Filtrar prospectos por término de búsqueda y filtro seleccionado
-  const filteredProspectos = prospectos.filter((prospecto) => {
-    const matchesSearch =
-      prospecto.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      prospecto.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      prospecto.telefono.includes(searchTerm)
+  // Estados para la paginación
+  const [pageSize, setPageSize] = useState<string>("5")
+  const [currentPage, setCurrentPage] = useState<number>(1)
 
-    if (selectedFilter === "todos") return matchesSearch
-    return matchesSearch && prospecto.estado.toLowerCase() === selectedFilter.toLowerCase()
-  })
+  // Fetch de prospectos al montar el componente (utilizando token de localStorage)
+  useEffect(() => {
+    const fetchProspectos = async () => {
+      setLoading(true)
+      setError("")
+      try {
+        const token = localStorage.getItem("token")
+        const url = "http://127.0.0.1:8000/api/prospectos"
+        const res = await fetch(url, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        })
+        if (!res.ok) {
+          throw new Error(`Error al obtener prospectos: status ${res.status}`)
+        }
+        const json = await res.json()
+        // Mapeamos los datos del backend a nuestro modelo de prospecto
+        const prospectosTransformados = json.data.map((item: any) => ({
+          id: String(item.id),
+          nombre: item.nombre_completo,
+          email: item.correo_electronico,
+          telefono: item.telefono,
+          departamento: item.empresa_donde_labora_actualmente ?? "Sin Departamento",
+          estado: item.status || "No contactado",
+          ultimoCambio: item.updated_at ?? "N/A",
+        }))
+        setProspectos(prospectosTransformados)
+      } catch (err: any) {
+        setError(err.message || "Error inesperado")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchProspectos()
+  }, [])
 
-  // Manejar la selección de un prospecto
+  // Filtrado de prospectos según búsqueda y filtro de estado
+  const filteredProspectos = useMemo(() => {
+    return prospectos.filter((p) => {
+      const matchesSearch =
+        p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.telefono.toLowerCase().includes(searchTerm)
+      const matchesEstado =
+        estadoFilter === "todos"
+          ? true
+          : p.estado.toLowerCase() === estadoFilter.toLowerCase()
+      return matchesSearch && matchesEstado
+    })
+  }, [prospectos, searchTerm, estadoFilter])
+
+  // Paginación: calcular prospectos a mostrar según la página y tamaño
+  const paginatedProspectos = useMemo(() => {
+    if (pageSize === "all") return filteredProspectos
+    const size = Number(pageSize)
+    const startIndex = (currentPage - 1) * size
+    const endIndex = startIndex + size
+    return filteredProspectos.slice(startIndex, endIndex)
+  }, [filteredProspectos, currentPage, pageSize])
+
+  const totalPages = useMemo(() => {
+    if (pageSize === "all") return 1
+    return Math.ceil(filteredProspectos.length / Number(pageSize))
+  }, [filteredProspectos, pageSize])
+
+  // Funciones para selección múltiple
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      // Seleccionamos todos los prospectos filtrados
+      setSelectedIds(filteredProspectos.map((p) => p.id))
+    } else {
+      setSelectedIds([])
+    }
+  }
+  const handleSelectOne = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedIds((prev) => [...prev, id])
+    } else {
+      setSelectedIds((prev) => prev.filter((i) => i !== id))
+    }
+  }
+
+  // Manejar la selección de un prospecto para enviar correo individual
   const handleSelectProspecto = (prospecto: Prospecto) => {
+    setIsBulkEmail(false)
     setSelectedProspecto(prospecto)
     setEmailData({
       para: prospecto.email,
       asunto: "",
       mensaje: "",
     })
+    setSelectedTemplate(null)
     setEmailModalOpen(true)
   }
 
-  // Aplicar plantilla de correo
+  // Manejar el envío masivo de correo, usando los prospectos seleccionados
+  const handleBulkEmail = () => {
+    if (selectedIds.length === 0) {
+      alert("Seleccione al menos un prospecto para envío masivo")
+      return
+    }
+    const recipients = prospectos.filter((p) => selectedIds.includes(p.id))
+    const emails = recipients.map((p) => p.email).join(", ")
+    setIsBulkEmail(true)
+    setSelectedProspecto(null)
+    setEmailData({
+      para: emails,
+      asunto: "",
+      mensaje: "",
+    })
+    setSelectedTemplate(null)
+    setEmailModalOpen(true)
+  }
+
+  // Aplicar plantilla de correo (se reemplaza [nombre] si se trata de correo individual)
   const applyTemplate = (templateId: number) => {
     const template = plantillasCorreo.find((t) => t.id === templateId)
-    if (template && selectedProspecto) {
-      setEmailData({
-        para: selectedProspecto.email,
+    if (template) {
+      setEmailData((prevData) => ({
+        para: prevData.para,
         asunto: template.asunto,
-        mensaje: template.cuerpo.replace("[nombre]", selectedProspecto.nombre),
-      })
+        mensaje: isBulkEmail
+          ? template.cuerpo
+          : template.cuerpo.replace("[nombre]", selectedProspecto?.nombre || ""),
+      }))
       setSelectedTemplate(templateId)
     }
   }
 
-  // Enviar correo (simulado)
+  // Función simulada para enviar correo (individual o masivo)
   const handleSendEmail = () => {
-    // Aquí iría la lógica para enviar el correo
-    console.log("Enviando correo:", emailData)
-    // Mostrar mensaje de éxito
-    alert(`Correo enviado exitosamente a ${selectedProspecto?.nombre}`)
-    // Cerrar modal
+    console.log("Enviando correo con datos:", emailData)
+    alert(
+      isBulkEmail
+        ? `Correo masivo enviado a: ${emailData.para}`
+        : `Correo enviado exitosamente a ${selectedProspecto?.nombre}`
+    )
     setEmailModalOpen(false)
     setSelectedProspecto(null)
     setSelectedTemplate(null)
+    if (isBulkEmail) {
+      setIsBulkEmail(false)
+      setSelectedIds([])
+    }
   }
 
   return (
     <div className="container mx-auto py-6">
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="bg-[#1e3a8a] text-white rounded-t-lg">
-          <CardTitle className="text-2xl">Sistema de Comunicación</CardTitle>
-          <CardDescription className="text-gray-200">
-            Gestione la comunicación con sus prospectos y estudiantes
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-6">
-          <Tabs defaultValue="prospectos" className="w-full">
-            <TabsList className="mb-6">
-              <TabsTrigger value="prospectos">Prospectos</TabsTrigger>
-              <TabsTrigger value="estudiantes">Estudiantes</TabsTrigger>
-              <TabsTrigger value="plantillas">Plantillas</TabsTrigger>
-            </TabsList>
+      <h1 className="text-3xl font-bold mb-4">Gestión de Prospectos y Envío de Correo</h1>
 
-            <TabsContent value="prospectos" className="space-y-4">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="relative flex-1">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                  <Input
-                    type="text"
-                    placeholder="Buscar por nombre, email o teléfono..."
-                    className="pl-9"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <Select value={selectedFilter} onValueChange={setSelectedFilter}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Filtrar por estado" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos los estados</SelectItem>
-                    <SelectItem value="nuevo">Nuevo</SelectItem>
-                    <SelectItem value="en proceso">En proceso</SelectItem>
-                    <SelectItem value="contactado">Contactado</SelectItem>
-                    <SelectItem value="calificado">Calificado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+      {/* Filtros superiores y botón para correo masivo */}
+      <div className="flex flex-wrap items-center gap-4 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+          <Input
+            type="text"
+            placeholder="Buscar por nombre, email o teléfono..."
+            className="pl-9"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <Select value={estadoFilter} onValueChange={setEstadoFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Filtrar por estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos</SelectItem>
+            <SelectItem value="No contactado">No contactado</SelectItem>
+            <SelectItem value="En seguimiento">En seguimiento</SelectItem>
+            <SelectItem value="Le interesa a futuro">Le interesa a futuro</SelectItem>
+            <SelectItem value="Inscrito">Inscrito</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="default" onClick={handleBulkEmail}>
+          Enviar correo masivo
+        </Button>
+      </div>
 
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Teléfono</TableHead>
-                      <TableHead>Departamento</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead className="text-right">Acción</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredProspectos.length > 0 ? (
-                      filteredProspectos.map((prospecto) => (
-                        <TableRow key={prospecto.id}>
-                          <TableCell className="font-medium">{prospecto.nombre}</TableCell>
-                          <TableCell>{prospecto.email}</TableCell>
-                          <TableCell>{prospecto.telefono}</TableCell>
-                          <TableCell>{prospecto.departamento}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant="outline"
-                              className={
-                                prospecto.estado === "Nuevo"
-                                  ? "bg-blue-100 text-blue-800 border-blue-200"
-                                  : prospecto.estado === "En proceso"
-                                    ? "bg-yellow-100 text-yellow-800 border-yellow-200"
-                                    : prospecto.estado === "Contactado"
-                                      ? "bg-purple-100 text-purple-800 border-purple-200"
-                                      : "bg-green-100 text-green-800 border-green-200"
-                              }
-                            >
-                              {prospecto.estado}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="default"
-                              size="sm"
-                              className="bg-[#1e3a8a] hover:bg-[#152b67]"
-                              onClick={() => handleSelectProspecto(prospecto)}
-                            >
-                              <Mail className="mr-2 h-4 w-4" />
-                              Enviar correo
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={6} className="h-24 text-center">
-                          No se encontraron resultados.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </TabsContent>
+      {loading && <p>Cargando prospectos...</p>}
+      {error && <p className="text-red-500">{error}</p>}
 
-            <TabsContent value="estudiantes">
-              <div className="flex items-center justify-center h-40 border rounded-md bg-gray-50">
-                <p className="text-gray-500">Módulo de estudiantes en desarrollo</p>
-              </div>
-            </TabsContent>
+      {/* Data Table con selección múltiple y paginación */}
+      <div className="rounded-md border overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {/* Columna de checkbox para selección global */}
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={
+                    filteredProspectos.length > 0 &&
+                    selectedIds.length === filteredProspectos.length
+                  }
+                  onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
+                />
+              </TableHead>
+              <TableHead>Nombre</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Teléfono</TableHead>
+              <TableHead>Departamento</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead className="text-right">Acción</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paginatedProspectos.length > 0 ? (
+              paginatedProspectos.map((prospecto) => (
+                <TableRow key={prospecto.id}>
+                  {/* Checkbox para cada fila */}
+                  <TableCell className="w-10">
+                    <Checkbox
+                      checked={selectedIds.includes(prospecto.id)}
+                      onCheckedChange={(checked) => handleSelectOne(prospecto.id, checked as boolean)}
+                    />
+                  </TableCell>
+                  <TableCell className="font-medium">{prospecto.nombre}</TableCell>
+                  <TableCell>{prospecto.email}</TableCell>
+                  <TableCell>{prospecto.telefono}</TableCell>
+                  <TableCell>{prospecto.departamento}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={
+                        prospecto.estado.toLowerCase() === "no contactado"
+                          ? "bg-gray-100 text-gray-800 border-gray-200"
+                          : prospecto.estado.toLowerCase() === "en seguimiento"
+                          ? "bg-blue-100 text-blue-800 border-blue-200"
+                          : "bg-green-100 text-green-800 border-green-200"
+                      }
+                    >
+                      {prospecto.estado}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="bg-[#1e3a8a] hover:bg-[#152b67]"
+                      onClick={() => handleSelectProspecto(prospecto)}
+                    >
+                      <Mail className="mr-2 h-4 w-4" />
+                      Enviar correo
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={7} className="h-24 text-center">
+                  No se encontraron prospectos.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
-            <TabsContent value="plantillas">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {plantillasCorreo.map((plantilla) => (
-                  <Card key={plantilla.id} className="overflow-hidden">
-                    <CardHeader className="bg-gray-50 p-4">
-                      <CardTitle className="text-lg">{plantilla.nombre}</CardTitle>
-                      <CardDescription className="line-clamp-1">{plantilla.asunto}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-4">
-                      <p className="text-sm text-gray-600 line-clamp-3">{plantilla.cuerpo}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+      {/* Controles de paginación */}
+      {pageSize !== "all" && (
+        <div className="flex items-center justify-end gap-2 p-4">
+          <Select
+            value={pageSize}
+            onValueChange={(value) => {
+              setPageSize(value)
+              setCurrentPage(1)
+            }}
+          >
+            <SelectTrigger className="w-[120px]">
+              <SelectValue placeholder="Paginación" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="5">5</SelectItem>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="20">20</SelectItem>
+              <SelectItem value="all">Todos</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            onClick={() => currentPage > 1 && setCurrentPage(currentPage - 1)}
+            disabled={currentPage === 1}
+          >
+            Anterior
+          </Button>
+          <span className="text-sm text-gray-600">
+            Página {currentPage} de {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            onClick={() => currentPage < totalPages && setCurrentPage(currentPage + 1)}
+            disabled={currentPage === totalPages || totalPages === 0}
+          >
+            Siguiente
+          </Button>
+        </div>
+      )}
 
-      {/* Modal de envío de correo */}
+      {/* Modal para envío de correo (individual o masivo) */}
       <Dialog open={emailModalOpen} onOpenChange={setEmailModalOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Enviar correo electrónico</DialogTitle>
+            <DialogTitle>
+              {isBulkEmail ? "Enviar correo masivo" : "Enviar correo electrónico"}
+            </DialogTitle>
             <DialogDescription>
-              {selectedProspecto && (
-                <span>
-                  Enviar correo a <strong>{selectedProspecto.nombre}</strong>
-                </span>
+              {isBulkEmail ? (
+                <span>Enviar correo a los prospectos seleccionados</span>
+              ) : (
+                selectedProspecto && (
+                  <span>
+                    Enviar correo a <strong>{selectedProspecto.nombre}</strong>
+                  </span>
+                )
               )}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <label className="text-sm font-medium mb-1 block">Plantillas</label>
-                <Select
-                  value={selectedTemplate?.toString() || ""}
-                  onValueChange={(value) => applyTemplate(Number.parseInt(value))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar plantilla" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {plantillasCorreo.map((plantilla) => (
-                      <SelectItem key={plantilla.id} value={plantilla.id.toString()}>
-                        {plantilla.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Plantilla</label>
+              <Select
+                value={selectedTemplate?.toString() || ""}
+                onValueChange={(value) => applyTemplate(Number.parseInt(value))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar plantilla" />
+                </SelectTrigger>
+                <SelectContent>
+                  {plantillasCorreo.map((plantilla) => (
+                    <SelectItem key={plantilla.id} value={plantilla.id.toString()}>
+                      {plantilla.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Para:</label>
+            <div>
+              <label className="block text-sm font-medium mb-1">Para:</label>
               <Input
                 value={emailData.para}
                 onChange={(e) => setEmailData({ ...emailData, para: e.target.value })}
@@ -339,8 +438,8 @@ export default function EmailSystem() {
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Asunto:</label>
+            <div>
+              <label className="block text-sm font-medium mb-1">Asunto:</label>
               <Input
                 value={emailData.asunto}
                 onChange={(e) => setEmailData({ ...emailData, asunto: e.target.value })}
@@ -348,11 +447,13 @@ export default function EmailSystem() {
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Mensaje:</label>
+            <div>
+              <label className="block text-sm font-medium mb-1">Mensaje:</label>
               <Textarea
                 value={emailData.mensaje}
-                onChange={(e) => setEmailData({ ...emailData, mensaje: e.target.value })}
+                onChange={(e) =>
+                  setEmailData({ ...emailData, mensaje: e.target.value })
+                }
                 placeholder="Escriba su mensaje aquí..."
                 className="min-h-[200px]"
               />
@@ -372,4 +473,3 @@ export default function EmailSystem() {
     </div>
   )
 }
-

@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,26 +21,11 @@ interface Task {
   status: "pendiente" | "completada"
 }
 
-// Datos de ejemplo para mostrar inicialmente
-const initialTasks: Task[] = [
-  {
-    id: "1",
-    title: "Llamar a Juan Pérez",
-    description: "Seguimiento sobre interés en programa de MBA",
-    date: new Date(2023, 4, 15),
-    status: "pendiente",
-  },
-  {
-    id: "2",
-    title: "Enviar información a María García",
-    description: "Enviar folleto del programa de Medicina",
-    date: new Date(2023, 4, 16),
-    status: "pendiente",
-  },
-]
+// Clave para el localStorage
+const LOCAL_STORAGE_KEY = "advisorTasks"
 
 export function AdvisorTasks() {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks)
+  const [tasks, setTasks] = useState<Task[]>([])
   const [newTask, setNewTask] = useState<Omit<Task, "id">>({
     title: "",
     description: "",
@@ -51,12 +36,31 @@ export function AdvisorTasks() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { toast } = useToast()
 
+  // Cargar tareas del localStorage al montar el componente
+  useEffect(() => {
+    const savedTasks = localStorage.getItem(LOCAL_STORAGE_KEY)
+    if (savedTasks) {
+      try {
+        const parsedTasks = JSON.parse(savedTasks)
+        // Convertir strings de fecha a objetos Date
+        const tasksWithDates = parsedTasks.map((task: any) => ({
+          ...task,
+          date: new Date(task.date)
+        }))
+        setTasks(tasksWithDates)
+      } catch (error) {
+        console.error("Error al cargar tareas:", error)
+      }
+    }
+  }, [])
+
+  // Guardar tareas en localStorage cuando cambian
+  useEffect(() => {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(tasks))
+  }, [tasks])
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setNewTask((prev) => ({ ...prev, [name]: value }))
-  }
-
-  const handleSelectChange = (name: string, value: string) => {
     setNewTask((prev) => ({ ...prev, [name]: value }))
   }
 
@@ -68,7 +72,13 @@ export function AdvisorTasks() {
 
   const handleAddTask = () => {
     if (newTask.title && newTask.date) {
-      setTasks((prev) => [...prev, { ...newTask, id: Date.now().toString() }])
+      const taskToAdd = { 
+        ...newTask, 
+        id: Date.now().toString(),
+        date: new Date(newTask.date) // Asegurar que es un objeto Date
+      }
+      
+      setTasks((prev) => [...prev, taskToAdd])
       setNewTask({
         title: "",
         description: "",
@@ -90,7 +100,30 @@ export function AdvisorTasks() {
     }
   }
 
-  const filteredTasks = tasks.filter((task) => task.date.toDateString() === selectedDate.toDateString())
+  const handleTaskStatusChange = (taskId: string) => {
+    setTasks(prevTasks =>
+      prevTasks.map(task =>
+        task.id === taskId
+          ? {
+              ...task,
+              status: task.status === "pendiente" ? "completada" : "pendiente"
+            }
+          : task
+      )
+    )
+  }
+
+  const handleDeleteTask = (taskId: string) => {
+    setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId))
+    toast({
+      title: "Tarea eliminada",
+      description: "La tarea ha sido eliminada correctamente",
+    })
+  }
+
+  const filteredTasks = tasks.filter(
+    (task) => task.date.toDateString() === selectedDate.toDateString()
+  )
 
   return (
     <Card className="w-full">
@@ -117,9 +150,34 @@ export function AdvisorTasks() {
             ) : (
               <ul className="space-y-2">
                 {filteredTasks.map((task) => (
-                  <li key={task.id} className="bg-gray-100 p-3 rounded">
-                    <span className="font-semibold">{task.title}</span>
-                    <p className="text-sm text-gray-600 mt-1">{task.description}</p>
+                  <li 
+                    key={task.id} 
+                    className={`p-3 rounded ${task.status === "completada" ? "bg-green-50" : "bg-gray-100"}`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className={`font-semibold ${task.status === "completada" ? "line-through" : ""}`}>
+                          {task.title}
+                        </span>
+                        <p className="text-sm text-gray-600 mt-1">{task.description}</p>
+                      </div>
+                      <div className="flex space-x-2">
+                        <Button
+                          variant={task.status === "pendiente" ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handleTaskStatusChange(task.id)}
+                        >
+                          {task.status === "pendiente" ? "Completar" : "Pendiente"}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteTask(task.id)}
+                        >
+                          Eliminar
+                        </Button>
+                      </div>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -175,4 +233,3 @@ export function AdvisorTasks() {
     </Card>
   )
 }
-

@@ -45,6 +45,9 @@ export default function GestionProspectos() {
   const [pageSize, setPageSize] = useState<string>("5")
   const [currentPage, setCurrentPage] = useState<number>(1)
 
+  // Estado para el usuario actual obtenido de localStorage (se carga en el cliente)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+
   // Carga inicial de prospectos (se envía el token de autenticación)
   useEffect(() => {
     const fetchProspectos = async () => {
@@ -83,6 +86,16 @@ export default function GestionProspectos() {
       }
     }
     fetchProspectos()
+  }, [])
+
+  // Cargar el usuario actual (solo en el cliente)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedUser = localStorage.getItem("user")
+      if (storedUser) {
+        setCurrentUser(JSON.parse(storedUser))
+      }
+    }
   }, [])
 
   // Seleccionar/deseleccionar todos
@@ -172,10 +185,6 @@ export default function GestionProspectos() {
       setCurrentPage(currentPage - 1)
     }
   }
-
-  // Extraer el usuario actual del localStorage para condicionar la UI si es administrador
-  const storedUser = localStorage.getItem("user")
-  const currentUser = storedUser ? JSON.parse(storedUser) : null
 
   return (
     <div className="bg-white rounded-lg shadow">
@@ -287,7 +296,7 @@ export default function GestionProspectos() {
                     >
                       <Edit2 className="h-4 w-4" />
                     </Button>
-                    {/* Ejemplo: Si el usuario es administrador se muestra un botón extra (se puede reutilizar para edición avanzada) */}
+                    {/* Si el usuario actual tiene rol "administrador", se muestra un botón adicional */}
                     {currentUser && currentUser.rol === "administrador" && (
                       <Button
                         variant="ghost"
