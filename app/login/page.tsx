@@ -32,7 +32,7 @@ export default function LoginPage() {
       })
 
       // Muestra la respuesta completa en consola para depuración
-      console.log("Respuesta del login:", response.data)
+
 
       // Extrae token, user y permissions de la respuesta
       const { id, token, user, permissions } = response.data

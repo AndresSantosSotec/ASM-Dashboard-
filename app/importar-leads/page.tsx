@@ -1,47 +1,81 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { ArrowLeft } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
+import Swal from "sweetalert2"
 
 interface Column {
   id: number
-  name: string
-  columnNumber: number
+  name: string              // Corresponde a column_name
+  excelName: string         // Corresponde a excel_column_name
+  columnNumber: number      // Corresponde a column_number
+  state: string             // Se asume siempre "Activo" en el frontend
 }
-
-const initialColumns: Column[] = [
-  { id: 1, name: "Nombre", columnNumber: 1 },
-  { id: 2, name: "Teléfono", columnNumber: 2 },
-  { id: 3, name: "Correo", columnNumber: 3 },
-  { id: 4, name: "Empresa donde labora", columnNumber: 4 },
-  { id: 5, name: "Puesto", columnNumber: 5 },
-  { id: 6, name: "Notas generales", columnNumber: 6 },
-  { id: 7, name: "Observaciones", columnNumber: 7 },
-  { id: 8, name: "Interés", columnNumber: 8 },
-  { id: 9, name: "Status", columnNumber: 9 },
-  { id: 10, name: "Nota 1", columnNumber: 10 },
-  { id: 11, name: "Nota 2", columnNumber: 11 },
-  { id: 12, name: "Nota 3", columnNumber: 12 },
-  { id: 13, name: "Cierre", columnNumber: 13 },
-]
 
 export default function ImportarLeadsPage() {
   const [file, setFile] = useState<File | null>(null)
   const [source, setSource] = useState<string>("")
   const [showStructure, setShowStructure] = useState(false)
-  const [columns, setColumns] = useState<Column[]>(initialColumns)
+  const [columns, setColumns] = useState<Column[]>([])
   const [editingColumn, setEditingColumn] = useState<Column | null>(null)
   const { toast } = useToast()
   const router = useRouter()
 
+  // Función para recargar las columnas desde el backend.
+  const fetchColumns = () => {
+    fetch("http://localhost:8000/api/columns")
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP error: ${res.status}`)
+        return res.json()
+      })
+      .then((data) => {
+        const fetchedColumns = Object.values(data.data).map((col: any) => ({
+          id: col.id || 0,
+          name: col.column_name,
+          excelName: col.excel_column_name,
+          columnNumber: Number(col.column_number),
+          state: col.status,
+        }))
+        setColumns(fetchedColumns)
+      })
+      .catch((error) => {
+        console.error("Error fetching columns:", error)
+        Swal.fire({
+          icon: "error",
+          title: "Error de carga",
+          text: "No se pudieron obtener las columnas configuradas. Detalle: " + error.message,
+        })
+        toast({
+          title: "Error",
+          description: "No se pudieron obtener las columnas configuradas.",
+          variant: "destructive",
+        })
+      })
+  }
+
+  useEffect(() => {
+    fetchColumns()
+  }, [toast])
+
+  // Maneja la selección del archivo.
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0]
     if (selectedFile) {
@@ -49,49 +83,184 @@ export default function ImportarLeadsPage() {
     }
   }
 
+  // Abre el diálogo para editar una columna.
   const handleEditColumn = (column: Column) => {
     setEditingColumn(column)
   }
 
-  const handleSaveColumn = () => {
-    if (editingColumn) {
-      setColumns(columns.map((col) => (col.id === editingColumn.id ? editingColumn : col)))
-      setEditingColumn(null)
-      toast({
-        title: "Columna actualizada",
-        description: "Los cambios han sido guardados correctamente",
-      })
-    }
+  // Abre el diálogo para agregar una nueva columna (estado "Activo" por defecto).
+  const handleAddColumn = () => {
+    setEditingColumn({
+      id: 0,
+      name: "",
+      excelName: "",
+      columnNumber: 0,
+      state: "Activo",
+    })
   }
 
+  // Guarda los cambios en la columna (POST para nueva, PUT para existente)
+  const handleSaveColumn = () => {
+    if (!editingColumn) return
+
+    const payload = {
+      columnName: editingColumn.name,
+      excelColumnName: editingColumn.excelName,
+      columnNumber: editingColumn.columnNumber,
+    }
+
+    if (editingColumn.id === 0) {
+      fetch("http://localhost:8000/api/columns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP error: ${res.status}`)
+          return res.json()
+        })
+        .then(() => {
+          Swal.fire({
+            icon: "success",
+            title: "Columna creada",
+            text: "La configuración se guardó correctamente",
+          })
+          toast({
+            title: "Nueva columna creada",
+            description: "La configuración se guardó correctamente",
+          })
+          fetchColumns()
+        })
+        .catch((error) => {
+          console.error("Error saving column:", error)
+          Swal.fire({
+            icon: "error",
+            title: "Error al guardar",
+            text: "No se pudo guardar la configuración. Detalle: " + error.message,
+          })
+          toast({
+            title: "Error",
+            description: "No se pudo guardar la configuración",
+            variant: "destructive",
+          })
+        })
+    } else {
+      fetch(`http://localhost:8000/api/columns/${editingColumn.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP error: ${res.status}`)
+          return res.json()
+        })
+        .then(() => {
+          Swal.fire({
+            icon: "success",
+            title: "Columna actualizada",
+            text: "La configuración se actualizó correctamente",
+          })
+          toast({
+            title: "Columna actualizada",
+            description: "La configuración se actualizó correctamente",
+          })
+          fetchColumns()
+        })
+        .catch((error) => {
+          console.error("Error updating column:", error)
+          Swal.fire({
+            icon: "error",
+            title: "Error al actualizar",
+            text: "No se pudo actualizar la configuración. Detalle: " + error.message,
+          })
+          toast({
+            title: "Error",
+            description: "No se pudo actualizar la configuración",
+            variant: "destructive",
+          })
+        })
+    }
+    setEditingColumn(null)
+  }
+
+  // Función para importar leads: se envía el archivo mediante FormData al endpoint /api/import.
   const handleImport = () => {
     if (!file) {
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Por favor seleccione un archivo para importar",
+      })
       toast({
         title: "Error",
         description: "Por favor seleccione un archivo para importar",
         variant: "destructive",
       })
-      return
+      return;
     }
-
-    if (!source) {
-      toast({
-        title: "Error",
-        description: "Por favor seleccione una fuente de leads",
-        variant: "destructive",
-      })
-      return
-    }
-
-    toast({
-      title: "Importación exitosa",
-      description: "Los leads han sido importados correctamente",
+  
+    const formData = new FormData();
+    formData.append("file", file);
+  
+    // Recuperar el token del usuario, que se espera esté almacenado (por ejemplo, en localStorage)
+    const token = localStorage.getItem("token");
+  
+    fetch("http://localhost:8000/api/import", {
+      method: "POST",
+      body: formData,
+      headers: {
+        Authorization: `Bearer ${token}`,  // Se envía el token para autenticación
+      }
     })
-  }
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        Swal.fire({
+          icon: "success",
+          title: "Importación exitosa",
+          text: data.message,
+        });
+        toast({
+          title: "Importación exitosa",
+          description: data.message,
+        });
+        // Recargar la vista después de la importación exitosa
+        router.refresh();
+      })
+      .catch((error) => {
+        console.error("Error importing data:", error);
+        Swal.fire({
+          icon: "error",
+          title: "Error en la importación",
+          text: "No se pudieron importar los datos. Detalle: " + error.message,
+        });
+        toast({
+          title: "Error",
+          description: "No se pudieron importar los datos",
+          variant: "destructive",
+        });
+      });
+  };
+
+  // Función para "guardar" la configuración de columnas (opcional)
+  const handleSaveConfiguration = () => {
+    Swal.fire({
+      icon: "success",
+      title: "Configuración guardada",
+      text: "La configuración se guardó correctamente",
+    });
+    toast({
+      title: "Configuración guardada",
+      description: "La configuración se guardó correctamente",
+    });
+  };
 
   return (
     <div className="p-4 max-w-6xl mx-auto">
       <div className="space-y-8">
+        {/* Encabezado */}
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-semibold">Importar Leads</h1>
           <Button variant="outline" size="sm" onClick={() => router.push("/")}>
@@ -100,28 +269,17 @@ export default function ImportarLeadsPage() {
           </Button>
         </div>
 
+        {/* Card de acciones principales */}
         <div className="space-y-6 bg-white p-6 rounded-lg shadow-sm">
           <div className="space-y-4">
+            {/* Subir archivo */}
             <div>
-              <label className="block text-sm font-medium mb-2">Archivo CSV o Excel</label>
+              <label className="block text-sm font-medium mb-2">
+                Archivo CSV o Excel
+              </label>
               <Input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileChange} />
             </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Fuente de Leads</label>
-              <Select value={source} onValueChange={setSource}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione la fuente" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="web">Formulario Web</SelectItem>
-                  <SelectItem value="facebook">Facebook</SelectItem>
-                  <SelectItem value="linkedin">LinkedIn</SelectItem>
-                  <SelectItem value="referral">Referidos</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
+            {/* Botones de acción */}
             <div className="flex flex-wrap gap-4">
               <Button variant="outline" onClick={() => setShowStructure(!showStructure)}>
                 {showStructure ? "Ocultar Estructura" : "Mostrar Estructura"}
@@ -131,25 +289,39 @@ export default function ImportarLeadsPage() {
           </div>
         </div>
 
+        {/* Sección de estructura */}
         {showStructure && (
           <div className="bg-white p-6 rounded-lg shadow-sm">
-            <h2 className="text-lg font-semibold mb-4">Estructura esperada</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold">Estructura esperada</h2>
+              <div className="flex gap-4">
+                <Button onClick={handleAddColumn}>Agregar Columna</Button>
+                <Button onClick={handleSaveConfiguration}>Guardar Configuración</Button>
+              </div>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50">
                     <th className="px-4 py-2 text-left">#</th>
-                    <th className="px-4 py-2 text-left">Nombre de la columna</th>
-                    <th className="px-4 py-2 text-left">No. de Columna</th>
+                    <th className="px-4 py-2 text-left">Nombre de la Columna</th>
+                    <th className="px-4 py-2 text-left">Nombre en Excel</th>
+                    <th className="px-4 py-2 text-left">Número de Columna</th>
+                    <th className="px-4 py-2 text-left">Estado</th>
                     <th className="px-4 py-2 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {columns.map((column) => (
-                    <tr key={column.id} className="border-b">
-                      <td className="px-4 py-2">{column.id}</td>
+                  {columns.map((column, index) => (
+                    <tr
+                      key={column.id ? column.id : `${column.name}-${index}`}
+                      className="border-b odd:bg-white even:bg-gray-100"
+                    >
+                      <td className="px-4 py-2">{index + 1}</td>
                       <td className="px-4 py-2">{column.name}</td>
+                      <td className="px-4 py-2">{column.excelName}</td>
                       <td className="px-4 py-2">{column.columnNumber}</td>
+                      <td className="px-4 py-2">{column.state}</td>
                       <td className="px-4 py-2 text-right">
                         <Button size="sm" onClick={() => handleEditColumn(column)}>
                           Editar
@@ -163,45 +335,51 @@ export default function ImportarLeadsPage() {
           </div>
         )}
 
+        {/* Diálogo de edición/creación de columnas */}
         <Dialog open={!!editingColumn} onOpenChange={() => setEditingColumn(null)}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Editar Columna</DialogTitle>
+              <DialogTitle>
+                {editingColumn?.id === 0 ? "Agregar Columna" : "Editar Columna"}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Columna</label>
+                <label className="text-sm font-medium">ID de Columna</label>
                 <Input value={editingColumn?.id || ""} disabled />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Nombre de Columna</label>
+                <label className="text-sm font-medium">Nombre de la Columna</label>
                 <Input
                   value={editingColumn?.name || ""}
                   onChange={(e) =>
                     setEditingColumn(
-                      editingColumn
-                        ? {
-                            ...editingColumn,
-                            name: e.target.value,
-                          }
-                        : null,
+                      editingColumn ? { ...editingColumn, name: e.target.value } : null
                     )
                   }
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">No. de Columna</label>
+                <label className="text-sm font-medium">Nombre en Excel</label>
+                <Input
+                  value={editingColumn?.excelName || ""}
+                  onChange={(e) =>
+                    setEditingColumn(
+                      editingColumn ? { ...editingColumn, excelName: e.target.value } : null
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Número de Columna</label>
                 <Input
                   type="number"
                   value={editingColumn?.columnNumber || ""}
                   onChange={(e) =>
                     setEditingColumn(
                       editingColumn
-                        ? {
-                            ...editingColumn,
-                            columnNumber: Number.parseInt(e.target.value),
-                          }
-                        : null,
+                        ? { ...editingColumn, columnNumber: Number.parseInt(e.target.value, 10) }
+                        : null
                     )
                   }
                 />
@@ -211,7 +389,9 @@ export default function ImportarLeadsPage() {
               <Button variant="outline" onClick={() => setEditingColumn(null)}>
                 Cancelar
               </Button>
-              <Button onClick={handleSaveColumn}>Guardar Cambios</Button>
+              <Button onClick={handleSaveColumn}>
+                {editingColumn?.id === 0 ? "Crear" : "Guardar Cambios"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -219,4 +399,3 @@ export default function ImportarLeadsPage() {
     </div>
   )
 }
-

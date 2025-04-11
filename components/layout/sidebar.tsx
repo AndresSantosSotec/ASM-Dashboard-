@@ -169,15 +169,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Users size={16} className="mr-2" />
                 <span>Interacciones con Leads</span>
               </Link>
-              <Link
-                href="/tareas-asesor"
-                className={`flex items-center px-4 py-1.5 rounded-md ${
-                  pathname === "/tareas-asesor" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                } transition-colors duration-200`}
-              >
-                <ClipboardList size={16} className="mr-2" />
-                <span>Tareas del Asesor</span>
-              </Link>
+
 
               {/* Activities ahora dentro de Prospectos y Asesores */}
               <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
