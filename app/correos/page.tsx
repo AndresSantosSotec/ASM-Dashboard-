@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
+import Swal from "sweetalert2"  // Importa SweetAlert2
 
 // Interfaz para prospecto (ajustable a tus campos)
 interface Prospecto {
@@ -89,7 +90,7 @@ export default function GestionProspectosEmail() {
   const [pageSize, setPageSize] = useState<string>("5")
   const [currentPage, setCurrentPage] = useState<number>(1)
 
-  // Fetch de prospectos al montar el componente (utilizando token de localStorage)
+  // Fetch de prospectos (usar token almacenado en localStorage)
   useEffect(() => {
     const fetchProspectos = async () => {
       setLoading(true)
@@ -107,7 +108,7 @@ export default function GestionProspectosEmail() {
           throw new Error(`Error al obtener prospectos: status ${res.status}`)
         }
         const json = await res.json()
-        // Mapeamos los datos del backend a nuestro modelo de prospecto
+        // Mapear los datos obtenidos al modelo de prospecto
         const prospectosTransformados = json.data.map((item: any) => ({
           id: String(item.id),
           nombre: item.nombre_completo,
@@ -119,6 +120,7 @@ export default function GestionProspectosEmail() {
         }))
         setProspectos(prospectosTransformados)
       } catch (err: any) {
+        console.error("Error al obtener prospectos:", err)
         setError(err.message || "Error inesperado")
       } finally {
         setLoading(false)
@@ -142,7 +144,7 @@ export default function GestionProspectosEmail() {
     })
   }, [prospectos, searchTerm, estadoFilter])
 
-  // Paginación: calcular prospectos a mostrar según la página y tamaño
+  // Paginación
   const paginatedProspectos = useMemo(() => {
     if (pageSize === "all") return filteredProspectos
     const size = Number(pageSize)
@@ -156,10 +158,9 @@ export default function GestionProspectosEmail() {
     return Math.ceil(filteredProspectos.length / Number(pageSize))
   }, [filteredProspectos, pageSize])
 
-  // Funciones para selección múltiple
+  // Selección múltiple de prospectos
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      // Seleccionamos todos los prospectos filtrados
       setSelectedIds(filteredProspectos.map((p) => p.id))
     } else {
       setSelectedIds([])
@@ -173,7 +174,7 @@ export default function GestionProspectosEmail() {
     }
   }
 
-  // Manejar la selección de un prospecto para enviar correo individual
+  // Envío individual: asignar el correo del prospecto y abrir el modal
   const handleSelectProspecto = (prospecto: Prospecto) => {
     setIsBulkEmail(false)
     setSelectedProspecto(prospecto)
@@ -186,10 +187,14 @@ export default function GestionProspectosEmail() {
     setEmailModalOpen(true)
   }
 
-  // Manejar el envío masivo de correo, usando los prospectos seleccionados
+  // Envío masivo: concatenar emails y abrir el modal
   const handleBulkEmail = () => {
     if (selectedIds.length === 0) {
-      alert("Seleccione al menos un prospecto para envío masivo")
+      Swal.fire({
+        icon: "warning",
+        title: "Atención",
+        text: "Seleccione al menos un prospecto para envío masivo.",
+      })
       return
     }
     const recipients = prospectos.filter((p) => selectedIds.includes(p.id))
@@ -205,7 +210,7 @@ export default function GestionProspectosEmail() {
     setEmailModalOpen(true)
   }
 
-  // Aplicar plantilla de correo (se reemplaza [nombre] si se trata de correo individual)
+  // Aplicar plantilla: en envíos individuales se reemplaza "[nombre]"
   const applyTemplate = (templateId: number) => {
     const template = plantillasCorreo.find((t) => t.id === templateId)
     if (template) {
@@ -220,20 +225,57 @@ export default function GestionProspectosEmail() {
     }
   }
 
-  // Función simulada para enviar correo (individual o masivo)
-  const handleSendEmail = () => {
-    console.log("Enviando correo con datos:", emailData)
-    alert(
-      isBulkEmail
-        ? `Correo masivo enviado a: ${emailData.para}`
-        : `Correo enviado exitosamente a ${selectedProspecto?.nombre}`
-    )
-    setEmailModalOpen(false)
-    setSelectedProspecto(null)
-    setSelectedTemplate(null)
-    if (isBulkEmail) {
-      setIsBulkEmail(false)
-      setSelectedIds([])
+  // Envío de correo: envía los datos al backend
+  const handleSendEmail = async () => {
+    try {
+      const requestBody = {
+        para: emailData.para,
+        asunto: emailData.asunto,
+        mensaje: emailData.mensaje,
+      }
+
+      const response = await fetch("http://127.0.0.1:8000/api/enviar-correo", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Status ${response.status}. ${errorText}`)
+      }
+
+      const result = await response.json()
+      console.log("Correo enviado:", result)
+      Swal.fire({
+        icon: "success",
+        title: "¡Correo enviado!",
+        text: isBulkEmail
+          ? `Correo masivo enviado a: ${emailData.para}`
+          : `Correo enviado exitosamente a ${selectedProspecto?.nombre}`,
+        timer: 3000,
+      })
+
+      // Reiniciar estados
+      setEmailModalOpen(false)
+      setSelectedProspecto(null)
+      setSelectedTemplate(null)
+      if (isBulkEmail) {
+        setIsBulkEmail(false)
+        setSelectedIds([])
+      }
+    } catch (error: any) {
+      console.error("Error al enviar correo:", error)
+      Swal.fire({
+        icon: "error",
+        title: "Error al enviar correo",
+        text: error.message || "Ocurrió un error inesperado.",
+        footer: `<pre>${error.stack || ""}</pre>`,
+        width: "600px",
+      })
     }
   }
 
@@ -241,7 +283,7 @@ export default function GestionProspectosEmail() {
     <div className="container mx-auto py-6">
       <h1 className="text-3xl font-bold mb-4">Gestión de Prospectos y Envío de Correo</h1>
 
-      {/* Filtros superiores y botón para correo masivo */}
+      {/* Filtros y botón para envío masivo */}
       <div className="flex flex-wrap items-center gap-4 mb-6">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
@@ -273,18 +315,14 @@ export default function GestionProspectosEmail() {
       {loading && <p>Cargando prospectos...</p>}
       {error && <p className="text-red-500">{error}</p>}
 
-      {/* Data Table con selección múltiple y paginación */}
+      {/* Tabla de prospectos */}
       <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              {/* Columna de checkbox para selección global */}
               <TableHead className="w-10">
                 <Checkbox
-                  checked={
-                    filteredProspectos.length > 0 &&
-                    selectedIds.length === filteredProspectos.length
-                  }
+                  checked={filteredProspectos.length > 0 && selectedIds.length === filteredProspectos.length}
                   onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
                 />
               </TableHead>
@@ -300,7 +338,6 @@ export default function GestionProspectosEmail() {
             {paginatedProspectos.length > 0 ? (
               paginatedProspectos.map((prospecto) => (
                 <TableRow key={prospecto.id}>
-                  {/* Checkbox para cada fila */}
                   <TableCell className="w-10">
                     <Checkbox
                       checked={selectedIds.includes(prospecto.id)}
@@ -349,7 +386,7 @@ export default function GestionProspectosEmail() {
         </Table>
       </div>
 
-      {/* Controles de paginación */}
+      {/* Paginación */}
       {pageSize !== "all" && (
         <div className="flex items-center justify-end gap-2 p-4">
           <Select
@@ -376,9 +413,7 @@ export default function GestionProspectosEmail() {
           >
             Anterior
           </Button>
-          <span className="text-sm text-gray-600">
-            Página {currentPage} de {totalPages}
-          </span>
+          <span className="text-sm text-gray-600">Página {currentPage} de {totalPages}</span>
           <Button
             variant="outline"
             onClick={() => currentPage < totalPages && setCurrentPage(currentPage + 1)}
@@ -389,7 +424,7 @@ export default function GestionProspectosEmail() {
         </div>
       )}
 
-      {/* Modal para envío de correo (individual o masivo) */}
+      {/* Modal de envío de correo */}
       <Dialog open={emailModalOpen} onOpenChange={setEmailModalOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
@@ -434,7 +469,7 @@ export default function GestionProspectosEmail() {
               <Input
                 value={emailData.para}
                 onChange={(e) => setEmailData({ ...emailData, para: e.target.value })}
-                readOnly
+                readOnly={!isBulkEmail}  // Editable solo en envío masivo
               />
             </div>
 
@@ -451,9 +486,7 @@ export default function GestionProspectosEmail() {
               <label className="block text-sm font-medium mb-1">Mensaje:</label>
               <Textarea
                 value={emailData.mensaje}
-                onChange={(e) =>
-                  setEmailData({ ...emailData, mensaje: e.target.value })
-                }
+                onChange={(e) => setEmailData({ ...emailData, mensaje: e.target.value })}
                 placeholder="Escriba su mensaje aquí..."
                 className="min-h-[200px]"
               />
