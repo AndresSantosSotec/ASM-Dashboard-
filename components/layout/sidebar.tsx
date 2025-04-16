@@ -160,7 +160,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <FileText size={16} className="mr-2" />
                 <span>Importar Leads</span>
               </Link>
-              <Link
+              {/* <Link
                 href="/interacciones-leads"
                 className={`flex items-center px-4 py-1.5 rounded-md ${
                   pathname === "/interacciones-leads" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
@@ -168,7 +168,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
               >
                 <Users size={16} className="mr-2" />
                 <span>Interacciones con Leads</span>
-              </Link>
+              </Link> */}
 
 
               {/* Activities ahora dentro de Prospectos y Asesores */}

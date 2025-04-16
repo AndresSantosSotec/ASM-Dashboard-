@@ -12,7 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 const mockAdvisorActivity = [
   {
     id: "1",
-    name: "Carlos Rodríguez",
+    name: "Carlos ",
     inscriptions: 3,
     possibleClosings: 5,
     calls: 18,
@@ -104,7 +104,7 @@ export function AdvisorActivity() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant={activity.status === "success" ? "success" : "warning"}>
+                      <Badge variant={activity.status === "success" ? "success" : "destructive"}>
                         {activity.status === "success" ? "Cumplido" : "En proceso"}
                       </Badge>
                     </TableCell>

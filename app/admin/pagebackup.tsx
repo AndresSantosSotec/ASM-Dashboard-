@@ -82,6 +82,8 @@ export default function AdminPanel() {
         </TabsContent>
 
         <TabsContent value="configuracion" className="border rounded-lg p-6">
+          <GestionEstadosCuenta />
+
           <Settings />
           {/* Puedes agregar más componentes de configuración aquí */}
         </TabsContent>

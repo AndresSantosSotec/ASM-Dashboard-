@@ -22,6 +22,19 @@ interface Interaction {
   advisor: string
 }
 
+interface Prospecto {
+  id: string
+  nombre: string
+  email: string
+  telefono: string
+  departamento: string
+  estado: string
+  ultimoCambio: string
+}
+
+
+
+
 // Datos de ejemplo para mostrar inicialmente
 const initialInteractions: Interaction[] = [
   {

@@ -109,7 +109,7 @@ export function AlertManagement() {
                           alert.daysWithoutContact >= 7
                             ? "destructive"
                             : alert.daysWithoutContact >= 5
-                              ? "warning"
+                              ? "secondary"
                               : "outline"
                         }
                       >
@@ -122,7 +122,7 @@ export function AlertManagement() {
                           alert.priority === "high"
                             ? "destructive"
                             : alert.priority === "medium"
-                              ? "warning"
+                              ? "secondary"
                               : "outline"
                         }
                       >
@@ -192,7 +192,7 @@ export function AlertManagement() {
           <CardContent className="pt-4">
             <div className="text-3xl font-bold">12</div>
             <p className="text-sm text-gray-500 dark:text-gray-400">Prospectos sin seguimiento por 5-6 días</p>
-            <Button className="mt-4 w-full" variant="warning">
+            <Button className="mt-4 w-full" variant="secondary">
               Ver todos
             </Button>
           </CardContent>

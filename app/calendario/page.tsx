@@ -1,6 +1,7 @@
-"use client"
+"use client";
 
-import { useState } from "react"
+import { useState, useEffect } from "react";
+import axios from "axios";
 import {
   format,
   startOfMonth,
@@ -12,10 +13,10 @@ import {
   subMonths,
   parseISO,
   isToday,
-} from "date-fns"
-import { es } from "date-fns/locale"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+} from "date-fns";
+import { es } from "date-fns/locale";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -23,86 +24,34 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ChevronLeft, ChevronRight, Clock, Plus, Trash2, Edit, CalendarIcon } from "lucide-react"
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ChevronLeft, ChevronRight, Clock, Plus, Trash2, Edit, CalendarIcon } from "lucide-react";
 
-// Tipos de datos
+// Definir la interfaz para Tarea
 interface Tarea {
-  id: string
-  titulo: string
-  descripcion: string
-  fecha: string // ISO string
-  horaInicio: string
-  horaFin: string
-  tipo: "reunion" | "tarea" | "recordatorio" | "llamada"
-  completada: boolean
-}
-
-// Datos de ejemplo
-const tareasIniciales: Tarea[] = [
-  {
-    id: "1",
-    titulo: "Reunión con Juan Pérez",
-    descripcion: "Discutir detalles sobre el programa de becas",
-    fecha: new Date(new Date().getFullYear(), new Date().getMonth(), 15).toISOString(),
-    horaInicio: "09:00",
-    horaFin: "10:00",
-    tipo: "reunion",
-    completada: false,
-  },
-  {
-    id: "2",
-    titulo: "Llamada con María García",
-    descripcion: "Seguimiento sobre su aplicación",
-    fecha: new Date(new Date().getFullYear(), new Date().getMonth(), 18).toISOString(),
-    horaInicio: "14:30",
-    horaFin: "15:00",
-    tipo: "llamada",
-    completada: false,
-  },
-  {
-    id: "3",
-    titulo: "Enviar información de matrícula",
-    descripcion: "Enviar documentos pendientes a los nuevos estudiantes",
-    fecha: new Date(new Date().getFullYear(), new Date().getMonth(), 20).toISOString(),
-    horaInicio: "11:00",
-    horaFin: "12:00",
-    tipo: "tarea",
-    completada: true,
-  },
-  {
-    id: "4",
-    titulo: "Recordatorio: Fecha límite de inscripción",
-    descripcion: "Último día para inscripciones del semestre",
-    fecha: new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).toISOString(),
-    horaInicio: "08:00",
-    horaFin: "08:30",
-    tipo: "recordatorio",
-    completada: false,
-  },
-]
-
-// Colores para los tipos de tareas
-const colorTipoTarea = {
-  reunion: "bg-blue-100 text-blue-800 border-blue-200",
-  tarea: "bg-purple-100 text-purple-800 border-purple-200",
-  recordatorio: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  llamada: "bg-green-100 text-green-800 border-green-200",
+  id: string;
+  titulo: string;
+  descripcion: string;
+  fecha: string; // ISO string
+  horaInicio: string;
+  horaFin: string;
+  tipo: "reunion" | "tarea" | "recordatorio" | "llamada";
+  completada: boolean;
 }
 
 export default function CalendarioPage() {
-  const [currentDate, setCurrentDate] = useState(new Date())
-  const [tareas, setTareas] = useState<Tarea[]>(tareasIniciales)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [selectedTarea, setSelectedTarea] = useState<Tarea | null>(null)
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [tareas, setTareas] = useState<Tarea[]>([]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedTarea, setSelectedTarea] = useState<Tarea | null>(null);
   const [nuevaTarea, setNuevaTarea] = useState<Partial<Tarea>>({
     titulo: "",
     descripcion: "",
@@ -111,23 +60,59 @@ export default function CalendarioPage() {
     horaFin: "10:00",
     tipo: "tarea",
     completada: false,
-  })
-  const [viewMode, setViewMode] = useState<"mes" | "semana" | "dia">("mes")
-  const [detailsModalOpen, setDetailsModalOpen] = useState(false)
+  });
+  const [viewMode, setViewMode] = useState<"mes" | "semana" | "dia">("mes");
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+
+  // Colores para los tipos de tareas
+  const colorTipoTarea = {
+    reunion: "bg-blue-100 text-blue-800 border-blue-200",
+    tarea: "bg-purple-100 text-purple-800 border-purple-200",
+    recordatorio: "bg-yellow-100 text-yellow-800 border-yellow-200",
+    llamada: "bg-green-100 text-green-800 border-green-200",
+  };
+
+  // Obtener token del localStorage (para autenticación)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedToken = localStorage.getItem("token");
+      console.log("Token recuperado:", storedToken);
+      setToken(storedToken);
+    }
+  }, []);
+
+  // Cargar tareas desde la API
+  useEffect(() => {
+    if (!token) return;
+    const fetchTareas = async () => {
+      try {
+        const res = await axios.get("http://localhost:8000/api/tareas", {
+          headers: { Authorization: `Bearer ${token}` },
+          withCredentials: true,
+        });
+        // Asumimos que la respuesta tiene la estructura { message, data: [...] }
+        setTareas(res.data.data);
+      } catch (err) {
+        console.error("Error al cargar tareas:", err);
+      }
+    };
+    fetchTareas();
+  }, [token]);
 
   // Obtener días del mes actual
-  const monthStart = startOfMonth(currentDate)
-  const monthEnd = endOfMonth(currentDate)
-  const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd })
+  const monthStart = startOfMonth(currentDate);
+  const monthEnd = endOfMonth(currentDate);
+  const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
   // Manejar cambio de mes
-  const handlePrevMonth = () => setCurrentDate(subMonths(currentDate, 1))
-  const handleNextMonth = () => setCurrentDate(addMonths(currentDate, 1))
+  const handlePrevMonth = () => setCurrentDate(subMonths(currentDate, 1));
+  const handleNextMonth = () => setCurrentDate(addMonths(currentDate, 1));
 
-  // Abrir modal para nueva tarea
+  // Abrir modal para agregar tarea
   const handleAddTarea = (date: Date) => {
-    setSelectedDate(date)
-    setSelectedTarea(null)
+    setSelectedDate(date);
+    setSelectedTarea(null);
     setNuevaTarea({
       titulo: "",
       descripcion: "",
@@ -136,13 +121,13 @@ export default function CalendarioPage() {
       horaFin: "10:00",
       tipo: "tarea",
       completada: false,
-    })
-    setModalOpen(true)
-  }
+    });
+    setModalOpen(true);
+  };
 
   // Abrir modal para editar tarea
   const handleEditTarea = (tarea: Tarea) => {
-    setSelectedTarea(tarea)
+    setSelectedTarea(tarea);
     setNuevaTarea({
       titulo: tarea.titulo,
       descripcion: tarea.descripcion,
@@ -151,56 +136,105 @@ export default function CalendarioPage() {
       horaFin: tarea.horaFin,
       tipo: tarea.tipo,
       completada: tarea.completada,
-    })
-    setModalOpen(true)
-  }
+    });
+    setModalOpen(true);
+  };
 
-  // Guardar tarea
-  const handleSaveTarea = () => {
-    if (!nuevaTarea.titulo || !nuevaTarea.fecha) return
+  // Función para crear el "payload" con la nomenclatura que espera la API
+  const preparePayload = () => {
+    return {
+      titulo: nuevaTarea.titulo,
+      descripcion: nuevaTarea.descripcion,
+      fecha: nuevaTarea.fecha,
+      hora_inicio: nuevaTarea.horaInicio, // conversión de camelCase a snake_case
+      hora_fin: nuevaTarea.horaFin,         // conversión de camelCase a snake_case
+      tipo: nuevaTarea.tipo,
+      completada: nuevaTarea.completada,
+    };
+  };
 
-    if (selectedTarea) {
-      // Actualizar tarea existente
-      setTareas(tareas.map((t) => (t.id === selectedTarea.id ? { ...t, ...(nuevaTarea as Tarea) } : t)))
-    } else {
-      // Crear nueva tarea
-      const newTask: Tarea = {
-        id: Date.now().toString(),
-        titulo: nuevaTarea.titulo || "",
-        descripcion: nuevaTarea.descripcion || "",
-        fecha: nuevaTarea.fecha || new Date().toISOString(),
-        horaInicio: nuevaTarea.horaInicio || "09:00",
-        horaFin: nuevaTarea.horaFin || "10:00",
-        tipo: (nuevaTarea.tipo as "reunion" | "tarea" | "recordatorio" | "llamada") || "tarea",
-        completada: nuevaTarea.completada || false,
+  // Guardar tarea (crea nueva o actualiza existente)
+  const handleSaveTarea = async () => {
+    if (!nuevaTarea.titulo || !nuevaTarea.fecha || !token) return;
+    const payload = preparePayload();
+    try {
+      if (selectedTarea) {
+        // Actualizar tarea existente
+        const res = await axios.put(`http://localhost:8000/api/tareas/${selectedTarea.id}`, payload, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          withCredentials: true,
+        });
+        setTareas((prev) =>
+          prev.map((t) => (t.id === selectedTarea.id ? res.data.data : t))
+        );
+      } else {
+        // Crear nueva tarea
+        const res = await axios.post("http://localhost:8000/api/tareas", payload, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          withCredentials: true,
+        });
+        setTareas((prev) => [...prev, res.data.data]);
       }
-      setTareas([...tareas, newTask])
+      setModalOpen(false);
+    } catch (err) {
+      console.error("Error al guardar tarea:", err);
     }
-
-    setModalOpen(false)
-  }
+  };
 
   // Eliminar tarea
-  const handleDeleteTarea = (id: string) => {
-    setTareas(tareas.filter((t) => t.id !== id))
-    setDetailsModalOpen(false)
-  }
+  const handleDeleteTarea = async (id: string) => {
+    if (!token) return;
+    try {
+      await axios.delete(`http://localhost:8000/api/tareas/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        withCredentials: true,
+      });
+      setTareas((prev) => prev.filter((t) => t.id !== id));
+      setDetailsModalOpen(false);
+    } catch (err) {
+      console.error("Error al eliminar tarea:", err);
+    }
+  };
 
   // Marcar tarea como completada
-  const handleToggleComplete = (id: string) => {
-    setTareas(tareas.map((t) => (t.id === id ? { ...t, completada: !t.completada } : t)))
-  }
+  const handleToggleComplete = async (id: string) => {
+    // Encontrar la tarea actual y actualizar su estado
+    const tarea = tareas.find((t) => t.id === id);
+    if (!tarea || !token) return;
+    try {
+      const res = await axios.put(`http://localhost:8000/api/tareas/${id}`, {
+        completada: !tarea.completada,
+      }, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        withCredentials: true,
+      });
+      setTareas((prev) =>
+        prev.map((t) => (t.id === id ? res.data.data : t))
+      );
+    } catch (err) {
+      console.error("Error al actualizar tarea:", err);
+    }
+  };
 
   // Obtener tareas para una fecha específica
   const getTareasForDate = (date: Date) => {
-    return tareas.filter((tarea) => isSameDay(parseISO(tarea.fecha), date))
-  }
+    return tareas.filter((tarea) => isSameDay(parseISO(tarea.fecha), date));
+  };
 
   // Ver detalles de una tarea
   const handleViewTareaDetails = (tarea: Tarea) => {
-    setSelectedTarea(tarea)
-    setDetailsModalOpen(true)
-  }
+    setSelectedTarea(tarea);
+    setDetailsModalOpen(true);
+  };
 
   return (
     <div className="container mx-auto py-6">
@@ -289,25 +323,25 @@ export default function CalendarioPage() {
                 ))}
 
                 {monthDays.map((day) => {
-                  const dayTareas = getTareasForDate(day)
-                  const isCurrentMonth = isSameMonth(day, currentDate)
-                  const isSelectedDay = selectedDate && isSameDay(day, selectedDate)
-                  const isDayToday = isToday(day)
+                  const dayTareas = getTareasForDate(day);
+                  const isCurrentMonth = isSameMonth(day, currentDate);
+                  const isSelectedDay = selectedDate && isSameDay(day, selectedDate);
+                  const isDayToday = isToday(day);
 
                   return (
                     <div
                       key={day.toString()}
-                      className={`h-32 p-1 rounded-md border transition-colors relative
-                ${isCurrentMonth ? "bg-white" : "bg-gray-50 text-gray-400"} 
-                ${isSelectedDay ? "ring-2 ring-[#1e3a8a] ring-offset-2" : ""}
-                ${isDayToday ? "bg-blue-50" : ""}
-              `}
+                      className={`h-32 p-1 rounded-md border transition-colors relative ${
+                        isCurrentMonth ? "bg-white" : "bg-gray-50 text-gray-400"
+                      } ${isSelectedDay ? "ring-2 ring-[#1e3a8a] ring-offset-2" : ""} ${
+                        isDayToday ? "bg-blue-50" : ""
+                      }`}
                     >
                       <div className="flex justify-between items-start">
                         <span
-                          className={`inline-block w-6 h-6 text-center rounded-full
-                  ${isDayToday ? "bg-[#1e3a8a] text-white" : ""}
-                `}
+                          className={`inline-block w-6 h-6 text-center rounded-full ${
+                            isDayToday ? "bg-[#1e3a8a] text-white" : ""
+                          }`}
                         >
                           {format(day, "d")}
                         </span>
@@ -320,10 +354,9 @@ export default function CalendarioPage() {
                         {dayTareas.slice(0, 3).map((tarea) => (
                           <div
                             key={tarea.id}
-                            className={`px-2 py-1 text-xs rounded-md cursor-pointer truncate
-                      ${colorTipoTarea[tarea.tipo]}
-                      ${tarea.completada ? "opacity-60 line-through" : ""}
-                    `}
+                            className={`px-2 py-1 text-xs rounded-md cursor-pointer truncate ${colorTipoTarea[tarea.tipo]} ${
+                              tarea.completada ? "opacity-60 line-through" : ""
+                            }`}
                             onClick={() => handleViewTareaDetails(tarea)}
                           >
                             {tarea.horaInicio} - {tarea.titulo}
@@ -334,7 +367,7 @@ export default function CalendarioPage() {
                         )}
                       </div>
                     </div>
-                  )
+                  );
                 })}
 
                 {Array.from({ length: 6 - monthEnd.getDay() }).map((_, index) => (
@@ -364,9 +397,7 @@ export default function CalendarioPage() {
           <DialogHeader>
             <DialogTitle>{selectedTarea ? "Editar tarea" : "Nueva tarea"}</DialogTitle>
             <DialogDescription>
-              {selectedDate && !selectedTarea && (
-                <span>Agregar tarea para el {format(selectedDate, "dd/MM/yyyy")}</span>
-              )}
+              {selectedDate && !selectedTarea && <span>Agregar tarea para el {format(selectedDate, "dd/MM/yyyy")}</span>}
             </DialogDescription>
           </DialogHeader>
 
@@ -496,14 +527,14 @@ export default function CalendarioPage() {
                   {selectedTarea.tipo === "reunion"
                     ? "Reunión"
                     : selectedTarea.tipo === "llamada"
-                      ? "Llamada"
-                      : selectedTarea.tipo === "recordatorio"
-                        ? "Recordatorio"
-                        : "Tarea"}
+                    ? "Llamada"
+                    : selectedTarea.tipo === "recordatorio"
+                    ? "Recordatorio"
+                    : "Tarea"}
                 </Badge>
               </DialogTitle>
               <DialogDescription>
-                {format(parseISO(selectedTarea.fecha), "EEEE, dd MMMM yyyy", { locale: es })} •
+                {format(parseISO(selectedTarea.fecha), "EEEE, dd MMMM yyyy", { locale: es })} •{" "}
                 {selectedTarea.horaInicio} - {selectedTarea.horaFin}
               </DialogDescription>
             </DialogHeader>
@@ -532,8 +563,8 @@ export default function CalendarioPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      setDetailsModalOpen(false)
-                      handleEditTarea(selectedTarea)
+                      setDetailsModalOpen(false);
+                      handleEditTarea(selectedTarea);
                     }}
                   >
                     <Edit className="mr-2 h-4 w-4" />
@@ -550,6 +581,5 @@ export default function CalendarioPage() {
         )}
       </Dialog>
     </div>
-  )
+  );
 }
-

@@ -1,5 +1,7 @@
 "use client"
 
+import React from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -7,6 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 
 export function Settings() {
+  const router = useRouter()
+
   return (
     <div className="space-y-6">
       <Card>
@@ -17,8 +21,14 @@ export function Settings() {
           <div className="space-y-6">
             <h3 className="text-lg font-semibold mb-2">Gestión de Usuarios</h3>
             <div className="space-y-2">
-              <Button>Agregar Nuevo Usuario</Button>
-              <Button variant="outline">Gestionar Roles y Permisos</Button>
+              {/* Navega a "/seguridad/usuarios-agregar" al presionar este botón */}
+              <Button onClick={() => router.push("/seguridad/usuarios")}>
+                Agregar Nuevo Usuario
+              </Button>
+              {/* Navega a "/seguridad/permisos" al presionar este botón */}
+              <Button variant="outline" onClick={() => router.push("/seguridad/permisos")}>
+                Gestionar Roles y Permisos
+              </Button>
             </div>
           </div>
 
@@ -61,36 +71,34 @@ export function Settings() {
 
               <div className="space-y-4">
                 <h4 className="font-medium">Tiempos de Alerta</h4>
-                <div className="space-y-2">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="greenAlertDays">Alerta Verde (días)</Label>
-                      <div className="flex items-center gap-2">
-                        <Input id="greenAlertDays" type="number" defaultValue="1" className="w-20" />
-                        <span className="text-xs text-gray-500">a</span>
-                        <Input type="number" defaultValue="4" className="w-20" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="yellowAlertDays">Alerta Amarilla (días)</Label>
-                      <div className="flex items-center gap-2">
-                        <Input id="yellowAlertDays" type="number" defaultValue="5" className="w-20" />
-                        <span className="text-xs text-gray-500">a</span>
-                        <Input type="number" defaultValue="6" className="w-20" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="redAlertDays">Alerta Roja (días)</Label>
-                      <div className="flex items-center gap-2">
-                        <Input id="redAlertDays" type="number" defaultValue="7" className="w-20" />
-                        <span className="text-xs text-gray-500">o más</span>
-                      </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="greenAlertDays">Alerta Verde (días)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input id="greenAlertDays" type="number" defaultValue="1" className="w-20" />
+                      <span className="text-xs text-gray-500">a</span>
+                      <Input type="number" defaultValue="4" className="w-20" />
                     </div>
                   </div>
-                  <Button size="sm" className="mt-2">
-                    Guardar Tiempos
-                  </Button>
+                  <div className="space-y-2">
+                    <Label htmlFor="yellowAlertDays">Alerta Amarilla (días)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input id="yellowAlertDays" type="number" defaultValue="5" className="w-20" />
+                      <span className="text-xs text-gray-500">a</span>
+                      <Input type="number" defaultValue="6" className="w-20" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="redAlertDays">Alerta Roja (días)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input id="redAlertDays" type="number" defaultValue="7" className="w-20" />
+                      <span className="text-xs text-gray-500">o más</span>
+                    </div>
+                  </div>
                 </div>
+                <Button size="sm" className="mt-2">
+                  Guardar Tiempos
+                </Button>
               </div>
             </div>
           </div>
@@ -149,4 +157,3 @@ export function Settings() {
     </div>
   )
 }
-
