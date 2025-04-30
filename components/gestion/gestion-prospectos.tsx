@@ -1,20 +1,15 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import Swal from "sweetalert2"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Filter, MoreHorizontal, Eye, Edit2, UserPlus } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import {DropdownMenu,DropdownMenuContent,DropdownMenuItem,DropdownMenuTrigger,} from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
 import DetallesProspecto from "./detalles-prospecto"
 import EditarProspecto from "./editar-prospecto"
-import ConfirmarInscripcion from "./confirmar-inscripcion"
 import CambiarEstado from "./cambiar-estado"
 
 // Interfaz para prospecto (ajusta según tus campos)
@@ -33,51 +28,46 @@ export default function GestionProspectos() {
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string>("")
   const [selectedProspecto, setSelectedProspecto] = useState<Prospecto | null>(null)
-  const [modalType, setModalType] = useState<"detalles" | "editar" | "confirmar" | null>(null)
+  const [modalType, setModalType] = useState<"detalles" | "editar" | null>(null)
   const [showEstadoMenu, setShowEstadoMenu] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
-  // Estados para filtros
+  // Filtros y paginación
   const [searchTerm, setSearchTerm] = useState<string>("")
   const [estadoFilter, setEstadoFilter] = useState<string>("todos")
-
-  // Estados para paginación
   const [pageSize, setPageSize] = useState<string>("5")
   const [currentPage, setCurrentPage] = useState<number>(1)
 
-  // Estado para el usuario actual obtenido de localStorage (se carga en el cliente)
+  // Usuario actual
   const [currentUser, setCurrentUser] = useState<any>(null)
 
-  // Carga inicial de prospectos (se envía el token de autenticación)
+  // Carga inicial de prospectos
   useEffect(() => {
     const fetchProspectos = async () => {
       setLoading(true)
       setError("")
       try {
         const token = localStorage.getItem("token")
-        const url = "http://127.0.0.1:8000/api/prospectos"
-        const res = await fetch(url, {
+        const res = await fetch("http://127.0.0.1:8000/api/prospectos", {
           headers: {
-            "Authorization": `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
         })
-        console.log("Respuesta de fetch, status:", res.status)
-        if (!res.ok) {
-          throw new Error(`Error al obtener prospectos: status ${res.status}`)
-        }
+        if (!res.ok) throw new Error(`Error al obtener prospectos: status ${res.status}`)
         const json = await res.json()
-        console.log("JSON recibido:", json)
-        // Mapeamos los datos del backend a nuestro modelo de prospecto
-        const prospectosTransformados = json.data.map((item: any) => ({
-          id: String(item.id),
-          nombre: item.nombre_completo,
-          email: item.correo_electronico,
-          telefono: item.telefono,
-          departamento: item.empresa_donde_labora_actualmente ?? "Sin Departamento",
-          estado: item.status || "No contactado",
-          ultimoCambio: item.updated_at ?? "N/A",
-        }))
+        const prospectosTransformados = json.data
+          .map((item: any) => ({
+            id: String(item.id),
+            nombre: item.nombre_completo,
+            email: item.correo_electronico,
+            telefono: item.telefono,
+            departamento: item.empresa_donde_labora_actualmente ?? "Sin Departamento",
+            estado: item.status || "No contactado",
+            ultimoCambio: item.updated_at ?? "N/A",
+          }))
+          // Excluir los que ya están en preinscripción
+          .filter((p: Prospecto) => p.estado.toLowerCase() !== "preinscripción")
         setProspectos(prospectosTransformados)
       } catch (err: any) {
         setError(err.message || "Error inesperado")
@@ -88,35 +78,55 @@ export default function GestionProspectos() {
     fetchProspectos()
   }, [])
 
-  // Cargar el usuario actual (solo en el cliente)
+  // Carga del usuario actual
   useEffect(() => {
     if (typeof window !== "undefined") {
       const storedUser = localStorage.getItem("user")
-      if (storedUser) {
-        setCurrentUser(JSON.parse(storedUser))
-      }
+      if (storedUser) setCurrentUser(JSON.parse(storedUser))
     }
   }, [])
 
-  // Seleccionar/deseleccionar todos
+  // Función para inscribir (preinscripción)
+  const handleInscribir = async (id: string) => {
+    const result = await Swal.fire({
+      title: "Pasar a preinscripción",
+      text: "¿Confirmas que deseas Pasar al modulo de Inscripcion este prospecto?",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Sí, Pasar a Inscripción",
+      cancelButtonText: "Cancelar",
+    })
+    if (!result.isConfirmed) return
+
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`http://127.0.0.1:8000/api/prospectos/${id}/status`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status: "Preinscripción" }),
+      })
+      if (!res.ok) throw new Error(`Error al actualizar estado: status ${res.status}`)
+      await res.json()
+      // Eliminar de la lista local
+      setProspectos(prospectos.filter((p) => p.id !== id))
+      Swal.fire("¡Listo!", "El prospecto ha sido pasado a Inscripción.", "success")
+    } catch (err: any) {
+      Swal.fire("Error", err.message || "No se pudo actualizar el estado.", "error")
+    }
+  }
+
+  // Seleccionar todos / uno
   const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedIds(prospectos.map((p) => p.id))
-    } else {
-      setSelectedIds([])
-    }
+    setSelectedIds(checked ? prospectos.map((p) => p.id) : [])
   }
-
-  // Seleccionar/deseleccionar uno
   const handleSelectOne = (id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedIds([...selectedIds, id])
-    } else {
-      setSelectedIds(selectedIds.filter((i) => i !== id))
-    }
+    setSelectedIds(checked ? [...selectedIds, id] : selectedIds.filter((i) => i !== id))
   }
 
-  // Asignar color según estado
+  // Color según estado
   const getEstadoColor = (estado: string) => {
     switch (estado.toLowerCase()) {
       case "no contactado":
@@ -144,51 +154,34 @@ export default function GestionProspectos() {
         p.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.telefono.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesEstado =
-        estadoFilter === "todos"
-          ? true
-          : p.estado.toLowerCase() === estadoFilter.toLowerCase()
+        estadoFilter === "todos" ? true : p.estado.toLowerCase() === estadoFilter.toLowerCase()
       return matchesSearch && matchesEstado
     })
   }, [prospectos, searchTerm, estadoFilter])
 
-  // Paginación: cálculo de prospectos a mostrar
+  // Paginación
   const paginatedProspectos = useMemo(() => {
-    if (pageSize === "all") {
-      return filteredProspectos
-    }
+    if (pageSize === "all") return filteredProspectos
     const size = Number(pageSize)
-    const startIndex = (currentPage - 1) * size
-    const endIndex = startIndex + size
-    return filteredProspectos.slice(startIndex, endIndex)
+    const start = (currentPage - 1) * size
+    return filteredProspectos.slice(start, start + size)
   }, [filteredProspectos, currentPage, pageSize])
 
-  // Número total de páginas
   const totalPages = useMemo(() => {
     if (pageSize === "all") return 1
     return Math.ceil(filteredProspectos.length / Number(pageSize))
   }, [filteredProspectos, pageSize])
 
-  // Cambiar el tamaño de página
   const handlePageSizeChange = (value: string) => {
     setPageSize(value)
     setCurrentPage(1)
   }
-
-  // Navegación entre páginas
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1)
-    }
-  }
-  const handlePrevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1)
-    }
-  }
+  const handleNextPage = () => currentPage < totalPages && setCurrentPage(currentPage + 1)
+  const handlePrevPage = () => currentPage > 1 && setCurrentPage(currentPage - 1)
 
   return (
     <div className="bg-white rounded-lg shadow">
-      {/* Filtros superiores */}
+      {/* Filtros */}
       <div className="p-4 border-b flex flex-wrap gap-4">
         <Input
           placeholder="Buscar prospectos..."
@@ -201,8 +194,8 @@ export default function GestionProspectos() {
         />
         <Select
           value={estadoFilter}
-          onValueChange={(value) => {
-            setEstadoFilter(value)
+          onValueChange={(v) => {
+            setEstadoFilter(v)
             setCurrentPage(1)
           }}
         >
@@ -228,15 +221,15 @@ export default function GestionProspectos() {
       {loading && <p className="p-4">Cargando prospectos...</p>}
       {error && <p className="p-4 text-red-500">{error}</p>}
 
-      {/* DataTable */}
+      {/* Tabla */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600">
             <tr>
-              <th className="py-3 px-4 text-left">
+              <th className="py-3 px-4">
                 <Checkbox
                   checked={selectedIds.length === prospectos.length}
-                  onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
+                  onCheckedChange={(c) => handleSelectAll(c as boolean)}
                 />
               </th>
               <th className="py-3 px-4 text-left">Nombre</th>
@@ -253,7 +246,7 @@ export default function GestionProspectos() {
                 <td className="py-3 px-4">
                   <Checkbox
                     checked={selectedIds.includes(prospecto.id)}
-                    onCheckedChange={(checked) => handleSelectOne(prospecto.id, checked as boolean)}
+                    onCheckedChange={(c) => handleSelectOne(prospecto.id, c as boolean)}
                   />
                 </td>
                 <td className="py-3 px-4">{prospecto.nombre}</td>
@@ -296,8 +289,7 @@ export default function GestionProspectos() {
                     >
                       <Edit2 className="h-4 w-4" />
                     </Button>
-                    {/* Si el usuario actual tiene rol "administrador", se muestra un botón adicional */}
-                    {currentUser && currentUser.rol === "administrador" && (
+                    {currentUser?.rol === "administrador" && (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -338,12 +330,7 @@ export default function GestionProspectos() {
                         <DropdownMenuItem>Enviar Email</DropdownMenuItem>
                         <DropdownMenuItem>Enviar Mensaje</DropdownMenuItem>
                         <DropdownMenuItem>Llamar</DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setSelectedProspecto(prospecto)
-                            setModalType("confirmar")
-                          }}
-                        >
+                        <DropdownMenuItem onClick={() => handleInscribir(prospecto.id)}>
                           Inscribir
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -363,7 +350,7 @@ export default function GestionProspectos() {
         </table>
       </div>
 
-      {/* Controles de paginación */}
+      {/* Paginación */}
       <div className="flex items-center justify-end gap-2 p-4">
         <Select value={pageSize} onValueChange={handlePageSizeChange}>
           <SelectTrigger className="w-[120px]">
@@ -376,7 +363,6 @@ export default function GestionProspectos() {
             <SelectItem value="all">Todos</SelectItem>
           </SelectContent>
         </Select>
-
         {pageSize !== "all" && (
           <>
             <Button variant="outline" onClick={handlePrevPage} disabled={currentPage === 1}>
@@ -406,7 +392,6 @@ export default function GestionProspectos() {
           }}
         />
       )}
-
       {selectedProspecto && modalType === "editar" && (
         <EditarProspecto
           prospecto={selectedProspecto}
@@ -416,17 +401,6 @@ export default function GestionProspectos() {
           }}
         />
       )}
-
-      {selectedProspecto && modalType === "confirmar" && (
-        <ConfirmarInscripcion
-          prospecto={selectedProspecto}
-          onClose={() => {
-            setSelectedProspecto(null)
-            setModalType(null)
-          }}
-        />
-      )}
-
       {selectedProspecto && showEstadoMenu && (
         <CambiarEstado
           prospecto={selectedProspecto}
@@ -437,5 +411,5 @@ export default function GestionProspectos() {
         />
       )}
     </div>
-  )
+)
 }

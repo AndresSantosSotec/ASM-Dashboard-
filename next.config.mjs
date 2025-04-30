@@ -20,6 +20,9 @@ const nextConfig = {
     webpackBuildWorker: true,
     parallelServerBuildTraces: true,
     parallelServerCompiles: true,
+    allowedDevOrigins: process.env.ALLOWED_DEV_ORIGINS
+      ? process.env.ALLOWED_DEV_ORIGINS.split(',')
+      : [],
   },
 }
 
@@ -29,12 +32,8 @@ function mergeConfig(nextConfig, userConfig) {
   if (!userConfig) {
     return
   }
-
   for (const key in userConfig) {
-    if (
-      typeof nextConfig[key] === 'object' &&
-      !Array.isArray(nextConfig[key])
-    ) {
+    if (typeof nextConfig[key] === 'object' && !Array.isArray(nextConfig[key])) {
       nextConfig[key] = {
         ...nextConfig[key],
         ...userConfig[key],
