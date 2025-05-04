@@ -488,8 +488,13 @@ export default function GestionProspectos() {
       <EditProspectModal
         isOpen={editOpen}
         onClose={() => setEditOpen(false)}
-        // Si bulkEditIds existe, se pasa esa lista; si no, se pasa el prospecto individual
-        prospect={bulkEditIds.length === 0 ? (activeProspect ? { id: activeProspect.id, asesor_id: activeProspect.asesor_id } : undefined) : undefined}
+        prospect={
+          bulkEditIds.length === 0
+            ? activeProspect
+              ? { id: activeProspect.id, asesor_id: activeProspect.asesor_id }
+              : undefined
+            : undefined
+        }
         bulkIds={bulkEditIds.length > 0 ? bulkEditIds : undefined}
         asesores={asesores}
         onSaved={() => {
@@ -497,10 +502,12 @@ export default function GestionProspectos() {
             icon: "success",
             title: "Actualización exitosa",
             text: "Los prospectos se han actualizado correctamente.",
+          }).then(() => {
+            // Recarga la página
+            window.location.reload();
           });
-          // Actualiza el estado, por ejemplo, volviendo a cargar prospectos o filtrando
+          // También puedes actualizar el estado en caso de que no quieras recargar:
           setEstadoFilter(f => f);
-          // Limpia la selección y el bulk edit
           setSelectedIds([]);
           setBulkEditIds([]);
         }}
