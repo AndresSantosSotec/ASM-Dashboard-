@@ -3,26 +3,20 @@
 import { useState, useEffect, useMemo } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Filter } from "lucide-react"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Filter, MoreHorizontal } from "lucide-react"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, } from "@/components/ui/dropdown-menu"
+import swal from "sweetalert2"
+import { cn } from "@/lib/utils"
 
-// Interfaz para prospecto (ajusta según tus campos)
+
+import EditProspectModal from "./Modals/EditProspectModal"
+import ConfirmDeleteModal from "./Modals/ConfirmDeleteModal"
+import Swal from "sweetalert2"
+
 interface Prospecto {
   id: string
   nombre: string
@@ -31,94 +25,159 @@ interface Prospecto {
   departamento: string
   estado: string
   ultimoCambio: string
+  asesor_id: number | null
+  asesor: { id: number; nombre: string } | null
+}
+
+interface Asesor {
+  id: number
+  nombre: string
 }
 
 export default function GestionProspectos() {
   const [prospectos, setProspectos] = useState<Prospecto[]>([])
-  const [loading, setLoading] = useState<boolean>(false)
-  const [error, setError] = useState<string>("")
+  const [asesores, setAsesores] = useState<Asesor[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+
+  // filtros
+  const [searchTerm, setSearchTerm] = useState("")
+  const [estadoFilter, setEstadoFilter] = useState("todos")
+  const [asesorFilter, setAsesorFilter] = useState("")
+  const [pageSize, setPageSize] = useState("5")
+  const [currentPage, setCurrentPage] = useState(1)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
-  // Estados para filtros
-  const [searchTerm, setSearchTerm] = useState<string>("")
-  const [estadoFilter, setEstadoFilter] = useState<string>("todos")
+  // estados para modales
+  const [viewOpen, setViewOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [activeProspect, setActiveProspect] = useState<Prospecto | null>(null)
+  // Selección individual:
+  const [newAsesorId, setNewAsesorId] = useState<number | null>(null);
+  const [bulkEditIds, setBulkEditIds] = useState<string[]>([])
+  // Removed duplicate declaration of handleSelectOne
 
-  // Estados para paginación
-  const [pageSize, setPageSize] = useState<string>("5")
-  const [currentPage, setCurrentPage] = useState<number>(1)
-
-  // Estado para el usuario actual obtenido de localStorage (se carga en el cliente)
-  const [currentUser, setCurrentUser] = useState<any>(null)
-
-  // Carga inicial de prospectos (se envía el token de autenticación)
+  // carga de prospectos
   useEffect(() => {
-    const fetchProspectos = async () => {
-      setLoading(true)
-      setError("")
-      try {
-        const token = localStorage.getItem("token")
-        const url = "http://127.0.0.1:8000/api/prospectos"
-        const res = await fetch(url, {
+    setLoading(true)
+    const qs = estadoFilter !== "todos" ? `?status=${estadoFilter}` : ""
+    fetch(`http://127.0.0.1:8000/api/prospectos${qs}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    })
+      .then(r => r.json())
+      .then(json => {
+        const arr: Prospecto[] = (json.data || []).map((item: any) => {
+          const c = item.creator
+          const nombreAsesor = c
+            ? c.full_name ??
+            (c.first_name && c.last_name
+              ? `${c.first_name} ${c.last_name}`
+              : c.username ?? "—")
+            : null
+          return {
+            id: String(item.id),
+            nombre: item.nombre_completo,
+            email: item.correo_electronico,
+            telefono: item.telefono,
+            departamento:
+              item.empresa_donde_labora_actualmente ?? "Sin Departamento",
+            estado: item.status || "No contactado",
+            ultimoCambio: item.updated_at ?? "N/A",
+            asesor_id: c?.id ?? null,
+            asesor: c ? { id: c.id, nombre: nombreAsesor } : null,
+          }
+        })
+        setProspectos(arr)
+      })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [estadoFilter])
+
+  // carga de asesores
+  useEffect(() => {
+    fetch("http://127.0.0.1:8000/api/users/role/7", {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    })
+      .then(r => r.json())
+      .then(json => {
+        const users: any[] = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : []
+        setAsesores(
+          users.map(u => ({
+            id: u.id,
+            nombre:
+              u.full_name ??
+              (u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username ?? "—"),
+          }))
+        )
+      })
+      .catch(() => setAsesores([]))
+  }, [])
+
+  // reasignar
+  const handleReasignar = async (id: string, asesorId: number) => {
+    try {
+      const res = await fetch(
+        `http://127.0.0.1:8000/api/prospectos/${id}/assign`,
+        {
+          method: "PUT",
           headers: {
-            "Authorization": `Bearer ${token}`,
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
             "Content-Type": "application/json",
           },
-        })
-        if (!res.ok) {
-          throw new Error(`Error al obtener prospectos: status ${res.status}`)
+          body: JSON.stringify({ asesor_id: asesorId }),
         }
-        const json = await res.json()
-        // Mapeamos los datos del backend a nuestro modelo de prospecto
-        const prospectosTransformados = json.data.map((item: any) => ({
-          id: String(item.id),
-          nombre: item.nombre_completo,
-          email: item.correo_electronico,
-          telefono: item.telefono,
-          departamento: item.empresa_donde_labora_actualmente ?? "Sin Departamento",
-          estado: item.status || "No contactado",
-          ultimoCambio: item.updated_at ?? "N/A",
-        }))
-        setProspectos(prospectosTransformados)
-      } catch (err: any) {
-        setError(err.message || "Error inesperado")
-      } finally {
-        setLoading(false)
-      }
+      )
+      const json = await res.json()
+      setProspectos(ps =>
+        ps.map(p =>
+          p.id === id
+            ? {
+              ...p,
+              asesor_id: json.data.created_by,
+              asesor: json.data.creator
+                ? {
+                  id: json.data.creator.id,
+                  nombre:
+                    json.data.creator.full_name ??
+                    (json.data.creator.first_name && json.data.creator.last_name
+                      ? `${json.data.creator.first_name} ${json.data.creator.last_name}`
+                      : json.data.creator.username ?? "—"),
+                }
+                : null,
+            }
+            : p
+        )
+      )
+    } catch (e) {
+      console.error(e)
     }
-    fetchProspectos()
-  }, [])
+  }
 
-  // Cargar el usuario actual (solo en el cliente)
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const storedUser = localStorage.getItem("user")
-      if (storedUser) {
-        setCurrentUser(JSON.parse(storedUser))
-      }
-    }
-  }, [])
+  // acciones de fila
+  const handleView = (id: string) => {
+    setActiveProspect(prospectos.find(p => p.id === id) || null)
+    setViewOpen(true)
+  }
+  const handleUpdate = (id: string) => {
+    setActiveProspect(prospectos.find(p => p.id === id) || null)
+    setEditOpen(true)
+  }
+  const handleDelete = (id: string) => {
+    setActiveProspect(prospectos.find(p => p.id === id) || null)
+    setDeleteOpen(true)
+  }
 
-  // Seleccionar/deseleccionar todos
+  // selección
   const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedIds(prospectos.map((p) => p.id))
-    } else {
-      setSelectedIds([])
-    }
+    setSelectedIds(checked ? prospectos.map(p => p.id) : [])
   }
-
-  // Seleccionar/deseleccionar uno
   const handleSelectOne = (id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedIds([...selectedIds, id])
-    } else {
-      setSelectedIds(selectedIds.filter((i) => i !== id))
-    }
+    setSelectedIds(prev => (checked ? [...prev, id] : prev.filter(x => x !== id)))
   }
 
-  // Asignar color según estado
-  const getEstadoColor = (estado: string) => {
-    switch (estado.toLowerCase()) {
+  const getEstadoColor = (e: string) => {
+    switch (e.toLowerCase()) {
       case "no contactado":
         return "bg-gray-100 text-gray-800"
       case "en seguimiento":
@@ -136,75 +195,48 @@ export default function GestionProspectos() {
     }
   }
 
-  // Filtrado por búsqueda y estado
+  // filtrado
   const filteredProspectos = useMemo(() => {
-    return prospectos.filter((p) => {
-      const matchesSearch =
-        p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.telefono.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesEstado =
-        estadoFilter === "todos"
-          ? true
-          : p.estado.toLowerCase() === estadoFilter.toLowerCase()
-      return matchesSearch && matchesEstado
+    const term = searchTerm.toLowerCase()
+    const asesorTerm = asesorFilter.toLowerCase()
+    return prospectos.filter(p => {
+      const matchesText =
+        p.nombre.toLowerCase().includes(term) ||
+        p.email.toLowerCase().includes(term) ||
+        p.telefono.toLowerCase().includes(term)
+      const matchesAsesor =
+        !asesorTerm || p.asesor?.nombre.toLowerCase().includes(asesorTerm)
+      return matchesText && matchesAsesor
     })
-  }, [prospectos, searchTerm, estadoFilter])
+  }, [prospectos, searchTerm, asesorFilter])
 
-  // Paginación: cálculo de prospectos a mostrar
+  // paginación
   const paginatedProspectos = useMemo(() => {
-    if (pageSize === "all") {
-      return filteredProspectos
-    }
+    if (pageSize === "all") return filteredProspectos
     const size = Number(pageSize)
-    const startIndex = (currentPage - 1) * size
-    const endIndex = startIndex + size
-    return filteredProspectos.slice(startIndex, endIndex)
+    const start = (currentPage - 1) * size
+    return filteredProspectos.slice(start, start + size)
   }, [filteredProspectos, currentPage, pageSize])
 
-  // Número total de páginas
   const totalPages = useMemo(() => {
     if (pageSize === "all") return 1
     return Math.ceil(filteredProspectos.length / Number(pageSize))
   }, [filteredProspectos, pageSize])
 
-  // Cambiar el tamaño de página
-  const handlePageSizeChange = (value: string) => {
-    setPageSize(value)
-    setCurrentPage(1)
-  }
-
-  // Navegación entre páginas
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1)
-    }
-  }
-  const handlePrevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1)
-    }
-  }
-
   return (
     <div className="bg-white rounded-lg shadow">
-      {/* Filtros superiores */}
+      {/* FILTROS */}
       <div className="p-4 border-b flex flex-wrap gap-4">
         <Input
           placeholder="Buscar prospectos..."
           className="max-w-xs"
           value={searchTerm}
-          onChange={(e) => {
-            setSearchTerm(e.target.value)
-            setCurrentPage(1)
-          }}
+          onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1) }}
         />
+
         <Select
           value={estadoFilter}
-          onValueChange={(value) => {
-            setEstadoFilter(value)
-            setCurrentPage(1)
-          }}
+          onValueChange={(val: string) => { setEstadoFilter(val); setCurrentPage(1) }}
         >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Todos los estados" />
@@ -219,16 +251,121 @@ export default function GestionProspectos() {
             <SelectItem value="Promesa de pago">Promesa de pago</SelectItem>
           </SelectContent>
         </Select>
+
+        <Input
+          placeholder="Filtrar por asesor..."
+          list="asesores-filter-list"
+          className="max-w-xs"
+          value={asesorFilter}
+          onChange={e => { setAsesorFilter(e.target.value); setCurrentPage(1) }}
+        />
+        <datalist id="asesores-filter-list">
+          {asesores.map(a => (
+            <option key={a.id} value={a.nombre} />
+          ))}
+        </datalist>
+
         <Button variant="outline">
           <Filter className="h-4 w-4 mr-2" />
           Filtros
         </Button>
+        <Button
+          variant="destructive"
+          onClick={async () => {
+            // Verifica que se haya seleccionado al menos un prospecto
+            if (selectedIds.length === 0) {
+              Swal.fire({
+                icon: "warning",
+                title: "Sin selección",
+                text: "Debes seleccionar al menos un prospecto para eliminar.",
+              });
+              return;
+            }
+            // Muestra una confirmación antes de continuar
+            const result = await Swal.fire({
+              title: "¿Estás seguro?",
+              text: `Se eliminarán ${selectedIds.length} prospectos de forma masiva.`,
+              icon: "warning",
+              showCancelButton: true,
+              confirmButtonText: "Sí, eliminar",
+              cancelButtonText: "Cancelar",
+            });
+            if (result.isConfirmed) {
+              try {
+                // Realiza las peticiones DELETE de forma paralela; si la API no tiene endpoint masivo, se envían individualmente.
+                await Promise.all(
+                  selectedIds.map(id =>
+                    fetch(`http://127.0.0.1:8000/api/prospectos/${id}`, {
+                      method: "DELETE",
+                      headers: {
+                        Authorization: `Bearer ${localStorage.getItem("token")}`,
+                        Accept: "application/json",
+                      },
+                    })
+                  )
+                );
+                // Actualiza el estado eliminando los prospectos borrados
+                setProspectos(prev => prev.filter(p => !selectedIds.includes(p.id)));
+                setSelectedIds([]); // Limpia la selección
+                Swal.fire({
+                  icon: "success",
+                  title: "Eliminación exitosa",
+                  text: "Los prospectos seleccionados se han eliminado correctamente.",
+                });
+              } catch (error) {
+                console.error("Error eliminando prospectos:", error);
+                Swal.fire({
+                  icon: "error",
+                  title: "Error inesperado",
+                  text: "Ocurrió un problema al comunicarse con el servidor.",
+                });
+              }
+            }
+          }}
+        >
+          Eliminar seleccionados
+        </Button>
+
+
+
+        <Button
+          variant="outline"
+          onClick={async () => {
+            if (selectedIds.length === 0) {
+              Swal.fire({
+                icon: "warning",
+                title: "Sin selección",
+                text: "Debes seleccionar al menos un prospecto para actualizar.",
+              });
+              return;
+            }
+            // Se muestra confirmación (opcional)
+            const result = await Swal.fire({
+              title: "¿Estás seguro?",
+              text: `Se reasignará el asesor a ${selectedIds.length} prospectos.`,
+              icon: "question",
+              showCancelButton: true,
+              confirmButtonText: "Sí, actualizar",
+              cancelButtonText: "Cancelar",
+            });
+            if (result.isConfirmed) {
+              // Aquí asignamos los IDs seleccionados al modo bulk y desplegamos el modal
+              setBulkEditIds(selectedIds);
+              // Aseguramos que se limpie la opción individual
+              setActiveProspect(null);
+              setEditOpen(true);
+            }
+          }}
+        >
+          Reasignar prospectos
+        </Button>
+
       </div>
 
-      {loading && <p className="p-4">Cargando prospectos...</p>}
+      {loading && <p className="p-4">Cargando prospectos…</p>}
       {error && <p className="p-4 text-red-500">{error}</p>}
 
-      {/* Tabla de prospectos */}
+      {/* TABLA */}
       <div className="overflow-x-auto p-4">
         <Table>
           <TableHeader>
@@ -236,47 +373,65 @@ export default function GestionProspectos() {
               <TableHead className="w-10">
                 <Checkbox
                   checked={selectedIds.length === prospectos.length}
-                  onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
+                  onCheckedChange={handleSelectAll}
                 />
               </TableHead>
               <TableHead>Nombre</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Teléfono</TableHead>
-              <TableHead>Departamento</TableHead>
+              <TableHead>Donde Labora</TableHead>
               <TableHead>Estado</TableHead>
+              <TableHead>Asesor</TableHead>
+              <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {paginatedProspectos.length > 0 ? (
-              paginatedProspectos.map((prospecto) => (
-                <TableRow key={prospecto.id} className="hover:bg-gray-50">
+              paginatedProspectos.map(p => (
+                <TableRow key={p.id} className="hover:bg-gray-50">
                   <TableCell className="w-10">
                     <Checkbox
-                      checked={selectedIds.includes(prospecto.id)}
-                      onCheckedChange={(checked) =>
-                        handleSelectOne(prospecto.id, checked as boolean)
-                      }
+                      checked={selectedIds.includes(p.id)}
+                      onCheckedChange={c => handleSelectOne(p.id, c as boolean)}
                     />
                   </TableCell>
-                  <TableCell>{prospecto.nombre}</TableCell>
-                  <TableCell>{prospecto.email}</TableCell>
-                  <TableCell>{prospecto.telefono}</TableCell>
-                  <TableCell>{prospecto.departamento}</TableCell>
+                  <TableCell>{p.nombre}</TableCell>
+                  <TableCell>{p.email}</TableCell>
+                  <TableCell>{p.telefono}</TableCell>
+                  <TableCell>{p.departamento}</TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <Badge className={getEstadoColor(prospecto.estado)}>
-                        {prospecto.estado}
+                      <Badge className={getEstadoColor(p.estado)}>
+                        {p.estado}
                       </Badge>
                       <span className="text-xs text-gray-500 mt-1">
-                        Último cambio: {prospecto.ultimoCambio}
+                        Últ. cambio: {p.ultimoCambio}
                       </span>
                     </div>
+                  </TableCell>
+                  <TableCell>{p.asesor?.nombre ?? "Sin asignar"}</TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleUpdate(p.id)}>
+                          Actualizar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDelete(p.id)}>
+                          Eliminar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="py-4 text-center text-gray-500">
+                <TableCell colSpan={8} className="py-4 text-center text-gray-500">
                   No se encontraron prospectos.
                 </TableCell>
               </TableRow>
@@ -285,9 +440,15 @@ export default function GestionProspectos() {
         </Table>
       </div>
 
-      {/* Controles de paginación */}
+      {/* PAGINACIÓN */}
       <div className="flex items-center justify-end gap-2 p-4">
-        <Select value={pageSize} onValueChange={handlePageSizeChange}>
+        <Select
+          value={pageSize}
+          onValueChange={(val: string) => {
+            setPageSize(val)
+            setCurrentPage(1)
+          }}
+        >
           <SelectTrigger className="w-[120px]">
             <SelectValue placeholder="Paginación" />
           </SelectTrigger>
@@ -301,7 +462,11 @@ export default function GestionProspectos() {
 
         {pageSize !== "all" && (
           <>
-            <Button variant="outline" onClick={handlePrevPage} disabled={currentPage === 1}>
+            <Button
+              variant="outline"
+              onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+              disabled={currentPage === 1}
+            >
               Anterior
             </Button>
             <span className="text-sm text-gray-600">
@@ -309,14 +474,91 @@ export default function GestionProspectos() {
             </span>
             <Button
               variant="outline"
-              onClick={handleNextPage}
-              disabled={currentPage === totalPages || totalPages === 0}
+              onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+              disabled={currentPage === totalPages}
             >
               Siguiente
             </Button>
           </>
         )}
       </div>
+
+      {/* MODALES */}
+
+      <EditProspectModal
+        isOpen={editOpen}
+        onClose={() => setEditOpen(false)}
+        // Si bulkEditIds existe, se pasa esa lista; si no, se pasa el prospecto individual
+        prospect={bulkEditIds.length === 0 ? (activeProspect ? { id: activeProspect.id, asesor_id: activeProspect.asesor_id } : undefined) : undefined}
+        bulkIds={bulkEditIds.length > 0 ? bulkEditIds : undefined}
+        asesores={asesores}
+        onSaved={() => {
+          Swal.fire({
+            icon: "success",
+            title: "Actualización exitosa",
+            text: "Los prospectos se han actualizado correctamente.",
+          });
+          // Actualiza el estado, por ejemplo, volviendo a cargar prospectos o filtrando
+          setEstadoFilter(f => f);
+          // Limpia la selección y el bulk edit
+          setSelectedIds([]);
+          setBulkEditIds([]);
+        }}
+      />
+
+      <ConfirmDeleteModal
+        isOpen={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={async () => {
+          if (!activeProspect) return;
+
+          try {
+            const res = await fetch(
+              `http://127.0.0.1:8000/api/prospectos/${activeProspect.id}`,
+              {
+                method: "DELETE",
+                headers: {
+                  Authorization: `Bearer ${localStorage.getItem("token")}`,
+                  Accept: "application/json",
+                },
+              }
+            );
+
+            const json = await res.json();
+
+            if (res.ok) {
+              // 1) Actualiza el estado local para quitar el prospecto
+              setProspectos(ps => ps.filter(p => p.id !== activeProspect.id));
+
+              // 2) Muestra el éxito
+              Swal.fire({
+                icon: "success",
+                title: "Eliminación exitosa",
+                text: json.message || "El prospecto se ha eliminado correctamente.",
+              });
+
+              // 3) Cierra el modal
+              setDeleteOpen(false);
+            } else {
+              // Muestra el error devuelto por la API
+              Swal.fire({
+                icon: "error",
+                title: "Error",
+                text: json.message || "No se pudo eliminar el prospecto.",
+              });
+            }
+          } catch (error) {
+            console.error("Error eliminando prospecto:", error);
+            Swal.fire({
+              icon: "error",
+              title: "Error inesperado",
+              text: "Ocurrió un problema al comunicarse con el servidor.",
+            });
+          }
+        }}
+        prospectName={activeProspect?.nombre ?? ""}
+      />
+
     </div>
   )
 }

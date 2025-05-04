@@ -5,6 +5,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
+import Swal from 'sweetalert2'
+
 
 import type {
   DatosPersonales,
@@ -77,32 +79,54 @@ export default function RegistrationForm() {
         laborales: datosLaborales,
         academicos: datosAcademicos,
         financieros: datosFinancieros,
-      })
+      });
   
-      const nuevoId = response.data.prospecto_id
-      const estudianteProgramas: any[] = response.data.programas || []
-      setProspectoId(nuevoId)
+      const nuevoId = response.data.prospecto_id;
+      const estudianteProgramas: any[] = response.data.programas || [];
+      setProspectoId(nuevoId);
   
       // Subida de documentos
-      const docsToUpload = documentos.filter((d) => d.estado === "cargado" && d.archivo)
+      const docsToUpload = documentos.filter((d) => d.estado === "cargado" && d.archivo);
       for (const doc of docsToUpload) {
-        const formData = new FormData()
-        formData.append("prospecto_id", nuevoId.toString())
-        formData.append("tipo_documento", doc.id)
-        formData.append("file", doc.archivo!)
+        const formData = new FormData();
+        formData.append("prospecto_id", nuevoId.toString());
+        formData.append("tipo_documento", doc.id);
+        formData.append("file", doc.archivo!);
   
         await axios.post("http://localhost:8000/api/documentos", formData, {
           headers: { "Content-Type": "multipart/form-data" },
-        })
+        });
       }
   
-      alert("Inscripción finalizada correctamente.")
+      // Generar plan de pagos para cada programa
+      for (const programa of estudianteProgramas) {
+        await axios.post("http://localhost:8000/api/plan-pagos/generar", {
+          estudiante_programa_id: programa.id,
+        });
+      }
+  
+      // Mostrar SweetAlert y recargar al confirmar
+      Swal.fire({
+        title: '¡Inscripción completada!',
+        text: 'El estudiante fue inscrito correctamente y se generó el plan de pagos. Se enviarán las aprobaciones correspondientes.',
+        icon: 'success',
+        confirmButtonText: 'Aceptar',
+      }).then((result) => {
+        if (result.isConfirmed) {
+          window.location.reload();
+        }
+      });
+  
     } catch (error: any) {
-      console.error("Error al finalizar inscripción:", error.response?.data || error)
-      alert("Error: " + (error.response?.data?.message || "Ocurrió un error"))
-      console.error("Error:", error)
+      console.error("Error al finalizar inscripción:", error.response?.data || error);
+      Swal.fire({
+        title: 'Error',
+        text: error.response?.data?.message || "Ocurrió un error",
+        icon: 'error',
+      });
     }
-  }
+  };
+  
   
 
   return (

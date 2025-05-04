@@ -135,12 +135,12 @@ export function StudentDetails() {
 
   // Llamada real al backend
   const confirmSendContract = async () => {
-    setShowConfirmDialog(false)
-    setLoading(true)
-    setError(null)
-
+    setShowConfirmDialog(false);
+    setLoading(true);
+    setError(null);
+  
     try {
-      const token = localStorage.getItem("token")
+      const token = localStorage.getItem("token");
       const res = await fetch(
         `http://127.0.0.1:8000/api/prospectos/${studentId}/enviar-contrato`,
         {
@@ -148,21 +148,32 @@ export function StudentDetails() {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type":  "application/json",
+            Accept:          "application/json",       // <-- importante
           },
           body: JSON.stringify({ signature }),
         }
-      )
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.message || "Error al enviar")
-
-      setShowSuccessDialog(true)
+      );
+  
+      // Si no es 2xx, lee texto y lánzalo como error
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("❌ enviarContrato fallo, body:", text);
+        throw new Error(text || res.statusText);
+      }
+  
+      // Aquí ya sabemos que viene JSON válido
+      const json = await res.json();
+      console.log("✅ enviarContrato respuesta:", json);
+      setShowSuccessDialog(true);
+  
     } catch (err: any) {
-      console.error(err)
-      setError(err.message)
+      console.error("❌ confirmSendContract ERROR:", err);
+      setError(err.message || "Error desconocido");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
+  
 
   const handleSuccessClose = () => {
     setShowSuccessDialog(false)
