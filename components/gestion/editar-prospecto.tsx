@@ -1,20 +1,21 @@
+// components/EditProspecto.tsx
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import Swal from "sweetalert2"
 
 interface Prospecto {
   id: string
-  nombre: string
-  email: string
+  nombre: string       // en la lista padre esto es nombre_completo
+  email: string        // en la lista padre esto es correo_electronico
   telefono: string
-  estado: string
-  notasGenerales?: string
+  estado: string       // en la lista padre esto es status
   observaciones?: string
 }
 
@@ -23,31 +24,67 @@ interface EditarProspectoProps {
   onClose: () => void
 }
 
+const API_URL = "http://127.0.0.1:8000/api"
+
 export default function EditarProspecto({ prospecto, onClose }: EditarProspectoProps) {
-  // Estados locales para cada campo (puedes inicializarlos con los valores del prospecto)
-  const [nombre, setNombre] = useState(prospecto.nombre)
-  const [email, setEmail] = useState(prospecto.email)
+  // inicializa los estados con las props
+  const [nombreCompleto, setNombreCompleto] = useState(prospecto.nombre)
+  const [correoElectronico, setCorreoElectronico] = useState(prospecto.email)
   const [telefono, setTelefono] = useState(prospecto.telefono)
-  const [estado, setEstado] = useState(prospecto.estado)
-  const [notasGenerales, setNotasGenerales] = useState(prospecto.notasGenerales || "")
+  const [status, setStatus] = useState(prospecto.estado)
   const [observaciones, setObservaciones] = useState(prospecto.observaciones || "")
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    // Aquí implementarías la lógica para guardar los cambios,
-    // por ejemplo, enviar los datos actualizados a tu API.
+
+    // aquí sí uso los nombres que valida tu controlador
     const updatedData = {
-      id: prospecto.id,
-      nombre,
-      email,
+      nombreCompleto,
+      correoElectronico,
       telefono,
-      estado,
-      notasGenerales,
+      status,
       observaciones,
     }
-    console.log("Datos a guardar:", updatedData)
-    // Una vez guardado, cierra el modal.
-    onClose()
+
+    console.log("🔄 Enviando datos de actualización:", updatedData)
+
+    try {
+      const token = localStorage.getItem("token") || ""
+      const res = await fetch(`${API_URL}/prospectos/${prospecto.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updatedData),
+      })
+
+      const body = await res.json()
+      console.log("📥 Respuesta del backend:", body)
+
+      if (!res.ok) {
+        throw new Error(body.message || `HTTP ${res.status}`)
+      }
+
+      onClose() // cierra el modal primero
+
+      await Swal.fire({
+        icon: "success",
+        title: "¡Listo!",
+        text: "El prospecto ha sido actualizado correctamente.",
+        confirmButtonText: "Aceptar"
+      })
+
+      window.location.reload()
+
+    } catch (err: any) {
+      console.error("❌ Error actualizando prospecto:", err)
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: err.message || "Ocurrió un error, intenta de nuevo más tarde.",
+      })
+    }
   }
 
   return (
@@ -61,38 +98,42 @@ export default function EditarProspecto({ prospecto, onClose }: EditarProspectoP
             </Button>
           </DialogTitle>
         </DialogHeader>
+
         <form className="space-y-4" onSubmit={handleSubmit}>
-          {/* Nombre */}
+          {/* Nombre Completo */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">Nombre</label>
+            <label className="block text-sm font-medium">Nombre</label>
             <Input
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
+              value={nombreCompleto}
+              onChange={(e) => setNombreCompleto(e.target.value)}
               className="mt-1"
             />
           </div>
-          {/* Email */}
+
+          {/* Correo Electrónico */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">Email</label>
+            <label className="block text-sm font-medium">Email</label>
             <Input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={correoElectronico}
+              onChange={(e) => setCorreoElectronico(e.target.value)}
               className="mt-1"
             />
           </div>
+
           {/* Teléfono */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">Teléfono</label>
+            <label className="block text-sm font-medium">Teléfono</label>
             <Input
               value={telefono}
               onChange={(e) => setTelefono(e.target.value)}
               className="mt-1"
             />
           </div>
-          {/* Estado */}
+
+          {/* Status */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">Estado</label>
-            <Select value={estado} onValueChange={(value) => setEstado(value)}>
+            <label className="block text-sm font-medium">Estado</label>
+            <Select value={status} onValueChange={(val) => setStatus(val)}>
               <SelectTrigger className="mt-1">
                 <SelectValue placeholder="Seleccione un estado" />
               </SelectTrigger>
@@ -106,19 +147,10 @@ export default function EditarProspecto({ prospecto, onClose }: EditarProspectoP
               </SelectContent>
             </Select>
           </div>
-          {/* Notas Generales */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Notas Generales</label>
-            <Textarea
-              value={notasGenerales}
-              onChange={(e) => setNotasGenerales(e.target.value)}
-              className="mt-1"
-              placeholder="Agrega nuevas notas..."
-            />
-          </div>
+
           {/* Observaciones */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">Observaciones</label>
+            <label className="block text-sm font-medium">Observaciones</label>
             <Textarea
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
@@ -126,6 +158,7 @@ export default function EditarProspecto({ prospecto, onClose }: EditarProspectoP
               placeholder="Cambia o agrega observaciones..."
             />
           </div>
+
           <div className="flex justify-end">
             <Button type="submit">Guardar cambios</Button>
           </div>

@@ -1,3 +1,4 @@
+// components/GestionProspectos.tsx
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -5,27 +6,41 @@ import Swal from "sweetalert2"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Filter, MoreHorizontal, Eye, Edit2, UserPlus } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {DropdownMenu,DropdownMenuContent,DropdownMenuItem,DropdownMenuTrigger,} from "@/components/ui/dropdown-menu"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
 import DetallesProspecto from "./detalles-prospecto"
 import EditarProspecto from "./editar-prospecto"
 import CambiarEstado from "./cambiar-estado"
 
-// Interfaz para prospecto (ajusta según tus campos)
+const API_URL = "http://127.0.0.1:8000/api"
+
 interface Prospecto {
   id: string
   nombre: string
   email: string
   telefono: string
   departamento: string
+  puesto: string
   estado: string
+  observaciones?: string
   ultimoCambio: string
 }
 
 export default function GestionProspectos() {
   const [prospectos, setProspectos] = useState<Prospecto[]>([])
-  const [loading, setLoading] = useState<boolean>(false)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>("")
   const [selectedProspecto, setSelectedProspecto] = useState<Prospecto | null>(null)
   const [modalType, setModalType] = useState<"detalles" | "editar" | null>(null)
@@ -35,40 +50,53 @@ export default function GestionProspectos() {
   // Filtros y paginación
   const [searchTerm, setSearchTerm] = useState<string>("")
   const [estadoFilter, setEstadoFilter] = useState<string>("todos")
+  const [departamentoFilter, setDepartamentoFilter] = useState<string>("todos")
+  const [puestoFilter, setPuestoFilter] = useState<string>("todos")
   const [pageSize, setPageSize] = useState<string>("5")
   const [currentPage, setCurrentPage] = useState<number>(1)
 
-  // Usuario actual
   const [currentUser, setCurrentUser] = useState<any>(null)
 
-  // Carga inicial de prospectos
+  // Datos únicos para filtros dinámicos
+  const departamentos = useMemo(
+    () => Array.from(new Set(prospectos.map((p) => p.departamento))),
+    [prospectos]
+  )
+  const puestos = useMemo(
+    () => Array.from(new Set(prospectos.map((p) => p.puesto))),
+    [prospectos]
+  )
+
+  // Carga inicial
   useEffect(() => {
     const fetchProspectos = async () => {
       setLoading(true)
       setError("")
       try {
         const token = localStorage.getItem("token")
-        const res = await fetch("http://127.0.0.1:8000/api/prospectos", {
+        const res = await fetch(`${API_URL}/prospectos`, {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
         })
-        if (!res.ok) throw new Error(`Error al obtener prospectos: status ${res.status}`)
+        if (!res.ok) throw new Error(`Error al obtener prospectos: ${res.status}`)
         const json = await res.json()
-        const prospectosTransformados = json.data
+        const list: Prospecto[] = json.data
           .map((item: any) => ({
             id: String(item.id),
             nombre: item.nombre_completo,
             email: item.correo_electronico,
             telefono: item.telefono,
-            departamento: item.empresa_donde_labora_actualmente ?? "Sin Departamento",
+            departamento:
+              item.empresa_donde_labora_actualmente ?? "Sin Departamento",
+            puesto: item.puesto ?? "—",
             estado: item.status || "No contactado",
+            observaciones: item.observaciones ?? "",
             ultimoCambio: item.updated_at ?? "N/A",
           }))
-          // Excluir los que ya están en preinscripción
-          .filter((p: Prospecto) => p.estado.toLowerCase() !== "preinscripción")
-        setProspectos(prospectosTransformados)
+          .filter((p: any) => p.estado.toLowerCase() !== "preinscripción")
+        setProspectos(list)
       } catch (err: any) {
         setError(err.message || "Error inesperado")
       } finally {
@@ -78,7 +106,7 @@ export default function GestionProspectos() {
     fetchProspectos()
   }, [])
 
-  // Carga del usuario actual
+  // Usuario actual
   useEffect(() => {
     if (typeof window !== "undefined") {
       const storedUser = localStorage.getItem("user")
@@ -86,47 +114,7 @@ export default function GestionProspectos() {
     }
   }, [])
 
-  // Función para inscribir (preinscripción)
-  const handleInscribir = async (id: string) => {
-    const result = await Swal.fire({
-      title: "Pasar a preinscripción",
-      text: "¿Confirmas que deseas Pasar al modulo de Inscripcion este prospecto?",
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonText: "Sí, Pasar a Inscripción",
-      cancelButtonText: "Cancelar",
-    })
-    if (!result.isConfirmed) return
-
-    try {
-      const token = localStorage.getItem("token")
-      const res = await fetch(`http://127.0.0.1:8000/api/prospectos/${id}/status`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ status: "Preinscripción" }),
-      })
-      if (!res.ok) throw new Error(`Error al actualizar estado: status ${res.status}`)
-      await res.json()
-      // Eliminar de la lista local
-      setProspectos(prospectos.filter((p) => p.id !== id))
-      Swal.fire("¡Listo!", "El prospecto ha sido pasado a Inscripción.", "success")
-    } catch (err: any) {
-      Swal.fire("Error", err.message || "No se pudo actualizar el estado.", "error")
-    }
-  }
-
-  // Seleccionar todos / uno
-  const handleSelectAll = (checked: boolean) => {
-    setSelectedIds(checked ? prospectos.map((p) => p.id) : [])
-  }
-  const handleSelectOne = (id: string, checked: boolean) => {
-    setSelectedIds(checked ? [...selectedIds, id] : selectedIds.filter((i) => i !== id))
-  }
-
-  // Color según estado
+  // Helpers
   const getEstadoColor = (estado: string) => {
     switch (estado.toLowerCase()) {
       case "no contactado":
@@ -146,7 +134,7 @@ export default function GestionProspectos() {
     }
   }
 
-  // Filtrado por búsqueda y estado
+  // Filtrado combinado
   const filteredProspectos = useMemo(() => {
     return prospectos.filter((p) => {
       const matchesSearch =
@@ -154,10 +142,25 @@ export default function GestionProspectos() {
         p.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.telefono.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesEstado =
-        estadoFilter === "todos" ? true : p.estado.toLowerCase() === estadoFilter.toLowerCase()
-      return matchesSearch && matchesEstado
+        estadoFilter === "todos" || p.estado === estadoFilter
+      const matchesDepartamento =
+        departamentoFilter === "todos" || p.departamento === departamentoFilter
+      const matchesPuesto =
+        puestoFilter === "todos" || p.puesto === puestoFilter
+      return (
+        matchesSearch &&
+        matchesEstado &&
+        matchesDepartamento &&
+        matchesPuesto
+      )
     })
-  }, [prospectos, searchTerm, estadoFilter])
+  }, [
+    prospectos,
+    searchTerm,
+    estadoFilter,
+    departamentoFilter,
+    puestoFilter,
+  ])
 
   // Paginación
   const paginatedProspectos = useMemo(() => {
@@ -172,12 +175,56 @@ export default function GestionProspectos() {
     return Math.ceil(filteredProspectos.length / Number(pageSize))
   }, [filteredProspectos, pageSize])
 
-  const handlePageSizeChange = (value: string) => {
-    setPageSize(value)
+  // Handlers
+  const handleSelectAll = (checked: boolean) => {
+    setSelectedIds(checked ? prospectos.map((p) => p.id) : [])
+  }
+  const handleSelectOne = (id: string, checked: boolean) => {
+    setSelectedIds((ids) =>
+      checked ? [...ids, id] : ids.filter((i) => i !== id)
+    )
+  }
+  const handlePageSizeChange = (v: string) => {
+    setPageSize(v)
     setCurrentPage(1)
   }
-  const handleNextPage = () => currentPage < totalPages && setCurrentPage(currentPage + 1)
-  const handlePrevPage = () => currentPage > 1 && setCurrentPage(currentPage - 1)
+  const handleNextPage = () =>
+    currentPage < totalPages && setCurrentPage((p) => p + 1)
+  const handlePrevPage = () =>
+    currentPage > 1 && setCurrentPage((p) => p - 1)
+
+  // Preinscripción
+  const handleInscribir = async (id: string) => {
+    const result = await Swal.fire({
+      title: "Pasar a preinscripción",
+      text: "¿Confirmas que deseas pasar este prospecto al módulo de Inscripción?",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Sí, pasar a Inscripción",
+      cancelButtonText: "Cancelar",
+    })
+    if (!result.isConfirmed) return
+
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_URL}/prospectos/${id}/status`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status: "Preinscripción" }),
+      })
+      if (!res.ok) {
+        throw new Error(`Error al actualizar estado: ${res.status}`)
+      }
+      await res.json()
+      setProspectos((ps) => ps.filter((p) => p.id !== id))
+      Swal.fire("¡Listo!", "El prospecto ha sido pasado a Inscripción.", "success")
+    } catch (err: any) {
+      Swal.fire("Error", err.message, "error")
+    }
+  }
 
   return (
     <div className="bg-white rounded-lg shadow">
@@ -192,6 +239,7 @@ export default function GestionProspectos() {
             setCurrentPage(1)
           }}
         />
+
         <Select
           value={estadoFilter}
           onValueChange={(v) => {
@@ -199,19 +247,62 @@ export default function GestionProspectos() {
             setCurrentPage(1)
           }}
         >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Todos los estados" />
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Estado" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos</SelectItem>
             <SelectItem value="No contactado">No contactado</SelectItem>
             <SelectItem value="En seguimiento">En seguimiento</SelectItem>
-            <SelectItem value="Le interesa a futuro">Le interesa a futuro</SelectItem>
+            <SelectItem value="Le interesa a futuro">
+              Le interesa a futuro
+            </SelectItem>
             <SelectItem value="Perdido">Perdido</SelectItem>
             <SelectItem value="Inscrito">Inscrito</SelectItem>
             <SelectItem value="Promesa de pago">Promesa de pago</SelectItem>
           </SelectContent>
         </Select>
+
+        <Select
+          value={departamentoFilter}
+          onValueChange={(v) => {
+            setDepartamentoFilter(v)
+            setCurrentPage(1)
+          }}
+        >
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Departamento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos</SelectItem>
+            {departamentos.map((d) => (
+              <SelectItem key={d} value={d}>
+                {d}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={puestoFilter}
+          onValueChange={(v) => {
+            setPuestoFilter(v)
+            setCurrentPage(1)
+          }}
+        >
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Puesto" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos</SelectItem>
+            {puestos.map((p) => (
+              <SelectItem key={p} value={p}>
+                {p}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <Button variant="outline">
           <Filter className="h-4 w-4 mr-2" />
           Filtros
@@ -235,35 +326,37 @@ export default function GestionProspectos() {
               <th className="py-3 px-4 text-left">Nombre</th>
               <th className="py-3 px-4 text-left">Email</th>
               <th className="py-3 px-4 text-left">Teléfono</th>
-              <th className="py-3 px-4 text-left">Departamento</th>
+              <th className="py-3 px-4 text-left">Empresa</th>
+              <th className="py-3 px-4 text-left">Puesto</th>
               <th className="py-3 px-4 text-left">Estado</th>
               <th className="py-3 px-4 text-left">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y">
-            {paginatedProspectos.map((prospecto) => (
-              <tr key={prospecto.id} className="hover:bg-gray-50">
+            {paginatedProspectos.map((p) => (
+              <tr key={p.id} className="hover:bg-gray-50">
                 <td className="py-3 px-4">
                   <Checkbox
-                    checked={selectedIds.includes(prospecto.id)}
-                    onCheckedChange={(c) => handleSelectOne(prospecto.id, c as boolean)}
+                    checked={selectedIds.includes(p.id)}
+                    onCheckedChange={(c) => handleSelectOne(p.id, c as boolean)}
                   />
                 </td>
-                <td className="py-3 px-4">{prospecto.nombre}</td>
-                <td className="py-3 px-4">{prospecto.email}</td>
-                <td className="py-3 px-4">{prospecto.telefono}</td>
-                <td className="py-3 px-4">{prospecto.departamento}</td>
+                <td className="py-3 px-4">{p.nombre}</td>
+                <td className="py-3 px-4">{p.email}</td>
+                <td className="py-3 px-4">{p.telefono}</td>
+                <td className="py-3 px-4">{p.departamento}</td>
+                <td className="py-3 px-4">{p.puesto}</td>
                 <td className="py-3 px-4">
                   <div className="flex flex-col">
                     <span
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getEstadoColor(
-                        prospecto.estado
+                        p.estado
                       )}`}
                     >
-                      {prospecto.estado}
+                      {p.estado}
                     </span>
                     <span className="text-xs text-gray-500 mt-1">
-                      Último cambio: {prospecto.ultimoCambio}
+                      Último cambio: {p.ultimoCambio}
                     </span>
                   </div>
                 </td>
@@ -273,7 +366,7 @@ export default function GestionProspectos() {
                       variant="ghost"
                       size="icon"
                       onClick={() => {
-                        setSelectedProspecto(prospecto)
+                        setSelectedProspecto(p)
                         setModalType("detalles")
                       }}
                     >
@@ -282,9 +375,38 @@ export default function GestionProspectos() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => {
-                        setSelectedProspecto(prospecto)
-                        setModalType("editar")
+                      onClick={async () => {
+                        try {
+                          const token = localStorage.getItem("token")
+                          const res = await fetch(
+                            `${API_URL}/prospectos/${p.id}`,
+                            {
+                              headers: {
+                                Authorization: `Bearer ${token}`,
+                                "Content-Type": "application/json",
+                              },
+                            }
+                          )
+                          if (!res.ok)
+                            throw new Error("No se pudo cargar datos de edición")
+                          const { data } = await res.json()
+                          setSelectedProspecto({
+                            id: String(data.id),
+                            nombre: data.nombre_completo,
+                            email: data.correo_electronico,
+                            telefono: data.telefono,
+                            departamento:
+                              data.empresa_donde_labora_actualmente ??
+                              "Sin Departamento",
+                            puesto: data.puesto ?? "—",
+                            estado: data.status,
+                            observaciones: data.observaciones ?? "",
+                            ultimoCambio: data.updated_at ?? "N/A",
+                          })
+                          setModalType("editar")
+                        } catch (e: any) {
+                          Swal.fire("Error", e.message, "error")
+                        }
                       }}
                     >
                       <Edit2 className="h-4 w-4" />
@@ -294,7 +416,7 @@ export default function GestionProspectos() {
                         variant="ghost"
                         size="icon"
                         onClick={() => {
-                          setSelectedProspecto(prospecto)
+                          setSelectedProspecto(p)
                           setModalType("editar")
                         }}
                       >
@@ -313,7 +435,7 @@ export default function GestionProspectos() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
                           onClick={() => {
-                            setSelectedProspecto(prospecto)
+                            setSelectedProspecto(p)
                             setModalType("editar")
                           }}
                         >
@@ -321,7 +443,7 @@ export default function GestionProspectos() {
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => {
-                            setSelectedProspecto(prospecto)
+                            setSelectedProspecto(p)
                             setShowEstadoMenu(true)
                           }}
                         >
@@ -330,7 +452,7 @@ export default function GestionProspectos() {
                         <DropdownMenuItem>Enviar Email</DropdownMenuItem>
                         <DropdownMenuItem>Enviar Mensaje</DropdownMenuItem>
                         <DropdownMenuItem>Llamar</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleInscribir(prospecto.id)}>
+                        <DropdownMenuItem onClick={() => handleInscribir(p.id)}>
                           Inscribir
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -341,7 +463,7 @@ export default function GestionProspectos() {
             ))}
             {paginatedProspectos.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-4 text-center text-gray-500">
+                <td colSpan={8} className="py-4 text-center text-gray-500">
                   No se encontraron prospectos.
                 </td>
               </tr>
@@ -411,5 +533,5 @@ export default function GestionProspectos() {
         />
       )}
     </div>
-)
+  )
 }
