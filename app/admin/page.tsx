@@ -39,12 +39,11 @@ export default function AdminPanel() {
         <TabsList className="w-full grid grid-cols-9 h-auto">
           <TabsTrigger value="leads" className="py-3">Gestión de Leads</TabsTrigger>
           <TabsTrigger value="asesores" className="py-3">Asesores</TabsTrigger>
-          <TabsTrigger value="rendimiento" className="py-3">Rendimiento</TabsTrigger>
           <TabsTrigger value="reportes" className="py-3">Reportes</TabsTrigger>
           <TabsTrigger value="actividad" className="py-3">Actividad Diaria</TabsTrigger>
           <TabsTrigger value="alertas" className="py-3">Gestión de Alertas</TabsTrigger>
           <TabsTrigger value="duplicados" className="py-3">Duplicados</TabsTrigger>
-          <TabsTrigger value="cursos" className="py-3">Cursos</TabsTrigger>
+
           <TabsTrigger value="configuracion" className="py-3">Configuración</TabsTrigger>
         </TabsList>
 
