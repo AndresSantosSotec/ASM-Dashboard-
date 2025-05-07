@@ -78,30 +78,35 @@ export function GestionFichas() {
     const fetchFichas = async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await fetch("http://localhost:8000/api/fichas/pendientes", {
-          headers: { Authorization: `Bearer ${token}` },
+        console.log("Token:", token); // Debug: verifica el token
+        
+        const url = "http://localhost:8000/api/fichas/pendientes";
+        console.log("Fetching URL:", url); // Debug: verifica la URL
+        
+        const res = await fetch(url, {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
         });
-        console.log("⇨ fetchFichas status:", res.status, res.statusText);
+        
+        console.log("Response:", res); // Debug completo de la respuesta
+        
         if (!res.ok) {
-          console.error("❌ fetchFichas — status no OK:", res.status);
-          return;
+          const errorText = await res.text(); // Lee el cuerpo del error
+          console.error("Error details:", errorText);
+          throw new Error(`HTTP error! status: ${res.status}`);
         }
-        const ct = res.headers.get("content-type") || "";
-        if (!ct.includes("application/json")) {
-          console.error("❌ fetchFichas — content-type inesperado:", ct);
-          return;
-        }
+        
         const json = await res.json();
-        console.log("⇨ fetchFichas — JSON:", json);
-        setFichas(json.data.map((item: any) => ({
-          id: item.id,
-          nombre: item.nombre_completo,
-          /* … resto del mapeo … */
-        })));
+        console.log("Data received:", json);
+        
+        setFichas(json.data || []);
       } catch (err) {
-        console.error("❌ fetchFichas — ERROR en try/catch:", err);
+        console.error("Full error details:", err);
       }
     };
+    
     fetchFichas();
   }, []);
   
