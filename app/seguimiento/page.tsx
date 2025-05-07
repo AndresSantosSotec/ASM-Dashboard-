@@ -70,13 +70,28 @@ export default function SeguimientoPage() {
   const [token, setToken] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
+  // Filtros
+  const [filters, setFilters] = useState({
+    nombre: "",
+    email: "",
+    telefono: "",
+    estado: "",
+  });
+
+  // Crea un array derivado en base a los filtros aplicados:
+  const filteredProspectos = prospectos.filter((p) => {
+    const matchesNombre = p.nombre.toLowerCase().includes(filters.nombre.toLowerCase());
+    const matchesEmail = p.email.toLowerCase().includes(filters.email.toLowerCase());
+    const matchesTelefono = p.telefono.includes(filters.telefono);
+    const matchesEstado = filters.estado ? p.estado === filters.estado : true;
+    return matchesNombre && matchesEmail && matchesTelefono && matchesEstado;
+  });
+
   // Obtener token y user_id del localStorage solo en el cliente
   useEffect(() => {
     if (typeof window !== "undefined") {
       const _token = localStorage.getItem("token");
       const _userId = localStorage.getItem("user_id");
-      console.log("Token recuperado:", _token);
-      console.log("User ID recuperado:", _userId);
       setToken(_token);
       setUserId(_userId);
     }
@@ -120,7 +135,6 @@ export default function SeguimientoPage() {
           throw new Error(`Error al obtener prospectos: status ${res.status}`);
         }
         const json = await res.json();
-        console.log("Respuesta completa de prospectos:", json);
         const prospectosTransformados: Prospecto[] = json.data.map((item: any) => ({
           id: String(item.id),
           nombre: item.nombre_completo,
@@ -131,7 +145,6 @@ export default function SeguimientoPage() {
         }));
         setProspectos(prospectosTransformados);
       } catch (err: any) {
-        console.error("Error en fetchProspectos:", JSON.stringify(err, null, 2));
         setError(err.message || "Error inesperado");
       } finally {
         setLoading(false);
@@ -143,21 +156,19 @@ export default function SeguimientoPage() {
   // Cargar interacciones filtradas por prospecto
   useEffect(() => {
     if (!token || !selectedProspecto) return;
-  
+
     const fetchInteracciones = async () => {
       try {
         const response = await axios.get(`http://localhost:8000/api/interacciones?id_lead=${selectedProspecto.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        console.log("Interacciones recibidas:", response.data);
         if (Array.isArray(response.data.data)) {
           setInteracciones(response.data.data);
         } else {
-          console.warn("La respuesta de interacciones no es un arreglo:", response.data);
           setInteracciones([]);
         }
       } catch (err: any) {
-        console.error("Error en fetchInteracciones:", JSON.stringify(err.response || err, null, 2));
+        console.error("Error en fetchInteracciones:", err);
       }
     };
     fetchInteracciones();
@@ -171,15 +182,13 @@ export default function SeguimientoPage() {
         const response = await axios.get("http://localhost:8000/api/interacciones", {
           headers: { Authorization: `Bearer ${token}` },
         });
-        console.log("Interacciones globales recibidas:", response.data);
         if (Array.isArray(response.data)) {
           setInteracciones(response.data);
         } else {
-          console.warn("La respuesta de interacciones no es un arreglo:", response.data);
           setInteracciones([]);
         }
       } catch (err: any) {
-        console.error("Error en fetchInteracciones:", JSON.stringify(err.response || err, null, 2));
+        console.error("Error en fetchInteracciones:", err);
       }
     };
     fetchInteracciones();
@@ -193,13 +202,12 @@ export default function SeguimientoPage() {
         const response = await axios.get("http://localhost:8000/api/citas", {
           headers: { Authorization: `Bearer ${token}` },
         });
-        console.log("Citas recibidas:", response.data);
         const citasArray = Array.isArray(response.data)
           ? response.data
           : response.data.data || [];
         setCitas(citasArray);
       } catch (err: any) {
-        console.error("Error en fetchCitas:", JSON.stringify(err.response || err, null, 2));
+        console.error("Error en fetchCitas:", err);
       }
     };
     fetchCitas();
@@ -213,10 +221,9 @@ export default function SeguimientoPage() {
         const response = await axios.get("http://localhost:8000/api/actividades", {
           headers: { Authorization: `Bearer ${token}` },
         });
-        console.log("Actividades recibidas:", response.data);
         setActividades(response.data);
       } catch (err: any) {
-        console.error("Error en fetchActividades:", JSON.stringify(err.response || err, null, 2));
+        console.error("Error en fetchActividades:", err);
       }
     };
     fetchActividades();
@@ -252,15 +259,12 @@ export default function SeguimientoPage() {
       notas: interactionNotes,
     };
 
-    console.log("Enviando interacción:", JSON.stringify(newInteraction, null, 2));
-
     try {
       const response = await axios.post(
         "http://localhost:8000/api/interacciones",
         newInteraction,
         { headers: { Authorization: `Bearer ${currentToken}` } }
       );
-      console.log("✅ Interacción guardada:", response.data);
       setInteracciones((prev) => Array.isArray(prev) ? [...prev, response.data] : [response.data]);
       setInteractionType("");
       setInteractionDate("");
@@ -274,7 +278,7 @@ export default function SeguimientoPage() {
         timer: 1500,
       });
     } catch (err: any) {
-      console.error("❌ Error al guardar interacción:", JSON.stringify(err.response || err, null, 2));
+      console.error("Error al guardar interacción:", err);
       Swal.fire({
         icon: "error",
         title: "Error",
@@ -308,15 +312,12 @@ export default function SeguimientoPage() {
       descricita: appointmentDescription,
     };
 
-    console.log("Enviando cita:", JSON.stringify(newCita, null, 2));
-
     try {
       const response = await axios.post(
         "http://localhost:8000/api/citas",
         newCita,
         { headers: { Authorization: `Bearer ${currentToken}` } }
       );
-      console.log("✅ Cita guardada:", response.data);
       setCitas((prev) => Array.isArray(prev) ? [...prev, response.data] : [response.data]);
       setAppointmentDescription("");
       setAppointmentDate("");
@@ -328,7 +329,7 @@ export default function SeguimientoPage() {
         timer: 1500,
       });
     } catch (err: any) {
-      console.error("❌ Error al guardar cita:", JSON.stringify(err.response || err, null, 2));
+      console.error("Error al guardar cita:", err);
       Swal.fire({
         icon: "error",
         title: "Error",
@@ -352,6 +353,41 @@ export default function SeguimientoPage() {
       {!loading && !error && (
         <div className="bg-white p-6 rounded-lg shadow-sm">
           <h2 className="text-lg font-semibold mb-4">Lista de Prospectos</h2>
+
+          {/* Filtros */}
+          <div className="mb-4 flex space-x-4">
+            <Input
+              placeholder="Buscar por nombre"
+              value={filters.nombre}
+              onChange={(e) => setFilters({ ...filters, nombre: e.target.value })}
+            />
+            <Input
+              placeholder="Buscar por email"
+              value={filters.email}
+              onChange={(e) => setFilters({ ...filters, email: e.target.value })}
+            />
+            <Input
+              placeholder="Buscar por teléfono"
+              value={filters.telefono}
+              onChange={(e) => setFilters({ ...filters, telefono: e.target.value })}
+            />
+            <Select
+              value={filters.estado}
+              onValueChange={(value) => setFilters({ ...filters, estado: value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="Contactado">Contactado</SelectItem>
+                <SelectItem value="Interesado">Interesado</SelectItem>
+                <SelectItem value="En proceso">En proceso</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Tabla de Prospectos */}
           <div className="border rounded-lg">
             <Table>
               <TableHeader>
@@ -360,12 +396,11 @@ export default function SeguimientoPage() {
                   <TableHead>Email</TableHead>
                   <TableHead>Teléfono</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead>Asesor</TableHead>
                   <TableHead>Acción</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {prospectos
+                {filteredProspectos
                   .slice((currentPage - 1) * pageSize, currentPage * pageSize)
                   .map((prospecto) => (
                     <TableRow key={prospecto.id}>
@@ -377,7 +412,6 @@ export default function SeguimientoPage() {
                           {prospecto.estado}
                         </Badge>
                       </TableCell>
-                      <TableCell>{prospecto.asesor}</TableCell>
                       <TableCell>
                         <Button variant="default" onClick={() => setSelectedProspecto(prospecto)}>
                           Ver detalles
@@ -388,14 +422,16 @@ export default function SeguimientoPage() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Paginación */}
           <div className="flex justify-end space-x-4 mt-4">
             <Button onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1}>
               Anterior
             </Button>
             <span className="self-center">
-              Página {currentPage} de {Math.ceil(prospectos.length / pageSize)}
+              Página {currentPage} de {Math.ceil(filteredProspectos.length / pageSize)}
             </span>
-            <Button onClick={() => setCurrentPage((prev) => (prev < Math.ceil(prospectos.length / pageSize) ? prev + 1 : prev))} disabled={currentPage === Math.ceil(prospectos.length / pageSize)}>
+            <Button onClick={() => setCurrentPage((prev) => (prev < Math.ceil(filteredProspectos.length / pageSize) ? prev + 1 : prev))} disabled={currentPage === Math.ceil(filteredProspectos.length / pageSize)}>
               Siguiente
             </Button>
           </div>
@@ -403,7 +439,6 @@ export default function SeguimientoPage() {
       )}
 
       <Dialog open={!!selectedProspecto} onOpenChange={() => setSelectedProspecto(null)}>
-        {/* Ajuste general del modal para que no exceda el 80% del alto de la ventana */}
         <DialogContent className="max-w-4xl">
           <div className="max-h-[80vh] overflow-y-auto p-4">
             <div className="grid grid-cols-2 gap-6">
@@ -440,11 +475,10 @@ export default function SeguimientoPage() {
                 </div>
                 <div>
                   <h3 className="text-md font-semibold mb-2">Historial de Actividades</h3>
-                  {/* Contenedor con scroll para interacciones */}
                   <div className="max-h-72 overflow-y-auto space-y-4">
                     {selectedProspecto &&
-                    Array.isArray(interacciones) &&
-                    interacciones.filter((inter) => inter.id_lead === parseInt(selectedProspecto.id, 10)).length > 0 ? (
+                      Array.isArray(interacciones) &&
+                      interacciones.filter((inter) => inter.id_lead === parseInt(selectedProspecto.id, 10)).length > 0 ? (
                       interacciones
                         .filter((inter: any) => inter.id_lead === parseInt(selectedProspecto.id, 10))
                         .map((actividad, index) => (
@@ -494,21 +528,21 @@ export default function SeguimientoPage() {
                         )}
                       </SelectContent>
                     </Select>
-                    <Input 
+                    <Input
                       type="datetime-local"
                       placeholder="Fecha de interacción"
                       value={interactionDate}
                       onChange={(e) => setInteractionDate(e.target.value)}
                     />
-                    <Input 
-                      placeholder="Duración (minutos)" 
-                      value={interactionDuration} 
+                    <Input
+                      placeholder="Duración (minutos)"
+                      value={interactionDuration}
                       onChange={(e) => setInteractionDuration(e.target.value)}
                     />
-                    <Textarea 
-                      placeholder="Notas" 
-                      className="min-h-[100px]" 
-                      value={interactionNotes} 
+                    <Textarea
+                      placeholder="Notas"
+                      className="min-h-[100px]"
+                      value={interactionNotes}
                       onChange={(e) => setInteractionNotes(e.target.value)}
                     />
                     <Button className="w-full" onClick={handleAddInteraction}>
@@ -518,16 +552,16 @@ export default function SeguimientoPage() {
                 </div>
                 <div>
                   <h3 className="text-md font-semibold mb-4">Fecha y Cita</h3>
-                  <Input 
+                  <Input
                     type="datetime-local"
                     placeholder="Fecha de la cita"
                     value={appointmentDate}
                     onChange={(e) => setAppointmentDate(e.target.value)}
                   />
                   <div className="mt-4 space-y-4">
-                    <Input 
-                      placeholder="Descripción de la cita" 
-                      value={appointmentDescription} 
+                    <Input
+                      placeholder="Descripción de la cita"
+                      value={appointmentDescription}
                       onChange={(e) => setAppointmentDescription(e.target.value)}
                     />
                     <Button className="w-full" onClick={handleAddCita}>
@@ -536,7 +570,6 @@ export default function SeguimientoPage() {
                   </div>
                   <div className="mt-4">
                     <h4 className="text-sm font-medium mb-2">Citas agendadas:</h4>
-                    {/* Contenedor con scroll para citas */}
                     <div className="max-h-56 overflow-y-auto space-y-2">
                       {citas.length > 0 ? (
                         citas.map((cita) => (
