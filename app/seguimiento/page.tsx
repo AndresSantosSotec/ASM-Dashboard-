@@ -72,7 +72,11 @@ export default function SeguimientoPage() {
 
   // Agrega estos estados nuevos cerca de los demás useState existentes:
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [estadoFilter, setEstadoFilter] = useState<string>("");
+  const [emailFilter, setEmailFilter] = useState<string>("");
+  const [phoneFilter, setPhoneFilter] = useState<string>("");
+  const [estadoFilter, setEstadoFilter] = useState<string>("all");
+
+
 
 
   //filters
@@ -84,11 +88,13 @@ export default function SeguimientoPage() {
   });
 
   // Crea un array derivado en base a los filtros aplicados:
-const filteredProspectos = prospectos.filter((p) => {
-  const matchesNombre = p.nombre.toLowerCase().includes(searchTerm.toLowerCase());
-  const matchesEstado = estadoFilter ? p.estado === estadoFilter : true;
-  return matchesNombre && matchesEstado;
-});
+  const filteredProspectos = prospectos.filter((p) => {
+    const matchesNombre = p.nombre.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesEmail = p.email.toLowerCase().includes(emailFilter.toLowerCase());
+    const matchesTelefono = p.telefono.includes(phoneFilter);
+    const matchesEstado = estadoFilter === "all" ? true : p.estado === estadoFilter;
+    return matchesNombre && matchesEmail && matchesTelefono && matchesEstado;
+  });
 
   // Obtener token y user_id del localStorage solo en el cliente
   useEffect(() => {
@@ -366,7 +372,55 @@ const filteredProspectos = prospectos.filter((p) => {
         </div>
       </div>
 
-
+      <div className="flex flex-col sm:flex-row gap-4 mb-4">
+        <Input
+          placeholder="Buscar por nombre"
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setCurrentPage(1);
+          }}
+          className="w-full sm:max-w-xs"
+        />
+        <Input
+          placeholder="Buscar por correo"
+          value={emailFilter}
+          onChange={(e) => {
+            setEmailFilter(e.target.value);
+            setCurrentPage(1);
+          }}
+          className="w-full sm:max-w-xs"
+        />
+        <Input
+          placeholder="Buscar por teléfono"
+          value={phoneFilter}
+          onChange={(e) => {
+            setPhoneFilter(e.target.value);
+            setCurrentPage(1);
+          }}
+          className="w-full sm:max-w-xs"
+        />
+        <Select
+          value={estadoFilter}
+          onValueChange={(value) => {
+            setEstadoFilter(value);
+            setCurrentPage(1);
+          }}
+        >
+          <SelectTrigger className="w-full sm:max-w-xs">
+            <SelectValue placeholder="Filtrar por estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="No contactado">No contactado</SelectItem>
+            <SelectItem value="En seguimiento">En seguimiento</SelectItem>
+            <SelectItem value="Le interesa a futuro">Le interesa a futuro</SelectItem>
+            <SelectItem value="Perdido">Perdido</SelectItem>
+            <SelectItem value="Inscrito">Inscrito</SelectItem>
+            <SelectItem value="Promesa de pago">Promesa de pago</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       {loading && <p>Cargando prospectos...</p>}
       {error && <p className="text-red-500">{error}</p>}
@@ -382,12 +436,11 @@ const filteredProspectos = prospectos.filter((p) => {
                   <TableHead>Email</TableHead>
                   <TableHead>Teléfono</TableHead>
                   <TableHead>Estado</TableHead>
-
                   <TableHead>Acción</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {prospectos
+                {filteredProspectos
                   .slice((currentPage - 1) * pageSize, currentPage * pageSize)
                   .map((prospecto) => (
                     <TableRow key={prospecto.id}>
@@ -399,7 +452,6 @@ const filteredProspectos = prospectos.filter((p) => {
                           {prospecto.estado}
                         </Badge>
                       </TableCell>
-
                       <TableCell>
                         <Button variant="default" onClick={() => setSelectedProspecto(prospecto)}>
                           Ver detalles

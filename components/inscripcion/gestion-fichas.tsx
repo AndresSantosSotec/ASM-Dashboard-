@@ -80,9 +80,8 @@ export function GestionFichas() {
         const token = localStorage.getItem("token");
         console.log("Token:", token); // Debug: verifica el token
         
-        const url = "http://localhost:8000/api/fichas/pendientes";
+        const url = "http://localhost:8000/api/prospectos/fichas/pendientes";
         console.log("Fetching URL:", url); // Debug: verifica la URL
-        
         const res = await fetch(url, {
           headers: { 
             Authorization: `Bearer ${token}`,
@@ -113,17 +112,23 @@ export function GestionFichas() {
   
 
   const filteredFichas = fichas.filter((ficha) => {
-    const matchesSearch =
-      ficha.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ficha.programa.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ficha.id.toString().includes(searchTerm)
-    const matchesEstado = filtroEstado === "todos" || ficha.estado === filtroEstado
-    const matchesPrioridad =
-      filtroPrioridad === "todas" || ficha.prioridad === filtroPrioridad
-    const matchesPeriodo = filtroPeriodo === "todos" || true
-    return matchesSearch && matchesEstado && matchesPrioridad && matchesPeriodo
-  })
-
+     // Convertir a string por defecto para evitar undefined
+     const nombre    = ficha.nombre    ?? ""
+     const programa  = ficha.programa  ?? ""
+     const idStr     = ficha.id?.toString() ?? ""
+     const term      = searchTerm.toLowerCase()
+  
+     const matchesSearch =
+       nombre.toLowerCase().includes(term) ||
+       programa.toLowerCase().includes(term) ||
+       idStr.includes(term)
+  
+     const matchesEstado    = filtroEstado    === "todos" || ficha.estado    === filtroEstado
+     const matchesPrioridad = filtroPrioridad === "todas" || ficha.prioridad === filtroPrioridad
+     const matchesPeriodo   = filtroPeriodo   === "todos" || true
+  
+     return matchesSearch && matchesEstado && matchesPrioridad && matchesPeriodo
+   })
   const getBadgeForEstado = (estado: string) => {
     switch (estado) {
       case "completa":
