@@ -77,58 +77,61 @@ export function GestionFichas() {
   useEffect(() => {
     const fetchFichas = async () => {
       try {
-        const token = localStorage.getItem("token");
-        console.log("Token:", token); // Debug: verifica el token
-        
-        const url = "http://localhost:8000/api/prospectos/fichas/pendientes";
-        console.log("Fetching URL:", url); // Debug: verifica la URL
+        const url = "http://localhost:8000/api/prospectos/fichas/pendientes-public";
         const res = await fetch(url, {
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
+          headers: { Accept: "application/json" },
         });
-        
-        console.log("Response:", res); // Debug completo de la respuesta
-        
+
         if (!res.ok) {
-          const errorText = await res.text(); // Lee el cuerpo del error
-          console.error("Error details:", errorText);
-          throw new Error(`HTTP error! status: ${res.status}`);
+          const errorText = await res.text();
+          throw new Error(`HTTP ${res.status}: ${errorText}`);
         }
-        
-        const json = await res.json();
-        console.log("Data received:", json);
-        
-        setFichas(json.data || []);
+
+        const { data } = await res.json();
+
+        // Aquí mapeamos cada 'raw' a tu tipo FichaEstudiante
+        const mapped: FichaEstudiante[] = data.map((raw: any) => ({
+          id: raw.id,
+          nombre: raw.nombre_completo,           // <— nombre_completo → nombre
+          programa: raw.nombre_programa,         // <— nombre_programa → programa
+          fecha: raw.created_at?.split("T")[0] || "",  // si lo tienes en el JSON
+          estado: raw.status,                    // <— status → estado
+          prioridad: raw.prioridad || "media",   // si no viene, pones un default
+          ultimaActualizacion: raw.updated_at || "",
+          // Si tu FichaEstudiante tiene más campos, mapea o pon valores por defecto aquí
+        }));
+
+        setFichas(mapped);
       } catch (err) {
-        console.error("Full error details:", err);
+        console.error("Error cargando fichas:", err);
       }
     };
-    
+
     fetchFichas();
   }, []);
-  
-  
+
+
+
+
 
   const filteredFichas = fichas.filter((ficha) => {
-     // Convertir a string por defecto para evitar undefined
-     const nombre    = ficha.nombre    ?? ""
-     const programa  = ficha.programa  ?? ""
-     const idStr     = ficha.id?.toString() ?? ""
-     const term      = searchTerm.toLowerCase()
-  
-     const matchesSearch =
-       nombre.toLowerCase().includes(term) ||
-       programa.toLowerCase().includes(term) ||
-       idStr.includes(term)
-  
-     const matchesEstado    = filtroEstado    === "todos" || ficha.estado    === filtroEstado
-     const matchesPrioridad = filtroPrioridad === "todas" || ficha.prioridad === filtroPrioridad
-     const matchesPeriodo   = filtroPeriodo   === "todos" || true
-  
-     return matchesSearch && matchesEstado && matchesPrioridad && matchesPeriodo
-   })
+    // Convertir a string por defecto para evitar undefined
+    const nombre = ficha.nombre ?? ""
+    const programa = ficha.programa ?? ""
+    const idStr = ficha.id?.toString() ?? ""
+    const term = searchTerm.toLowerCase()
+
+    const matchesSearch =
+      nombre.toLowerCase().includes(term) ||
+      programa.toLowerCase().includes(term) ||
+      idStr.includes(term)
+
+    const matchesEstado = filtroEstado === "todos" || ficha.estado === filtroEstado
+    const matchesPrioridad = filtroPrioridad === "todas" || ficha.prioridad === filtroPrioridad
+    const matchesPeriodo = filtroPeriodo === "todos" || true
+
+    return matchesSearch && matchesEstado && matchesPrioridad && matchesPeriodo
+  })
   const getBadgeForEstado = (estado: string) => {
     switch (estado) {
       case "completa":
