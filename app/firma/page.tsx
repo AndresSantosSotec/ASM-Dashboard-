@@ -1,128 +1,60 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card"
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   Dialog,
+  DialogTrigger,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog"
-import { Search, Filter, CheckCircle, XCircle, Download, AlertCircle, MessageSquare, FileText } from "lucide-react"
-import Image from "next/image"
-import { useRouter } from "next/navigation"
+import {
+  Search,
+  Filter,
+  FileText,
+  Download,
+  XCircle,
+  CheckCircle,
+} from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table"
 
-// --- Modelo de prospecto según API ---
-interface Student {
-  id: string
-  name: string
-  email: string
-  dpi: boolean
-  receipt: boolean
-  constanciaAmerica: boolean
+interface Prospecto {
+  id: number
+  nombre_completo: string
+  correo_electronico: string
 }
 
-function StudentManagement() {
-  const [students, setStudents] = useState<Student[]>([])
-  const [selected, setSelected] = useState<string[]>([])
-  const router = useRouter()
-
-  useEffect(() => {
-    ;(async () => {
-      try {
-        const token = localStorage.getItem("token")
-        const res = await fetch("http://127.0.0.1:8000/api/prospectos", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        })
-        const json = await res.json()
-        const data: Student[] = json.data.map((p: any) => ({
-          id: String(p.id),
-          name: p.nombre_completo,
-          email: p.correo_electronico,
-          dpi: Boolean(p.has_dpi),
-          receipt: Boolean(p.has_recibo),
-          constanciaAmerica: Boolean(p.has_constancia_america),
-        }))
-        setStudents(data)
-      } catch (e) {
-        console.error(e)
-      }
-    })()
-  }, [])
-
-  const toggle = (id: string) =>
-    setSelected(sel => (sel.includes(id) ? sel.filter(x => x !== id) : [...sel, id]))
-
-  return (
-    <Card className="mt-6">
-      <CardHeader>
-        <CardTitle>Gestión de Prospectos</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>✔️</TableHead>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>DPI</TableHead>
-              <TableHead>Recibo</TableHead>
-              <TableHead>Constancia</TableHead>
-              <TableHead>Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {students.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center py-4">
-                  Cargando prospectos...
-                </TableCell>
-              </TableRow>
-            ) : (
-              students.map(s => (
-                <TableRow key={s.id}>
-                  <TableCell>
-                    <Checkbox
-                      checked={selected.includes(s.id)}
-                      onCheckedChange={() => toggle(s.id)}
-                    />
-                  </TableCell>
-                  <TableCell>{s.name}</TableCell>
-                  <TableCell>{s.email}</TableCell>
-                  <TableCell>
-                    {s.dpi ? <span className="text-green-500">✔️</span> : <span className="text-red-500">❌</span>}
-                  </TableCell>
-                  <TableCell>
-                    {s.receipt ? <span className="text-green-500">✔️</span> : <span className="text-red-500">❌</span>}
-                  </TableCell>
-                  <TableCell>
-                    {s.constanciaAmerica ? <span className="text-green-500">✔️</span> : <span className="text-red-500">❌</span>}
-                  </TableCell>
-                  <TableCell>
-                    <Button variant="outline" onClick={() => router.push(`/firma/student-details/${s.id}`)}>
-                      Ver Detalles
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
-  )
+interface Documento {
+  id: number
+  prospecto_id: number
+  tipo_documento: string
 }
 
 export default function FirmaPage() {
@@ -130,18 +62,24 @@ export default function FirmaPage() {
     <div className="flex flex-col min-h-screen">
       <Header title="Verificación de Firma Digital y Contrato" />
       <main className="flex-1 p-4 md:p-6">
-        {/* -- Contratos y Firmas (datos de ejemplo) -- */}
+        {/* -- Contratos y Firmas (visualización sólo) -- */}
         <Card>
           <CardHeader>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <CardTitle>Contratos y Firmas</CardTitle>
-                <CardDescription>Verifica la firma digital y el contrato</CardDescription>
+                <CardDescription>
+                  Verifica la firma digital y el contrato
+                </CardDescription>
               </div>
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input type="search" placeholder="Buscar..." className="pl-8 w-[200px]" />
+                  <Input
+                    type="search"
+                    placeholder="Buscar..."
+                    className="pl-8 w-[200px]"
+                  />
                 </div>
                 <Button variant="outline" size="icon">
                   <Filter className="h-4 w-4" />
@@ -160,12 +98,17 @@ export default function FirmaPage() {
 
               <TabsContent value="pendientes">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {[1, 2, 3].map(i => (
+                  {[1, 2, 3].map((i) => (
                     <Card key={i}>
                       <CardHeader className="p-4">
                         <div className="flex justify-between items-center">
-                          <CardTitle className="text-base">Alumno {i}</CardTitle>
-                          <Badge variant="outline" className="bg-amber-100 text-amber-700">
+                          <CardTitle className="text-base">
+                            Alumno {i}
+                          </CardTitle>
+                          <Badge
+                            variant="outline"
+                            className="bg-amber-100 text-amber-700"
+                          >
                             Pendiente
                           </Badge>
                         </div>
@@ -177,16 +120,24 @@ export default function FirmaPage() {
                             <FileText className="h-5 w-5 text-blue-500" />
                             <span>Contrato.pdf</span>
                           </div>
-                          <span className="text-xs text-muted-foreground">01/04/2025</span>
+                          <span className="text-xs text-muted-foreground">
+                            01/04/2025
+                          </span>
                         </div>
                         <Dialog>
                           <DialogTrigger asChild>
-                            <Button variant="outline" className="w-full">Verificar Firma</Button>
+                            <Button variant="outline" className="w-full">
+                              Verificar Firma
+                            </Button>
                           </DialogTrigger>
                           <DialogContent className="max-w-4xl">
                             <DialogHeader>
-                              <DialogTitle>Contrato - Alumno {i}</DialogTitle>
-                              <DialogDescription>Revisa la firma y el documento</DialogDescription>
+                              <DialogTitle>
+                                Contrato - Alumno {i}
+                              </DialogTitle>
+                              <DialogDescription>
+                                Revisa la firma y el documento
+                              </DialogDescription>
                             </DialogHeader>
                             <div className="border rounded overflow-hidden">
                               <div className="bg-muted p-2 flex justify-between">
@@ -196,7 +147,6 @@ export default function FirmaPage() {
                                 </Button>
                               </div>
                               <div className="h-64 overflow-auto p-4 bg-white">
-                                {/* Aquí iría un PDF viewer real */}
                                 <p>(Contenido de ejemplo del contrato...)</p>
                               </div>
                             </div>
@@ -215,15 +165,123 @@ export default function FirmaPage() {
                   ))}
                 </div>
               </TabsContent>
-
-              {/* Vistas “verificados”, “rechazados” y “todos” pueden copiar esa estructura */}
             </Tabs>
           </CardContent>
         </Card>
 
-        {/* -- Gestión de Prospectos bajo la misma estética -- */}
-        <StudentManagement />
+        {/* -- Tabla de Prospectos “Pendiente Aprobacion” con checks según documentos -- */}
+        <ProspectosPendientes />
       </main>
     </div>
+  )
+}
+
+function ProspectosPendientes() {
+  const [prospectos, setProspectos] = useState<Prospecto[]>([])
+  const [documentos, setDocumentos] = useState<Documento[]>([])
+  const [selected, setSelected] = useState<number[]>([])
+  const router = useRouter()
+
+  // Tipos que queremos mostrar columnas
+  const tipos = ["dpi", "recibo", "american", "inscripcion"]
+
+  useEffect(() => {
+    const token = localStorage.getItem("token")
+
+    // 1) Traer prospectos con status Pendiente Aprobacion
+    fetch(
+      `http://localhost:8000/api/prospectos/status/${encodeURIComponent(
+        "Pendiente Aprobacion"
+      )}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+      .then((r) => r.json())
+      .then((j) => setProspectos(j.data))
+      .catch(console.error)
+
+    // 2) Traer todos los documentos
+    fetch("http://localhost:8000/api/documentos", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((j) => setDocumentos(j))
+      .catch(console.error)
+  }, [])
+
+  // Mapa prospecto_id → lista de tipo_documento
+  const docsByPros = prospectos.reduce<Record<number, string[]>>((acc, p) => {
+    acc[p.id] =
+      documentos
+        .filter((d) => d.prospecto_id === p.id)
+        .map((d) => d.tipo_documento) || []
+    return acc
+  }, {})
+
+  const toggle = (id: number) =>
+    setSelected((sel) =>
+      sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id]
+    )
+
+  return (
+    <Card className="mt-6">
+      <CardHeader>
+        <CardTitle>Prospectos Pendientes</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>✔️</TableHead>
+              <TableHead>Nombre</TableHead>
+              <TableHead>Email</TableHead>
+              {tipos.map((t) => (
+                <TableHead key={t}>{t.toUpperCase()}</TableHead>
+              ))}
+              <TableHead>Acciones</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {prospectos.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4 + tipos.length} className="text-center py-4">
+                  Cargando prospectos…
+                </TableCell>
+              </TableRow>
+            ) : (
+              prospectos.map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selected.includes(p.id)}
+                      onCheckedChange={() => toggle(p.id)}
+                    />
+                  </TableCell>
+                  <TableCell>{p.nombre_completo}</TableCell>
+                  <TableCell>{p.correo_electronico}</TableCell>
+
+                  {tipos.map((t) => (
+                    <TableCell key={t}>
+                      <Checkbox
+                        checked={docsByPros[p.id]?.includes(t) ?? false}
+                        disabled
+                      />
+                    </TableCell>
+                  ))}
+
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push(`/firma/student-details/${p.id}`)}
+                    >
+                      Ver Detalles
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   )
 }

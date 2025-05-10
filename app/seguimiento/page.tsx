@@ -496,21 +496,7 @@ export default function SeguimientoPage() {
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-md font-semibold mb-2">
-                    Asesor asignado: {selectedProspecto?.asesor}
-                  </h3>
-                  <Select defaultValue={selectedProspecto?.estado.toLowerCase()}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccione el estado" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="contactado">Contactado</SelectItem>
-                      <SelectItem value="interesado">Interesado</SelectItem>
-                      <SelectItem value="en_proceso">En proceso</SelectItem>
-                      <SelectItem value="matriculado">Matriculado</SelectItem>
-                      <SelectItem value="no_interesado">No volver a contactar</SelectItem>
-                    </SelectContent>
-                  </Select>
+
                 </div>
                 <div>
                   <h3 className="text-md font-semibold mb-2">Historial de Actividades</h3>

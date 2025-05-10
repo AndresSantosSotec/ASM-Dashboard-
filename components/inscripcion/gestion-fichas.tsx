@@ -20,6 +20,15 @@ import { Badge } from "@/components/ui/badge"
 import FichaDetalleModal from "@/components/inscripcion/modal/FichaDetalleModal"
 // Removed local declaration of FichaEstudiante as it is already imported
 
+// fuera del componente, o en la parte superior
+const CONTEO_REVISADAS_KEY = "fichasRevisadasCount";
+
+function incrementarRevisadas() {
+  const actual = parseInt(localStorage.getItem(CONTEO_REVISADAS_KEY) ?? "0", 10);
+  localStorage.setItem(CONTEO_REVISADAS_KEY, String(actual + 1));
+}
+
+
 export function GestionFichas() {
   const [fichas, setFichas] = useState<FichaEstudiante[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -40,22 +49,26 @@ export function GestionFichas() {
   // ---- Handlers para aprobar/rechazar ----
   const handleApprove = async (id: number) => {
     try {
-      const token = localStorage.getItem("token")
+      const token = localStorage.getItem("token");
       await fetch(`http://localhost:8000/api/fichas/${id}/approve`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-      })
-      // Actualiza el estado local (o recarga la lista)
+      });
+      // Actualiza el estado local
       setFichas((prev) =>
         prev.map((f) => (f.id === id ? { ...f, estado: "revisada" } : f))
-      )
+      );
+      // --- Incrementa el contador ---
+      incrementarRevisadas();
+      console.log("Fichas revisadas hasta ahora:", localStorage.getItem(CONTEO_REVISADAS_KEY));
     } catch (err) {
-      console.error("Error al aprobar ficha", err)
+      console.error("Error al aprobar ficha", err);
     }
-  }
+  };
+
 
   const handleReject = async (id: number) => {
     try {

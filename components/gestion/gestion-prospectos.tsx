@@ -1,4 +1,3 @@
-// components/GestionProspectos.tsx
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -226,6 +225,47 @@ export default function GestionProspectos() {
     }
   }
 
+  //bulk de presinscrpccion 
+  // 1) Dentro de tu componente, justo junto al resto de handlers:
+  const handleBulkInscribir = async () => {
+    if (selectedIds.length === 0) return;
+
+    const result = await Swal.fire({
+      title: 'Pasar a preinscripción masiva',
+      text: `¿Confirmas que deseas inscribir ${selectedIds.length} prospectos?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, inscribir',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/prospectos/bulk-update-status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          prospecto_ids: selectedIds.map((id) => Number(id)),
+          status: 'Preinscripción',
+        }),
+      });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      await res.json();
+
+      // Actualiza tu estado local: quita los que ya pasaron a inscripción
+      setProspectos((ps) => ps.filter((p) => !selectedIds.includes(p.id)));
+      setSelectedIds([]);
+      Swal.fire('¡Listo!', 'Los prospectos se han pasado a Inscripción.', 'success');
+    } catch (err: any) {
+      Swal.fire('Error', err.message, 'error');
+    }
+  };
+
+
   return (
     <div className="bg-white rounded-lg shadow">
       {/* Filtros */}
@@ -307,6 +347,15 @@ export default function GestionProspectos() {
           <Filter className="h-4 w-4 mr-2" />
           Filtros
         </Button>
+        
+        <Button
+          variant="outline"
+          disabled={selectedIds.length === 0}
+          onClick={handleBulkInscribir}
+        >
+          Inscribir seleccionados ({selectedIds.length})
+        </Button>
+
       </div>
 
       {loading && <p className="p-4">Cargando prospectos...</p>}

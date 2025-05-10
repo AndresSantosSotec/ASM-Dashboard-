@@ -38,6 +38,9 @@ export default function Sidebar({ open, className }: SidebarProps) {
     administracion: false,
     seguridad: false,
   })
+  // Al inicio de tu componente (o en un fichero de constantes)
+const CONTEO_REVISADAS_KEY = "fichasRevisadasCount";
+
 
   const [userRole, setUserRole] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(true)
@@ -78,7 +81,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
   // Función para cerrar sesión: elimina el indicador de autenticación y redirige a "/login"
   const handleLogout = async () => {
     try {
-      const token = localStorage.getItem("token")
+      const token = localStorage.getItem("token");
       if (token) {
         await axios.post(
           "http://localhost:8000/api/logout",
@@ -88,18 +91,21 @@ export default function Sidebar({ open, className }: SidebarProps) {
               Authorization: `Bearer ${token}`,
             },
           }
-        )
+        );
       }
     } catch (error) {
-      console.error(error)
+      console.error("Error al hacer logout:", error);
     } finally {
       // Limpia todo rastro de token/usuario en el navegador
-      localStorage.removeItem("token")
-      localStorage.removeItem("user")
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      // Limpia el contador de fichas revisadas
+      localStorage.removeItem(CONTEO_REVISADAS_KEY);
       // Redirige a la pantalla de login
-      router.push("/login")
+      router.push("/login");
     }
-  }
+  };
+
   //div mientras se obtiene le ususario 
   if (isLoading) {
     return (
@@ -138,7 +144,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
           Módulos
         </div>
 
-        {/* Prospectos y Asesores (expandible) */}
+
         {/* Prospectos y Asesores (expandible) */}
         <div className="mb-1">
           <button
@@ -289,25 +295,25 @@ export default function Sidebar({ open, className }: SidebarProps) {
                   <FileText size={16} className="mr-2" />
                   <span>Validación de Documentos</span>
                 </Link>
-                <Link
+                {/* <Link
                   href="/documentos/gestion"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/documentos/gestion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <FileText size={16} className="mr-2" />
                   <span>Gestión de Documentos</span>
-                </Link>
+                </Link> */}
                 <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
                   Reportes
                 </div>
-                <Link
+                {/* <Link
                   href="/reportes-avanzados"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/reportes-avanzados" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <BarChart size={16} className="mr-2" />
                   <span>Reportes Avanzados</span>
-                </Link>
+                </Link> */}
                 <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
                   Administración
                 </div>
@@ -326,82 +332,6 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 >
                   <Activity size={16} className="mr-2" />
                   <span>Flujos de Aprobación</span>
-                </Link>
-              </div>
-            )}
-          </div>
-        )}
-
-        {userRole === "Administrador" && (
-          <div className="mb-1">
-            <button
-              onClick={() => toggleSection("academico")}
-              className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md transition-colors duration-200"
-            >
-              <div className="flex items-center">
-                <BookOpen size={18} className="mr-2" />
-                <span>Académico</span>
-              </div>
-              {expandedSections["academico"] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            </button>
-
-            {expandedSections["academico"] && (
-              <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
-                <Link
-                  href="/academico/programas"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/programas" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
-                >
-                  <BookOpen size={16} className="mr-2" />
-                  <span>Programas Académicos</span>
-                </Link>
-                <Link
-                  href="/academico/usuarios"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/usuarios" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
-                >
-                  <Users size={16} className="mr-2" />
-                  <span>Gestión de Usuarios</span>
-                </Link>
-                <Link
-                  href="/academico/programacion"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/programacion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
-                >
-                  <Calendar size={16} className="mr-2" />
-                  <span>Programación de Cursos</span>
-                </Link>
-                <Link
-                  href="/academico/asignacion"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/asignacion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
-                >
-                  <ClipboardList size={16} className="mr-2" />
-                  <span>Asignación de Cursos</span>
-                </Link>
-                <Link
-                  href="/academico/estatus-alumno"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/estatus-alumno" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
-                >
-                  <UserCheck size={16} className="mr-2" />
-                  <span>Estatus Académico</span>
-                </Link>
-                <Link
-                  href="/academico/estado-sistema"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/estado-sistema" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
-                >
-                  <Activity size={16} className="mr-2" />
-                  <span>Estatus General</span>
-                </Link>
-                <Link
-                  href="/academico/ranking"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/ranking" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
-                >
-                  <BarChart2 size={16} className="mr-2" />
-                  <span>Ranking Académico</span>
                 </Link>
               </div>
             )}
@@ -952,11 +882,6 @@ export default function Sidebar({ open, className }: SidebarProps) {
           </div>
 
         )}
-
-
-
-
-
 
       </div>
 

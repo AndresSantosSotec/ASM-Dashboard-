@@ -114,3 +114,12 @@ export type FichaEstudiante = {
   datosFinancieros: DatosFinancieros;
   documentos?: Documento[];
 };
+
+// Se agregan los siguientes tipos para su utilización en RegistrationForm:
+
+export type TabId = "personal" | "laboral" | "academico" | "financiero" | "documentos";
+
+export interface ProgramaConDuracion {
+  programaId: number;
+  duracion: number;
+}
