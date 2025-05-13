@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { CheckCircle, ZoomIn, ZoomOut, RotateCw, Loader2 } from "lucide-react"
+import Swal from 'sweetalert2'
 
 interface Student {
   id: string
@@ -218,11 +219,22 @@ export function StudentDetails() {
       await res.json()
       setShowSuccessDialog(true)
     } catch (err: any) {
-      setError(err.message || "Error desconocido")
+      // Si ya se envió hoy, código 23505 en PG => uniq violation
+      if (err.message.includes("ux_contactos_env_prosp_canal_dia")) {
+        Swal.fire({
+          icon: "warning",
+          title: "Contrato ya enviado",
+          text: "Este prospecto ya recibió el contrato hoy.",
+        })
+      } else {
+        setError(err.message || "Error desconocido")
+      }
     } finally {
       setLoading(false)
     }
   }
+
+  // 8) Cerrar diálogo de éxito
   const handleSuccessClose = () => {
     setShowSuccessDialog(false)
     router.push("/firma")
@@ -425,11 +437,17 @@ export function StudentDetails() {
           </div>
 
           <Button
-            className="w-full"
+            className="w-full flex justify-center items-center"
             onClick={handleSendContract}
             disabled={!signature || loading}
           >
-            {loading ? "Enviando..." : "Enviar Contrato"}
+            {loading
+              ? <>
+                <Loader2 className="animate-spin h-5 w-5 mr-2" />
+                Enviando...
+              </>
+              : "Enviar Contrato"
+            }
           </Button>
           {error && <p className="text-red-500 text-sm text-center mt-2">{error}</p>}
         </CardContent>

@@ -9,7 +9,8 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import {Form,FormControl,FormField,FormItem,FormLabel,FormMessage,
+import {
+  Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from "@/components/ui/form"
 import {
   Select,
@@ -70,6 +71,10 @@ export default function CapturaProspectos() {
     []
   )
 
+  const [empresas, setEmpresas] = useState<{ id: number; nombre: string; descripcion: string | null; activo: boolean }[]>([])
+
+  const [showOtherCompany, setShowOtherCompany] = useState(false);
+
   // useForm con defaultValues para país=1 (Guatemala)
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -107,6 +112,20 @@ export default function CapturaProspectos() {
     }
     fetchProgramas()
   }, [])
+
+  //obtener la lista de empresas 
+  useEffect(() => {
+    const fetchEmpresas = async () => {
+      try {
+        const response = await axios.get("http://localhost:8000/api/convenios")
+        setEmpresas(response.data)
+      } catch (error) {
+        console.error("❌ Error al obtener empresas:", error)
+      }
+    }
+    fetchEmpresas()
+  }, [])
+
 
   // Obtener la estructura de departamentos y municipios de Guatemala
   useEffect(() => {
@@ -320,19 +339,65 @@ export default function CapturaProspectos() {
                 />
 
                 {/* Empresa donde labora */}
-                <FormField
-                  control={form.control}
-                  name="empresaDondeLaboraActualmente"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Empresa donde labora</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ingrese la empresa" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                <div className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="empresaDondeLaboraActualmente"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Empresa donde labora</FormLabel>
+                        <Select
+                          onValueChange={(value) => {
+                            if (value === "otros") {
+                              setShowOtherCompany(true);
+                              field.onChange("");
+                            } else {
+                              setShowOtherCompany(false);
+                              field.onChange(value);
+                            }
+                          }}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccione la empresa" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {empresas
+                              .filter(empresa => empresa.activo)
+                              .map((empresa) => (
+                                <SelectItem key={empresa.id} value={empresa.nombre}>
+                                  {empresa.nombre}
+                                </SelectItem>
+                              ))}
+                            <SelectItem value="otros">Otros</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {showOtherCompany && (
+                    <FormField
+                      control={form.control}
+                      name="empresaDondeLaboraActualmente"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Especifique la empresa</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Ingrese el nombre de la empresa"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   )}
-                />
+                </div>
 
                 {/* Puesto */}
                 <FormField

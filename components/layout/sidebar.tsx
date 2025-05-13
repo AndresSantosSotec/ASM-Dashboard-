@@ -39,7 +39,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
     seguridad: false,
   })
   // Al inicio de tu componente (o en un fichero de constantes)
-const CONTEO_REVISADAS_KEY = "fichasRevisadasCount";
+  const CONTEO_REVISADAS_KEY = "fichasRevisadasCount";
 
 
   const [userRole, setUserRole] = useState<string | null>(null)
@@ -245,7 +245,7 @@ const CONTEO_REVISADAS_KEY = "fichasRevisadasCount";
         </div>
 
         {/* Inscripción (expandible) */}
-        {userRole === "Administrador" && (
+        {(userRole === "Administrador" || userRole === "Asesor") && (
           <div className="mb-1">
             <button
               onClick={() => toggleSection("inscripcion")}
@@ -262,7 +262,9 @@ const CONTEO_REVISADAS_KEY = "fichasRevisadasCount";
               <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
                 <Link
                   href="/inscripcion/ficha"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/ficha" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/ficha"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <FileText size={16} className="mr-2" />
@@ -270,7 +272,9 @@ const CONTEO_REVISADAS_KEY = "fichasRevisadasCount";
                 </Link>
                 <Link
                   href="/inscripcion/revision"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/revision" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/revision"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <FileText size={16} className="mr-2" />
@@ -278,48 +282,37 @@ const CONTEO_REVISADAS_KEY = "fichasRevisadasCount";
                 </Link>
                 <Link
                   href="/firma"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/firma" || pathname.startsWith("/firma/") ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/firma" || pathname.startsWith("/firma/")
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <FileSignature size={16} className="mr-2" />
                   <span>Firma Digital</span>
                 </Link>
+
                 <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
                   Documentos
                 </div>
                 <Link
                   href="/documentos"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/documentos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/documentos"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <FileText size={16} className="mr-2" />
                   <span>Validación de Documentos</span>
                 </Link>
-                {/* <Link
-                  href="/documentos/gestion"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/documentos/gestion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
-                >
-                  <FileText size={16} className="mr-2" />
-                  <span>Gestión de Documentos</span>
-                </Link> */}
-                <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
-                  Reportes
-                </div>
-                {/* <Link
-                  href="/reportes-avanzados"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/reportes-avanzados" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
-                >
-                  <BarChart size={16} className="mr-2" />
-                  <span>Reportes Avanzados</span>
-                </Link> */}
+
                 <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
                   Administración
                 </div>
                 <Link
                   href="/inscripcion/admin/periodos"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/admin/periodos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/admin/periodos"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <Calendar size={16} className="mr-2" />
@@ -327,7 +320,9 @@ const CONTEO_REVISADAS_KEY = "fichasRevisadasCount";
                 </Link>
                 <Link
                   href="/inscripcion/admin/flujos"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/admin/flujos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/admin/flujos"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <Activity size={16} className="mr-2" />
@@ -368,7 +363,7 @@ const CONTEO_REVISADAS_KEY = "fichasRevisadasCount";
                     } transition-colors duration-200`}
                 >
                   <Users size={16} className="mr-2" />
-                  <span>Gestión de Usuarios</span>
+                  <span>Gestión de Estudiante</span>
                 </Link>
                 <Link
                   href="/academico/programacion"
