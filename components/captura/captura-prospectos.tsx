@@ -41,6 +41,7 @@ const formSchema = z.object({
   notasGenerales: z.string().optional(),
   observaciones: z.string().optional(),
   interes: z.string().optional(),
+  mesesPrograma: z.string().optional(), // Nuevo campo para los meses
   nota1: z.string().optional(),
   nota2: z.string().optional(),
   nota3: z.string().optional(),
@@ -89,12 +90,13 @@ export default function CapturaProspectos() {
       Origen: "",
       notasGenerales: "",
       observaciones: "",
-      interes: "",
+      interes: "",         // tu campo original
+      mesesPrograma: "",   // ← lo agregas aquí
       nota1: "",
       nota2: "",
       nota3: "",
       cierre: "",
-      pais: "1", // Guatemala
+      pais: "1",           // Guatemala
       departamento: "",
       municipio: "",
     },
@@ -479,6 +481,7 @@ export default function CapturaProspectos() {
               />
 
               {/* Programa de Interés */}
+              {/* Programa de Interés */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -486,7 +489,17 @@ export default function CapturaProspectos() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Programa de Interés</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          // Actualizar los meses cuando se selecciona un programa
+                          const programaSeleccionado = programas.find(p => p.id.toString() === value);
+                          if (programaSeleccionado) {
+                            form.setValue("mesesPrograma", programaSeleccionado.meses.toString());
+                          }
+                        }}
+                        defaultValue={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleccione un programa" />
@@ -498,12 +511,36 @@ export default function CapturaProspectos() {
                               key={programa.id}
                               value={programa.id.toString()}
                             >
-                              {programa.abreviatura} - {programa.nombre_del_programa} (
-                              {programa.meses} meses)
+                              {programa.abreviatura} - {programa.nombre_del_programa}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Campo para los meses */}
+                <FormField
+                  control={form.control}
+                  name="mesesPrograma"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Duración (meses)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="Meses de duración"
+                          value={field.value ?? ""}   // ← aquí el fallback
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value === "" || /^[1-9]\d*$/.test(value)) {
+                              field.onChange(value);
+                            }
+                          }}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
