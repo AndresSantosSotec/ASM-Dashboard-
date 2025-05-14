@@ -1,11 +1,14 @@
-'use client';
+"use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
 import { Header } from "@/components/header";
 import {
   Card,
+  CardHeader,
+  CardTitle,
   CardContent,
-  CardFooter
+  CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,15 +19,16 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow
+  TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
 } from "@/components/ui/select";
 import {
   Dialog,
@@ -32,418 +36,514 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger
+  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Search, Plus, Edit, FileText, Clock, CheckCircle, XCircle } from "lucide-react";
+import {
+  CalendarIcon,
+  Search,
+  Plus,
+  Edit,
+  FileText,
+  Clock as ClockIcon,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
+import { format, parseISO, isAfter, isBefore } from "date-fns";
+import { es } from "date-fns/locale";            /* NUEVO */
 
-type Periodo = {
+// ---- utils de fecha --------------------------
+const API_DATE = "yyyy-MM-dd";                  // formato estándar
+const pretty   = (iso: string) =>
+  iso ? format(parseISO(iso), API_DATE) : "";   // helper para mostrar
+// ----------------------------------------------
+
+// Base URL desde .env
+axios.defaults.baseURL =
+  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+
+// — Tipos de tu API
+type PeriodoAPI = {
+  id: number;
   nombre: string;
   codigo: string;
-  inicio: string;   // ISO date: "YYYY-MM-DD"
-  fin: string;      // ISO date
-  programas: string;
+  fecha_inicio: string;
+  fecha_fin: string;
   descripcion: string;
-  cupos: number;
+  cupos_total: number;
   descuento: number;
   activo: boolean;
   visible: boolean;
   notificaciones: boolean;
-  // derivados para mostrar
-  estado: 'Activo' | 'Próximo' | 'Finalizado';
+  inscritos_count: number;
+  programas: { id: number; abreviatura: string }[];
+};
+
+// — Tipo interno para render
+type Periodo = PeriodoAPI & {
+  estado: "Activo" | "Próximo" | "Finalizado";
   porcentaje: number;
 };
 
-const initialPeriodos: Periodo[] = [
-  {
-    nombre: "Primavera 2025",
-    codigo: "PRIM-2025",
-    inicio: "2025-02-01",
-    fin:    "2025-04-30",
-    programas: "Todos",
-    descripcion: "",
-    cupos: 0,
-    descuento: 0,
-    activo: false,
-    visible: true,
-    notificaciones: true,
-    estado: "Próximo",
-    porcentaje: 0
-  },
-  {
-    nombre: "Verano 2025",
-    codigo: "VER-2025",
-    inicio: "2025-05-01",
-    fin:    "2025-07-31",
-    programas: "Maestrías",
-    descripcion: "",
-    cupos: 0,
-    descuento: 0,
-    activo: false,
-    visible: true,
-    notificaciones: true,
-    estado: "Próximo",
-    porcentaje: 0
-  },
-  {
-    nombre: "Otoño 2025",
-    codigo: "OTO-2025",
-    inicio: "2025-08-01",
-    fin:    "2025-10-31",
-    programas: "Diplomados",
-    descripcion: "",
-    cupos: 0,
-    descuento: 0,
-    activo: false,
-    visible: true,
-    notificaciones: true,
-    estado: "Próximo",
-    porcentaje: 0
-  },
-  {
-    nombre: "Invierno 2025",
-    codigo: "INV-2025",
-    inicio: "2025-11-01",
-    fin:    "2025-12-31",
-    programas: "Todos",
-    descripcion: "",
-    cupos: 0,
-    descuento: 0,
-    activo: false,
-    visible: true,
-    notificaciones: true,
-    estado: "Próximo",
-    porcentaje: 0
-  }
-];
-
 export default function PeriodosInscripcionPage() {
-  const [periodos, setPeriodos] = useState<Periodo[]>(initialPeriodos);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [newPeriodo, setNewPeriodo] = useState<Periodo>({
+  const [periodos, setPeriodos] = useState<Periodo[]>([]);
+  const [filtered, setFiltered] = useState<Periodo[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // filtros UI
+  const [search, setSearch] = useState("");
+  const [filterEstado, setFilterEstado] =
+    useState<"Todos" | "Activo" | "Próximo" | "Finalizado">("Todos");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+
+  // modal
+  const [mode, setMode] = useState<"create" | "edit" | "view">("create");
+  const [isOpen, setIsOpen] = useState(false);
+  const [active, setActive] = useState<PeriodoAPI | null>(null);
+
+  // formulario
+  const [form, setForm] = useState<
+    Omit<PeriodoAPI, "id" | "inscritos_count">
+  >({
     nombre: "",
     codigo: "",
-    inicio: "2025-01-01",
-    fin:    "2025-01-31",
-    programas: "todos",
+    fecha_inicio: format(new Date(), API_DATE),   // 👈 mismo formato
+    fecha_fin:    format(new Date(), API_DATE),
     descripcion: "",
-    cupos: 0,
+    cupos_total: 0,
     descuento: 0,
     activo: true,
     visible: true,
     notificaciones: true,
-    estado: "Próximo",
-    porcentaje: 0
+    programas: [],
   });
 
-  const abrirDialog = () => setIsDialogOpen(true);
-  const cerrarDialog = () => setIsDialogOpen(false);
+  // 1) fetch
+  useEffect(() => {
+    fetchPeriodos();
+  }, []);
 
-  const handleSave = () => {
-    const p: Periodo = {
-      ...newPeriodo,
-      estado: newPeriodo.activo ? "Activo" : "Próximo",
-      porcentaje: 0
-    };
-    setPeriodos([...periodos, p]);
-    // reset a valores por defecto si quieres:
-    setNewPeriodo({
-      ...newPeriodo,
+  async function fetchPeriodos() {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await axios.get<PeriodoAPI[]>("/periodos");
+      const mapped = data.map((p) => {
+        const hoy = new Date();
+        const ini = parseISO(p.fecha_inicio);
+        const fin = parseISO(p.fecha_fin);
+        const estado: Periodo["estado"] = isAfter(hoy, fin)
+          ? "Finalizado"
+          : isBefore(hoy, ini)
+          ? "Próximo"
+          : "Activo";
+        const porcentaje = p.cupos_total
+          ? (p.inscritos_count / p.cupos_total) * 100
+          : 0;
+        return { ...p, estado, porcentaje };
+      });
+      setPeriodos(mapped);
+      setFiltered(mapped);
+    } catch (e: any) {
+      console.error(e);
+      setError("No se pudieron cargar los periodos. Revisa tu API.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // 2) filtros
+  useEffect(() => {
+    let tmp = [...periodos];
+    if (search) {
+      tmp = tmp.filter((p) =>
+        p.nombre.toLowerCase().includes(search.toLowerCase())
+      );
+    }
+    if (filterEstado !== "Todos") {
+      tmp = tmp.filter((p) => p.estado === filterEstado);
+    }
+    if (dateFrom) {
+      const from = parseISO(dateFrom);
+      tmp = tmp.filter((p) => parseISO(p.fecha_inicio) >= from);
+    }
+    if (dateTo) {
+      const to = parseISO(dateTo);
+      tmp = tmp.filter((p) => parseISO(p.fecha_fin) <= to);
+    }
+    setFiltered(tmp);
+  }, [search, filterEstado, dateFrom, dateTo, periodos]);
+
+  // 3) abrir crear
+  function openCreate() {
+    setMode("create");
+    setForm({
       nombre: "",
-      codigo: ""
+      codigo: "",
+      fecha_inicio: format(new Date(), API_DATE),
+      fecha_fin: format(new Date(), API_DATE),
+      descripcion: "",
+      cupos_total: 0,
+      descuento: 0,
+      activo: true,
+      visible: true,
+      notificaciones: true,
+      programas: [],
     });
-    cerrarDialog();
-  };
+    setActive(null);
+    setIsOpen(true);
+  }
 
-  const toggleEstado = (idx: number) => {
-    setPeriodos(periodos.map((p, i) =>
-      i === idx
-        ? {
-            ...p,
-            activo: p.estado !== "Activo",
-            estado: p.estado === "Activo" ? "Próximo" : "Activo"
-          }
-        : p
-    ));
+  // 4) abrir view / edit
+  function openView(p: PeriodoAPI) {
+    setMode("view");
+    setActive(p);
+    setIsOpen(true);
+  }
+  function openEdit(p: PeriodoAPI) {
+    setMode("edit");
+    setActive(p);
+    const { id, inscritos_count, ...rest } = p;
+    setForm(rest);
+    setIsOpen(true);
+  }
+
+  // 5) submit
+  async function handleSubmit() {
+    try {
+      if (mode === "create") {
+        await axios.post("/periodos", form);
+      } else if (mode === "edit" && active) {
+        await axios.put(`/periodos/${active.id}`, form);
+      }
+      await fetchPeriodos();
+      setIsOpen(false);
+    } catch (e) {
+      console.error(e);
+      alert("Error al guardar");
+    }
+  }
+
+  // 6) delete
+  async function handleDelete(id: number) {
+    if (!confirm("Eliminar este periodo?")) return;
+    await axios.delete(`/periodos/${id}`);
+    await fetchPeriodos();
+  }
+
+  // 7) toggle activo
+  async function handleToggle(p: Periodo) {
+    await axios.put(`/periodos/${p.id}`, { activo: !p.activo });
+    await fetchPeriodos();
+  }
+
+  // estilos badge según estado
+  const badgeStyles: Record<Periodo["estado"], string> = {
+    Activo: "bg-green-100 text-green-700 dark:bg-green-800/30",
+    Próximo: "bg-amber-100 text-amber-700 dark:bg-amber-800/30",
+    Finalizado: "bg-gray-100 text-gray-700 dark:bg-gray-800/30",
   };
 
   return (
     <div className="flex flex-col min-h-screen">
       <Header title="Administración de Periodos de Inscripción" />
+
       <main className="flex-1 p-4 md:p-6">
-        {/* Encabezado + Acción Nuevo */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-xl font-semibold">Periodos de Inscripción</h1>
-            <p className="text-sm text-muted-foreground">
-              Gestione los periodos de inscripción para los diferentes programas académicos
-            </p>
+        {/* — filtros + nuevo — */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-6 mb-6">
+          {/* búsqueda */}
+          <div className="relative w-full md:max-w-xs">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Buscar…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input type="search" placeholder="Buscar periodo..." className="pl-8 w-[250px]" />
-            </div>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={abrirDialog} className="gap-1">
-                  <Plus className="h-4 w-4" /> Nuevo Periodo
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Crear Nuevo Periodo de Inscripción</DialogTitle>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  {/* Nombre y Código */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="nombre">Nombre *</Label>
-                      <Input
-                        id="nombre"
-                        value={newPeriodo.nombre}
-                        onChange={e => setNewPeriodo({ ...newPeriodo, nombre: e.target.value })}
-                        placeholder="Ej: Primavera 2025"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="codigo">Código *</Label>
-                      <Input
-                        id="codigo"
-                        value={newPeriodo.codigo}
-                        onChange={e => setNewPeriodo({ ...newPeriodo, codigo: e.target.value })}
-                        placeholder="Ej: PRIM-2025"
-                      />
-                    </div>
-                  </div>
-                  {/* Fechas */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Fecha de Inicio *</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className="w-full justify-start text-left font-normal">
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {newPeriodo.inicio}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            showOutsideDays={false}
-                            className="rounded-md border"
-                            selected={new Date(newPeriodo.inicio)}
-                            required={true}
-                            onSelect={(date: Date) =>
-                              setNewPeriodo({
-                                ...newPeriodo,
-                                inicio: date.toISOString().slice(0, 10)
-                              })
-                            }
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Fecha de Fin *</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className="w-full justify-start text-left font-normal">
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {newPeriodo.fin}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            showOutsideDays={false}
-                            className="rounded-md border"
-                            selected={new Date(newPeriodo.fin)}
-                            required={true}
-                            onSelect={(date: Date) =>
-                              setNewPeriodo({
-                                ...newPeriodo,
-                                fin: date.toISOString().slice(0, 10)
-                              })
-                            }
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
-                  {/* Programas, Descripción, Cupos, Descuento */}
-                  <div className="space-y-2">
-                    <Label>Programas *</Label>
-                    <Select
-                      value={newPeriodo.programas}
-                      onValueChange={val => setNewPeriodo({ ...newPeriodo, programas: val })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todos">Todos los Programas</SelectItem>
-                        <SelectItem value="maestrias">Maestrías</SelectItem>
-                        <SelectItem value="diplomados">Diplomados</SelectItem>
-                        <SelectItem value="especificos">Específicos</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Descripción</Label>
-                    <Input
-                      value={newPeriodo.descripcion}
-                      onChange={e => setNewPeriodo({ ...newPeriodo, descripcion: e.target.value })}
-                      placeholder="Detalles opcionales…"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Cupos Total *</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={newPeriodo.cupos}
-                        onChange={e => setNewPeriodo({ ...newPeriodo, cupos: +e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Descuento (%)</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={newPeriodo.descuento}
-                        onChange={e => setNewPeriodo({ ...newPeriodo, descuento: +e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  {/* Switches */}
-                  <div className="space-y-2">
-                    <Label>Opciones</Label>
-                    <div className="flex flex-col gap-3">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="activo">Activo</Label>
-                        <Switch
-                          id="activo"
-                          checked={newPeriodo.activo}
-                          onCheckedChange={c => setNewPeriodo({ ...newPeriodo, activo: c || false })}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="visible">Visible Público</Label>
-                        <Switch
-                          id="visible"
-                          checked={newPeriodo.visible}
-                          onCheckedChange={c => setNewPeriodo({ ...newPeriodo, visible: c || false })}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="notificaciones">Notificaciones</Label>
-                        <Switch
-                          id="notificaciones"
-                          checked={newPeriodo.notificaciones}
-                          onCheckedChange={c => setNewPeriodo({ ...newPeriodo, notificaciones: c || false })}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={cerrarDialog}>Cancelar</Button>
-                  <Button onClick={handleSave}>Guardar Periodo</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+
+          {/* estado */}
+          <Select
+            value={filterEstado}
+            onValueChange={(val) => setFilterEstado(val as any)}
+          >
+            <SelectTrigger className="md:w-40">
+              <SelectValue placeholder="Estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Todos">Todos</SelectItem>
+              <SelectItem value="Activo">Activo</SelectItem>
+              <SelectItem value="Próximo">Próximo</SelectItem>
+              <SelectItem value="Finalizado">Finalizado</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* rango fechas */}
+          <div className="flex gap-2">
+            {[
+              { label: "Desde", state: dateFrom, setter: setDateFrom },
+              { label: "Hasta", state: dateTo, setter: setDateTo },
+            ].map(({ label, state, setter }) => (
+              <Popover key={label}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full md:w-auto justify-start"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" /> {label}
+                    {state && (
+                      <span className="ml-2 text-muted-foreground text-sm">
+                        {state}
+                      </span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0" align="start">
+                  <Calendar
+                    locale={es}                         /* 👈 en español */
+                    mode="single"
+                    selected={state ? parseISO(state) : undefined}
+                    onSelect={(d) =>
+                      d && setter(format(d, API_DATE))  /* 👈 guarda limpio */
+                    }
+                  />
+                </PopoverContent>
+              </Popover>
+            ))}
           </div>
+
+          {/* botón nuevo */}
+          <Button
+            onClick={openCreate}
+            className="md:ml-auto self-start md:self-auto"
+          >
+            <Plus className="h-4 w-4 mr-2" /> Nuevo Periodo
+          </Button>
         </div>
 
-        {/* Tabla de Periodos */}
+        {/* — tabla — */}
         <Card>
+          <CardHeader className="border-b">
+            <CardTitle className="text-base">Listado de periodos</CardTitle>
+          </CardHeader>
+
           <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Periodo</TableHead>
-                  <TableHead>Inicio</TableHead>
-                  <TableHead>Fin</TableHead>
-                  <TableHead>Programas</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Cupos</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {periodos.map((p, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="font-medium">{p.nombre}</TableCell>
-                    <TableCell>{p.inicio}</TableCell>
-                    <TableCell>{p.fin}</TableCell>
-                    <TableCell>{p.programas}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {p.estado}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="text-sm">{`${p.cupos}/${p.cupos}`}</div>
-                        <div className="h-2 w-full rounded-full bg-muted">
-                          <div
-                            className="h-2 rounded-full bg-green-500"
-                            style={{ width: `${p.porcentaje}%` }}
-                          />
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <FileText className="h-4 w-4" />
-                            </Button>
-                          </DialogTrigger>
-                          {/* … detalle igual que antes … */}
-                        </Dialog>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => toggleEstado(i)}
-                        >
-                          {p.estado === "Activo" ? (
-                            <XCircle className="h-4 w-4 text-red-500" />
-                          ) : (
-                            <CheckCircle className="h-4 w-4 text-green-500" />
-                          )}
-                        </Button>
-                      </div>
-                    </TableCell>
+            {error && <div className="p-4 text-red-500">{error}</div>}
+
+            <div className="overflow-x-auto text-sm">
+              <Table className="min-w-max">
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>Periodo</TableHead>
+                    <TableHead>Inicio</TableHead>
+                    <TableHead>Fin</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Cupos</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-          <CardFooter className="flex justify-between border-t p-4">
-            <div className="text-sm text-muted-foreground">
-              Mostrando {periodos.length} periodos
+                </TableHeader>
+
+                <TableBody>
+                  {loading && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-6 text-center">
+                        Cargando…
+                      </TableCell>
+                    </TableRow>
+                  )}
+
+                  {!loading && filtered.length === 0 && !error && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-6 text-center">
+                        No hay periodos.
+                      </TableCell>
+                    </TableRow>
+                  )}
+
+                  {filtered.map((p) => (
+                    <TableRow
+                      key={p.id}
+                      className="even:bg-muted/30 hover:bg-muted/50 transition-colors"
+                    >
+                      <TableCell>{p.nombre}</TableCell>
+                      <TableCell>{pretty(p.fecha_inicio)}</TableCell> {/* 👈 */}
+                      <TableCell>{pretty(p.fecha_fin)}</TableCell>     {/* 👈 */}
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={badgeStyles[p.estado]}
+                        >
+                          {p.estado}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="w-64">
+                        <div className="mb-1 flex justify-between">
+                          <span>
+                            {p.inscritos_count}/{p.cupos_total}
+                          </span>
+                          <span>{Math.round(p.porcentaje)}%</span>
+                        </div>
+                        <Progress value={p.porcentaje} className="h-1" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => openView(p)}
+                          >
+                            <FileText className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => openEdit(p)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleDelete(p.id)}
+                          >
+                            <XCircle className="h-4 w-4 text-red-500" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleToggle(p)}
+                          >
+                            {p.activo ? (
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <ClockIcon className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled>
+          </CardContent>
+
+          <CardFooter className="flex flex-col md:flex-row md:justify-between gap-3 border-t p-4">
+            <span className="text-sm text-muted-foreground">
+              Mostrando {filtered.length} de {periodos.length} periodos
+            </span>
+            <div className="flex gap-2 self-end md:self-auto">
+              <Button size="sm" variant="outline" disabled>
                 Anterior
               </Button>
-              <Button variant="outline" size="sm" disabled>
+              <Button size="sm" variant="outline" disabled>
                 Siguiente
               </Button>
             </div>
           </CardFooter>
         </Card>
       </main>
+
+      {/* — diálogo de formulario — */}
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              {mode === "create"
+                ? "Crear Periodo"
+                : mode === "edit"
+                ? "Editar Periodo"
+                : "Detalle de Periodo"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* — formulario — */}
+          <div className="grid gap-4 py-4">
+            {/* nombre / codigo */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label>Nombre</Label>
+                <Input
+                  disabled={mode === "view"}
+                  value={mode === "view" ? active?.nombre ?? "" : form.nombre}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, nombre: e.target.value }))
+                  }
+                />
+              </div>
+              <div>
+                <Label>Código</Label>
+                <Input
+                  disabled={mode === "view"}
+                  value={mode === "view" ? active?.codigo ?? "" : form.codigo}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, codigo: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            {/* fechas */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(["fecha_inicio", "fecha_fin"] as const).map((field, i) => {
+                const dateStr =
+                  mode === "view"
+                    ? (active as any)?.[field]
+                    : (form as any)[field];
+                return (
+                  <div key={field}>
+                    <Label>{i === 0 ? "Inicio" : "Fin"}</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          disabled={mode === "view"}
+                          variant="outline"
+                          className="w-full justify-start"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {pretty(dateStr)}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0" align="start">
+                        <Calendar
+                          locale={es}
+                          mode="single"
+                          selected={
+                            dateStr ? parseISO(dateStr as string) : undefined
+                          }
+                          onSelect={(d) => {
+                            if (!d) return;
+                            setForm((f) => ({
+                              ...f,
+                              [field]: format(d, API_DATE),
+                            }));
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* TODO: descripcion / cupos / descuento / switches */}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsOpen(false)}>
+              Cerrar
+            </Button>
+            {mode !== "view" && (
+              <Button onClick={handleSubmit}>
+                {mode === "create" ? "Crear" : "Guardar"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
