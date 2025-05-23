@@ -1,33 +1,50 @@
+// components/inscripcion/GestionFichas.tsx
 "use client"
 
 import React, { useState, useEffect } from "react"
+import Swal from "sweetalert2"
 import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
 } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { FichaEstudiante } from "@/components/inscripcion/types" // Importa el tipo completo
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
-  MoreHorizontal, Search, Filter, FileSpreadsheet, Calendar, Download,
-  Eye, CheckCircle, XCircle,
-} from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select"
+import { Eye, CheckCircle, XCircle, Calendar } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { FichaEstudiante } from "@/components/inscripcion/types"
 import FichaDetalleModal from "@/components/inscripcion/modal/FichaDetalleModal"
-// Removed local declaration of FichaEstudiante as it is already imported
 
-// fuera del componente, o en la parte superior
-const CONTEO_REVISADAS_KEY = "fichasRevisadasCount";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const CONTEO_REVISADAS_KEY = "fichasRevisadasCount"
 
 function incrementarRevisadas() {
-  const actual = parseInt(localStorage.getItem(CONTEO_REVISADAS_KEY) ?? "0", 10);
-  localStorage.setItem(CONTEO_REVISADAS_KEY, String(actual + 1));
+  const actual = parseInt(
+    localStorage.getItem(CONTEO_REVISADAS_KEY) ?? "0",
+    10
+  )
+  localStorage.setItem(CONTEO_REVISADAS_KEY, String(actual + 1))
 }
-
 
 export function GestionFichas() {
   const [fichas, setFichas] = useState<FichaEstudiante[]>([])
@@ -36,117 +53,129 @@ export function GestionFichas() {
   const [filtroPrioridad, setFiltroPrioridad] = useState<string>("todas")
   const [filtroPeriodo, setFiltroPeriodo] = useState<string>("todos")
 
-  // ---- Estado y handlers para el modal de detalle ----
   const [selectedFicha, setSelectedFicha] = useState<FichaEstudiante | null>(null)
+  const [activeTab, setActiveTab] = useState<"fichas" | "documentos">("fichas")
   const [isDetalleModalOpen, setDetalleModalOpen] = useState(false)
 
-  const handleViewDetalle = (ficha: FichaEstudiante) => {
-    setSelectedFicha(ficha)
-    setDetalleModalOpen(true)
-  }
-  const handleCloseDetalle = () => setDetalleModalOpen(false)
+  useEffect(() => {
+    async function fetchFichas() {
+      try {
+        const res = await fetch(
+          `${API_URL}/api/prospectos/fichas/pendientes-public`,
+          { headers: { Accept: "application/json" } }
+        )
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const { data } = await res.json()
+        const mapped: FichaEstudiante[] = data.map((raw: any) => ({
+          id: raw.id,
+          nombre: raw.nombre_completo,
+          telefono: raw.telefono,
+          correo: raw.correo,
+          departamento: raw.departamento,
+          programa: raw.nombre_programa,
+          fecha: raw.created_at?.split("T")[0] ?? "",
+          estado: raw.status,
+          prioridad: (raw.prioridad as "alta" | "media" | "baja") || "media",
+          ultimaActualizacion: raw.updated_at ?? "",
+          documentos: [],
+        }))
+        setFichas(mapped)
+      } catch (err) {
+        console.error("Error cargando fichas:", err)
+        Swal.fire("Error", "No se pudieron cargar las fichas", "error")
+      }
+    }
+    fetchFichas()
+  }, [])
 
-  // ---- Handlers para aprobar/rechazar ----
+  const handleViewDetalle = async (f: FichaEstudiante) => {
+    setSelectedFicha(f)
+    const token = localStorage.getItem("token")
+    try {
+      const res = await fetch(
+        `${API_URL}/api/documentos/prospecto/${f.id}`,
+        {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+            Accept: "application/json",
+          },
+        }
+      )
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const docs = await res.json()
+      setSelectedFicha({ ...f, documentos: docs })
+      setActiveTab("documentos")
+      setDetalleModalOpen(true)
+    } catch (err) {
+      console.error("Error cargando documentos:", err)
+      Swal.fire("Error", "No se pudieron cargar los documentos.", "error")
+    }
+  }
+
   const handleApprove = async (id: number) => {
     try {
-      const token = localStorage.getItem("token");
-      await fetch(`http://localhost:8000/api/fichas/${id}/approve`, {
-        method: "POST",
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_URL}/api/prospectos/${id}/status`, {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: token ? `Bearer ${token}` : "",
         },
-      });
-      // Actualiza el estado local
-      setFichas((prev) =>
-        prev.map((f) => (f.id === id ? { ...f, estado: "revisada" } : f))
-      );
-      // --- Incrementa el contador ---
-      incrementarRevisadas();
-      console.log("Fichas revisadas hasta ahora:", localStorage.getItem(CONTEO_REVISADAS_KEY));
+        body: JSON.stringify({ status: "aprobada" }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setFichas(prev =>
+        prev.map(f => (f.id === id ? { ...f, estado: "aprobada" } : f))
+      )
+      incrementarRevisadas()
+      await Swal.fire({
+        icon: "success",
+        title: "Ficha aprobada",
+        text: "El estado ha cambiado a APROBADA",
+        timer: 1800,
+        showConfirmButton: false,
+      })
     } catch (err) {
-      console.error("Error al aprobar ficha", err);
+      console.error("Error al aprobar ficha", err)
+      Swal.fire("Oops...", "No se pudo aprobar la ficha", "error")
     }
-  };
-
+  }
 
   const handleReject = async (id: number) => {
     try {
       const token = localStorage.getItem("token")
-      await fetch(`http://localhost:8000/api/fichas/${id}/reject`, {
+      const res = await fetch(`${API_URL}/api/fichas/${id}/reject`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: token ? `Bearer ${token}` : "",
         },
       })
-      // Quita la ficha rechazada del listado (o recarga)
-      setFichas((prev) => prev.filter((f) => f.id !== id))
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setFichas(prev => prev.filter(f => f.id !== id))
+      Swal.fire({ icon: "info", title: "Ficha rechazada", timer: 1200, showConfirmButton: false })
     } catch (err) {
       console.error("Error al rechazar ficha", err)
+      Swal.fire("Error", "No se pudo rechazar la ficha", "error")
     }
   }
 
-  useEffect(() => {
-    const fetchFichas = async () => {
-      try {
-        const url = "http://localhost:8000/api/prospectos/fichas/pendientes-public";
-        const res = await fetch(url, {
-          headers: { Accept: "application/json" },
-        });
-
-        if (!res.ok) {
-          const errorText = await res.text();
-          throw new Error(`HTTP ${res.status}: ${errorText}`);
-        }
-
-        const { data } = await res.json();
-
-        // Aquí mapeamos cada 'raw' a tu tipo FichaEstudiante
-        const mapped: FichaEstudiante[] = data.map((raw: any) => ({
-          id: raw.id,
-          nombre: raw.nombre_completo,           // <— nombre_completo → nombre
-          programa: raw.nombre_programa,         // <— nombre_programa → programa
-          fecha: raw.created_at?.split("T")[0] || "",  // si lo tienes en el JSON
-          estado: raw.status,                    // <— status → estado
-          prioridad: raw.prioridad || "media",   // si no viene, pones un default
-          ultimaActualizacion: raw.updated_at || "",
-          // Si tu FichaEstudiante tiene más campos, mapea o pon valores por defecto aquí
-        }));
-
-        setFichas(mapped);
-      } catch (err) {
-        console.error("Error cargando fichas:", err);
-      }
-    };
-
-    fetchFichas();
-  }, []);
-
-
-
-
-
-  const filteredFichas = fichas.filter((ficha) => {
-    // Convertir a string por defecto para evitar undefined
-    const nombre = ficha.nombre ?? ""
-    const programa = ficha.programa ?? ""
-    const idStr = ficha.id?.toString() ?? ""
+  const filteredFichas = fichas.filter(f => {
     const term = searchTerm.toLowerCase()
-
-    const matchesSearch =
-      nombre.toLowerCase().includes(term) ||
-      programa.toLowerCase().includes(term) ||
-      idStr.includes(term)
-
-    const matchesEstado = filtroEstado === "todos" || ficha.estado === filtroEstado
-    const matchesPrioridad = filtroPrioridad === "todas" || ficha.prioridad === filtroPrioridad
-    const matchesPeriodo = filtroPeriodo === "todos" || true
-
-    return matchesSearch && matchesEstado && matchesPrioridad && matchesPeriodo
+    return (
+      (f.nombre.toLowerCase().includes(term) ||
+        f.programa.toLowerCase().includes(term) ||
+        f.id.toString().includes(term)) &&
+      (filtroEstado === "todos" || f.estado === filtroEstado) &&
+      (filtroPrioridad === "todas" || f.prioridad === filtroPrioridad) &&
+      (filtroPeriodo === "todos")
+    )
   })
-  const getBadgeForEstado = (estado: string) => {
-    switch (estado) {
+
+  const getBadgeForEstado = (e: string) => {
+    switch (e) {
+      case "aprobada":
+        return <Badge className="bg-green-200 text-green-900">Aprobada</Badge>
       case "completa":
         return <Badge className="bg-green-100 text-green-800">Completa</Badge>
       case "incompleta":
@@ -154,18 +183,14 @@ export function GestionFichas() {
       case "revisada":
         return <Badge className="bg-blue-100 text-blue-800">Revisada</Badge>
       case "correccion_solicitada":
-        return (
-          <Badge className="bg-orange-100 text-orange-800">
-            Corrección Solicitada
-          </Badge>
-        )
+        return <Badge className="bg-orange-100 text-orange-800">Corrección Solicitada</Badge>
       default:
         return null
     }
   }
 
-  const getBadgeForPrioridad = (prioridad?: string) => {
-    switch (prioridad) {
+  const getBadgeForPrioridad = (p?: string) => {
+    switch (p) {
       case "alta":
         return <Badge className="bg-red-100 text-red-800">Alta</Badge>
       case "media":
@@ -179,7 +204,51 @@ export function GestionFichas() {
 
   return (
     <div className="space-y-6">
-      {/* ... filtros y buscador (igual que antes) ... */}
+      <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+        <div className="flex-1">
+          <Label>Buscar</Label>
+          <Input
+            placeholder="Nombre, programa o ID"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label>Estado</Label>
+          <Select value={filtroEstado} onValueChange={setFiltroEstado}>
+            <SelectTrigger className="w-[140px]"><SelectValue placeholder="Todos" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="completa">Completa</SelectItem>
+              <SelectItem value="incompleta">Incompleta</SelectItem>
+              <SelectItem value="revisada">Revisada</SelectItem>
+              <SelectItem value="correccion_solicitada">Corrección Solicitada</SelectItem>
+              <SelectItem value="aprobada">Aprobada</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Prioridad</Label>
+          <Select value={filtroPrioridad} onValueChange={setFiltroPrioridad}>
+            <SelectTrigger className="w-[140px]"><SelectValue placeholder="Todas" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas</SelectItem>
+              <SelectItem value="alta">Alta</SelectItem>
+              <SelectItem value="media">Media</SelectItem>
+              <SelectItem value="baja">Baja</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Período</Label>
+          <Select value={filtroPeriodo} onValueChange={setFiltroPeriodo}>
+            <SelectTrigger className="w-[140px]"><SelectValue placeholder="Todos" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       <Card>
         <CardHeader className="pb-3">
@@ -190,7 +259,7 @@ export function GestionFichas() {
             </Badge>
           </div>
           <CardDescription>
-            Visualice la información de las fichas registradas
+            Visualiza las fichas registradas y pendientes
           </CardDescription>
         </CardHeader>
 
@@ -208,47 +277,25 @@ export function GestionFichas() {
                 <TableHead>Acciones</TableHead>
               </TableRow>
             </TableHeader>
-
             <TableBody>
-              {filteredFichas.map((ficha) => (
-                <TableRow key={ficha.id}>
-                  <TableCell>{ficha.id}</TableCell>
-                  <TableCell>{ficha.nombre}</TableCell>
-                  <TableCell>{ficha.programa}</TableCell>
-                  <TableCell>{ficha.fecha}</TableCell>
-                  <TableCell>{getBadgeForEstado(ficha.estado)}</TableCell>
-                  <TableCell>{getBadgeForPrioridad(ficha.prioridad)}</TableCell>
-                  <TableCell>{ficha.ultimaActualizacion}</TableCell>
+              {filteredFichas.map(f => (
+                <TableRow key={f.id}>
+                  <TableCell>{f.id}</TableCell>
+                  <TableCell>{f.nombre}</TableCell>
+                  <TableCell>{f.programa}</TableCell>
+                  <TableCell>{f.fecha}</TableCell>
+                  <TableCell>{getBadgeForEstado(f.estado)}</TableCell>
+                  <TableCell>{getBadgeForPrioridad(f.prioridad)}</TableCell>
+                  <TableCell>{f.ultimaActualizacion}</TableCell>
                   <TableCell>
                     <div className="flex gap-2">
-                      {/* Ver detalle */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          console.log("⇨ handleViewDetalle — ficha seleccionada:", ficha);
-                          handleViewDetalle(ficha);
-                        }}
-                      >
+                      <Button variant="ghost" size="icon" onClick={() => handleViewDetalle(f)}>
                         <Eye className="h-4 w-4" />
                       </Button>
-
-
-                      {/* Aprobar */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleApprove(ficha.id)}
-                      >
-                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      <Button variant="ghost" size="icon" onClick={() => handleApprove(f.id)} disabled={f.estado === "aprobada"}>
+                        <CheckCircle className={`h-4 w-4 ${f.estado === "aprobada" ? "text-gray-400" : "text-green-500"}`} />
                       </Button>
-
-                      {/* Rechazar */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleReject(ficha.id)}
-                      >
+                      <Button variant="ghost" size="icon" onClick={() => handleReject(f.id)}>
                         <XCircle className="h-4 w-4 text-red-500" />
                       </Button>
                     </div>
@@ -264,33 +311,23 @@ export function GestionFichas() {
             Mostrando {filteredFichas.length} de {fichas.length} fichas
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
-              Anterior
-            </Button>
-            <Button variant="outline" size="sm">
-              Siguiente
-            </Button>
+            <Button variant="outline" size="sm">Anterior</Button>
+            <Button variant="outline" size="sm">Siguiente</Button>
           </div>
         </CardFooter>
       </Card>
 
-      {/* Modal de detalle */}
       {selectedFicha && (
         <FichaDetalleModal
           isOpen={isDetalleModalOpen}
-          onClose={handleCloseDetalle}
-          ficha={{
-            ...selectedFicha,
-            prioridad: selectedFicha?.prioridad ?? "baja",
-            fecha: selectedFicha?.fecha ?? "",
-            ultimaActualizacion: selectedFicha?.ultimaActualizacion ?? ""
+          onClose={() => {
+            setDetalleModalOpen(false)
+            setSelectedFicha(null)
           }}
-          onMarcarRevisada={() => console.log("Marcar como revisada")}
+          ficha={selectedFicha}
+          onMarcarRevisada={() => selectedFicha && handleApprove(selectedFicha.id)}
           onSolicitarCorreccion={() => console.log("Solicitar corrección")}
           comentarioRevision=""
-          setComentarioRevision={(comentario) => console.log("Comentario de revisión:", comentario)}
-          camposValidados={{}}  // <-- Pasa un objeto vacío en lugar de undefined
-          handleToggleValidacion={(campo, valor) => console.log(campo, valor)}
           showSuccessMessage={false}
         />
       )}

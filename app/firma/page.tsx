@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import {
@@ -24,11 +24,9 @@ import {
   Filter,
   FileText,
   XCircle,
-  CheckCircle,
 } from "lucide-react"
 import Swal from "sweetalert2"
 
-// **Re-agregadas** importaciones de tabla y checkbox
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Table,
@@ -39,7 +37,6 @@ import {
   TableCell,
 } from "@/components/ui/table"
 
-// Interfaces
 interface ContactoEnviado {
   id: number
   prospecto_id: number
@@ -47,11 +44,13 @@ interface ContactoEnviado {
   resultado: string
   prospecto: { nombre_completo: string }
 }
+
 interface Prospecto {
   id: number
   nombre_completo: string
   correo_electronico: string
 }
+
 interface Documento {
   id: number
   prospecto_id: number
@@ -63,7 +62,7 @@ export default function FirmaPage() {
   const [enviadosHoy, setEnviadosHoy] = useState<ContactoEnviado[]>([])
 
   useEffect(() => {
-    const token = localStorage.getItem("token")
+    const token = localStorage.getItem("token") || ""
     fetch("http://127.0.0.1:8000/api/contactos-enviados", {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -82,7 +81,7 @@ export default function FirmaPage() {
   }, [])
 
   const handleDiscard = async (id: number) => {
-    const token = localStorage.getItem("token")
+    const token = localStorage.getItem("token") || ""
     try {
       const res = await fetch(
         `http://127.0.0.1:8000/api/contactos-enviados/${id}`,
@@ -123,8 +122,8 @@ export default function FirmaPage() {
             env.resultado === "firmado"
               ? "bg-green-100 text-green-700"
               : env.resultado === "enviado"
-              ? "bg-blue-100 text-blue-700"
-              : "bg-gray-100 text-gray-700"
+                ? "bg-blue-100 text-blue-700"
+                : "bg-gray-100 text-gray-700"
           }
         >
           {env.resultado.charAt(0).toUpperCase() + env.resultado.slice(1)}
@@ -221,7 +220,6 @@ export default function FirmaPage() {
           </CardContent>
         </Card>
 
-        {/* Prospectos Pendientes inline */}
         <ProspectosPendientes />
       </main>
     </div>
@@ -235,37 +233,87 @@ function ProspectosPendientes() {
   const [selected, setSelected] = useState<number[]>([])
   const tipos = ["dpi", "recibo", "american", "inscripcion"]
 
-  useEffect(() => {
-    const token = localStorage.getItem("token")
-    fetch(
-      `http://localhost:8000/api/prospectos/status/${encodeURIComponent(
-        "Pendiente Aprobacion"
-      )}`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    )
-      .then((r) => r.json())
-      .then((j) => setProspectos(j.data))
-      .catch(console.error)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
 
-    fetch("http://localhost:8000/api/documentos", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((j) => setDocumentos(j))
-      .catch(console.error)
+  useEffect(() => {
+    const token = localStorage.getItem("token") || ""
+    const estados = ["Pendiente Aprobacion", "revisada", "aprobada"]
+
+    async function loadProspectos() {
+      try {
+        const respuestas = await Promise.all(
+          estados.map(estado =>
+            fetch(
+              `http://localhost:8000/api/prospectos/status/${encodeURIComponent(
+                estado
+              )}`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            ).then(res => {
+              if (!res.ok) throw new Error(`HTTP ${res.status}`)
+              return res.json()
+            })
+          )
+        )
+        const combinados: Prospecto[] = respuestas
+          .flatMap(r => (Array.isArray(r.data) ? r.data : []))
+          .reduce<Prospecto[]>((acc, p) => {
+            if (!acc.find(x => x.id === p.id)) acc.push(p)
+            return acc
+          }, [])
+        setProspectos(combinados)
+      } catch (err) {
+        console.error("Error cargando prospectos:", err)
+        Swal.fire("Error", "No se pudieron cargar los prospectos.", "error")
+      }
+    }
+
+    async function loadDocumentos() {
+      try {
+        const res = await fetch("http://localhost:8000/api/documentos", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data: Documento[] = await res.json()
+        setDocumentos(data)
+      } catch (err) {
+        console.error("Error cargando documentos:", err)
+        Swal.fire("Error", "No se pudieron cargar los documentos.", "error")
+      }
+    }
+
+    loadProspectos()
+    loadDocumentos()
   }, [])
 
-  const docsByPros = prospectos.reduce<Record<number, string[]>>((acc, p) => {
-    acc[p.id] = documentos
-      .filter((d) => d.prospecto_id === p.id)
-      .map((d) => d.tipo_documento)
-    return acc
-  }, {})
+  const docsByPros = useMemo(() => {
+    return prospectos.reduce<Record<number,string[]>>((acc, p) => {
+      acc[p.id] = documentos
+        .filter(d => d.prospecto_id === p.id)
+        .map(d => d.tipo_documento)
+      return acc
+    }, {})
+  }, [prospectos, documentos])
 
   const toggle = (id: number) =>
-    setSelected((sel) =>
-      sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id]
+    setSelected(sel =>
+      sel.includes(id) ? sel.filter(x => x !== id) : [...sel, id]
     )
+
+  const filtered = useMemo(() => {
+    const term = searchTerm.toLowerCase()
+    return prospectos.filter(p =>
+      p.nombre_completo.toLowerCase().includes(term) ||
+      p.correo_electronico.toLowerCase().includes(term)
+    )
+  }, [prospectos, searchTerm])
+
+  const totalPages = Math.ceil(filtered.length / pageSize)
+  const paginated = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filtered.slice(start, start + pageSize)
+  }, [filtered, currentPage])
 
   return (
     <Card className="mt-6">
@@ -273,30 +321,42 @@ function ProspectosPendientes() {
         <CardTitle>Prospectos Pendientes</CardTitle>
       </CardHeader>
       <CardContent>
+        <div className="flex items-center mb-4 gap-2">
+          <Input
+            placeholder="Buscar nombre o email"
+            value={searchTerm}
+            onChange={e => {
+              setSearchTerm(e.target.value)
+              setCurrentPage(1)
+            }}
+            className="w-[250px]"
+          />
+        </div>
+
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>✔️</TableHead>
               <TableHead>Nombre</TableHead>
               <TableHead>Email</TableHead>
-              {tipos.map((t) => (
+              {tipos.map(t => (
                 <TableHead key={t}>{t.toUpperCase()}</TableHead>
               ))}
               <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {prospectos.length === 0 ? (
+            {paginated.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={4 + tipos.length}
                   className="text-center py-4"
                 >
-                  Cargando prospectos…
+                  No hay prospectos que coincidan.
                 </TableCell>
               </TableRow>
             ) : (
-              prospectos.map((p) => (
+              paginated.map(p => (
                 <TableRow key={p.id}>
                   <TableCell>
                     <Checkbox
@@ -306,7 +366,7 @@ function ProspectosPendientes() {
                   </TableCell>
                   <TableCell>{p.nombre_completo}</TableCell>
                   <TableCell>{p.correo_electronico}</TableCell>
-                  {tipos.map((t) => (
+                  {tipos.map(t => (
                     <TableCell key={t}>
                       <Checkbox
                         checked={docsByPros[p.id]?.includes(t) ?? false}
@@ -327,6 +387,30 @@ function ProspectosPendientes() {
             )}
           </TableBody>
         </Table>
+
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center gap-4 mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+              disabled={currentPage === 1}
+            >
+              Anterior
+            </Button>
+            <span>
+              Página {currentPage} de {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+              disabled={currentPage === totalPages}
+            >
+              Siguiente
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

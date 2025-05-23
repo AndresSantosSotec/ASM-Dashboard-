@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -50,20 +51,29 @@ import {
   XCircle,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
-import { format, parseISO, isAfter, isBefore } from "date-fns";
-import { es } from "date-fns/locale";            /* NUEVO */
+import { format, parseISO } from "date-fns";
+import { es } from "date-fns/locale";
 
-// ---- utils de fecha --------------------------
-const API_DATE = "yyyy-MM-dd";                  // formato estándar
-const pretty   = (iso: string) =>
-  iso ? format(parseISO(iso), API_DATE) : "";   // helper para mostrar
-// ----------------------------------------------
+const API_DATE = "yyyy-MM-dd";
+const pretty = (iso: string) => (iso ? format(parseISO(iso), API_DATE) : "");
 
-// Base URL desde .env
+function generateCodigo(nombre: string): string {
+  const añoMatch = nombre.match(/\d{4}/);
+  const year = añoMatch ? añoMatch[0] : format(new Date(), "yyyy");
+  const initials = nombre
+    .replace(/\d{4}/, "")
+    .trim()
+    .split(/\s+/)
+    .map(w => w.charAt(0))
+    .join("")
+    .slice(0, 4)
+    .toUpperCase();
+  return `${initials}-${year}`;
+}
+
 axios.defaults.baseURL =
   process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
 
-// — Tipos de tu API
 type PeriodoAPI = {
   id: number;
   nombre: string;
@@ -80,9 +90,8 @@ type PeriodoAPI = {
   programas: { id: number; abreviatura: string }[];
 };
 
-// — Tipo interno para render
 type Periodo = PeriodoAPI & {
-  estado: "Activo" | "Próximo" | "Finalizado";
+  estado: "Activo" | "Finalizado";
   porcentaje: number;
 };
 
@@ -92,26 +101,21 @@ export default function PeriodosInscripcionPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // filtros UI
   const [search, setSearch] = useState("");
   const [filterEstado, setFilterEstado] =
-    useState<"Todos" | "Activo" | "Próximo" | "Finalizado">("Todos");
+    useState<"Todos" | "Activo" | "Finalizado">("Todos");
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
 
-  // modal
   const [mode, setMode] = useState<"create" | "edit" | "view">("create");
   const [isOpen, setIsOpen] = useState(false);
   const [active, setActive] = useState<PeriodoAPI | null>(null);
 
-  // formulario
-  const [form, setForm] = useState<
-    Omit<PeriodoAPI, "id" | "inscritos_count">
-  >({
+  const [form, setForm] = useState<Omit<PeriodoAPI, "id" | "inscritos_count">>({
     nombre: "",
     codigo: "",
-    fecha_inicio: format(new Date(), API_DATE),   // 👈 mismo formato
-    fecha_fin:    format(new Date(), API_DATE),
+    fecha_inicio: format(new Date(), API_DATE),
+    fecha_fin: format(new Date(), API_DATE),
     descripcion: "",
     cupos_total: 0,
     descuento: 0,
@@ -121,7 +125,6 @@ export default function PeriodosInscripcionPage() {
     programas: [],
   });
 
-  // 1) fetch
   useEffect(() => {
     fetchPeriodos();
   }, []);
@@ -131,20 +134,13 @@ export default function PeriodosInscripcionPage() {
     setError(null);
     try {
       const { data } = await axios.get<PeriodoAPI[]>("/periodos");
-      const mapped = data.map((p) => {
-        const hoy = new Date();
-        const ini = parseISO(p.fecha_inicio);
-        const fin = parseISO(p.fecha_fin);
-        const estado: Periodo["estado"] = isAfter(hoy, fin)
-          ? "Finalizado"
-          : isBefore(hoy, ini)
-          ? "Próximo"
-          : "Activo";
-        const porcentaje = p.cupos_total
+      const mapped = data.map(p => ({
+        ...p,
+        estado: p.activo ? ("Activo" as const) : ("Finalizado" as const),
+        porcentaje: p.cupos_total
           ? (p.inscritos_count / p.cupos_total) * 100
-          : 0;
-        return { ...p, estado, porcentaje };
-      });
+          : 0,
+      }));
       setPeriodos(mapped);
       setFiltered(mapped);
     } catch (e: any) {
@@ -155,29 +151,27 @@ export default function PeriodosInscripcionPage() {
     }
   }
 
-  // 2) filtros
   useEffect(() => {
     let tmp = [...periodos];
     if (search) {
-      tmp = tmp.filter((p) =>
+      tmp = tmp.filter(p =>
         p.nombre.toLowerCase().includes(search.toLowerCase())
       );
     }
     if (filterEstado !== "Todos") {
-      tmp = tmp.filter((p) => p.estado === filterEstado);
+      tmp = tmp.filter(p => p.estado === filterEstado);
     }
     if (dateFrom) {
       const from = parseISO(dateFrom);
-      tmp = tmp.filter((p) => parseISO(p.fecha_inicio) >= from);
+      tmp = tmp.filter(p => parseISO(p.fecha_inicio) >= from);
     }
     if (dateTo) {
       const to = parseISO(dateTo);
-      tmp = tmp.filter((p) => parseISO(p.fecha_fin) <= to);
+      tmp = tmp.filter(p => parseISO(p.fecha_fin) <= to);
     }
     setFiltered(tmp);
   }, [search, filterEstado, dateFrom, dateTo, periodos]);
 
-  // 3) abrir crear
   function openCreate() {
     setMode("create");
     setForm({
@@ -197,12 +191,12 @@ export default function PeriodosInscripcionPage() {
     setIsOpen(true);
   }
 
-  // 4) abrir view / edit
   function openView(p: PeriodoAPI) {
     setMode("view");
     setActive(p);
     setIsOpen(true);
   }
+
   function openEdit(p: PeriodoAPI) {
     setMode("edit");
     setActive(p);
@@ -211,7 +205,6 @@ export default function PeriodosInscripcionPage() {
     setIsOpen(true);
   }
 
-  // 5) submit
   async function handleSubmit() {
     try {
       if (mode === "create") {
@@ -227,23 +220,19 @@ export default function PeriodosInscripcionPage() {
     }
   }
 
-  // 6) delete
   async function handleDelete(id: number) {
     if (!confirm("Eliminar este periodo?")) return;
     await axios.delete(`/periodos/${id}`);
     await fetchPeriodos();
   }
 
-  // 7) toggle activo
   async function handleToggle(p: Periodo) {
     await axios.put(`/periodos/${p.id}`, { activo: !p.activo });
     await fetchPeriodos();
   }
 
-  // estilos badge según estado
   const badgeStyles: Record<Periodo["estado"], string> = {
     Activo: "bg-green-100 text-green-700 dark:bg-green-800/30",
-    Próximo: "bg-amber-100 text-amber-700 dark:bg-amber-800/30",
     Finalizado: "bg-gray-100 text-gray-700 dark:bg-gray-800/30",
   };
 
@@ -252,23 +241,21 @@ export default function PeriodosInscripcionPage() {
       <Header title="Administración de Periodos de Inscripción" />
 
       <main className="flex-1 p-4 md:p-6">
-        {/* — filtros + nuevo — */}
+        {/* filtros + nuevo */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-6 mb-6">
-          {/* búsqueda */}
           <div className="relative w-full md:max-w-xs">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               className="pl-9"
               placeholder="Buscar…"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={e => setSearch(e.target.value)}
             />
           </div>
 
-          {/* estado */}
           <Select
             value={filterEstado}
-            onValueChange={(val) => setFilterEstado(val as any)}
+            onValueChange={val => setFilterEstado(val as any)}
           >
             <SelectTrigger className="md:w-40">
               <SelectValue placeholder="Estado" />
@@ -276,12 +263,10 @@ export default function PeriodosInscripcionPage() {
             <SelectContent>
               <SelectItem value="Todos">Todos</SelectItem>
               <SelectItem value="Activo">Activo</SelectItem>
-              <SelectItem value="Próximo">Próximo</SelectItem>
               <SelectItem value="Finalizado">Finalizado</SelectItem>
             </SelectContent>
           </Select>
 
-          {/* rango fechas */}
           <div className="flex gap-2">
             {[
               { label: "Desde", state: dateFrom, setter: setDateFrom },
@@ -303,19 +288,16 @@ export default function PeriodosInscripcionPage() {
                 </PopoverTrigger>
                 <PopoverContent className="p-0" align="start">
                   <Calendar
-                    locale={es}                         /* 👈 en español */
+                    locale={es}
                     mode="single"
                     selected={state ? parseISO(state) : undefined}
-                    onSelect={(d) =>
-                      d && setter(format(d, API_DATE))  /* 👈 guarda limpio */
-                    }
+                    onSelect={d => d && setter(format(d, API_DATE))}
                   />
                 </PopoverContent>
               </Popover>
             ))}
           </div>
 
-          {/* botón nuevo */}
           <Button
             onClick={openCreate}
             className="md:ml-auto self-start md:self-auto"
@@ -324,7 +306,7 @@ export default function PeriodosInscripcionPage() {
           </Button>
         </div>
 
-        {/* — tabla — */}
+        {/* tabla */}
         <Card>
           <CardHeader className="border-b">
             <CardTitle className="text-base">Listado de periodos</CardTitle>
@@ -332,7 +314,6 @@ export default function PeriodosInscripcionPage() {
 
           <CardContent className="p-0">
             {error && <div className="p-4 text-red-500">{error}</div>}
-
             <div className="overflow-x-auto text-sm">
               <Table className="min-w-max">
                 <TableHeader>
@@ -345,7 +326,6 @@ export default function PeriodosInscripcionPage() {
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
-
                 <TableBody>
                   {loading && (
                     <TableRow>
@@ -354,7 +334,6 @@ export default function PeriodosInscripcionPage() {
                       </TableCell>
                     </TableRow>
                   )}
-
                   {!loading && filtered.length === 0 && !error && (
                     <TableRow>
                       <TableCell colSpan={6} className="py-6 text-center">
@@ -362,15 +341,14 @@ export default function PeriodosInscripcionPage() {
                       </TableCell>
                     </TableRow>
                   )}
-
-                  {filtered.map((p) => (
+                  {filtered.map(p => (
                     <TableRow
                       key={p.id}
                       className="even:bg-muted/30 hover:bg-muted/50 transition-colors"
                     >
                       <TableCell>{p.nombre}</TableCell>
-                      <TableCell>{pretty(p.fecha_inicio)}</TableCell> {/* 👈 */}
-                      <TableCell>{pretty(p.fecha_fin)}</TableCell>     {/* 👈 */}
+                      <TableCell>{pretty(p.fecha_inicio)}</TableCell>
+                      <TableCell>{pretty(p.fecha_fin)}</TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"
@@ -447,7 +425,7 @@ export default function PeriodosInscripcionPage() {
         </Card>
       </main>
 
-      {/* — diálogo de formulario — */}
+      {/* modal de formulario */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
@@ -460,33 +438,32 @@ export default function PeriodosInscripcionPage() {
             </DialogTitle>
           </DialogHeader>
 
-          {/* — formulario — */}
           <div className="grid gap-4 py-4">
-            {/* nombre / codigo */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label>Nombre</Label>
                 <Input
                   disabled={mode === "view"}
                   value={mode === "view" ? active?.nombre ?? "" : form.nombre}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, nombre: e.target.value }))
-                  }
+                  onChange={e => {
+                    const nombreVal = e.target.value;
+                    setForm(f => ({
+                      ...f,
+                      nombre: nombreVal,
+                      codigo: generateCodigo(nombreVal),
+                    }));
+                  }}
                 />
               </div>
               <div>
                 <Label>Código</Label>
                 <Input
-                  disabled={mode === "view"}
+                  disabled
                   value={mode === "view" ? active?.codigo ?? "" : form.codigo}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, codigo: e.target.value }))
-                  }
                 />
               </div>
             </div>
 
-            {/* fechas */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {(["fecha_inicio", "fecha_fin"] as const).map((field, i) => {
                 const dateStr =
@@ -514,9 +491,9 @@ export default function PeriodosInscripcionPage() {
                           selected={
                             dateStr ? parseISO(dateStr as string) : undefined
                           }
-                          onSelect={(d) => {
+                          onSelect={d => {
                             if (!d) return;
-                            setForm((f) => ({
+                            setForm(f => ({
                               ...f,
                               [field]: format(d, API_DATE),
                             }));
@@ -529,7 +506,84 @@ export default function PeriodosInscripcionPage() {
               })}
             </div>
 
-            {/* TODO: descripcion / cupos / descuento / switches */}
+            <div>
+              <Label>Descripción</Label>
+              <Input
+                disabled={mode === "view"}
+                value={
+                  mode === "view"
+                    ? active?.descripcion ?? ""
+                    : form.descripcion
+                }
+                onChange={e =>
+                  setForm(f => ({ ...f, descripcion: e.target.value }))
+                }
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Cupos Total</Label>
+                <Input
+                  type="number"
+                  disabled={mode === "view"}
+                  value={
+                    mode === "view"
+                      ? active?.cupos_total.toString() ?? "0"
+                      : form.cupos_total
+                  }
+                  onChange={e =>
+                    setForm(f => ({
+                      ...f,
+                      cupos_total: Number(e.target.value),
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <Label>Descuento</Label>
+                <Input
+                  type="number"
+                  disabled={mode === "view"}
+                  value={
+                    mode === "view"
+                      ? active?.descuento.toString() ?? "0"
+                      : form.descuento
+                  }
+                  onChange={e =>
+                    setForm(f => ({
+                      ...f,
+                      descuento: Number(e.target.value),
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-6">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="visible"
+                  checked={form.visible}
+                  disabled={mode === "view"}
+                  onCheckedChange={checked =>
+                    setForm(f => ({ ...f, visible: checked }))
+                  }
+                />
+                <Label htmlFor="visible">Visible</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="notificaciones"
+                  checked={form.notificaciones}
+                  disabled={mode === "view"}
+                  onCheckedChange={checked =>
+                    setForm(f => ({ ...f, notificaciones: checked }))
+                  }
+                />
+                <Label htmlFor="notificaciones">Notificaciones</Label>
+              </div>
+            </div>
           </div>
 
           <DialogFooter>
