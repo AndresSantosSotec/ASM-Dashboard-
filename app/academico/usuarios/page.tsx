@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, Plus, Edit, Trash, Mail, MessageSquare, RefreshCw, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,6 +21,8 @@ import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/"
+
 // Tipos
 interface Student {
   id: string
@@ -35,6 +36,7 @@ interface Student {
   status: "pending" | "active" | "inactive"
   username?: string
   institutionalEmail?: string
+  password?: string // <-- Nuevo campo
 }
 
 interface Notification {
@@ -46,53 +48,13 @@ interface Notification {
   message: string
 }
 
-// Datos de ejemplo
+// Datos de ejemplo para programas y notificaciones
 const mockPrograms = [
   "Licenciatura en Administración de Empresas",
   "Ingeniería en Sistemas Computacionales",
   "Maestría en Educación",
   "Doctorado en Ciencias",
   "Licenciatura en Psicología",
-]
-
-const mockStudents: Student[] = [
-  {
-    id: "1",
-    name: "Juan",
-    lastName: "Pérez",
-    email: "juan.perez@example.com",
-    phone: "555-123-4567",
-    program: "Licenciatura en Administración de Empresas",
-    idNumber: "ID12345",
-    birthDate: "1995-05-15",
-    status: "pending",
-  },
-  {
-    id: "2",
-    name: "María",
-    lastName: "González",
-    email: "maria.gonzalez@example.com",
-    phone: "555-987-6543",
-    program: "Ingeniería en Sistemas Computacionales",
-    idNumber: "ID67890",
-    birthDate: "1998-10-20",
-    status: "active",
-    username: "maria.gonzalez",
-    institutionalEmail: "maria.gonzalez@institucion.edu",
-  },
-  {
-    id: "3",
-    name: "Carlos",
-    lastName: "Rodríguez",
-    email: "carlos.rodriguez@example.com",
-    phone: "555-456-7890",
-    program: "Maestría en Educación",
-    idNumber: "ID54321",
-    birthDate: "1990-03-25",
-    status: "inactive",
-    username: "carlos.rodriguez",
-    institutionalEmail: "carlos.rodriguez@institucion.edu",
-  },
 ]
 
 const mockNotifications: Notification[] = [
@@ -122,8 +84,19 @@ const mockNotifications: Notification[] = [
   },
 ]
 
+// Función para generar una contraseña aleatoria
+function generatePassword(student: { name: string; lastName: string; idNumber: string | number }) {
+  // Asegurarse de que idNumber es string
+  const idStr = String(student.idNumber);
+  const nameInitial = student.name.charAt(0).toLowerCase();
+  const lastNameInitial = student.lastName.charAt(0).toLowerCase();
+  const idSuffix = idStr.slice(-4);
+  const randomDigits = Math.floor(100 + Math.random() * 900); // 3 dígitos
+  return `${nameInitial}${lastNameInitial}${idSuffix}${randomDigits}`;
+}
+
 export default function GestionUsuarios() {
-  const [students, setStudents] = useState<Student[]>(mockStudents)
+  const [students, setStudents] = useState<Student[]>([])
   const [notifications, setNotifications] = useState<Notification[]>(mockNotifications)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -131,9 +104,10 @@ export default function GestionUsuarios() {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isGeneratingCredentials, setIsGeneratingCredentials] = useState(false)
   const [isSendingNotification, setIsSendingNotification] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   // Formulario de estudiante
-  const [formData, setFormData] = useState<Omit<Student, "id" | "status" | "username" | "institutionalEmail">>({
+  const [formData, setFormData] = useState<Omit<Student, "id" | "status" | "username" | "institutionalEmail" | "password">>({
     name: "",
     lastName: "",
     email: "",
@@ -142,6 +116,49 @@ export default function GestionUsuarios() {
     idNumber: "",
     birthDate: "",
   })
+
+  // Cargar estudiantes desde la API
+  useEffect(() => {
+    async function fetchStudents() {
+      try {
+        const endpoint = `${API_URL}api/prospectos/fichas/pendientes-public`
+        const res = await fetch(endpoint, {
+          headers: { Accept: "application/json" },
+        })
+        if (!res.ok) {
+          setFetchError(
+            `Error al cargar estudiantes: HTTP ${res.status}. 
+            Verifica que el endpoint '${endpoint}' exista y esté disponible en tu backend.`
+          )
+          throw new Error(`HTTP ${res.status}`)
+        }
+        const { data } = await res.json()
+        const mapped: Student[] = data.map((raw: any) => ({
+          id: String(raw.id),
+          name: raw.nombre_completo?.split(" ")[0] || "",
+          lastName: raw.nombre_completo?.split(" ").slice(1).join(" ") || "",
+          email: raw.correo_electronico || "",
+          phone: raw.telefono || "",
+          program: raw.nombre_programa || "",
+          idNumber: raw.id || "",
+          birthDate: raw.fecha_nacimiento || "",
+          status: (raw.status as "pending" | "active" | "inactive") || "pending",
+          username: raw.username || undefined,
+          institutionalEmail: raw.institutional_email || undefined,
+          password: raw.password || undefined,
+        }))
+        setStudents(mapped)
+        setFetchError(null)
+      } catch (err) {
+        console.error("Error cargando estudiantes:", err)
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar los estudiantes.",
+        })
+      }
+    }
+    fetchStudents()
+  }, [])
 
   // Filtrar estudiantes
   const filteredStudents = students.filter((student) => {
@@ -195,17 +212,17 @@ export default function GestionUsuarios() {
     setIsFormOpen(true)
   }
 
-  // Guardar estudiante (crear o actualizar)
+  // Guardar estudiante (crear o actualizar) - Solo frontend, deberías implementar POST/PUT en tu API para persistir
   const handleSaveStudent = () => {
     if (selectedStudent) {
-      // Actualizar estudiante existente
+      // Actualizar estudiante existente (solo en frontend)
       setStudents((prev) => prev.map((s) => (s.id === selectedStudent.id ? { ...s, ...formData } : s)))
       toast({
         title: "Estudiante actualizado",
         description: `Los datos de ${formData.name} ${formData.lastName} han sido actualizados.`,
       })
     } else {
-      // Crear nuevo estudiante
+      // Crear nuevo estudiante (solo en frontend)
       const newStudent: Student = {
         id: `${Date.now()}`,
         ...formData,
@@ -221,7 +238,7 @@ export default function GestionUsuarios() {
     setIsFormOpen(false)
   }
 
-  // Eliminar estudiante
+  // Eliminar estudiante (solo frontend)
   const handleDelete = (id: string) => {
     setStudents((prev) => prev.filter((s) => s.id !== id))
     if (selectedStudent?.id === id) {
@@ -233,18 +250,18 @@ export default function GestionUsuarios() {
     })
   }
 
-  // Generar credenciales
+  // Generar credenciales (solo frontend)
   const handleGenerateCredentials = () => {
     if (!selectedStudent) return
 
     setIsGeneratingCredentials(true)
 
-    // Simulación de proceso asíncrono
     setTimeout(() => {
       const username = `${selectedStudent.name.toLowerCase()}.${selectedStudent.lastName.toLowerCase()}`
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
-      const institutionalEmail = `${username}@institucion.edu`
+      const institutionalEmail = `${username}@americanschool.edu.gt`
+      const password = generatePassword(selectedStudent)
 
       setStudents((prev) =>
         prev.map((s) =>
@@ -253,6 +270,7 @@ export default function GestionUsuarios() {
                 ...s,
                 username,
                 institutionalEmail,
+                password,
                 status: "active",
               }
             : s,
@@ -265,6 +283,7 @@ export default function GestionUsuarios() {
               ...prev,
               username,
               institutionalEmail,
+              password,
               status: "active",
             }
           : null,
@@ -274,18 +293,17 @@ export default function GestionUsuarios() {
 
       toast({
         title: "Credenciales generadas",
-        description: `Usuario: ${username}\nCorreo: ${institutionalEmail}`,
+        description: `Usuario: ${username}\nCorreo: ${institutionalEmail}\nContraseña: ${password}`,
       })
     }, 1500)
   }
 
-  // Enviar notificación
+  // Enviar notificación (solo frontend)
   const handleSendNotification = (type: "email" | "whatsapp") => {
     if (!selectedStudent) return
 
     setIsSendingNotification(true)
 
-    // Simulación de proceso asíncrono
     setTimeout(() => {
       const newNotification: Notification = {
         id: `n${Date.now()}`,
@@ -309,7 +327,7 @@ export default function GestionUsuarios() {
     }, 1500)
   }
 
-  // Reenviar notificación
+  // Reenviar notificación (solo frontend)
   const handleResendNotification = (notification: Notification) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === notification.id ? { ...n, status: "sent", date: new Date().toISOString() } : n)),
@@ -329,6 +347,12 @@ export default function GestionUsuarios() {
           <Plus className="mr-2 h-4 w-4" /> Nuevo Usuario
         </Button>
       </div>
+
+      {fetchError && (
+        <div className="mb-4 p-4 bg-red-100 text-red-700 rounded">
+          {fetchError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Panel de búsqueda y filtros */}
@@ -500,6 +524,10 @@ export default function GestionUsuarios() {
                         <div>
                           <Label>Correo institucional</Label>
                           <div className="font-medium">{selectedStudent.institutionalEmail}</div>
+                        </div>
+                        <div>
+                          <Label>Contraseña</Label>
+                          <div className="font-medium">{selectedStudent.password}</div>
                         </div>
                       </>
                     )}
@@ -676,4 +704,3 @@ export default function GestionUsuarios() {
     </div>
   )
 }
-
