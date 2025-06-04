@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
+import { crearUsuarioEnBD } from "@/utils/crearUsuario" // Importa la utilidad nueva
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/"
 
@@ -36,7 +37,7 @@ interface Student {
   status: "pending" | "active" | "inactive"
   username?: string
   institutionalEmail?: string
-  password?: string // <-- Nuevo campo
+  password?: string
 }
 
 interface Notification {
@@ -86,7 +87,6 @@ const mockNotifications: Notification[] = [
 
 // Función para generar una contraseña aleatoria
 function generatePassword(student: { name: string; lastName: string; idNumber: string | number }) {
-  // Asegurarse de que idNumber es string
   const idStr = String(student.idNumber);
   const nameInitial = student.name.charAt(0).toLowerCase();
   const lastNameInitial = student.lastName.charAt(0).toLowerCase();
@@ -250,19 +250,37 @@ export default function GestionUsuarios() {
     })
   }
 
-  // Generar credenciales (solo frontend)
-  const handleGenerateCredentials = () => {
+  // Generar credenciales y guardar usuario en la tabla users vía API
+  const handleGenerateCredentials = async () => {
     if (!selectedStudent) return
 
     setIsGeneratingCredentials(true)
 
-    setTimeout(() => {
+    try {
+      // Generar username, email y password automáticamente
       const username = `${selectedStudent.name.toLowerCase()}.${selectedStudent.lastName.toLowerCase()}`
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
       const institutionalEmail = `${username}@americanschool.edu.gt`
       const password = generatePassword(selectedStudent)
 
+      // Payload para la API
+      const payload = {
+        username,
+        email: institutionalEmail,
+        password,
+        first_name: selectedStudent.name,
+        last_name: selectedStudent.lastName,
+        is_active: true,
+        email_verified: true,
+        mfa_enabled: false,
+        rol: 3, // ID de rol estudiante
+      }
+
+      // Llama a la utilidad para crear el usuario en la tabla users
+      await crearUsuarioEnBD(payload)
+
+      // Actualiza el estado local (frontend)
       setStudents((prev) =>
         prev.map((s) =>
           s.id === selectedStudent.id
@@ -289,13 +307,15 @@ export default function GestionUsuarios() {
           : null,
       )
 
-      setIsGeneratingCredentials(false)
-
       toast({
         title: "Credenciales generadas",
         description: `Usuario: ${username}\nCorreo: ${institutionalEmail}\nContraseña: ${password}`,
       })
-    }, 1500)
+    } catch (err) {
+      // El error ya fue mostrado por Swal
+    } finally {
+      setIsGeneratingCredentials(false)
+    }
   }
 
   // Enviar notificación (solo frontend)
