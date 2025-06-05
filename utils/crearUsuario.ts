@@ -1,6 +1,6 @@
 import Swal from "sweetalert2"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/"
+const API_URL = process.env.NEXT_PUBLIC_API_URL 
 
 export interface CrearUsuarioPayload {
   username: string
@@ -17,7 +17,7 @@ export interface CrearUsuarioPayload {
 export async function crearUsuarioEnBD(payload: CrearUsuarioPayload): Promise<{ id: number }> {
   try {
     const token = localStorage.getItem("token") || ""
-    const res = await fetch(`${API_URL}api/users`, {
+    const res = await fetch(`${API_URL}/users`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

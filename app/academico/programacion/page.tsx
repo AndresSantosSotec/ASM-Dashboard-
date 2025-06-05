@@ -119,31 +119,10 @@ const mockFacilitators: Facilitator[] = [
   },
 ]
 
-const mockCohorts: Cohort[] = [
-  {
-    id: "c1",
-    name: "Cohorte 2023-A",
-    program: "Licenciatura en Administración de Empresas",
-    students: 35,
-  },
-  {
-    id: "c2",
-    name: "Cohorte 2023-B",
-    program: "Ingeniería en Sistemas Computacionales",
-    students: 28,
-  },
-  {
-    id: "c3",
-    name: "Cohorte 2023-C",
-    program: "Maestría en Educación",
-    students: 15,
-  },
-]
 
 export default function ProgramacionCursos() {
   const [courses, setCourses] = useState<Course[]>(mockCourses)
   const [facilitators] = useState<Facilitator[]>(mockFacilitators)
-  const [cohorts] = useState<Cohort[]>(mockCohorts)
   const [searchTerm, setSearchTerm] = useState("")
   const [areaFilter, setAreaFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -327,33 +306,6 @@ export default function ProgramacionCursos() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {/* Panel de cohortes */}
-        <Card className="md:col-span-1">
-          <CardHeader>
-            <CardTitle>Cohortes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {cohorts.map((cohort) => (
-                <div
-                  key={cohort.id}
-                  className={`p-3 rounded-md cursor-pointer ${
-                    selectedCohort === cohort.id
-                      ? "bg-blue-100 border border-blue-200"
-                      : "hover:bg-gray-100 border border-transparent"
-                  }`}
-                  onClick={() => setSelectedCohort(cohort.id)}
-                >
-                  <div className="font-medium">{cohort.name}</div>
-                  <div className="text-sm text-gray-500">{cohort.program}</div>
-                  <div className="text-sm mt-1">
-                    <Badge variant="outline">{cohort.students} estudiantes</Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Panel principal */}
         <div className="md:col-span-3 space-y-6">
