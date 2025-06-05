@@ -78,7 +78,6 @@ export default function CalendarioPage() {
     if (!token) return;
     api
       .get("/tareas", {
-        headers: { Authorization: `Bearer ${token}` },
         withCredentials: true,
       })
       .then((res) => setTareas(res.data.data))
@@ -89,9 +88,7 @@ export default function CalendarioPage() {
   useEffect(() => {
     if (!token) return;
     api
-      .get("/citas", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      .get("/citas")
       .then((res) => {
         const arr = Array.isArray(res.data) ? res.data : res.data.data || [];
         setCitas(arr);
@@ -163,7 +160,6 @@ export default function CalendarioPage() {
           {
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
             },
             withCredentials: true,
           }
@@ -180,7 +176,6 @@ export default function CalendarioPage() {
           {
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
             },
             withCredentials: true,
           }
@@ -197,7 +192,6 @@ export default function CalendarioPage() {
     if (!token) return;
     try {
       await api.delete(`/tareas/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
         withCredentials: true,
       });
       setTareas((prev) => prev.filter((t) => t.id !== id));
@@ -217,7 +211,6 @@ export default function CalendarioPage() {
         {
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           withCredentials: true,
         }
@@ -233,9 +226,7 @@ export default function CalendarioPage() {
   const deleteCita = async (id: string) => {
     if (!token) return;
     try {
-      await api.delete(`/citas/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await api.delete(`/citas/${id}`);
       setCitas((prev) => prev.filter((x) => x.id !== id));
       setCitaModalOpen(false);
     } catch (err) {
