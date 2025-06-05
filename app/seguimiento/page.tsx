@@ -577,8 +577,11 @@ export default function SeguimientoPage() {
                     {/* Contenedor con scroll para citas */}
                     <div className="max-h-56 overflow-y-auto space-y-2">
                       {citas.length > 0 ? (
-                        citas.map((cita) => (
-                          <div key={cita.id} className="flex justify-between items-center text-sm border-b py-2">
+                        citas.map((cita, index) => (
+                          <div
+                            key={cita.id ?? `${cita.datecita}-${index}`}
+                            className="flex justify-between items-center text-sm border-b py-2"
+                          >
                             <span>{formatDate(cita.datecita)}</span>
                             <span>{cita.descricita}</span>
                           </div>
