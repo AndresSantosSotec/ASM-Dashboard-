@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Search, Mail } from "lucide-react"
+import { API_BASE_URL } from "@/utils/apiConfig"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
@@ -97,7 +98,7 @@ export default function GestionProspectosEmail() {
       setError("")
       try {
         const token = localStorage.getItem("token")
-        const url = "http://127.0.0.1:8000/api/prospectos"
+        const url = `${API_BASE_URL}/api/prospectos`
         const res = await fetch(url, {
           headers: {
             "Authorization": `Bearer ${token}`,
@@ -234,7 +235,7 @@ export default function GestionProspectosEmail() {
         mensaje: emailData.mensaje,
       }
 
-      const response = await fetch("http://127.0.0.1:8000/api/enviar-correo", {
+      const response = await fetch(`${API_BASE_URL}/api/enviar-correo`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

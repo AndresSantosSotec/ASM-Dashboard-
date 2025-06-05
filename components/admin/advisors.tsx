@@ -16,9 +16,10 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { API_BASE_URL } from "@/utils/apiConfig"
 
 // Endpoints
-const API_BASE = "http://127.0.0.1:8000/api"
+const API_BASE = `${API_BASE_URL}/api`
 const API_USERS_ROLE = `${API_BASE}/users/role/7`
 const API_USERS = `${API_BASE}/users`
 const API_COMM = `${API_BASE}/commissions`

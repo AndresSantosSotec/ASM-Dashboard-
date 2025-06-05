@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { API_BASE_URL } from "@/utils/apiConfig"
 import {
   Dialog,
   DialogContent,
@@ -73,7 +74,7 @@ export default function DocumentosPage() {
     async function loadDocs() {
       setLoading(true)
       try {
-        const res = await fetch("http://127.0.0.1:8000/api/documentos", {
+        const res = await fetch(`${API_BASE_URL}/api/documentos`, {
           headers: token
             ? { Authorization: `Bearer ${token}` }
             : undefined,
@@ -101,7 +102,7 @@ export default function DocumentosPage() {
     if (!confirm("¿Eliminar este documento?")) return
     try {
       const res = await fetch(
-        `http://127.0.0.1:8000/api/documentos/${id}`,
+        `${API_BASE_URL}/api/documentos/${id}`,
         { method: "DELETE", headers: token ? { Authorization: `Bearer ${token}` } : {} }
       )
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -115,7 +116,7 @@ export default function DocumentosPage() {
   const updateEstado = async (id: number, newEstado: EstadoDoc) => {
     try {
       const res = await fetch(
-        `http://127.0.0.1:8000/api/documentos/${id}`,
+        `${API_BASE_URL}/api/documentos/${id}`,
         {
           method: "PUT",
           headers: {
@@ -316,7 +317,7 @@ export default function DocumentosPage() {
                                   <div className="rounded-lg border overflow-hidden">
                                     {d.tipo_documento === "image" ? (
                                       <Image
-                                        src={`http://127.0.0.1:8000/${d.ruta_archivo}`}
+                                        src={`${API_BASE_URL}/${d.ruta_archivo}`}
                                         width={800}
                                         height={600}
                                         alt={d.tipo_documento}
@@ -324,7 +325,7 @@ export default function DocumentosPage() {
                                       />
                                     ) : (
                                       <iframe
-                                        src={`http://127.0.0.1:8000/storage/${d.ruta_archivo}`}
+                                        src={`${API_BASE_URL}/storage/${d.ruta_archivo}`}
                                         className="w-full h-[600px]"
                                       />
                                     )}

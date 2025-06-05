@@ -22,8 +22,9 @@ import { Checkbox } from "@/components/ui/checkbox"
 import DetallesProspecto from "./detalles-prospecto"
 import EditarProspecto from "./editar-prospecto"
 import CambiarEstado from "./cambiar-estado"
+import { API_BASE_URL } from "@/utils/apiConfig"
 
-const API_URL = "http://127.0.0.1:8000/api"
+const API_URL = `${API_BASE_URL}/api`
 
 interface Prospecto {
   id: string
