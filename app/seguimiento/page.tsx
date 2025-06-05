@@ -132,9 +132,7 @@ export default function SeguimientoPage() {
       setLoading(true);
       setError("");
       try {
-        const res = await api.get("/prospectos", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await api.get("/prospectos");
         const json = res.data;
         console.log("Respuesta completa de prospectos:", json);
         const prospectosTransformados: Prospecto[] = json.data.map((item: any) => ({
@@ -162,9 +160,7 @@ export default function SeguimientoPage() {
 
     const fetchInteracciones = async () => {
       try {
-        const response = await api.get(`/interacciones?id_lead=${selectedProspecto.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await api.get(`/interacciones?id_lead=${selectedProspecto.id}`);
         console.log("Interacciones recibidas:", response.data);
         if (Array.isArray(response.data.data)) {
           setInteracciones(response.data.data);
@@ -184,9 +180,7 @@ export default function SeguimientoPage() {
     if (!token) return;
     const fetchInteracciones = async () => {
       try {
-        const response = await api.get("/interacciones", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await api.get("/interacciones");
         console.log("Interacciones globales recibidas:", response.data);
         if (Array.isArray(response.data)) {
           setInteracciones(response.data);
@@ -206,9 +200,7 @@ export default function SeguimientoPage() {
     if (!token) return;
     const fetchCitas = async () => {
       try {
-        const response = await api.get("/citas", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await api.get("/citas");
         console.log("Citas recibidas:", response.data);
         const citasArray = Array.isArray(response.data)
           ? response.data
@@ -226,9 +218,7 @@ export default function SeguimientoPage() {
     if (!token) return;
     const fetchActividades = async () => {
       try {
-        const response = await api.get("/actividades", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await api.get("/actividades");
         console.log("Actividades recibidas:", response.data);
         setActividades(response.data);
       } catch (err: any) {
@@ -273,8 +263,7 @@ export default function SeguimientoPage() {
     try {
       const response = await api.post(
         "/interacciones",
-        newInteraction,
-        { headers: { Authorization: `Bearer ${currentToken}` } }
+        newInteraction
       );
       console.log("✅ Interacción guardada:", response.data);
       setInteracciones((prev) => Array.isArray(prev) ? [...prev, response.data] : [response.data]);
@@ -329,8 +318,7 @@ export default function SeguimientoPage() {
     try {
       const response = await api.post(
         "/citas",
-        newCita,
-        { headers: { Authorization: `Bearer ${currentToken}` } }
+        newCita
       );
       console.log("✅ Cita guardada:", response.data);
       setCitas((prev) => Array.isArray(prev) ? [...prev, response.data] : [response.data]);
