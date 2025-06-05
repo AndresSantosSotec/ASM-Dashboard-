@@ -1,7 +1,8 @@
 "use client"
 
 import type React from "react"
-import axios from "axios"
+import { api } from "@/services/api"
+import { useAuth } from "@/contexts/AuthContext"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Eye, EyeOff, LogIn } from "lucide-react"
@@ -12,6 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 
 export default function LoginPage() {
   const router = useRouter()
+  const { setToken } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -26,7 +28,7 @@ export default function LoginPage() {
 
     try {
       // Petición real a tu API
-      const response = await axios.post("http://localhost:8000/api/login", {
+      const response = await api.post("/login", {
         email,
         password,
       })
@@ -37,9 +39,9 @@ export default function LoginPage() {
       // Extrae token, user y permissions de la respuesta
       const { id, token, user, permissions } = response.data
 
-      // Almacena el token, el usuario y los permisos en localStorage
+      // Almacena el token y demás datos en localStorage mediante el contexto
+      setToken(token)
       localStorage.setItem("userId", id)
-      localStorage.setItem("token", token)
       localStorage.setItem("user", JSON.stringify(user))
       localStorage.setItem("permissions", JSON.stringify(permissions))
 
