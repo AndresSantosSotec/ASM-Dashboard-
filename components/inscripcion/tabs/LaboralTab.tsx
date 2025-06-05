@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import axios from "axios"
+import { API_BASE_URL } from "@/utils/apiConfig"
 import { DatosLaborales } from "../types"
 
 interface Props {
@@ -56,8 +57,8 @@ export default function LaboralTab({ datos, setDatos, goPrev, goNext }: Props) {
       })
 
       // Cargar departamentos desde API
-      axios
-        .get("http://localhost:8000/api/ubicacion/1")
+        axios
+          .get(`${API_BASE_URL}/api/ubicacion/1`)
         .then((resp) => {
           const deps = resp.data.departamentos.map((d: any) => ({
             id: d.id,

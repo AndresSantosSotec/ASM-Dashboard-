@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
 import { FichaEstudiante } from "../types"
+import { API_BASE_URL } from "@/utils/apiConfig"
 
 interface Props {
   ficha: FichaEstudiante
@@ -100,7 +101,7 @@ export default function FichaDetalleModal({
       try {
         const token = localStorage.getItem("token") ?? ""
         const resFicha = await fetch(
-          `http://localhost:8000/api/fichas/${ficha.id}`,
+          `${API_BASE_URL}/api/fichas/${ficha.id}`,
           { headers: { Authorization: `Bearer ${token}` } }
         )
         const json = await resFicha.json()
@@ -111,7 +112,7 @@ export default function FichaDetalleModal({
         setProgramasInscritos(json.programas ?? [])
         setDocumentos(json.documentos ?? [])
 
-        const resProg = await fetch("http://localhost:8000/api/programas")
+        const resProg = await fetch(`${API_BASE_URL}/api/programas`)
         setCatalogoProgramas(await resProg.json())
 
         // Leer estado 'revisada' de localStorage

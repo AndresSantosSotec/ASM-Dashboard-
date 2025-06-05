@@ -1,6 +1,7 @@
 "use client"
 import React, { useEffect, useState, useRef, useMemo } from "react"
 import axios, { AxiosError } from "axios"
+import { API_BASE_URL } from "@/utils/apiConfig"
 import { ArrowLeft, ArrowRight, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -54,7 +55,8 @@ export default function FinancieroTab({
 
   /* ——— Cargar convenios ——— */
   useEffect(() => {
-    axios.get<Convenio[]>("http://localhost:8000/api/convenios")
+    axios
+      .get<Convenio[]>(`${API_BASE_URL}/api/convenios`)
       .then(resp => setConvenios(resp.data))
       .catch(err => {
         console.error("Error cargando convenios:", err)
@@ -88,9 +90,9 @@ export default function FinancieroTab({
       if (cache.current.has(cacheKey)) {
         return Promise.resolve({ ok: true as const, data: cache.current.get(cacheKey)! })
       }
-      const url = datos.tieneConvenio
-        ? `http://localhost:8000/api/precios/convenio/${convenioId}/${programaId}?meses=${duracion}`
-        : `http://localhost:8000/api/precios/programa/${programaId}?meses=${duracion}`
+    const url = datos.tieneConvenio
+        ? `${API_BASE_URL}/api/precios/convenio/${convenioId}/${programaId}?meses=${duracion}`
+        : `${API_BASE_URL}/api/precios/programa/${programaId}?meses=${duracion}`
       return axios
         .get<{ inscripcion: number; cuota_mensual: number }>(url)
         .then(r => {

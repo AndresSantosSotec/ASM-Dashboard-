@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import axios from "axios"
+import { API_BASE_URL } from "@/utils/apiConfig"
 
 type FichaEstudiante = {
   id: number
@@ -40,7 +41,7 @@ useEffect(() => {
   const fetchFichas = async () => {
     try {
       const token = localStorage.getItem("token")
-      const res = await fetch("http://localhost:8000/api/fichas/pendientes", {
+      const res = await fetch(`${API_BASE_URL}/api/fichas/pendientes`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

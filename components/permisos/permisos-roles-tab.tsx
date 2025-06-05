@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "@/utils/apiConfig";
 import Swal from "sweetalert2";
 
 import { Button } from "@/components/ui/button";
@@ -101,7 +102,7 @@ export default function PermisosRolesTab() {
 
   const fetchRoles = async () => {
     try {
-      const response = await axios.get("http://localhost:8000/api/roles");
+      const response = await axios.get(`${API_BASE_URL}/api/roles`);
       // Asumimos que response.data es un array de roles
       setRoles(response.data);
     } catch (error) {
@@ -123,7 +124,7 @@ export default function PermisosRolesTab() {
       if (isEditing && selectedRol) {
         // EDITAR
         const response = await axios.put(
-          `http://localhost:8000/api/roles/${selectedRol.id}`,
+          `${API_BASE_URL}/api/roles/${selectedRol.id}`,
           data
         );
         // Actualizamos en el estado
@@ -138,7 +139,7 @@ export default function PermisosRolesTab() {
         });
       } else {
         // CREAR
-        const response = await axios.post("http://localhost:8000/api/roles", data);
+        const response = await axios.post(`${API_BASE_URL}/api/roles`, data);
         setRoles((prev) => [...prev, response.data]);
         Swal.fire({
           title: "Rol creado",
@@ -176,7 +177,7 @@ export default function PermisosRolesTab() {
     if (!result.isConfirmed) return;
 
     try {
-      await axios.delete(`http://localhost:8000/api/roles/${rol.id}`);
+      await axios.delete(`${API_BASE_URL}/api/roles/${rol.id}`);
       setRoles((prev) => prev.filter((r) => r.id !== rol.id));
       Swal.fire({
         title: "Rol eliminado",

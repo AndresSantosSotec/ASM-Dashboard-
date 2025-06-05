@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import axios from "axios"
+import { API_BASE_URL } from "@/utils/apiConfig"
 import { DatosAcademicos } from "../types"
 
 interface Programa {
@@ -42,9 +43,10 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    axios.get<Programa[]>("http://localhost:8000/api/programas")
-      .then(resp => setProgramas(resp.data))
-      .catch(err => console.error("❌ Error al obtener programas:", err))
+    axios
+      .get<Programa[]>(`${API_BASE_URL}/api/programas`)
+      .then((resp) => setProgramas(resp.data))
+      .catch((err) => console.error("❌ Error al obtener programas:", err))
   }, [])
 
   useEffect(() => {
