@@ -59,7 +59,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
       const token = localStorage.getItem("token")
       if (token) {
         try {
-          const response = await axios.get(`${API_BASE_URL}/users`, {
+          const response = await axios.get(`${API_BASE_URL}/api/users`, {
             headers: {
               Authorization: `Bearer ${token}`,
             },

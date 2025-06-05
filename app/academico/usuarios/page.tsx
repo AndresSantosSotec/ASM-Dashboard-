@@ -122,7 +122,7 @@ export default function GestionUsuarios() {
 useEffect(() => {
   async function fetchStudents() {
     try {
-      const endpoint = `${API_URL}/prospectos/fichas/pendientes-public`;
+      const endpoint = `${API_URL}/api/prospectos/fichas/pendientes-public`;
       console.log('[DEBUG] Intentando conectar al endpoint:', endpoint); // 1. Verifica la URL construida
 
       const res = await fetch(endpoint, {

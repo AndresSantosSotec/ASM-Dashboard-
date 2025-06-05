@@ -107,7 +107,7 @@ export default function CapturaProspectos() {
   useEffect(() => {
     const fetchProgramas = async () => {
       try {
-        const response = await axios.get(`${API_BASE_URL}/programas`)
+        const response = await axios.get(`${API_BASE_URL}/api/programas`)
         setProgramas(response.data)
       } catch (error) {
         console.error("❌ Error al obtener programas:", error)
@@ -120,7 +120,7 @@ export default function CapturaProspectos() {
   useEffect(() => {
     const fetchEmpresas = async () => {
       try {
-        const response = await axios.get(`${API_BASE_URL}/convenios`)
+        const response = await axios.get(`${API_BASE_URL}/api/convenios`)
         setEmpresas(response.data)
       } catch (error) {
         console.error("❌ Error al obtener empresas:", error)
@@ -134,7 +134,7 @@ export default function CapturaProspectos() {
   useEffect(() => {
     const fetchUbicacionGuatemala = async () => {
       try {
-        const response = await axios.get(`${API_BASE_URL}/ubicacion/1`)
+        const response = await axios.get(`${API_BASE_URL}/api/ubicacion/1`)
         setDepartamentos(response.data.departamentos)
       } catch (error) {
         console.error("❌ Error al obtener ubicación de Guatemala:", error)
@@ -172,7 +172,7 @@ export default function CapturaProspectos() {
         fecha: fechaFormateada,
         medio_conocimiento_institucion: data.Origen,
       }
-      await axios.post(`${API_BASE_URL}/prospectos`, payload, {
+      await axios.post(`${API_BASE_URL}/api/prospectos`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       })
       Swal.fire({

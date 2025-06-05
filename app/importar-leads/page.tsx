@@ -46,7 +46,7 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
 
   // Función para recargar las columnas desde el backend.
   const fetchColumns = () => {
-    fetch(`${API_BASE_URL}/columns`)
+    fetch(`${API_BASE_URL}/api/columns`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP error: ${res.status}`)
         return res.json()
@@ -216,7 +216,7 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
       hasFile: formData.has("file"),
     });
 
-    fetch(`${API_BASE_URL}/import`, {
+    fetch(`${API_BASE_URL}/api/import`, {
       method: "POST",
       body: formData,
       headers: { Authorization: `Bearer ${token}` },

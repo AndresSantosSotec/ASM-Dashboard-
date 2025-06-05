@@ -38,7 +38,7 @@ export default function SesionesActivas() {
   const fetchSessions = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${LARAVEL_API_URL}/sessions`, {
+      const response = await fetch(`${LARAVEL_API_URL}/api/sessions`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",

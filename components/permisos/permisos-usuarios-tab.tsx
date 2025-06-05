@@ -91,7 +91,7 @@ export default function PermisosUsuariosTab() {
   // Trae la lista de usuarios desde la API
   const fetchUsuarios = async () => {
     try {
-        const response = await axios.get(`${API_BASE_URL}/users`);
+        const response = await axios.get(`${API_BASE_URL}/api/users`);
       const usuariosTransformados = response.data.map((u: any) => transformUser(u));
       setUsuarios(usuariosTransformados);
     } catch (error) {

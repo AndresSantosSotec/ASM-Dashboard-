@@ -80,7 +80,7 @@ export default function PermisosVistasTab() {
   useEffect(() => {
     const fetchUsuarios = async () => {
       try {
-        const response = await axios.get(`${API_BASE_URL}/users`);
+        const response = await axios.get(`${API_BASE_URL}/api/users`);
         console.log("Respuesta de usuarios:", response.data);
         // Si la respuesta viene en response.data.data, ajusta aquí
         const usuariosTransformados = response.data.map((user: any) => ({
