@@ -112,7 +112,7 @@ export default function FichaDetalleModal({
         setProgramasInscritos(json.programas ?? [])
         setDocumentos(json.documentos ?? [])
 
-        const resProg = await fetch(`${API_BASE_URL}/api/programas`)
+        const resProg = await fetch(`${API_BASE_URL}/programas`)
         setCatalogoProgramas(await resProg.json())
 
         // Leer estado 'revisada' de localStorage

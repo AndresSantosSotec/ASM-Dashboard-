@@ -74,7 +74,7 @@ export default function DocumentosPage() {
     async function loadDocs() {
       setLoading(true)
       try {
-        const res = await fetch(`${API_BASE_URL}/api/documentos`, {
+        const res = await fetch(`${API_BASE_URL}/documentos`, {
           headers: token
             ? { Authorization: `Bearer ${token}` }
             : undefined,
@@ -102,7 +102,7 @@ export default function DocumentosPage() {
     if (!confirm("¿Eliminar este documento?")) return
     try {
       const res = await fetch(
-        `${API_BASE_URL}/api/documentos/${id}`,
+        `${API_BASE_URL}/documentos/${id}`,
         { method: "DELETE", headers: token ? { Authorization: `Bearer ${token}` } : {} }
       )
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -116,7 +116,7 @@ export default function DocumentosPage() {
   const updateEstado = async (id: number, newEstado: EstadoDoc) => {
     try {
       const res = await fetch(
-        `${API_BASE_URL}/api/documentos/${id}`,
+        `${API_BASE_URL}/documentos/${id}`,
         {
           method: "PUT",
           headers: {

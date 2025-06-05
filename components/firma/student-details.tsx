@@ -73,7 +73,7 @@ export function StudentDetails() {
         try {
           const token = localStorage.getItem("token")
           const res = await fetch(
-            `${API_BASE_URL}/api/prospectos/${studentId}`,
+            `${API_BASE_URL}/prospectos/${studentId}`,
             { headers: { Authorization: `Bearer ${token}` } }
           )
           const json = await res.json()
@@ -113,7 +113,7 @@ export function StudentDetails() {
     ; (async () => {
       try {
         const token = localStorage.getItem("token")
-        const res = await fetch(`${API_BASE_URL}/api/user`, {
+        const res = await fetch(`${API_BASE_URL}/user`, {
           headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
         })
         const user: User = await res.json()
@@ -202,7 +202,7 @@ export function StudentDetails() {
     try {
       const token = localStorage.getItem("token")
       const res = await fetch(
-        `${API_BASE_URL}/api/prospectos/${studentId}/enviar-contrato`,
+        `${API_BASE_URL}/prospectos/${studentId}/enviar-contrato`,
         {
           method: "POST",
           headers: {

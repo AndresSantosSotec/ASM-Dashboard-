@@ -102,7 +102,7 @@ export default function PermisosRolesTab() {
 
   const fetchRoles = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/roles`);
+      const response = await axios.get(`${API_BASE_URL}/roles`);
       // Asumimos que response.data es un array de roles
       setRoles(response.data);
     } catch (error) {

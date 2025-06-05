@@ -38,7 +38,7 @@ export default function SesionesActivas() {
   const fetchSessions = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${LARAVEL_API_URL}/api/sessions`, {
+      const response = await fetch(`${LARAVEL_API_URL}/sessions`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -70,7 +70,7 @@ export default function SesionesActivas() {
   // Función para cerrar una sesión individual
   const cerrarSesion = async (id: number) => {
     try {
-      const response = await fetch(`${LARAVEL_API_URL}/api/sessions/${id}/close`, {
+      const response = await fetch(`${LARAVEL_API_URL}/sessions/${id}/close`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -99,7 +99,7 @@ export default function SesionesActivas() {
   // Función para cerrar todas las sesiones
   const cerrarTodasSesiones = async () => {
     try {
-      const response = await fetch(`${LARAVEL_API_URL}/api/sessions/close-all`, {
+      const response = await fetch(`${LARAVEL_API_URL}/sessions/close-all`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

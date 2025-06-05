@@ -63,7 +63,7 @@ export default function GestionProspectos() {
   useEffect(() => {
     setLoading(true)
     const qs = estadoFilter !== "todos" ? `?status=${estadoFilter}` : ""
-    fetch(`${API_BASE_URL}/api/prospectos${qs}`, {
+    fetch(`${API_BASE_URL}/prospectos${qs}`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
       .then(r => r.json())
@@ -97,7 +97,7 @@ export default function GestionProspectos() {
 
   // carga de asesores
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/users/role/7`, {
+    fetch(`${API_BASE_URL}/users/role/7`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
       .then(r => r.json())
@@ -119,7 +119,7 @@ export default function GestionProspectos() {
   const handleReasignar = async (id: string, asesorId: number) => {
     try {
       const res = await fetch(
-        `${API_BASE_URL}/api/prospectos/${id}/assign`,
+        `${API_BASE_URL}/prospectos/${id}/assign`,
         {
           method: "PUT",
           headers: {
@@ -296,7 +296,7 @@ export default function GestionProspectos() {
                 // Realiza las peticiones DELETE de forma paralela; si la API no tiene endpoint masivo, se envían individualmente.
                 await Promise.all(
                   selectedIds.map(id =>
-                    fetch(`${API_BASE_URL}/api/prospectos/${id}`, {
+                    fetch(`${API_BASE_URL}/prospectos/${id}`, {
                       method: "DELETE",
                       headers: {
                         Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -522,7 +522,7 @@ export default function GestionProspectos() {
 
           try {
             const res = await fetch(
-              `${API_BASE_URL}/api/prospectos/${activeProspect.id}`,
+              `${API_BASE_URL}/prospectos/${activeProspect.id}`,
               {
                 method: "DELETE",
                 headers: {

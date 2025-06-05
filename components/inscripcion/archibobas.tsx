@@ -41,7 +41,7 @@ useEffect(() => {
   const fetchFichas = async () => {
     try {
       const token = localStorage.getItem("token")
-      const res = await fetch(`${API_BASE_URL}/api/fichas/pendientes`, {
+      const res = await fetch(`${API_BASE_URL}/fichas/pendientes`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -90,7 +90,7 @@ export function GestionFichas() {
     const matchesSearch =
       ficha.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
       ficha.programa.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ficha.id.toLowerCase().includes(searchTerm.toLowerCase())
+      ficha.id.toString().toLowerCase().includes(searchTerm.toLowerCase())
 
     // Filtro por estado
     const matchesEstado = filtroEstado === "todos" || ficha.estado === filtroEstado

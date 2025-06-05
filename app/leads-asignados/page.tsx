@@ -58,7 +58,7 @@ export default function GestionProspectos() {
       setError("")
       try {
         const token = localStorage.getItem("token")
-        const url = `${API_BASE_URL}/api/prospectos`
+        const url = `${API_BASE_URL}/prospectos`
         const res = await fetch(url, {
           headers: {
             "Authorization": `Bearer ${token}`,

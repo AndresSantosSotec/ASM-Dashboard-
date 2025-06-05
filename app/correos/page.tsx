@@ -98,7 +98,7 @@ export default function GestionProspectosEmail() {
       setError("")
       try {
         const token = localStorage.getItem("token")
-        const url = `${API_BASE_URL}/api/prospectos`
+        const url = `${API_BASE_URL}/prospectos`
         const res = await fetch(url, {
           headers: {
             "Authorization": `Bearer ${token}`,
@@ -235,7 +235,7 @@ export default function GestionProspectosEmail() {
         mensaje: emailData.mensaje,
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/enviar-correo`, {
+      const response = await fetch(`${API_BASE_URL}/enviar-correo`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

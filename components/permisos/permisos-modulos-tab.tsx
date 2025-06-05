@@ -209,7 +209,7 @@ export default function PermisosModulosTab() {
 
   const fetchModulos = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/modules`);
+      const response = await axios.get(`${API_BASE_URL}/modules`);
       const modulosTransformados = response.data.map((m: any) =>
         transformModule(m)
       );

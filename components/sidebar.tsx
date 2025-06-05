@@ -45,7 +45,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
 
   // Hacemos fetch para obtener el rol del usuario
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/user`, {
+    fetch(`${API_BASE_URL}/user`, {
       credentials: "include",
     })
       .then(res => res.json())
