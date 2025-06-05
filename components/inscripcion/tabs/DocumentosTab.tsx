@@ -1,6 +1,7 @@
 "use client"
 import React, { useEffect, useState, useRef, useMemo, Dispatch, SetStateAction } from "react"
 import axios, { AxiosError } from "axios"
+import { API_BASE_URL } from "@/utils/apiConfig"
 import { ArrowLeft, ArrowRight, FileText, Info, Upload, X, CheckCircle } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -73,10 +74,10 @@ export default function DocumentosTab({
     formData.append("tipo_documento", uploadTarget.current)
     formData.append("file", file)
 
-    try {
-      await axios.post("http://localhost:8000/api/documentos", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      })
+      try {
+        await axios.post(`${API_BASE_URL}/api/documentos`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
       setDocumentos(docs =>
         docs.map(d =>
           d.id === uploadTarget.current
