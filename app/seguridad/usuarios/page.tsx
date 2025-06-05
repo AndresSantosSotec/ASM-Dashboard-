@@ -171,7 +171,7 @@ export default function GestionUsuarios() {
   // Función para crear usuario
   const handleUserSubmit = async (data: Usuario) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/users`, data)
+      const response = await axios.post(`${API_BASE_URL}/api/users`, data)
       setUsuarios((prev) => [...prev, response.data])
       setIsUserDialogOpen(false)
       userForm.reset()

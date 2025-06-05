@@ -60,7 +60,7 @@ export default function Duplicates() {
       setLoading(true)
       try {
         const token = localStorage.getItem("token") || ""
-        const res = await fetch(`${API_URL}/api/duplicates?per_page=999999`, {
+        const res = await fetch(`${API_URL}/duplicates?per_page=999999`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)

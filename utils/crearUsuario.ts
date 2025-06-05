@@ -1,7 +1,7 @@
 import Swal from "sweetalert2"
 import { API_BASE_URL } from "./apiConfig"
 
-const API_URL = `${API_BASE_URL}/`
+const API_URL = `${API_BASE_URL}`
 
 export interface CrearUsuarioPayload {
   username: string
@@ -18,7 +18,7 @@ export interface CrearUsuarioPayload {
 export async function crearUsuarioEnBD(payload: CrearUsuarioPayload): Promise<{ id: number }> {
   try {
     const token = localStorage.getItem("token") || ""
-    const res = await fetch(`${API_URL}api/users`, {
+    const res = await fetch(`${API_URL}/users`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
