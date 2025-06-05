@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import axios from "axios";
+import { api } from "@/services/api";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, parseISO, isToday,} from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -76,8 +76,8 @@ export default function CalendarioPage() {
   // --- Fetch tareas ---
   useEffect(() => {
     if (!token) return;
-    axios
-      .get("http://localhost:8000/api/tareas", {
+    api
+      .get("/tareas", {
         headers: { Authorization: `Bearer ${token}` },
         withCredentials: true,
       })
@@ -88,8 +88,8 @@ export default function CalendarioPage() {
   // --- Fetch citas ---
   useEffect(() => {
     if (!token) return;
-    axios
-      .get("http://localhost:8000/api/citas", {
+    api
+      .get("/citas", {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
@@ -157,8 +157,8 @@ export default function CalendarioPage() {
     const payload = preparePayload();
     try {
       if (selectedTarea) {
-        const res = await axios.put(
-          `http://localhost:8000/api/tareas/${selectedTarea.id}`,
+        const res = await api.put(
+          `/tareas/${selectedTarea.id}`,
           payload,
           {
             headers: {
@@ -174,8 +174,8 @@ export default function CalendarioPage() {
           )
         );
       } else {
-        const res = await axios.post(
-          "http://localhost:8000/api/tareas",
+        const res = await api.post(
+          "/tareas",
           payload,
           {
             headers: {
@@ -196,7 +196,7 @@ export default function CalendarioPage() {
   const deleteTarea = async (id: string) => {
     if (!token) return;
     try {
-      await axios.delete(`http://localhost:8000/api/tareas/${id}`, {
+      await api.delete(`/tareas/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
         withCredentials: true,
       });
@@ -211,8 +211,8 @@ export default function CalendarioPage() {
     const t = tareas.find((x) => x.id === id);
     if (!t || !token) return;
     try {
-      const res = await axios.put(
-        `http://localhost:8000/api/tareas/${id}`,
+      const res = await api.put(
+        `/tareas/${id}`,
         { completada: !t.completada },
         {
           headers: {
@@ -233,7 +233,7 @@ export default function CalendarioPage() {
   const deleteCita = async (id: string) => {
     if (!token) return;
     try {
-      await axios.delete(`http://localhost:8000/api/citas/${id}`, {
+      await api.delete(`/citas/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setCitas((prev) => prev.filter((x) => x.id !== id));
