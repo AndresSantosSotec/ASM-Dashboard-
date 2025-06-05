@@ -8,6 +8,7 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { API_BASE_URL } from "@/utils/apiConfig"
 import {
     Select,
     SelectTrigger,
@@ -73,7 +74,7 @@ export default function EditProspectModal({
             if (bulkIds && bulkIds.length > 0) {
                 // Actualización masiva usando el endpoint bulk-assign
                 const res = await fetch(
-                    "http://127.0.0.1:8000/api/prospectos/bulk-assign",
+                    `${API_BASE_URL}/api/prospectos/bulk-assign`,
                     {
                         method: "PUT",
                         headers: {
@@ -95,7 +96,7 @@ export default function EditProspectModal({
             } else if (prospect) {
                 // Actualización individual
                 const res = await fetch(
-                    `http://127.0.0.1:8000/api/prospectos/${prospect.id}/assign`,
+                    `${API_BASE_URL}/api/prospectos/${prospect.id}/assign`,
                     {
                         method: "PUT",
                         headers: {

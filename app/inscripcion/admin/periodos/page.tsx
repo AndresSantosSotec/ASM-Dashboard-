@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { API_BASE_URL } from "@/utils/apiConfig";
 import {
   Table,
   TableBody,
@@ -71,8 +72,7 @@ function generateCodigo(nombre: string): string {
   return `${initials}-${year}`;
 }
 
-axios.defaults.baseURL =
-  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+axios.defaults.baseURL = API_BASE_URL + "/api";
 
 type PeriodoAPI = {
   id: number;

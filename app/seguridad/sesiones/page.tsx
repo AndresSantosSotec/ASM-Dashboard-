@@ -21,8 +21,10 @@ interface Session {
   activa: boolean;
 }
 
+import { API_BASE_URL } from "@/utils/apiConfig";
+
 // URL base de tu servidor Laravel (CORREGIDO)
-const LARAVEL_API_URL = "http://localhost:8000";
+const LARAVEL_API_URL = API_BASE_URL;
 
 export default function SesionesActivas() {
   // Tipamos el estado para que sea un arreglo de Session

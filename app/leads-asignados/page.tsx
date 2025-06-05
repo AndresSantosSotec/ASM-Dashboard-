@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { API_BASE_URL } from "@/utils/apiConfig"
 import {
   Table,
   TableBody,
@@ -57,7 +58,7 @@ export default function GestionProspectos() {
       setError("")
       try {
         const token = localStorage.getItem("token")
-        const url = "http://127.0.0.1:8000/api/prospectos"
+        const url = `${API_BASE_URL}/api/prospectos`
         const res = await fetch(url, {
           headers: {
             "Authorization": `Bearer ${token}`,

@@ -34,8 +34,9 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { FichaEstudiante } from "@/components/inscripcion/types"
 import FichaDetalleModal from "@/components/inscripcion/modal/FichaDetalleModal"
+import { API_BASE_URL } from "@/utils/apiConfig"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const API_URL = process.env.NEXT_PUBLIC_API_URL || API_BASE_URL
 const CONTEO_REVISADAS_KEY = "fichasRevisadasCount"
 
 function incrementarRevisadas() {
