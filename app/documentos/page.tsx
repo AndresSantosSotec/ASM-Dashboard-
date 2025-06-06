@@ -325,7 +325,7 @@ export default function DocumentosPage() {
                                       />
                                     ) : (
                                       <iframe
-                                        src={`${API_BASE_URL}api/storage/${d.ruta_archivo}`}
+                                        src={`${API_BASE_URL}/api/storage/${d.ruta_archivo}`}
                                         className="w-full h-[600px]"
                                       />
                                     )}

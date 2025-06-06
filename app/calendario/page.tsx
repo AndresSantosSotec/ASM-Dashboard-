@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { api } from "@/services/api";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, parseISO, isToday,} from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -13,8 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {  Select,  SelectContent,  SelectItem,  SelectTrigger,  SelectValue,} from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Clock, Plus, Trash2, Edit, CalendarIcon,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Plus, Trash2, Edit, CalendarIcon,} from "lucide-react";
 
 import {api} from "@/services/api"; 
 
