@@ -60,7 +60,7 @@ export default function ProspectSearchModal({
 
       try {
         const token = localStorage.getItem("token")
-        const url = `${API_BASE_URL}/prospectos?status=${encodeURIComponent(
+        const url = `${API_BASE_URL}/api/prospectos?status=${encodeURIComponent(
           "Preinscripción"
         )}`
         const res = await fetch(url, {
