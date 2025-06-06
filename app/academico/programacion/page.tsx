@@ -52,7 +52,7 @@ interface Facilitator {
   id: string
   name: string
   specialty: string
-  availability: string[]
+  availability?: string[]
 }
 
 
@@ -148,8 +148,8 @@ export default function ProgramacionCursos() {
       code: formData.code,
       area: formData.area,
       credits: formData.credits,
-      start_date: formData.startDate,
-      end_date: formData.endDate,
+      startDate: formData.startDate,
+      endDate: formData.endDate,
       schedule: formData.schedule,
       duration: formData.duration,
 
@@ -488,7 +488,7 @@ export default function ProgramacionCursos() {
                               <div className="font-medium">{facilitator.name}</div>
                               <div className="text-sm text-gray-500">{facilitator.specialty}</div>
                               <div className="flex flex-wrap gap-1 mt-2">
-                                {facilitator.availability.map((day) => (
+                                {facilitator.availability?.map((day) => (
                                   <Badge key={day} variant="outline" className="text-xs">
                                     {day}
                                   </Badge>
