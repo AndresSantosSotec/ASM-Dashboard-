@@ -139,36 +139,31 @@ export default function GestionUsuarios() {
 useEffect(() => {
   async function fetchStudents() {
     try {
-      const endpoint = `${API_URL}/prospectos/fichas/pendientes-public`;
-      console.log('[DEBUG] Intentando conectar al endpoint:', endpoint); // 1. Verifica la URL construida
+      const token = localStorage.getItem("token") || "";
+      const statuses = ["Pendiente Aprobacion", "aprobada"];
 
-      const res = await fetch(endpoint, {
-        headers: { Accept: "application/json" },
-      });
-      console.log('[DEBUG] Respuesta HTTP recibida. Status:', res.status); // 2. Verifica si llegó respuesta
+      const responses = await Promise.all(
+        statuses.map((st) =>
+          fetch(`${API_URL}/prospectos/status/${encodeURIComponent(st)}`, {
+            headers: {
+              Accept: "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+          }).then((res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+          })
+        )
+      );
 
-      if (!res.ok) {
-        console.error('[DEBUG] Error en la respuesta HTTP. Status:', res.status);
-        const errorText = await res.text(); // Intenta leer el cuerpo del error
-        console.error('[DEBUG] Contenido del error:', errorText);
-        
-        setFetchError(
-          `Error al cargar estudiantes: HTTP ${res.status}. 
-          Verifica que el endpoint '${endpoint}' exista y esté disponible en tu backend.
-          Respuesta del servidor: ${errorText}`
-        );
-        throw new Error(`HTTP ${res.status}: ${errorText}`);
-      }
+      const combined = responses
+        .flatMap((r) => (Array.isArray(r.data) ? r.data : []))
+        .reduce<any[]>((acc, p) => {
+          if (!acc.find((x) => x.id === p.id)) acc.push(p);
+          return acc;
+        }, []);
 
-      const responseData = await res.json();
-      console.log('[DEBUG] Datos recibidos (crudos):', responseData); // 3. Verifica estructura de datos
-
-      if (!responseData.data) {
-        console.error('[DEBUG] La respuesta no contiene propiedad "data":', responseData);
-        throw new Error('Formato de respuesta inválido: falta propiedad "data"');
-      }
-
-      const mapped: Student[] = responseData.data.map((raw: any) => ({
+      const mapped: Student[] = combined.map((raw: any) => ({
         id: String(raw.id),
         name: raw.nombre_completo?.split(" ")[0] || "",
         lastName: raw.nombre_completo?.split(" ").slice(1).join(" ") || "",
@@ -177,27 +172,25 @@ useEffect(() => {
         program: raw.nombre_programa || "",
         idNumber: raw.id || "",
         birthDate: raw.fecha_nacimiento || "",
-        status: (raw.status as "pending" | "active" | "inactive") || "pending",
+        status: raw.status || "pending",
         username: raw.username || undefined,
         institutionalEmail: raw.institutional_email || undefined,
         password: raw.password || undefined,
       }));
 
-      console.log('[DEBUG] Datos mapeados:', mapped); // 4. Verifica el mapeo
       setStudents(mapped);
       setFetchError(null);
 
     } catch (err) {
       const error = err as Error;
-      console.error('[DEBUG] Error en fetchStudents:', {
-        error: err,
-        message: error.message,
-        stack: error.stack
-      });
+      console.error('[DEBUG] Error en fetchStudents:', error.message);
       toast({
         title: "Error",
         description: `No se pudieron cargar los estudiantes: ${error.message}`,
       });
+      setFetchError(
+        "No se pudieron cargar los estudiantes. Ver consola para más detalles."
+      );
     }
   }
   
