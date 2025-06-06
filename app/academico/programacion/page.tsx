@@ -148,8 +148,8 @@ export default function ProgramacionCursos() {
       code: formData.code,
       area: formData.area,
       credits: formData.credits,
-      start_date: formData.startDate,
-      end_date: formData.endDate,
+      startDate: formData.startDate,
+      endDate: formData.endDate,
       schedule: formData.schedule,
       duration: formData.duration,
 
