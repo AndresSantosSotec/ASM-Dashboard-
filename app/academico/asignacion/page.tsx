@@ -26,6 +26,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader as CH, CardTitle } from "@/components/ui/card"
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 
 // ① Importar Select y subcomponentes:
 import {
@@ -343,9 +344,24 @@ export default function AsignacionPage() {
                         : "—"}
                     </TableCell>
                     <TableCell>
-                      <Button size="sm" onClick={() => openCourses([p.id])}>
-                        Ver cursos
-                      </Button>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button size="sm" variant="outline">
+                            Ver cursos
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64">
+                          {p.courses.length > 0 ? (
+                            <ul className="list-disc pl-4 text-sm">
+                              {p.courses.map((c) => (
+                                <li key={c.id}>{c.name}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm">No tiene cursos asignados.</p>
+                          )}
+                        </PopoverContent>
+                      </Popover>
                     </TableCell>
                   </TableRow>
                 ))}
