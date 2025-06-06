@@ -45,6 +45,12 @@ export default function AsignacionPage() {
   const [showCourses, setShowCourses] = useState(false)
   const [selectedProspectIds, setSelectedProspectIds] = useState<string[]>([])
   const [selectedCourseIds, setSelectedCourseIds] = useState<number[]>([])
+  const [courseSearch, setCourseSearch] = useState("")
+  const [courseArea, setCourseArea] = useState("all")
+  const [courseStatus, setCourseStatus] = useState("all")
+  const [coursePage, setCoursePage] = useState(1)
+  const coursePageSize = 10
+  const [coursesLoading, setCoursesLoading] = useState(false)
   const [fromDate, setFromDate] = useState("")
   const [toDate, setToDate] = useState("")
 
@@ -75,6 +81,32 @@ export default function AsignacionPage() {
     fetchProspects()
   }, [])
 
+  const fetchCourses = async () => {
+    if (!showCourses) return
+    setCoursesLoading(true)
+    try {
+      const token = localStorage.getItem("token") || ""
+      const params = new URLSearchParams()
+      if (courseSearch) params.append("search", courseSearch)
+      if (courseArea !== "all") params.append("area", courseArea)
+      if (courseStatus !== "all") params.append("status", courseStatus)
+      const res = await fetch(`${API_URL}/courses?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error("Error al cargar cursos")
+      const json = await res.json()
+      setCourses(json.data || json)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setCoursesLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchCourses()
+  }, [showCourses, courseSearch, courseArea, courseStatus])
+
   const filteredProspects = useMemo(() => {
     return prospects.filter((p) => {
       const termMatch =
@@ -93,26 +125,24 @@ export default function AsignacionPage() {
     return filteredProspects.slice(start, start + pageSize)
   }, [filteredProspects, page])
 
+  const paginatedCourses = useMemo(() => {
+    const start = (coursePage - 1) * coursePageSize
+    return courses.slice(start, start + coursePageSize)
+  }, [courses, coursePage])
+
   const totalPages = useMemo(
     () => Math.ceil(filteredProspects.length / pageSize) || 1,
     [filteredProspects],
   )
 
-  const openCourses = async (ids: string[]) => {
+  const totalCoursePages = useMemo(
+    () => Math.ceil(courses.length / coursePageSize) || 1,
+    [courses],
+  )
+
+  const openCourses = (ids: string[]) => {
     setSelectedProspectIds(ids)
     setShowCourses(true)
-    if (courses.length > 0) return
-    try {
-      const token = localStorage.getItem("token") || ""
-      const res = await fetch(`${API_URL}/courses`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (!res.ok) throw new Error("Error al cargar cursos")
-      const json = await res.json()
-      setCourses(json.data || json)
-    } catch (e) {
-      console.error(e)
-    }
   }
 
   const handleAssignCourses = async () => {
@@ -292,8 +322,44 @@ export default function AsignacionPage() {
           <DialogHeader>
             <DialogTitle>Cursos disponibles</DialogTitle>
           </DialogHeader>
+          <div className="flex flex-wrap gap-2 mb-2">
+            <Input
+              placeholder="Buscar curso..."
+              value={courseSearch}
+              onChange={(e) => {
+                setCourseSearch(e.target.value)
+                setCoursePage(1)
+              }}
+            />
+            <select
+              className="border rounded p-2 text-sm"
+              value={courseArea}
+              onChange={(e) => {
+                setCourseArea(e.target.value)
+                setCoursePage(1)
+              }}
+            >
+              <option value="all">Todas áreas</option>
+              <option value="common">Común</option>
+              <option value="specialty">Especialidad</option>
+            </select>
+            <select
+              className="border rounded p-2 text-sm"
+              value={courseStatus}
+              onChange={(e) => {
+                setCourseStatus(e.target.value)
+                setCoursePage(1)
+              }}
+            >
+              <option value="all">Todos</option>
+              <option value="draft">Borrador</option>
+              <option value="approved">Aprobado</option>
+              <option value="synced">Sincronizado</option>
+            </select>
+          </div>
+          {coursesLoading && <p>Cargando cursos...</p>}
           <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-            {courses.map((c) => (
+            {paginatedCourses.map((c) => (
               <div key={c.id} className="flex items-center gap-2 border p-2 rounded">
                 <Checkbox
                   checked={selectedCourseIds.includes(c.id)}
@@ -311,9 +377,9 @@ export default function AsignacionPage() {
                 </div>
               </div>
             ))}
-            {courses.length === 0 && <p>No hay cursos.</p>}
+            {paginatedCourses.length === 0 && !coursesLoading && <p>No hay cursos.</p>}
           </div>
-          <div className="flex justify-between pt-4">
+          <div className="flex justify-between items-center pt-4">
             <div className="space-x-2">
               <Button
                 variant="outline"
@@ -330,7 +396,25 @@ export default function AsignacionPage() {
                 Quitar seleccionados
               </Button>
             </div>
-            <Button onClick={() => setShowCourses(false)}>Cerrar</Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setCoursePage((p) => Math.max(1, p - 1))}
+                disabled={coursePage <= 1}
+              >
+                Anterior
+              </Button>
+              <span className="text-sm self-center">
+                Página {coursePage} de {totalCoursePages}
+              </span>
+              <Button
+                variant="outline"
+                onClick={() => setCoursePage((p) => Math.min(totalCoursePages, p + 1))}
+                disabled={coursePage >= totalCoursePages}
+              >
+                Siguiente
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
