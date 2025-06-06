@@ -81,29 +81,6 @@ export default function AsignacionPage() {
     fetchProspects()
   }, [])
 
-  const filteredProspects = useMemo(() => {
-    return prospects.filter((p) => {
-      const termMatch =
-        p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-        p.email.toLowerCase().includes(search.toLowerCase()) ||
-        p.telefono.toLowerCase().includes(search.toLowerCase())
-      const date = new Date(p.ultimoCambio)
-      const fromOk = !fromDate || date >= new Date(fromDate)
-      const toOk = !toDate || date <= new Date(toDate)
-      return termMatch && fromOk && toOk
-    })
-  }, [prospects, search, fromDate, toDate])
-
-  const paginatedProspects = useMemo(() => {
-    const start = (page - 1) * pageSize
-    return filteredProspects.slice(start, start + pageSize)
-  }, [filteredProspects, page])
-
-  const totalPages = useMemo(
-    () => Math.ceil(filteredProspects.length / pageSize) || 1,
-    [filteredProspects],
-  )
-
   const fetchCourses = async () => {
     if (!showCourses) return
     setCoursesLoading(true)
@@ -126,24 +103,47 @@ export default function AsignacionPage() {
     }
   }
 
-  const openCourses = (ids: string[]) => {
-    setSelectedProspectIds(ids)
-    setShowCourses(true)
-  }
-
   useEffect(() => {
     fetchCourses()
   }, [showCourses, courseSearch, courseArea, courseStatus])
+
+  const filteredProspects = useMemo(() => {
+    return prospects.filter((p) => {
+      const termMatch =
+        p.nombre.toLowerCase().includes(search.toLowerCase()) ||
+        p.email.toLowerCase().includes(search.toLowerCase()) ||
+        p.telefono.toLowerCase().includes(search.toLowerCase())
+      const date = new Date(p.ultimoCambio)
+      const fromOk = !fromDate || date >= new Date(fromDate)
+      const toOk = !toDate || date <= new Date(toDate)
+      return termMatch && fromOk && toOk
+    })
+  }, [prospects, search, fromDate, toDate])
+
+  const paginatedProspects = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredProspects.slice(start, start + pageSize)
+  }, [filteredProspects, page])
 
   const paginatedCourses = useMemo(() => {
     const start = (coursePage - 1) * coursePageSize
     return courses.slice(start, start + coursePageSize)
   }, [courses, coursePage])
 
+  const totalPages = useMemo(
+    () => Math.ceil(filteredProspects.length / pageSize) || 1,
+    [filteredProspects],
+  )
+
   const totalCoursePages = useMemo(
     () => Math.ceil(courses.length / coursePageSize) || 1,
     [courses],
   )
+
+  const openCourses = (ids: string[]) => {
+    setSelectedProspectIds(ids)
+    setShowCourses(true)
+  }
 
   const handleAssignCourses = async () => {
     try {
