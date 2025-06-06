@@ -152,7 +152,7 @@ export default function ProgramacionCursos() {
       end_date: formData.endDate,
       schedule: formData.schedule,
       duration: formData.duration,
-      facilitator_id: formData.facilitator?.id ?? null,
+
     }
 
     try {
