@@ -134,12 +134,9 @@ export default function AsignacionPage() {
         programFilter === "all" ||
         p.programas.some((pr) => String(pr.id) === programFilter)
 
-      return termMatch && fromOk && toOk && programMatch
-    })
-  }, [prospects, searchDebounced, dateRange, programFilter])
-      return termMatch && fromOk && toOk
-    })
-  }, [prospects, searchDebounced, dateRange])
+    return termMatch && fromOk && toOk && programMatch
+  })
+}, [prospects, searchDebounced, dateRange, programFilter])
 
   const paginatedProspects = useMemo(() => {
     const start = (page - 1) * pageSize
