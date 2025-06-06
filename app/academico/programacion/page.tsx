@@ -52,6 +52,18 @@ interface Cohort {
   students: number
 }
 
+interface Student {
+  id: string
+  name: string
+  program: string
+}
+
+interface Enrollment {
+  id: string
+  courseId: string
+  studentId: string
+}
+
 // Datos de ejemplo
 const mockCourses: Course[] = [
   {
@@ -140,6 +152,19 @@ const mockCohorts: Cohort[] = [
   },
 ]
 
+const mockStudents: Student[] = [
+  { id: "s1", name: "Juan Pérez", program: "Administración" },
+  { id: "s2", name: "María González", program: "Sistemas" },
+  { id: "s3", name: "Carlos Rodríguez", program: "Educación" },
+  { id: "s4", name: "Ana López", program: "Administración" },
+]
+
+const mockEnrollments: Enrollment[] = [
+  { id: "e1", courseId: "1", studentId: "s1" },
+  { id: "e2", courseId: "1", studentId: "s2" },
+  { id: "e3", courseId: "2", studentId: "s3" },
+]
+
 export default function ProgramacionCursos() {
   const [courses, setCourses] = useState<Course[]>(mockCourses)
   const [facilitators] = useState<Facilitator[]>(mockFacilitators)
@@ -151,6 +176,26 @@ export default function ProgramacionCursos() {
   const [selectedCohort, setSelectedCohort] = useState<string>("c1")
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isSyncingToMoodle, setIsSyncingToMoodle] = useState(false)
+  const [students] = useState<Student[]>(mockStudents)
+  const [enrollments, setEnrollments] = useState<Enrollment[]>(mockEnrollments)
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false)
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
+
+  const enrolledStudents = selectedCourse
+    ? enrollments
+        .filter((e) => e.courseId === selectedCourse.id)
+        .map((e) => students.find((s) => s.id === e.studentId)!)
+        .filter(Boolean)
+    : []
+
+  const availableStudents = selectedCourse
+    ? students.filter(
+        (s) =>
+          !enrollments.some(
+            (e) => e.courseId === selectedCourse.id && e.studentId === s.id,
+          ),
+      )
+    : []
 
   // Formulario de curso
   const [formData, setFormData] = useState<Omit<Course, "id" | "status" | "students">>({
@@ -315,6 +360,62 @@ export default function ProgramacionCursos() {
         description: "El facilitador ha sido removido del curso.",
       })
     }
+  }
+
+  const handleAssignStudent = () => {
+    if (!selectedCourse || !selectedStudentId) return
+
+    const newEnrollment: Enrollment = {
+      id: `e${Date.now()}`,
+      courseId: selectedCourse.id,
+      studentId: selectedStudentId,
+    }
+
+    setEnrollments((prev) => [...prev, newEnrollment])
+    setCourses((prev) =>
+      prev.map((c) =>
+        c.id === selectedCourse.id ? { ...c, students: c.students + 1 } : c,
+      ),
+    )
+
+    setSelectedCourse((prev) => (prev ? { ...prev, students: prev.students + 1 } : prev))
+
+    toast({
+      title: "Estudiante asignado",
+      description: `El estudiante ha sido asignado al curso ${selectedCourse.name}.`,
+    })
+
+    setAssignDialogOpen(false)
+    setSelectedStudentId(null)
+  }
+
+  const handleBulkAssign = () => {
+    if (!selectedCourse) return
+
+    const newEnrolls = availableStudents.map((s) => ({
+      id: `e${Date.now()}-${s.id}`,
+      courseId: selectedCourse.id,
+      studentId: s.id,
+    }))
+
+    if (newEnrolls.length === 0) return
+
+    setEnrollments((prev) => [...prev, ...newEnrolls])
+    setCourses((prev) =>
+      prev.map((c) =>
+        c.id === selectedCourse.id
+          ? { ...c, students: c.students + newEnrolls.length }
+          : c,
+      ),
+    )
+    setSelectedCourse((prev) =>
+      prev ? { ...prev, students: prev.students + newEnrolls.length } : prev,
+    )
+
+    toast({
+      title: "Asignación masiva",
+      description: `${newEnrolls.length} estudiantes asignados`,
+    })
   }
 
   return (
@@ -521,9 +622,10 @@ export default function ProgramacionCursos() {
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="details">
-                  <TabsList className="grid w-full grid-cols-2">
+                  <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="details">Información</TabsTrigger>
                     <TabsTrigger value="facilitators">Facilitadores</TabsTrigger>
+                    <TabsTrigger value="students">Estudiantes</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="details" className="space-y-4 pt-4">
@@ -607,6 +709,43 @@ export default function ProgramacionCursos() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="students" className="pt-4 space-y-4">
+                    <div className="flex justify-end space-x-2">
+                      <Button variant="outline" onClick={handleBulkAssign}>
+                        Asignación masiva
+                      </Button>
+                      <Button onClick={() => setAssignDialogOpen(true)}>
+                        Asignar estudiante
+                      </Button>
+                    </div>
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Nombre</TableHead>
+                            <TableHead>Programa</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {enrolledStudents.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={2} className="text-center py-4 text-gray-500">
+                                Sin estudiantes asignados
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            enrolledStudents.map((st) => (
+                              <TableRow key={st.id}>
+                                <TableCell>{st.name}</TableCell>
+                                <TableCell>{st.program}</TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
                     </div>
                   </TabsContent>
                 </Tabs>
@@ -747,6 +886,39 @@ export default function ProgramacionCursos() {
               Cancelar
             </Button>
             <Button onClick={handleSaveCourse}>{selectedCourse ? "Actualizar" : "Crear"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Asignar estudiante</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Select
+              value={selectedStudentId ?? ""}
+              onValueChange={(v) => setSelectedStudentId(v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccione un estudiante" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableStudents.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name} - {s.program}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleAssignStudent} disabled={!selectedStudentId}>
+              Asignar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
