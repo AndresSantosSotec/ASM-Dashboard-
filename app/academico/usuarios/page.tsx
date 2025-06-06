@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Search, Plus, Edit, Trash, Mail, MessageSquare, RefreshCw, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -35,7 +35,7 @@ interface Student {
   program: string
   idNumber: string
   birthDate: string
-  status: "pending" | "active" | "inactive"
+  status: string
   username?: string
   institutionalEmail?: string
   password?: string
@@ -96,6 +96,21 @@ function generatePassword(student: { name: string; lastName: string; idNumber: s
   return `${nameInitial}${lastNameInitial}${idSuffix}${randomDigits}`;
 }
 
+function getStatusBadgeInfo(status: string) {
+  switch (status.toLowerCase()) {
+    case "active":
+      return { variant: "default", label: "Activo" };
+    case "pending":
+      return { variant: "outline", label: "Pendiente" };
+    case "inactive":
+      return { variant: "secondary", label: "Inactivo" };
+    case "inscrito":
+      return { variant: "default", label: "Inscrito" };
+    default:
+      return { variant: "secondary", label: status };
+  }
+}
+
 export default function GestionUsuarios() {
   const [students, setStudents] = useState<Student[]>([])
   const [notifications, setNotifications] = useState<Notification[]>(mockNotifications)
@@ -106,6 +121,8 @@ export default function GestionUsuarios() {
   const [isGeneratingCredentials, setIsGeneratingCredentials] = useState(false)
   const [isSendingNotification, setIsSendingNotification] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [pageSize, setPageSize] = useState<string>("5")
+  const [currentPage, setCurrentPage] = useState<number>(1)
 
   // Formulario de estudiante
   const [formData, setFormData] = useState<Omit<Student, "id" | "status" | "username" | "institutionalEmail" | "password">>({
@@ -189,17 +206,33 @@ useEffect(() => {
 }, []);
 
   // Filtrar estudiantes
-  const filteredStudents = students.filter((student) => {
-    const matchesSearch =
-      student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.idNumber.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredStudents = useMemo(() => {
+    const res = students.filter((student) => {
+      const matchesSearch =
+        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.idNumber.toLowerCase().includes(searchTerm.toLowerCase())
 
-    const matchesStatus = statusFilter === "all" || student.status === statusFilter
+      const matchesStatus = statusFilter === "all" || student.status === statusFilter
 
-    return matchesSearch && matchesStatus
-  })
+      return matchesSearch && matchesStatus
+    })
+    return res
+  }, [students, searchTerm, statusFilter])
+
+  // Paginación
+  const paginatedStudents = useMemo(() => {
+    if (pageSize === "all") return filteredStudents
+    const size = Number(pageSize)
+    const start = (currentPage - 1) * size
+    return filteredStudents.slice(start, start + size)
+  }, [filteredStudents, pageSize, currentPage])
+
+  const totalPages = useMemo(() => {
+    if (pageSize === "all") return 1
+    return Math.ceil(filteredStudents.length / Number(pageSize))
+  }, [filteredStudents, pageSize])
 
   // Filtrar notificaciones por estudiante seleccionado
   const studentNotifications = selectedStudent ? notifications.filter((n) => n.studentId === selectedStudent.id) : []
@@ -278,6 +311,31 @@ useEffect(() => {
     })
   }
 
+  const updateProspectStatus = async (id: string, status: string) => {
+    try {
+      const token = localStorage.getItem("token") || ""
+      const res = await fetch(`${API_URL}/prospectos/${id}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ status }),
+      })
+      if (!res.ok) {
+        const body = await res.json()
+        throw new Error(body.message || `HTTP ${res.status}`)
+      }
+    } catch (err) {
+      console.error("Error actualizando estado:", err)
+    }
+  }
+
+  const handleNextPage = () =>
+    currentPage < totalPages && setCurrentPage((p) => p + 1)
+  const handlePrevPage = () =>
+    currentPage > 1 && setCurrentPage((p) => p - 1)
+
   // Generar credenciales y guardar usuario en la tabla users vía API
   const handleGenerateCredentials = async () => {
     if (!selectedStudent) return
@@ -308,6 +366,9 @@ useEffect(() => {
       // Llama a la utilidad para crear el usuario en la tabla users
       await crearUsuarioEnBD(payload)
 
+      // Actualizar estado del prospecto en backend
+      await updateProspectStatus(selectedStudent.id, "Inscrito")
+
       // Actualiza el estado local (frontend)
       setStudents((prev) =>
         prev.map((s) =>
@@ -317,7 +378,7 @@ useEffect(() => {
                 username,
                 institutionalEmail,
                 password,
-                status: "active",
+                status: "Inscrito",
               }
             : s,
         ),
@@ -330,14 +391,14 @@ useEffect(() => {
               username,
               institutionalEmail,
               password,
-              status: "active",
+              status: "Inscrito",
             }
           : null,
       )
 
       toast({
         title: "Credenciales generadas",
-        description: `Usuario: ${username}\nCorreo: ${institutionalEmail}\nContraseña: ${password}`,
+        description: `Usuario: ${username}\nCorreo: ${institutionalEmail}\nContraseña: ${password}\nEstado actualizado a Inscrito`,
       })
     } catch (err) {
       // El error ya fue mostrado por Swal
@@ -413,11 +474,20 @@ useEffect(() => {
                   placeholder="Buscar por nombre, correo o ID..."
                   className="pl-8"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value)
+                    setCurrentPage(1)
+                  }}
                 />
               </div>
               <div className="flex gap-2">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) => {
+                    setStatusFilter(v)
+                    setCurrentPage(1)
+                  }}
+                >
                   <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Filtrar por estado" />
                   </SelectTrigger>
@@ -426,6 +496,7 @@ useEffect(() => {
                     <SelectItem value="pending">Pendientes</SelectItem>
                     <SelectItem value="active">Activos</SelectItem>
                     <SelectItem value="inactive">Inactivos</SelectItem>
+                    <SelectItem value="Inscrito">Inscritos</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button variant="outline" size="icon">
@@ -460,7 +531,7 @@ useEffect(() => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredStudents.map((student) => (
+                    paginatedStudents.map((student) => (
                       <TableRow
                         key={student.id}
                         className={selectedStudent?.id === student.id ? "bg-blue-50" : ""}
@@ -476,21 +547,10 @@ useEffect(() => {
                           <div className="max-w-[200px] truncate">{student.program}</div>
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant={
-                              student.status === "active"
-                                ? "default"
-                                : student.status === "pending"
-                                  ? "outline"
-                                  : "secondary"
-                            }
-                          >
-                            {student.status === "active"
-                              ? "Activo"
-                              : student.status === "pending"
-                                ? "Pendiente"
-                                : "Inactivo"}
-                          </Badge>
+                          {(() => {
+                            const { variant, label } = getStatusBadgeInfo(student.status)
+                            return <Badge variant={variant}>{label}</Badge>
+                          })()}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
@@ -522,6 +582,41 @@ useEffect(() => {
                 </TableBody>
               </Table>
             </div>
+
+            {pageSize !== "all" && (
+              <div className="flex items-center justify-end gap-2 p-2">
+                <Select
+                  value={pageSize}
+                  onValueChange={(v) => {
+                    setPageSize(v)
+                    setCurrentPage(1)
+                  }}
+                >
+                  <SelectTrigger className="w-[120px]">
+                    <SelectValue placeholder="Paginación" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="all">Todos</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" onClick={handlePrevPage} disabled={currentPage === 1}>
+                  Anterior
+                </Button>
+                <span className="text-sm text-gray-600">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
