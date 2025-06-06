@@ -1,7 +1,5 @@
 import Swal from "sweetalert2"
-import { API_BASE_URL } from "./apiConfig"
-
-const API_URL = `${API_BASE_URL}` // Ejemplo: "http://localhost:8000"
+import api from "@/services/api"
 
 export interface CrearUsuarioPayload {
   username: string
@@ -19,30 +17,10 @@ export async function crearUsuarioEnBD(
   payload: CrearUsuarioPayload
 ): Promise<{ id: number }> {
   try {
-    // Obtener token (puede venir vacío si no existe en localStorage)
-    const token = localStorage.getItem("token") || ""
-    console.log("[DEBUG] crearUsuarioEnBD → token:", token)
+    console.log("[DEBUG] crearUsuarioEnBD → payload:", payload)
 
-    // Construir la URL final apuntando a /api/users
-    const url = `${API_URL}/api/users`
-    console.log("[DEBUG] crearUsuarioEnBD → URL final:", url)
-
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    })
-
-    // Leer respuesta JSON
-    const body = await res.json()
-
-    // Si el status no es OK, arrojar excepción para el catch
-    if (!res.ok) {
-      throw new Error(body.message || `HTTP ${res.status}`)
-    }
+    const res = await api.post("/api/users", payload)
+    const body = res.data
 
     // Mostrar alerta de éxito
     await Swal.fire({
@@ -57,11 +35,13 @@ export async function crearUsuarioEnBD(
   } catch (err: any) {
     console.error("❌ Error creando usuario:", err)
 
-    // Mostrar alerta de error con el mensaje
+    const message =
+      err.response?.data?.message || err.message || "Ocurrió un error al guardar el usuario."
+
     await Swal.fire({
       icon: "error",
       title: "Error",
-      text: err.message || "Ocurrió un error al guardar el usuario.",
+      text: message,
     })
 
     throw err
