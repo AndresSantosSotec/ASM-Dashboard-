@@ -78,6 +78,8 @@ export default function AsignacionPage() {
   const [coursesLoading, setCoursesLoading] = useState(false)
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>()
+  const [programs, setPrograms] = useState<Programa[]>([])
+  const [programFilter, setProgramFilter] = useState("all")
   const searchDebounced = useDebounce(search, 300)
 
   useEffect(() => {
@@ -184,6 +186,13 @@ export default function AsignacionPage() {
       const date = new Date(p.ultimoCambio)
       const fromOk = !dateRange?.from || date >= dateRange.from
       const toOk = !dateRange?.to || date <= dateRange.to
+      const programMatch =
+        programFilter === "all" ||
+        p.programas.some((pr) => String(pr.id) === programFilter)
+
+      return termMatch && fromOk && toOk && programMatch
+    })
+  }, [prospects, searchDebounced, dateRange, programFilter])
 
   const paginatedProspects = useMemo(() => {
     const start = (page - 1) * pageSize
@@ -279,7 +288,13 @@ export default function AsignacionPage() {
               value={dateRange}
               onChange={(range) => {
                 setDateRange(range)
-
+                setPage(1)
+              }}
+            />
+            <Select
+              value={programFilter}
+              onValueChange={(val) => {
+                setProgramFilter(val)
                 setPage(1)
               }}
             >
