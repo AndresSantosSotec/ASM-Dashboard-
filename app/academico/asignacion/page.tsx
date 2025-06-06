@@ -16,6 +16,13 @@ import { API_BASE_URL } from "@/utils/apiConfig"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Table,
   TableBody,
   TableCell,
@@ -33,6 +40,7 @@ interface Prospect {
   email: string
   telefono: string
   ultimoCambio: string
+  programas: { id: number; nombre: string }[]
 }
 
 interface Course {
@@ -40,6 +48,12 @@ interface Course {
   name: string
   code: string
   credits: number
+}
+
+interface Programa {
+  id: number
+  abreviatura: string
+  nombre_del_programa: string
 }
 
 const API_URL = `${API_BASE_URL}/api`
@@ -62,6 +76,7 @@ export default function AsignacionPage() {
   const [coursePage, setCoursePage] = useState(1)
   const coursePageSize = 10
   const [coursesLoading, setCoursesLoading] = useState(false)
+
   const [dateRange, setDateRange] = useState<DateRange | undefined>()
   const searchDebounced = useDebounce(search, 300)
 
@@ -70,18 +85,41 @@ export default function AsignacionPage() {
       setLoading(true)
       try {
         const token = localStorage.getItem("token") || ""
-        const res = await fetch(`${API_URL}/prospectos/status/Inscrito?per_page=9999`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
+        const res = await fetch(
+          `${API_URL}/prospectos/status/Inscrito?per_page=9999`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        )
         if (!res.ok) throw new Error("Error al cargar prospectos")
         const json = await res.json()
-        const list: Prospect[] = (json.data || []).map((p: any) => ({
-          id: String(p.id),
-          nombre: p.nombre_completo,
-          email: p.correo_electronico,
-          telefono: p.telefono,
-          ultimoCambio: p.updated_at,
-        }))
+        const baseList = json.data || []
+        const list: Prospect[] = await Promise.all(
+          baseList.map(async (p: any) => {
+            let programas: { id: number; nombre: string }[] = []
+            try {
+              const resProg = await fetch(
+                `${API_URL}/estudiante-programa?prospecto_id=${p.id}`,
+                { headers: { Authorization: `Bearer ${token}` } },
+              )
+              if (resProg.ok) {
+                const data = await resProg.json()
+                programas = (data || []).map((d: any) => ({
+                  id: d.programa.id,
+                  nombre: d.programa.nombre_del_programa,
+                }))
+              }
+            } catch (err) {
+              console.error(err)
+            }
+            return {
+              id: String(p.id),
+              nombre: p.nombre_completo,
+              email: p.correo_electronico,
+              telefono: p.telefono,
+              ultimoCambio: p.updated_at,
+              programas,
+            }
+          }),
+        )
         setProspects(list)
       } catch (e: any) {
         setError(e.message)
@@ -90,6 +128,24 @@ export default function AsignacionPage() {
       }
     }
     fetchProspects()
+  }, [])
+
+  useEffect(() => {
+    const fetchPrograms = async () => {
+      try {
+        const token = localStorage.getItem("token") || ""
+        const res = await fetch(`${API_URL}/programas`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setPrograms(data.data || data)
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    fetchPrograms()
   }, [])
 
   const fetchCourses = async () => {
@@ -128,9 +184,6 @@ export default function AsignacionPage() {
       const date = new Date(p.ultimoCambio)
       const fromOk = !dateRange?.from || date >= dateRange.from
       const toOk = !dateRange?.to || date <= dateRange.to
-      return termMatch && fromOk && toOk
-    })
-  }, [prospects, searchDebounced, dateRange])
 
   const paginatedProspects = useMemo(() => {
     const start = (page - 1) * pageSize
@@ -226,9 +279,22 @@ export default function AsignacionPage() {
               value={dateRange}
               onChange={(range) => {
                 setDateRange(range)
+
                 setPage(1)
               }}
-            />
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Programa" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {programs.map((pr) => (
+                  <SelectItem key={pr.id} value={String(pr.id)}>
+                    {pr.abreviatura} - {pr.nombre_del_programa}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           {loading && <p>Cargando...</p>}
           {error && <p className="text-red-500">{error}</p>}
@@ -247,6 +313,7 @@ export default function AsignacionPage() {
                   <TableHead>Nombre</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Teléfono</TableHead>
+                  <TableHead>Programa</TableHead>
                   <TableHead>Última actualización</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
@@ -267,6 +334,9 @@ export default function AsignacionPage() {
                     <TableCell>{p.nombre}</TableCell>
                     <TableCell>{p.email}</TableCell>
                     <TableCell>{p.telefono}</TableCell>
+                    <TableCell>
+                      {p.programas.map((pr) => pr.nombre).join(", ")}
+                    </TableCell>
                     <TableCell>{new Date(p.ultimoCambio).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <Button size="sm" onClick={() => openCourses([p.id])}>
@@ -277,7 +347,7 @@ export default function AsignacionPage() {
                 ))}
                 {paginatedProspects.length === 0 && !loading && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-4">
+                    <TableCell colSpan={7} className="text-center py-4">
                       Sin registros
                     </TableCell>
                   </TableRow>
