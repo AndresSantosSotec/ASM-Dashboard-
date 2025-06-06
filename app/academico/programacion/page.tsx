@@ -152,6 +152,7 @@ export default function ProgramacionCursos() {
       end_date: formData.endDate,
       schedule: formData.schedule,
       duration: formData.duration,
+
     }
 
     try {
