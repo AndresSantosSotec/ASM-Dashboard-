@@ -27,12 +27,23 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader as CH, CardTitle } from "@/components/ui/card"
 
+// ① Importar Select y subcomponentes:
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select"
+
 interface Prospect {
   id: string
   nombre: string
   email: string
   telefono: string
   ultimoCambio: string
+  programas: { id: number; nombre: string }[]
+  courses: Course[]       // ← Agregado para los cursos asignados
 }
 
 interface Course {
@@ -40,6 +51,11 @@ interface Course {
   name: string
   code: string
   credits: number
+}
+
+interface Programa {
+  id: number
+  nombre: string
 }
 
 const API_URL = `${API_BASE_URL}/api`
@@ -63,10 +79,11 @@ export default function AsignacionPage() {
   const coursePageSize = 10
   const [coursesLoading, setCoursesLoading] = useState(false)
   const [dateRange, setDateRange] = useState<DateRange | undefined>()
-  const [programs, setPrograms] = useState<Programa[]>([])
+  const [programs, setPrograms] = useState<Programa[]>([])    // Estado para programas
   const [programFilter, setProgramFilter] = useState("all")
   const searchDebounced = useDebounce(search, 300)
 
+  // ② Cargar prospectos (incluyendo "programas" y "courses")
   useEffect(() => {
     const fetchProspects = async () => {
       setLoading(true)
@@ -83,6 +100,8 @@ export default function AsignacionPage() {
           email: p.correo_electronico,
           telefono: p.telefono,
           ultimoCambio: p.updated_at,
+          programas: p.programas || [], // Asegúrate que la API devuelva este arreglo
+          courses: p.courses || [],     // Agregado para cursos asignados
         }))
         setProspects(list)
       } catch (e: any) {
@@ -94,6 +113,25 @@ export default function AsignacionPage() {
     fetchProspects()
   }, [])
 
+  // ③ Cargar la lista de programas para el filtro
+  useEffect(() => {
+    const fetchPrograms = async () => {
+      try {
+        const token = localStorage.getItem("token") || ""
+        const res = await fetch(`${API_URL}/programas`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) throw new Error("Error al cargar programas")
+        const json = await res.json()
+        setPrograms(json.data || [])
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    fetchPrograms()
+  }, [])
+
+  // Función que obtiene cursos (igual que antes)
   const fetchCourses = async () => {
     if (!showCourses) return
     setCoursesLoading(true)
@@ -120,6 +158,7 @@ export default function AsignacionPage() {
     fetchCourses()
   }, [showCourses, courseSearch, courseArea, courseStatus])
 
+  // ④ Filtrar prospectos usando search, dateRange y programFilter
   const filteredProspects = useMemo(() => {
     return prospects.filter((p) => {
       const term = searchDebounced.toLowerCase()
@@ -134,9 +173,9 @@ export default function AsignacionPage() {
         programFilter === "all" ||
         p.programas.some((pr) => String(pr.id) === programFilter)
 
-    return termMatch && fromOk && toOk && programMatch
-  })
-}, [prospects, searchDebounced, dateRange, programFilter])
+      return termMatch && fromOk && toOk && programMatch
+    })
+  }, [prospects, searchDebounced, dateRange, programFilter])
 
   const paginatedProspects = useMemo(() => {
     const start = (page - 1) * pageSize
@@ -150,12 +189,12 @@ export default function AsignacionPage() {
 
   const totalPages = useMemo(
     () => Math.ceil(filteredProspects.length / pageSize) || 1,
-    [filteredProspects],
+    [filteredProspects]
   )
 
   const totalCoursePages = useMemo(
     () => Math.ceil(courses.length / coursePageSize) || 1,
-    [courses],
+    [courses]
   )
 
   const openCourses = (ids: string[]) => {
@@ -235,16 +274,32 @@ export default function AsignacionPage() {
                 setPage(1)
               }}
             />
+
+            {/* ⑤ Ahora el Select está correctamente importado y poblado */}
             <Select
               value={programFilter}
               onValueChange={(val) => {
                 setProgramFilter(val)
                 setPage(1)
               }}
-            />
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Todos los programas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {programs.map((pr) => (
+                  <SelectItem key={pr.id} value={String(pr.id)}>
+                    {pr.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+
           {loading && <p>Cargando...</p>}
           {error && <p className="text-red-500">{error}</p>}
+
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -261,6 +316,7 @@ export default function AsignacionPage() {
                   <TableHead>Email</TableHead>
                   <TableHead>Teléfono</TableHead>
                   <TableHead>Última actualización</TableHead>
+                  <TableHead>Cursos</TableHead> {/* ← Nueva columna */}
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
@@ -282,6 +338,11 @@ export default function AsignacionPage() {
                     <TableCell>{p.telefono}</TableCell>
                     <TableCell>{new Date(p.ultimoCambio).toLocaleDateString()}</TableCell>
                     <TableCell>
+                      {p.courses.length > 0
+                        ? p.courses.map((c) => c.name).join(", ")
+                        : "—"}
+                    </TableCell>
+                    <TableCell>
                       <Button size="sm" onClick={() => openCourses([p.id])}>
                         Ver cursos
                       </Button>
@@ -290,7 +351,7 @@ export default function AsignacionPage() {
                 ))}
                 {paginatedProspects.length === 0 && !loading && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-4">
+                    <TableCell colSpan={7} className="text-center py-4">
                       Sin registros
                     </TableCell>
                   </TableRow>
@@ -298,6 +359,7 @@ export default function AsignacionPage() {
               </TableBody>
             </Table>
           </div>
+
           <div className="flex justify-between items-center gap-2">
             <div className="space-x-2">
               <Button
