@@ -52,7 +52,7 @@ interface Facilitator {
   id: string
   name: string
   specialty: string
-  availability: string[]
+  availability?: string[]
 }
 
 
@@ -488,7 +488,7 @@ export default function ProgramacionCursos() {
                               <div className="font-medium">{facilitator.name}</div>
                               <div className="text-sm text-gray-500">{facilitator.specialty}</div>
                               <div className="flex flex-wrap gap-1 mt-2">
-                                {facilitator.availability.map((day) => (
+                                {facilitator.availability?.map((day) => (
                                   <Badge key={day} variant="outline" className="text-xs">
                                     {day}
                                   </Badge>
