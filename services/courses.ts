@@ -5,11 +5,11 @@ export interface CourseInput {
   code: string
   area: 'common' | 'specialty'
   credits: number
-  start_date: string
-  end_date: string
+  startDate: string
+  endDate: string
   schedule: string
   duration: string
-  facilitator_id?: number | null
+  facilitatorId?: number | null
 }
 
 export interface Course extends CourseInput {
@@ -47,8 +47,8 @@ export const syncCourseToMoodle = async (id: number) => {
   return res.data
 }
 
-export const assignFacilitator = async (id: number, facilitator_id: number | null) => {
-  const res = await api.post<Course>(`/courses/${id}/assign-facilitator`, { facilitator_id })
+export const assignFacilitator = async (id: number, facilitatorId: number | null) => {
+  const res = await api.post<Course>(`/courses/${id}/assign-facilitator`, { facilitatorId })
   return res.data
 }
 
