@@ -1,9 +1,27 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { Search } from "lucide-react"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import { DatePickerWithRange, DateRange } from "@/components/ui/date-range-picker"
+import { useDebounce } from "@/hooks/use-debounce"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -22,6 +40,7 @@ interface Prospect {
   email: string
   telefono: string
   ultimoCambio: string
+  programas: { id: number; nombre: string }[]
 }
 
 interface Course {
@@ -29,6 +48,12 @@ interface Course {
   name: string
   code: string
   credits: number
+}
+
+interface Programa {
+  id: number
+  abreviatura: string
+  nombre_del_programa: string
 }
 
 const API_URL = `${API_BASE_URL}/api`
@@ -51,26 +76,51 @@ export default function AsignacionPage() {
   const [coursePage, setCoursePage] = useState(1)
   const coursePageSize = 10
   const [coursesLoading, setCoursesLoading] = useState(false)
-  const [fromDate, setFromDate] = useState("")
-  const [toDate, setToDate] = useState("")
+  const [programFilter, setProgramFilter] = useState("all")
+  const [programs, setPrograms] = useState<Programa[]>([])
+  const [dateRange, setDateRange] = useState<DateRange | undefined>()
+  const searchDebounced = useDebounce(search, 300)
 
   useEffect(() => {
     const fetchProspects = async () => {
       setLoading(true)
       try {
         const token = localStorage.getItem("token") || ""
-        const res = await fetch(`${API_URL}/prospectos/status/Inscrito?per_page=9999`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
+        const res = await fetch(
+          `${API_URL}/prospectos/status/Inscrito?per_page=9999`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        )
         if (!res.ok) throw new Error("Error al cargar prospectos")
         const json = await res.json()
-        const list: Prospect[] = (json.data || []).map((p: any) => ({
-          id: String(p.id),
-          nombre: p.nombre_completo,
-          email: p.correo_electronico,
-          telefono: p.telefono,
-          ultimoCambio: p.updated_at,
-        }))
+        const baseList = json.data || []
+        const list: Prospect[] = await Promise.all(
+          baseList.map(async (p: any) => {
+            let programas: { id: number; nombre: string }[] = []
+            try {
+              const resProg = await fetch(
+                `${API_URL}/estudiante-programa?prospecto_id=${p.id}`,
+                { headers: { Authorization: `Bearer ${token}` } },
+              )
+              if (resProg.ok) {
+                const data = await resProg.json()
+                programas = (data || []).map((d: any) => ({
+                  id: d.programa.id,
+                  nombre: d.programa.nombre_del_programa,
+                }))
+              }
+            } catch (err) {
+              console.error(err)
+            }
+            return {
+              id: String(p.id),
+              nombre: p.nombre_completo,
+              email: p.correo_electronico,
+              telefono: p.telefono,
+              ultimoCambio: p.updated_at,
+              programas,
+            }
+          }),
+        )
         setProspects(list)
       } catch (e: any) {
         setError(e.message)
@@ -79,6 +129,24 @@ export default function AsignacionPage() {
       }
     }
     fetchProspects()
+  }, [])
+
+  useEffect(() => {
+    const fetchPrograms = async () => {
+      try {
+        const token = localStorage.getItem("token") || ""
+        const res = await fetch(`${API_URL}/programas`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setPrograms(data.data || data)
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    fetchPrograms()
   }, [])
 
   const fetchCourses = async () => {
@@ -109,16 +177,20 @@ export default function AsignacionPage() {
 
   const filteredProspects = useMemo(() => {
     return prospects.filter((p) => {
+      const term = searchDebounced.toLowerCase()
       const termMatch =
-        p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-        p.email.toLowerCase().includes(search.toLowerCase()) ||
-        p.telefono.toLowerCase().includes(search.toLowerCase())
+        p.nombre.toLowerCase().includes(term) ||
+        p.email.toLowerCase().includes(term) ||
+        p.telefono.toLowerCase().includes(term)
       const date = new Date(p.ultimoCambio)
-      const fromOk = !fromDate || date >= new Date(fromDate)
-      const toOk = !toDate || date <= new Date(toDate)
-      return termMatch && fromOk && toOk
+      const fromOk = !dateRange?.from || date >= dateRange.from
+      const toOk = !dateRange?.to || date <= dateRange.to
+      const progOk =
+        programFilter === "all" ||
+        p.programas.some((pr) => String(pr.id) === programFilter)
+      return termMatch && fromOk && toOk && progOk
     })
-  }, [prospects, search, fromDate, toDate])
+  }, [prospects, searchDebounced, dateRange, programFilter])
 
   const paginatedProspects = useMemo(() => {
     const start = (page - 1) * pageSize
@@ -196,31 +268,46 @@ export default function AsignacionPage() {
           <CardTitle>Estudiantes Inscritos</CardTitle>
         </CH>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Input
-              placeholder="Buscar..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value)
+          <div className="flex flex-col md:flex-row md:items-end gap-2">
+            <div className="relative md:w-64">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar..."
+                className="pl-8"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value)
+                  setPage(1)
+                }}
+              />
+            </div>
+            <DatePickerWithRange
+              className="w-auto"
+              value={dateRange}
+              onChange={(range) => {
+                setDateRange(range)
                 setPage(1)
               }}
             />
-            <Input
-              type="date"
-              value={fromDate}
-              onChange={(e) => {
-                setFromDate(e.target.value)
+            <Select
+              value={programFilter}
+              onValueChange={(v) => {
+                setProgramFilter(v)
                 setPage(1)
               }}
-            />
-            <Input
-              type="date"
-              value={toDate}
-              onChange={(e) => {
-                setToDate(e.target.value)
-                setPage(1)
-              }}
-            />
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Programa" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {programs.map((pr) => (
+                  <SelectItem key={pr.id} value={String(pr.id)}>
+                    {pr.abreviatura} - {pr.nombre_del_programa}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           {loading && <p>Cargando...</p>}
           {error && <p className="text-red-500">{error}</p>}
@@ -239,6 +326,7 @@ export default function AsignacionPage() {
                   <TableHead>Nombre</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Teléfono</TableHead>
+                  <TableHead>Programa</TableHead>
                   <TableHead>Última actualización</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
@@ -259,6 +347,9 @@ export default function AsignacionPage() {
                     <TableCell>{p.nombre}</TableCell>
                     <TableCell>{p.email}</TableCell>
                     <TableCell>{p.telefono}</TableCell>
+                    <TableCell>
+                      {p.programas.map((pr) => pr.nombre).join(", ")}
+                    </TableCell>
                     <TableCell>{new Date(p.ultimoCambio).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <Button size="sm" onClick={() => openCourses([p.id])}>
@@ -269,7 +360,7 @@ export default function AsignacionPage() {
                 ))}
                 {paginatedProspects.length === 0 && !loading && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-4">
+                    <TableCell colSpan={7} className="text-center py-4">
                       Sin registros
                     </TableCell>
                   </TableRow>
@@ -294,25 +385,47 @@ export default function AsignacionPage() {
                 Quitar cursos
               </Button>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
-                Anterior
-              </Button>
-              <span className="text-sm self-center">
-                Página {page} de {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-              >
-                Siguiente
-              </Button>
-            </div>
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setPage((p) => Math.max(1, p - 1))
+                    }}
+                    className="cursor-pointer"
+                    aria-disabled={page <= 1}
+                  />
+                </PaginationItem>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <PaginationItem key={p}>
+                    <PaginationLink
+                      href="#"
+                      isActive={p === page}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setPage(p)
+                      }}
+                      className="cursor-pointer"
+                    >
+                      {p}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setPage((p) => Math.min(totalPages, p + 1))
+                    }}
+                    className="cursor-pointer"
+                    aria-disabled={page >= totalPages}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
           </div>
         </CardContent>
       </Card>
@@ -396,25 +509,47 @@ export default function AsignacionPage() {
                 Quitar seleccionados
               </Button>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setCoursePage((p) => Math.max(1, p - 1))}
-                disabled={coursePage <= 1}
-              >
-                Anterior
-              </Button>
-              <span className="text-sm self-center">
-                Página {coursePage} de {totalCoursePages}
-              </span>
-              <Button
-                variant="outline"
-                onClick={() => setCoursePage((p) => Math.min(totalCoursePages, p + 1))}
-                disabled={coursePage >= totalCoursePages}
-              >
-                Siguiente
-              </Button>
-            </div>
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setCoursePage((p) => Math.max(1, p - 1))
+                    }}
+                    className="cursor-pointer"
+                    aria-disabled={coursePage <= 1}
+                  />
+                </PaginationItem>
+                {Array.from({ length: totalCoursePages }, (_, i) => i + 1).map((p) => (
+                  <PaginationItem key={p}>
+                    <PaginationLink
+                      href="#"
+                      isActive={p === coursePage}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setCoursePage(p)
+                      }}
+                      className="cursor-pointer"
+                    >
+                      {p}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setCoursePage((p) => Math.min(totalCoursePages, p + 1))
+                    }}
+                    className="cursor-pointer"
+                    aria-disabled={coursePage >= totalCoursePages}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
           </div>
         </DialogContent>
       </Dialog>
