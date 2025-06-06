@@ -1,6 +1,17 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { Search } from "lucide-react"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import { DatePickerWithRange, DateRange } from "@/components/ui/date-range-picker"
+import { useDebounce } from "@/hooks/use-debounce"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -51,8 +62,8 @@ export default function AsignacionPage() {
   const [coursePage, setCoursePage] = useState(1)
   const coursePageSize = 10
   const [coursesLoading, setCoursesLoading] = useState(false)
-  const [fromDate, setFromDate] = useState("")
-  const [toDate, setToDate] = useState("")
+  const [dateRange, setDateRange] = useState<DateRange | undefined>()
+  const searchDebounced = useDebounce(search, 300)
 
   useEffect(() => {
     const fetchProspects = async () => {
@@ -109,16 +120,17 @@ export default function AsignacionPage() {
 
   const filteredProspects = useMemo(() => {
     return prospects.filter((p) => {
+      const term = searchDebounced.toLowerCase()
       const termMatch =
-        p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-        p.email.toLowerCase().includes(search.toLowerCase()) ||
-        p.telefono.toLowerCase().includes(search.toLowerCase())
+        p.nombre.toLowerCase().includes(term) ||
+        p.email.toLowerCase().includes(term) ||
+        p.telefono.toLowerCase().includes(term)
       const date = new Date(p.ultimoCambio)
-      const fromOk = !fromDate || date >= new Date(fromDate)
-      const toOk = !toDate || date <= new Date(toDate)
+      const fromOk = !dateRange?.from || date >= dateRange.from
+      const toOk = !dateRange?.to || date <= dateRange.to
       return termMatch && fromOk && toOk
     })
-  }, [prospects, search, fromDate, toDate])
+  }, [prospects, searchDebounced, dateRange])
 
   const paginatedProspects = useMemo(() => {
     const start = (page - 1) * pageSize
@@ -196,28 +208,24 @@ export default function AsignacionPage() {
           <CardTitle>Estudiantes Inscritos</CardTitle>
         </CH>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Input
-              placeholder="Buscar..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value)
-                setPage(1)
-              }}
-            />
-            <Input
-              type="date"
-              value={fromDate}
-              onChange={(e) => {
-                setFromDate(e.target.value)
-                setPage(1)
-              }}
-            />
-            <Input
-              type="date"
-              value={toDate}
-              onChange={(e) => {
-                setToDate(e.target.value)
+          <div className="flex flex-col md:flex-row md:items-end gap-2">
+            <div className="relative md:w-64">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar..."
+                className="pl-8"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value)
+                  setPage(1)
+                }}
+              />
+            </div>
+            <DatePickerWithRange
+              className="w-auto"
+              value={dateRange}
+              onChange={(range) => {
+                setDateRange(range)
                 setPage(1)
               }}
             />
@@ -294,25 +302,47 @@ export default function AsignacionPage() {
                 Quitar cursos
               </Button>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
-                Anterior
-              </Button>
-              <span className="text-sm self-center">
-                Página {page} de {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-              >
-                Siguiente
-              </Button>
-            </div>
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setPage((p) => Math.max(1, p - 1))
+                    }}
+                    className="cursor-pointer"
+                    aria-disabled={page <= 1}
+                  />
+                </PaginationItem>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <PaginationItem key={p}>
+                    <PaginationLink
+                      href="#"
+                      isActive={p === page}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setPage(p)
+                      }}
+                      className="cursor-pointer"
+                    >
+                      {p}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setPage((p) => Math.min(totalPages, p + 1))
+                    }}
+                    className="cursor-pointer"
+                    aria-disabled={page >= totalPages}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
           </div>
         </CardContent>
       </Card>
@@ -396,25 +426,47 @@ export default function AsignacionPage() {
                 Quitar seleccionados
               </Button>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setCoursePage((p) => Math.max(1, p - 1))}
-                disabled={coursePage <= 1}
-              >
-                Anterior
-              </Button>
-              <span className="text-sm self-center">
-                Página {coursePage} de {totalCoursePages}
-              </span>
-              <Button
-                variant="outline"
-                onClick={() => setCoursePage((p) => Math.min(totalCoursePages, p + 1))}
-                disabled={coursePage >= totalCoursePages}
-              >
-                Siguiente
-              </Button>
-            </div>
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setCoursePage((p) => Math.max(1, p - 1))
+                    }}
+                    className="cursor-pointer"
+                    aria-disabled={coursePage <= 1}
+                  />
+                </PaginationItem>
+                {Array.from({ length: totalCoursePages }, (_, i) => i + 1).map((p) => (
+                  <PaginationItem key={p}>
+                    <PaginationLink
+                      href="#"
+                      isActive={p === coursePage}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setCoursePage(p)
+                      }}
+                      className="cursor-pointer"
+                    >
+                      {p}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setCoursePage((p) => Math.min(totalCoursePages, p + 1))
+                    }}
+                    className="cursor-pointer"
+                    aria-disabled={coursePage >= totalCoursePages}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
           </div>
         </DialogContent>
       </Dialog>
