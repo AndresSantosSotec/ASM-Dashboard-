@@ -81,6 +81,7 @@ export default function AsignacionPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>()
   const [programs, setPrograms] = useState<Programa[]>([])    // Estado para programas
   const [programFilter, setProgramFilter] = useState("all")
+  const [quarterFilter, setQuarterFilter] = useState("all")
   const searchDebounced = useDebounce(search, 300)
 
   // ② Cargar prospectos (incluyendo "programas" y "courses")
@@ -103,7 +104,7 @@ export default function AsignacionPage() {
           programas: p.programas || [], // Asegúrate que la API devuelva este arreglo
           courses: p.courses || [],     // Agregado para cursos asignados
         }))
-        setProspects(list)
+        setProspects(list.filter(p => p.programas.length > 0))
       } catch (e: any) {
         setError(e.message)
       } finally {
@@ -158,7 +159,7 @@ export default function AsignacionPage() {
     fetchCourses()
   }, [showCourses, courseSearch, courseArea, courseStatus])
 
-  // ④ Filtrar prospectos usando search, dateRange y programFilter
+  // ④ Filtrar prospectos usando search, dateRange, programFilter y quarterFilter
   const filteredProspects = useMemo(() => {
     return prospects.filter((p) => {
       const term = searchDebounced.toLowerCase()
@@ -172,10 +173,12 @@ export default function AsignacionPage() {
       const programMatch =
         programFilter === "all" ||
         p.programas.some((pr) => String(pr.id) === programFilter)
-
-      return termMatch && fromOk && toOk && programMatch
+      const quarter = Math.floor(date.getMonth() / 3) + 1
+      const quarterMatch =
+        quarterFilter === "all" || String(quarter) === quarterFilter
+      return termMatch && fromOk && toOk && programMatch && quarterMatch
     })
-  }, [prospects, searchDebounced, dateRange, programFilter])
+  }, [prospects, searchDebounced, dateRange, programFilter, quarterFilter])
 
   const paginatedProspects = useMemo(() => {
     const start = (page - 1) * pageSize
@@ -275,6 +278,25 @@ export default function AsignacionPage() {
               }}
             />
 
+            <Select
+              value={quarterFilter}
+              onValueChange={(val) => {
+                setQuarterFilter(val)
+                setPage(1)
+              }}
+            >
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Trimestre" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="1">Q1</SelectItem>
+                <SelectItem value="2">Q2</SelectItem>
+                <SelectItem value="3">Q3</SelectItem>
+                <SelectItem value="4">Q4</SelectItem>
+              </SelectContent>
+            </Select>
+
             {/* ⑤ Ahora el Select está correctamente importado y poblado */}
             <Select
               value={programFilter}
@@ -316,7 +338,8 @@ export default function AsignacionPage() {
                   <TableHead>Email</TableHead>
                   <TableHead>Teléfono</TableHead>
                   <TableHead>Última actualización</TableHead>
-                  <TableHead>Cursos</TableHead> {/* ← Nueva columna */}
+                  <TableHead>Programas</TableHead>
+                  <TableHead>Cursos</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
@@ -338,6 +361,11 @@ export default function AsignacionPage() {
                     <TableCell>{p.telefono}</TableCell>
                     <TableCell>{new Date(p.ultimoCambio).toLocaleDateString()}</TableCell>
                     <TableCell>
+                      {p.programas.length > 0
+                        ? p.programas.map((pr) => pr.nombre).join(', ')
+                        : '—'}
+                    </TableCell>
+                    <TableCell>
                       {p.courses.length > 0
                         ? p.courses.map((c) => c.name).join(", ")
                         : "—"}
@@ -351,7 +379,7 @@ export default function AsignacionPage() {
                 ))}
                 {paginatedProspects.length === 0 && !loading && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-4">
+                    <TableCell colSpan={8} className="text-center py-4">
                       Sin registros
                     </TableCell>
                   </TableRow>
