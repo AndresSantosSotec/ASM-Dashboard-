@@ -54,14 +54,14 @@ export default function FlujosAprobacionPage() {
                   Nuevo Flujo
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Crear Nuevo Flujo de Aprobación</DialogTitle>
                   <DialogDescription>
                     Configure las etapas y aprobadores para el nuevo flujo de aprobación.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+                <div className="grid gap-3 py-3">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="nombre">Nombre del Flujo *</Label>
@@ -107,8 +107,8 @@ export default function FlujosAprobacionPage() {
                           <Badge>Obligatoria</Badge>
                         </div>
                       </CardHeader>
-                      <CardContent className="p-3 pt-0">
-                        <div className="space-y-2">
+                      <CardContent className="p-2 pt-0">
+                        <div className="space-y-1.5">
                           <div className="grid grid-cols-2 gap-2">
                             <div className="space-y-1">
                               <Label htmlFor="rol1" className="text-xs">
@@ -149,8 +149,8 @@ export default function FlujosAprobacionPage() {
                           <Badge>Obligatoria</Badge>
                         </div>
                       </CardHeader>
-                      <CardContent className="p-3 pt-0">
-                        <div className="space-y-2">
+                      <CardContent className="p-2 pt-0">
+                        <div className="space-y-1.5">
                           <div className="grid grid-cols-2 gap-2">
                             <div className="space-y-1">
                               <Label htmlFor="rol2" className="text-xs">
@@ -191,8 +191,8 @@ export default function FlujosAprobacionPage() {
                           <Badge>Obligatoria</Badge>
                         </div>
                       </CardHeader>
-                      <CardContent className="p-3 pt-0">
-                        <div className="space-y-2">
+                      <CardContent className="p-2 pt-0">
+                        <div className="space-y-1.5">
                           <div className="grid grid-cols-2 gap-2">
                             <div className="space-y-1">
                               <Label htmlFor="rol3" className="text-xs">
@@ -341,7 +341,7 @@ export default function FlujosAprobacionPage() {
                               <span className="sr-only">Ver detalles</span>
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-3xl">
+                          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                               <DialogTitle>Detalles del Flujo de Aprobación</DialogTitle>
                               <DialogDescription>
@@ -543,4 +543,3 @@ export default function FlujosAprobacionPage() {
     </div>
   )
 }
-

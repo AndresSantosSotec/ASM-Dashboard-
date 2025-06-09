@@ -1,5 +1,6 @@
 "use client"
-import { ArrowLeft, ArrowRight } from "lucide-react"
+import { useEffect, useState, useMemo } from "react"
+import { ArrowLeft, ArrowRight, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,9 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { DatosAcademicos } from "../types"
-import { useEffect, useState } from "react"
 import axios from "axios"
+import { API_BASE_URL } from "@/utils/apiConfig"
+import { DatosAcademicos } from "../types"
 
 interface Programa {
   id: number
@@ -30,7 +31,6 @@ interface Props {
 }
 
 export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props) {
-  /* ——— Listas estáticas ——— */
   const mesesMeses = [
     "enero", "febrero", "marzo", "abril", "mayo", "junio",
     "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
@@ -39,33 +39,51 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
   const titulos = ["diversificado", "tecnico", "licenciatura", "maestria", "doctorado"] as const
   const medios = ["redes", "amigo", "empresa", "evento", "busqueda", "otros"] as const
 
-  /* ——— Estado y fetch de programas ——— */
   const [programas, setProgramas] = useState<Programa[]>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    axios.get<Programa[]>("http://localhost:8000/api/programas")
-      .then(resp => setProgramas(resp.data))
-      .catch(err => console.error("❌ Error al obtener programas:", err))
+    axios
+      .get<Programa[]>(`${API_BASE_URL}/api/programas`)
+      .then((resp) => setProgramas(resp.data))
+      .catch((err) => console.error("❌ Error al obtener programas:", err))
   }, [])
 
-  /* ——— Auto-relleno de duración al cambiar programa ——— */
   useEffect(() => {
     const prog = programas.find(p => p.id.toString() === datos.programa)
     const nuevaDur = prog?.meses.toString() ?? ""
-    // sólo actualizamos si es distinto de datos.duracion
     if (nuevaDur && nuevaDur !== datos.duracion) {
       setDatos(prev => ({ ...prev, duracion: nuevaDur }))
     }
-  }, [datos.programa, datos.duracion, programas])
+  }, [datos.programa, datos.duracion, programas, setDatos])
 
-  /* ——— Validación antes de avanzar ——— */
+  // validación de sólo los campos obligatorios
+// Reemplaza tu isFormValid por esto:
+const isFormValid = useMemo(() => {
+  return (
+    !!datos.programa &&                                   // truthy en lugar de !== ""
+    !!datos.ultimoTitulo &&                               // idem
+    datos.institucionAnterior.trim().length > 0 &&        // evita comparar con ""
+    datos.añoGraduacion.trim().length > 0 &&              // idem
+    !!datos.modalidad &&                                  // truthy
+    !!datos.fechaInicio &&                                // truthy
+    !!datos.diaEstudio &&                                 // truthy
+    !!datos.fechaInicioEspecifica &&                      // truthy
+    !!datos.fechaTallerInduccion &&                       // truthy
+    !!datos.fechaTallerIntegracion &&                     // truthy
+    !!datos.medioConocio &&                               // truthy
+    datos.titulo1 === datos.programa &&                   // comparas dos uniones del mismo tipo
+    datos.titulo1_duracion.trim().length > 0              // idem a trim() !== ""
+  )
+}, [datos])
+
+
   const handleNext = () => {
     if (datos.titulo1 !== datos.programa) {
       setError("El Programa 1 debe coincidir con el Programa principal.")
       return
     }
-    if (!datos.titulo1_duracion) {
+    if (!datos.titulo1_duracion.trim()) {
       setError("Debes especificar la duración de Programa 1.")
       return
     }
@@ -75,8 +93,16 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
 
   return (
     <>
+      {/* indicador de éxito */}
+      {isFormValid && (
+        <div className="mb-4 flex items-center gap-2 rounded bg-green-100 px-4 py-2 text-green-800">
+          <CheckCircle className="h-5 w-5" />
+          Todos los campos obligatorios completados
+        </div>
+      )}
+
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Programa dinámico + duración */}
+        {/* Programa + duración */}
         <div className="flex space-x-4">
           <div className="flex-1 space-y-2">
             <Label>Programa *</Label>
@@ -111,9 +137,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
           <Label>Último título obtenido *</Label>
           <Select
             value={datos.ultimoTitulo}
-            onValueChange={v =>
-              setDatos({ ...datos, ultimoTitulo: v as DatosAcademicos["ultimoTitulo"] })
-            }
+            onValueChange={v => setDatos({ ...datos, ultimoTitulo: v as DatosAcademicos["ultimoTitulo"] })}
           >
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar título" />
@@ -128,7 +152,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
           </Select>
         </div>
 
-        {/* Institución anterior */}
+        {/* Institución */}
         <div className="space-y-2">
           <Label>Institución donde obtuvo su último título *</Label>
           <Input
@@ -138,7 +162,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
           />
         </div>
 
-        {/* Año graduación */}
+        {/* Año de graduación */}
         <div className="space-y-2">
           <Label>Año de graduación *</Label>
           <Input
@@ -192,9 +216,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
           <Label>Día que estudiará *</Label>
           <Select
             value={datos.diaEstudio}
-            onValueChange={v =>
-              setDatos({ ...datos, diaEstudio: v as DatosAcademicos["diaEstudio"] })
-            }
+            onValueChange={v => setDatos({ ...datos, diaEstudio: v as DatosAcademicos["diaEstudio"] })}
           >
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar día" />
@@ -243,9 +265,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
           <Label>¿Por qué medio conoció ASM? *</Label>
           <Select
             value={datos.medioConocio}
-            onValueChange={v =>
-              setDatos({ ...datos, medioConocio: v as DatosAcademicos["medioConocio"] })
-            }
+            onValueChange={v => setDatos({ ...datos, medioConocio: v as DatosAcademicos["medioConocio"] })}
           >
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar medio" />
@@ -260,7 +280,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
           </Select>
         </div>
 
-        {/* Observaciones */}
+        {/* Observaciones y cursos (opcionales) */}
         <div className="space-y-2 md:col-span-2">
           <Label>Observaciones</Label>
           <Textarea
@@ -269,19 +289,15 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
             className="min-h-[80px]"
           />
         </div>
-
-        {/* Cursos aprobados */}
         <div className="space-y-2 md:col-span-2">
-          <Label>
-            Cant. cursos aprobados (especificar, carrera y universidad)
-          </Label>
+          <Label>Cant. cursos aprobados (opcionales)</Label>
           <Input
             value={datos.cursosAprobados}
             onChange={e => setDatos({ ...datos, cursosAprobados: e.target.value })}
           />
         </div>
 
-        {/* Bloque 2: Títulos y Duración */}
+        {/* Bloque de Programas adicionales */}
         {["titulo1", "titulo2", "titulo3"].map((field, idx) => (
           <div className="flex space-x-4 items-end" key={field}>
             <div className="flex-1 space-y-2">
@@ -316,12 +332,15 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
 
       {error && <p className="text-red-600 mt-2">{error}</p>}
 
-      {/* Navegación */}
       <div className="flex justify-between mt-6">
         <Button variant="outline" onClick={goPrev}>
           <ArrowLeft className="h-4 w-4" /> Anterior
         </Button>
-        <Button onClick={handleNext}>
+        <Button
+          onClick={handleNext}
+          disabled={!isFormValid}
+          className={isFormValid ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+        >
           Siguiente <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </div>

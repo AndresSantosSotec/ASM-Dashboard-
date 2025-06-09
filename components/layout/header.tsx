@@ -1,6 +1,7 @@
 "use client"
 
 import { Menu, Bell, User, Search } from "lucide-react"
+import { useEffect, useState } from "react"
 
 interface HeaderProps {
   sidebarOpen: boolean
@@ -9,6 +10,13 @@ interface HeaderProps {
 }
 
 export default function Header({ sidebarOpen, setSidebarOpen, isMobile }: HeaderProps) {
+  const [userName, setUserName] = useState("")
+
+  useEffect(() => {
+    const storedUserName = localStorage.getItem("username")
+    setUserName(storedUserName || "")
+  }, [])
+
   return (
     <header className="sticky top-0 z-10 h-16 flex items-center justify-between px-4 bg-white dark:bg-asm-navy border-b border-asm-medium-gold/20 shadow-sm">
       <div className="flex items-center">
@@ -22,7 +30,7 @@ export default function Header({ sidebarOpen, setSidebarOpen, isMobile }: Header
 
         {!isMobile && (
           <h1 className="ml-4 text-lg font-semibold text-asm-navy dark:text-asm-light-gold">
-            American School of Management
+            {userName ? `Bienvenido, ${userName}` : "American School of Management"}
           </h1>
         )}
       </div>
@@ -46,10 +54,11 @@ export default function Header({ sidebarOpen, setSidebarOpen, isMobile }: Header
           <div className="w-8 h-8 rounded-full bg-asm-medium-gold flex items-center justify-center text-white">
             <User size={18} />
           </div>
-          <span className="hidden md:inline text-sm font-medium text-asm-navy dark:text-asm-light-gold">Admin</span>
+          <span className="hidden md:inline text-sm font-medium text-asm-navy dark:text-asm-light-gold">
+            {userName ? userName : "Admin"}
+          </span>
         </div>
       </div>
     </header>
   )
 }
-

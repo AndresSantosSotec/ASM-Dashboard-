@@ -1,6 +1,7 @@
 "use client";
 
 import axios from "axios";
+import { API_BASE_URL } from "@/utils/apiConfig";
 import Swal from "sweetalert2";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -90,7 +91,7 @@ export default function PermisosUsuariosTab() {
   // Trae la lista de usuarios desde la API
   const fetchUsuarios = async () => {
     try {
-      const response = await axios.get("http://localhost:8000/api/users");
+        const response = await axios.get(`${API_BASE_URL}/api/users`);
       const usuariosTransformados = response.data.map((u: any) => transformUser(u));
       setUsuarios(usuariosTransformados);
     } catch (error) {
@@ -146,10 +147,10 @@ export default function PermisosUsuariosTab() {
     try {
       if (isEditing && currentUser) {
         // EDITAR
-        const response = await axios.put(
-          `http://localhost:8000/api/users/${currentUser.id}`,
-          data
-        );
+          const response = await axios.put(
+            `${API_BASE_URL}/api/users/${currentUser.id}`,
+            data
+          );
         const usuarioActualizado = transformUser(response.data);
         setUsuarios((prev) =>
           prev.map((u) => (u.id === currentUser.id ? usuarioActualizado : u))
@@ -162,7 +163,7 @@ export default function PermisosUsuariosTab() {
         });
       } else {
         // CREAR
-        const response = await axios.post("http://localhost:8000/api/users", data);
+          const response = await axios.post(`${API_BASE_URL}/api/users`, data);
         const nuevoUsuario = transformUser(response.data);
         setUsuarios((prev) => [...prev, nuevoUsuario]);
         Swal.fire({
@@ -202,10 +203,10 @@ export default function PermisosUsuariosTab() {
     if (!result.isConfirmed) return;
 
     try {
-      const response = await axios.put(
-        `http://localhost:8000/api/users/${usuario.id}`,
-        { is_active: !usuario.is_active }
-      );
+        const response = await axios.put(
+          `${API_BASE_URL}/api/users/${usuario.id}`,
+          { is_active: !usuario.is_active }
+        );
       const actualizado = transformUser(response.data);
       setUsuarios((prev) => prev.map((u) => (u.id === usuario.id ? actualizado : u)));
       Swal.fire({
@@ -238,7 +239,7 @@ export default function PermisosUsuariosTab() {
     if (!result.isConfirmed) return;
 
     try {
-      await axios.delete(`http://localhost:8000/api/users/${usuario.id}`);
+      await axios.delete(`${API_BASE_URL}/api/users/${usuario.id}`);
       setUsuarios((prev) => prev.filter((u) => u.id !== usuario.id));
       Swal.fire({
         title: "Usuario eliminado",

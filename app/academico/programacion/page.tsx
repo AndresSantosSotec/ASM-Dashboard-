@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, Plus, Edit, Trash, Calendar, Clock, User, CheckCircle, ArrowRight, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,6 +21,16 @@ import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/hooks/use-toast"
+import {
+  fetchCourses,
+  createCourse,
+  updateCourse,
+  deleteCourse as apiDeleteCourse,
+  approveCourse,
+  syncCourseToMoodle,
+  assignFacilitator as apiAssignFacilitator,
+  fetchFacilitators,
+} from "@/services/courses"
 
 // Tipos
 interface Course {
@@ -33,7 +43,7 @@ interface Course {
   endDate: string
   schedule: string
   duration: string
-  facilitator: string | null
+  facilitator: { id: number; name: string } | null
   status: "draft" | "approved" | "synced"
   students: number
 }
@@ -42,115 +52,25 @@ interface Facilitator {
   id: string
   name: string
   specialty: string
-  availability: string[]
+  availability?: string[]
 }
 
-interface Cohort {
-  id: string
-  name: string
-  program: string
-  students: number
-}
-
-// Datos de ejemplo
-const mockCourses: Course[] = [
-  {
-    id: "1",
-    name: "Introducción a la Programación",
-    code: "CS101",
-    area: "common",
-    credits: 4,
-    startDate: "2023-11-01",
-    endDate: "2023-11-30",
-    schedule: "Lunes y Miércoles, 18:00 - 20:00",
-    duration: "4 semanas",
-    facilitator: "Juan Martínez",
-    status: "approved",
-    students: 25,
-  },
-  {
-    id: "2",
-    name: "Estadística Aplicada",
-    code: "STAT202",
-    area: "specialty",
-    credits: 3,
-    startDate: "2023-11-15",
-    endDate: "2023-12-15",
-    schedule: "Martes y Jueves, 19:00 - 21:00",
-    duration: "4 semanas",
-    facilitator: null,
-    status: "draft",
-    students: 18,
-  },
-  {
-    id: "3",
-    name: "Metodología de la Investigación",
-    code: "RES301",
-    area: "common",
-    credits: 3,
-    startDate: "2023-12-01",
-    endDate: "2023-12-31",
-    schedule: "Viernes, 17:00 - 21:00",
-    duration: "4 semanas",
-    facilitator: "María González",
-    status: "synced",
-    students: 30,
-  },
-]
-
-const mockFacilitators: Facilitator[] = [
-  {
-    id: "f1",
-    name: "Juan Martínez",
-    specialty: "Ciencias de la Computación",
-    availability: ["Lunes", "Miércoles", "Viernes"],
-  },
-  {
-    id: "f2",
-    name: "María González",
-    specialty: "Metodología e Investigación",
-    availability: ["Martes", "Jueves", "Viernes"],
-  },
-  {
-    id: "f3",
-    name: "Carlos Rodríguez",
-    specialty: "Estadística",
-    availability: ["Lunes", "Martes", "Miércoles"],
-  },
-]
-
-const mockCohorts: Cohort[] = [
-  {
-    id: "c1",
-    name: "Cohorte 2023-A",
-    program: "Licenciatura en Administración de Empresas",
-    students: 35,
-  },
-  {
-    id: "c2",
-    name: "Cohorte 2023-B",
-    program: "Ingeniería en Sistemas Computacionales",
-    students: 28,
-  },
-  {
-    id: "c3",
-    name: "Cohorte 2023-C",
-    program: "Maestría en Educación",
-    students: 15,
-  },
-]
 
 export default function ProgramacionCursos() {
-  const [courses, setCourses] = useState<Course[]>(mockCourses)
-  const [facilitators] = useState<Facilitator[]>(mockFacilitators)
-  const [cohorts] = useState<Cohort[]>(mockCohorts)
+  const [courses, setCourses] = useState<Course[]>([])
+  const [facilitators, setFacilitators] = useState<Facilitator[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [areaFilter, setAreaFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
-  const [selectedCohort, setSelectedCohort] = useState<string>("c1")
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isSyncingToMoodle, setIsSyncingToMoodle] = useState(false)
+
+  useEffect(() => {
+    fetchCourses().then(setCourses).catch(console.error)
+    fetchFacilitators().then(setFacilitators).catch(console.error)
+  }, [])
+
 
   // Formulario de curso
   const [formData, setFormData] = useState<Omit<Course, "id" | "status" | "students">>({
@@ -222,100 +142,112 @@ export default function ProgramacionCursos() {
   }
 
   // Guardar curso (crear o actualizar)
-  const handleSaveCourse = () => {
-    if (selectedCourse) {
-      // Actualizar curso existente
-      setCourses((prev) => prev.map((c) => (c.id === selectedCourse.id ? { ...c, ...formData, status: "draft" } : c)))
-      toast({
-        title: "Curso actualizado",
-        description: `El curso ${formData.name} ha sido actualizado.`,
-      })
-    } else {
-      // Crear nuevo curso
-      const newCourse: Course = {
-        id: `${Date.now()}`,
-        ...formData,
-        status: "draft",
-        students: 0,
-      }
-      setCourses((prev) => [...prev, newCourse])
-      toast({
-        title: "Curso creado",
-        description: `El curso ${formData.name} ha sido creado correctamente.`,
-      })
+  const handleSaveCourse = async () => {
+    const payload = {
+      name: formData.name,
+      code: formData.code,
+      area: formData.area,
+      credits: formData.credits,
+      startDate: formData.startDate,
+      endDate: formData.endDate,
+      schedule: formData.schedule,
+      duration: formData.duration,
+
     }
-    setIsFormOpen(false)
+
+    try {
+      if (selectedCourse) {
+        const updated = await updateCourse(Number(selectedCourse.id), payload)
+        setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+        toast({
+          title: "Curso actualizado",
+          description: `El curso ${updated.name} ha sido actualizado.`,
+        })
+      } else {
+        const created = await createCourse(payload)
+        setCourses((prev) => [...prev, created])
+        toast({
+          title: "Curso creado",
+          description: `El curso ${created.name} ha sido creado correctamente.`,
+        })
+      }
+      setIsFormOpen(false)
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   // Eliminar curso
-  const handleDelete = (id: string) => {
-    setCourses((prev) => prev.filter((c) => c.id !== id))
-    if (selectedCourse?.id === id) {
-      setSelectedCourse(null)
+  const handleDelete = async (id: string) => {
+    try {
+      await apiDeleteCourse(Number(id))
+      setCourses((prev) => prev.filter((c) => c.id !== id))
+      if (selectedCourse?.id === id) {
+        setSelectedCourse(null)
+      }
+      toast({
+        title: "Curso eliminado",
+        description: "El curso ha sido eliminado correctamente.",
+      })
+    } catch (err) {
+      console.error(err)
     }
-    toast({
-      title: "Curso eliminado",
-      description: "El curso ha sido eliminado correctamente.",
-    })
   }
 
   // Aprobar programación
-  const handleApproveCourse = (id: string) => {
-    setCourses((prev) => prev.map((c) => (c.id === id ? { ...c, status: "approved" } : c)))
-
-    if (selectedCourse?.id === id) {
-      setSelectedCourse((prev) => (prev ? { ...prev, status: "approved" } : null))
+  const handleApproveCourse = async (id: string) => {
+    try {
+      const updated = await approveCourse(Number(id))
+      setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+      if (selectedCourse?.id === id) {
+        setSelectedCourse(updated)
+      }
+      toast({
+        title: "Programación aprobada",
+        description: "La programación del curso ha sido aprobada.",
+      })
+    } catch (err) {
+      console.error(err)
     }
-
-    toast({
-      title: "Programación aprobada",
-      description: "La programación del curso ha sido aprobada.",
-    })
   }
 
   // Sincronizar con Moodle
-  const handleSyncToMoodle = (id: string) => {
+  const handleSyncToMoodle = async (id: string) => {
     setIsSyncingToMoodle(true)
-
-    // Simulación de proceso asíncrono
-    setTimeout(() => {
-      setCourses((prev) => prev.map((c) => (c.id === id ? { ...c, status: "synced" } : c)))
-
+    try {
+      const updated = await syncCourseToMoodle(Number(id))
+      setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
       if (selectedCourse?.id === id) {
-        setSelectedCourse((prev) => (prev ? { ...prev, status: "synced" } : null))
+        setSelectedCourse(updated)
       }
-
-      setIsSyncingToMoodle(false)
-
       toast({
         title: "Curso sincronizado con Moodle",
         description: "El curso ha sido sincronizado correctamente con la plataforma Moodle.",
       })
-    }, 2000)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setIsSyncingToMoodle(false)
+    }
   }
 
   // Asignar facilitador
-  const handleAssignFacilitator = (courseId: string, facilitatorId: string | null) => {
-    const facilitator = facilitatorId ? facilitators.find((f) => f.id === facilitatorId)?.name || null : null
-
-    setCourses((prev) => prev.map((c) => (c.id === courseId ? { ...c, facilitator } : c)))
-
-    if (selectedCourse?.id === courseId) {
-      setSelectedCourse((prev) => (prev ? { ...prev, facilitator } : null))
-    }
-
-    if (facilitator) {
+  const handleAssignFacilitator = async (courseId: string, facilitatorId: string | null) => {
+    try {
+      const updated = await apiAssignFacilitator(Number(courseId), facilitatorId ? Number(facilitatorId) : null)
+      setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+      if (selectedCourse?.id === courseId) {
+        setSelectedCourse(updated)
+      }
       toast({
-        title: "Facilitador asignado",
-        description: `${facilitator} ha sido asignado al curso.`,
+        title: facilitatorId ? "Facilitador asignado" : "Facilitador removido",
+        description: facilitatorId ? "El facilitador ha sido asignado al curso." : "El facilitador ha sido removido del curso.",
       })
-    } else {
-      toast({
-        title: "Facilitador removido",
-        description: "El facilitador ha sido removido del curso.",
-      })
+    } catch (err) {
+      console.error(err)
     }
   }
+
 
   return (
     <div className="container mx-auto py-6">
@@ -327,36 +259,7 @@ export default function ProgramacionCursos() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {/* Panel de cohortes */}
-        <Card className="md:col-span-1">
-          <CardHeader>
-            <CardTitle>Cohortes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {cohorts.map((cohort) => (
-                <div
-                  key={cohort.id}
-                  className={`p-3 rounded-md cursor-pointer ${
-                    selectedCohort === cohort.id
-                      ? "bg-blue-100 border border-blue-200"
-                      : "hover:bg-gray-100 border border-transparent"
-                  }`}
-                  onClick={() => setSelectedCohort(cohort.id)}
-                >
-                  <div className="font-medium">{cohort.name}</div>
-                  <div className="text-sm text-gray-500">{cohort.program}</div>
-                  <div className="text-sm mt-1">
-                    <Badge variant="outline">{cohort.students} estudiantes</Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Panel principal */}
-        <div className="md:col-span-3 space-y-6">
+        <div className="space-y-6 md:col-span-4">
           {/* Filtros */}
           <Card>
             <CardContent className="pt-6">
@@ -452,7 +355,7 @@ export default function ProgramacionCursos() {
                             {course.facilitator ? (
                               <div className="flex items-center">
                                 <User className="h-3.5 w-3.5 mr-1 text-gray-500" />
-                                <span>{course.facilitator}</span>
+                                <span>{course.facilitator.name}</span>
                               </div>
                             ) : (
                               <Badge variant="outline" className="text-amber-500 bg-amber-50">
@@ -521,7 +424,7 @@ export default function ProgramacionCursos() {
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="details">
-                  <TabsList className="grid w-full grid-cols-2">
+                  <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="details">Información</TabsTrigger>
                     <TabsTrigger value="facilitators">Facilitadores</TabsTrigger>
                   </TabsList>
@@ -566,7 +469,7 @@ export default function ProgramacionCursos() {
                       </div>
                       <div className="col-span-2">
                         <Label>Facilitador</Label>
-                        <div className="font-medium">{selectedCourse.facilitator || "Sin asignar"}</div>
+                        <div className="font-medium">{selectedCourse.facilitator?.name || "Sin asignar"}</div>
                       </div>
                     </div>
                   </TabsContent>
@@ -577,7 +480,7 @@ export default function ProgramacionCursos() {
                         <div
                           key={facilitator.id}
                           className={`border rounded-lg p-4 ${
-                            selectedCourse.facilitator === facilitator.name ? "border-blue-500 bg-blue-50" : ""
+                            selectedCourse.facilitator?.id === facilitator.id ? "border-blue-500 bg-blue-50" : ""
                           }`}
                         >
                           <div className="flex justify-between items-start">
@@ -585,7 +488,7 @@ export default function ProgramacionCursos() {
                               <div className="font-medium">{facilitator.name}</div>
                               <div className="text-sm text-gray-500">{facilitator.specialty}</div>
                               <div className="flex flex-wrap gap-1 mt-2">
-                                {facilitator.availability.map((day) => (
+                                {facilitator.availability?.map((day) => (
                                   <Badge key={day} variant="outline" className="text-xs">
                                     {day}
                                   </Badge>
@@ -593,22 +496,23 @@ export default function ProgramacionCursos() {
                               </div>
                             </div>
                             <Button
-                              variant={selectedCourse.facilitator === facilitator.name ? "outline" : "default"}
+                              variant={selectedCourse.facilitator?.id === facilitator.id ? "outline" : "default"}
                               size="sm"
                               onClick={() =>
                                 handleAssignFacilitator(
                                   selectedCourse.id,
-                                  selectedCourse.facilitator === facilitator.name ? null : facilitator.id,
+                                  selectedCourse.facilitator?.id === facilitator.id ? null : facilitator.id,
                                 )
                               }
                             >
-                              {selectedCourse.facilitator === facilitator.name ? "Remover" : "Asignar"}
+                              {selectedCourse.facilitator?.id === facilitator.id ? "Remover" : "Asignar"}
                             </Button>
                           </div>
                         </div>
                       ))}
                     </div>
                   </TabsContent>
+
                 </Tabs>
               </CardContent>
               <CardFooter className="flex justify-between border-t pt-6">
@@ -750,6 +654,7 @@ export default function ProgramacionCursos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   )
 }

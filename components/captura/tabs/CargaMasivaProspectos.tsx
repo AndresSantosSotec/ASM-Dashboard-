@@ -21,6 +21,7 @@ import { ArrowLeft } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
 import Swal from "sweetalert2"
+import { API_BASE_URL } from "@/utils/apiConfig"
 
 interface Column {
   id: number
@@ -45,7 +46,7 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
 
   // Función para recargar las columnas desde el backend.
   const fetchColumns = () => {
-    fetch("http://localhost:8000/api/columns")
+    fetch(`${API_BASE_URL}/api/columns`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP error: ${res.status}`)
         return res.json()
@@ -114,7 +115,7 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
     }
 
     if (editingColumn.id === 0) {
-      fetch("http://localhost:8000/api/columns", {
+      fetch(`${API_BASE_URL}/columns`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -149,7 +150,7 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
           })
         })
     } else {
-      fetch(`http://localhost:8000/api/columns/${editingColumn.id}`, {
+      fetch(`${API_BASE_URL}/columns/${editingColumn.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -215,7 +216,7 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
       hasFile: formData.has("file"),
     });
 
-    fetch("http://localhost:8000/api/import", {
+    fetch(`${API_BASE_URL}/api/import`, {
       method: "POST",
       body: formData,
       headers: { Authorization: `Bearer ${token}` },

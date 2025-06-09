@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Swal from "sweetalert2"
+import { API_BASE_URL } from "@/utils/apiConfig"
 
 interface Prospecto {
   id: string
@@ -24,7 +25,7 @@ interface EditarProspectoProps {
   onClose: () => void
 }
 
-const API_URL = "http://127.0.0.1:8000/api"
+const API_URL = `${API_BASE_URL}/api`
 
 export default function EditarProspecto({ prospecto, onClose }: EditarProspectoProps) {
   // inicializa los estados con las props

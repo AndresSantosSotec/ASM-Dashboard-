@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, } from "@/components/ui/dropdown-menu"
 import swal from "sweetalert2"
 import { cn } from "@/lib/utils"
+import { API_BASE_URL } from "@/utils/apiConfig"
 
 
 import EditProspectModal from "./Modals/EditProspectModal"
@@ -62,7 +63,7 @@ export default function GestionProspectos() {
   useEffect(() => {
     setLoading(true)
     const qs = estadoFilter !== "todos" ? `?status=${estadoFilter}` : ""
-    fetch(`http://127.0.0.1:8000/api/prospectos${qs}`, {
+    fetch(`${API_BASE_URL}/api/prospectos${qs}`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
       .then(r => r.json())
@@ -96,7 +97,7 @@ export default function GestionProspectos() {
 
   // carga de asesores
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/api/users/role/7", {
+    fetch(`${API_BASE_URL}/api/users/role/7`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
       .then(r => r.json())
@@ -118,7 +119,7 @@ export default function GestionProspectos() {
   const handleReasignar = async (id: string, asesorId: number) => {
     try {
       const res = await fetch(
-        `http://127.0.0.1:8000/api/prospectos/${id}/assign`,
+        `${API_BASE_URL}/api/prospectos/${id}/assign`,
         {
           method: "PUT",
           headers: {
@@ -295,7 +296,7 @@ export default function GestionProspectos() {
                 // Realiza las peticiones DELETE de forma paralela; si la API no tiene endpoint masivo, se envían individualmente.
                 await Promise.all(
                   selectedIds.map(id =>
-                    fetch(`http://127.0.0.1:8000/api/prospectos/${id}`, {
+                    fetch(`${API_BASE_URL}/api/prospectos/${id}`, {
                       method: "DELETE",
                       headers: {
                         Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -521,7 +522,7 @@ export default function GestionProspectos() {
 
           try {
             const res = await fetch(
-              `http://127.0.0.1:8000/api/prospectos/${activeProspect.id}`,
+              `${API_BASE_URL}/api/prospectos/${activeProspect.id}`,
               {
                 method: "DELETE",
                 headers: {

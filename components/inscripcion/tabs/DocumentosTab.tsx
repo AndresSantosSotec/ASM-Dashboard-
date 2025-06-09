@@ -1,9 +1,9 @@
 "use client"
-
-import { useRef, Dispatch, SetStateAction } from "react" // <-- CORREGIDO
-import { ArrowLeft, ArrowRight, FileText, Info, Upload, X } from "lucide-react"
+import React, { useEffect, useState, useRef, useMemo, Dispatch, SetStateAction } from "react"
+import axios, { AxiosError } from "axios"
+import { API_BASE_URL } from "@/utils/apiConfig"
+import { ArrowLeft, ArrowRight, FileText, Info, Upload, X, CheckCircle } from "lucide-react"
 import Link from "next/link"
-import axios from "axios"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -37,7 +37,13 @@ type Props = {
   onFinalizar?: () => Promise<void>
 }
 
-export default function DocumentosTab({ documentos, setDocumentos, goPrev, prospectoId, onFinalizar }: Props) {
+export default function DocumentosTab({
+  documentos,
+  setDocumentos,
+  goPrev,
+  prospectoId,
+  onFinalizar,
+}: Props) {
   const hiddenInput = useRef<HTMLInputElement>(null)
   const uploadTarget = useRef<string | null>(null)
 
@@ -68,34 +74,36 @@ export default function DocumentosTab({ documentos, setDocumentos, goPrev, prosp
     formData.append("tipo_documento", uploadTarget.current)
     formData.append("file", file)
 
-    try {
-      await axios.post("http://localhost:8000/api/documentos", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      })
-
-      setDocumentos((docs: Documento[]) =>
-        docs.map((d: Documento) =>
-          d.id === uploadTarget.current ? { ...d, archivo: file, estado: "cargado" } : d
+      try {
+        await axios.post(`${API_BASE_URL}/api/documentos`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+      setDocumentos(docs =>
+        docs.map(d =>
+          d.id === uploadTarget.current
+            ? { ...d, archivo: file, estado: "cargado" }
+            : d
         )
       )
-    } catch (error) {
-      console.error(error)
+    } catch (err) {
+      console.error(err)
       alert("Error al subir el archivo. Inténtalo de nuevo.")
     }
   }
 
   const removeFile = (id: string) =>
-    setDocumentos((docs: Documento[]) =>
-      docs.map((d: Documento) =>
-        d.id === id ? { ...d, archivo: null, estado: "pendiente" } : d
+    setDocumentos(docs =>
+      docs.map(d =>
+        d.id === id
+          ? { ...d, archivo: null, estado: "pendiente" }
+          : d
       )
     )
 
-  const pendientesObligatorios = documentos.some(
-    (d: Documento) => d.estado === "pendiente" && !d.optional
-  )
+  // Memoized validity: true when no required docs are pending
+  const isFormValid = useMemo(() => {
+    return !documentos.some(d => d.estado === "pendiente" && !d.optional)
+  }, [documentos])
 
   return (
     <>
@@ -107,11 +115,18 @@ export default function DocumentosTab({ documentos, setDocumentos, goPrev, prosp
         </AlertDescription>
       </Alert>
 
+      {/* Success banner when all required docs uploaded */}
+      {isFormValid && (
+        <div className="mt-4 mb-6 flex items-center gap-2 rounded bg-green-100 px-4 py-2 text-green-800">
+          <CheckCircle className="h-5 w-5" />
+          Documentos obligatorios cargados
+        </div>
+      )}
+
       <section className="space-y-6">
         <h3 className="text-lg font-semibold text-blue-900">Documentos obligatorios</h3>
-
         <div className="grid gap-4 md:grid-cols-2">
-          {documentos.map((doc) => (
+          {documentos.map(doc => (
             <article
               key={doc.id}
               className="rounded-lg border p-4 transition-all hover:border-blue-200 hover:bg-blue-50/30"
@@ -120,9 +135,7 @@ export default function DocumentosTab({ documentos, setDocumentos, goPrev, prosp
                 <div className="flex items-center space-x-2">
                   <h4 className="font-medium">{doc.nombre}</h4>
                   {doc.optional && (
-                    <Badge variant="secondary" className="text-xs">
-                      Opcional
-                    </Badge>
+                    <Badge variant="secondary" className="text-xs">Opcional</Badge>
                   )}
                 </div>
                 <Badge
@@ -147,7 +160,7 @@ export default function DocumentosTab({ documentos, setDocumentos, goPrev, prosp
                       className="max-w-[150px] truncate text-sm"
                       title={doc.archivo?.name}
                     >
-                      {doc.archivo?.name ?? "Archivo cargado"}
+                      {doc.archivo?.name}
                     </span>
                   </div>
                   <Button
@@ -184,21 +197,28 @@ export default function DocumentosTab({ documentos, setDocumentos, goPrev, prosp
       <ExtraRequirements />
 
       <div className="mt-6 flex flex-col-reverse space-y-4 space-y-reverse sm:flex-row sm:space-y-0 sm:space-x-4">
-        <Button variant="outline" className="w-full sm:w-auto gap-2" onClick={goPrev}>
+        <Button
+          variant="outline"
+          className="w-full sm:w-auto gap-2"
+          onClick={goPrev}
+        >
           <ArrowLeft className="h-4 w-4" /> Anterior
         </Button>
 
         {onFinalizar ? (
           <Button
-            disabled={pendientesObligatorios}
+            disabled={!isFormValid}
             onClick={onFinalizar}
-            className="w-full sm:w-auto"
+            className={isFormValid ? "bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto" : "w-full sm:w-auto"}
           >
             Finalizar inscripción <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         ) : (
           <Link href="/inscripcion/revision" className="w-full sm:w-auto">
-            <Button disabled={pendientesObligatorios} className="w-full sm:w-auto">
+            <Button
+              disabled={!isFormValid}
+              className={isFormValid ? "bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto" : "w-full sm:w-auto"}
+            >
               Guardar y continuar <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </Link>
@@ -232,7 +252,7 @@ function ExtraRequirements() {
               ["BBA 18", "Sí", "", "25"],
               ["BBA 24", "Sí", "", "20"],
               ["BBA 32", "Sí", "", "Menos de 20"],
-            ].map((r) => (
+            ].map(r => (
               <tr key={r[0]} className="border-b">
                 {r.map((c, i) => (
                   <td key={i} className="py-2">{c}</td>

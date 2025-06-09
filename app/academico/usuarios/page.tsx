@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Search, Plus, Edit, Trash, Mail, MessageSquare, RefreshCw, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,6 +20,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
+import { crearUsuarioEnBD } from "@/utils/crearUsuario" // Importa la utilidad nueva
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL 
+
 
 // Tipos
 interface Student {
@@ -32,9 +35,10 @@ interface Student {
   program: string
   idNumber: string
   birthDate: string
-  status: "pending" | "active" | "inactive"
+  status: string
   username?: string
   institutionalEmail?: string
+  password?: string
 }
 
 interface Notification {
@@ -46,53 +50,13 @@ interface Notification {
   message: string
 }
 
-// Datos de ejemplo
+// Datos de ejemplo para programas y notificaciones
 const mockPrograms = [
   "Licenciatura en Administración de Empresas",
   "Ingeniería en Sistemas Computacionales",
   "Maestría en Educación",
   "Doctorado en Ciencias",
   "Licenciatura en Psicología",
-]
-
-const mockStudents: Student[] = [
-  {
-    id: "1",
-    name: "Juan",
-    lastName: "Pérez",
-    email: "juan.perez@example.com",
-    phone: "555-123-4567",
-    program: "Licenciatura en Administración de Empresas",
-    idNumber: "ID12345",
-    birthDate: "1995-05-15",
-    status: "pending",
-  },
-  {
-    id: "2",
-    name: "María",
-    lastName: "González",
-    email: "maria.gonzalez@example.com",
-    phone: "555-987-6543",
-    program: "Ingeniería en Sistemas Computacionales",
-    idNumber: "ID67890",
-    birthDate: "1998-10-20",
-    status: "active",
-    username: "maria.gonzalez",
-    institutionalEmail: "maria.gonzalez@institucion.edu",
-  },
-  {
-    id: "3",
-    name: "Carlos",
-    lastName: "Rodríguez",
-    email: "carlos.rodriguez@example.com",
-    phone: "555-456-7890",
-    program: "Maestría en Educación",
-    idNumber: "ID54321",
-    birthDate: "1990-03-25",
-    status: "inactive",
-    username: "carlos.rodriguez",
-    institutionalEmail: "carlos.rodriguez@institucion.edu",
-  },
 ]
 
 const mockNotifications: Notification[] = [
@@ -122,8 +86,33 @@ const mockNotifications: Notification[] = [
   },
 ]
 
+// Función para generar una contraseña aleatoria
+function generatePassword(student: { name: string; lastName: string; idNumber: string | number }) {
+  const idStr = String(student.idNumber);
+  const nameInitial = student.name.charAt(0).toLowerCase();
+  const lastNameInitial = student.lastName.charAt(0).toLowerCase();
+  const idSuffix = idStr.slice(-4);
+  const randomDigits = Math.floor(100 + Math.random() * 900); // 3 dígitos
+  return `${nameInitial}${lastNameInitial}${idSuffix}${randomDigits}`;
+}
+
+function getStatusBadgeInfo(status: string) {
+  switch (status.toLowerCase()) {
+    case "active":
+      return { variant: "default", label: "Activo" };
+    case "pending":
+      return { variant: "outline", label: "Pendiente" };
+    case "inactive":
+      return { variant: "secondary", label: "Inactivo" };
+    case "inscrito":
+      return { variant: "default", label: "Inscrito" };
+    default:
+      return { variant: "secondary", label: status };
+  }
+}
+
 export default function GestionUsuarios() {
-  const [students, setStudents] = useState<Student[]>(mockStudents)
+  const [students, setStudents] = useState<Student[]>([])
   const [notifications, setNotifications] = useState<Notification[]>(mockNotifications)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -131,9 +120,12 @@ export default function GestionUsuarios() {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isGeneratingCredentials, setIsGeneratingCredentials] = useState(false)
   const [isSendingNotification, setIsSendingNotification] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [pageSize, setPageSize] = useState<string>("5")
+  const [currentPage, setCurrentPage] = useState<number>(1)
 
   // Formulario de estudiante
-  const [formData, setFormData] = useState<Omit<Student, "id" | "status" | "username" | "institutionalEmail">>({
+  const [formData, setFormData] = useState<Omit<Student, "id" | "status" | "username" | "institutionalEmail" | "password">>({
     name: "",
     lastName: "",
     email: "",
@@ -143,18 +135,97 @@ export default function GestionUsuarios() {
     birthDate: "",
   })
 
+  // Cargar estudiantes desde la API
+useEffect(() => {
+  async function fetchStudents() {
+    try {
+      const token = localStorage.getItem("token") || "";
+      const statuses = ["Pendiente Aprobacion", "aprobada"];
+
+      const responses = await Promise.all(
+        statuses.map((st) =>
+          fetch(`${API_URL}/prospectos/status/${encodeURIComponent(st)}`, {
+            headers: {
+              Accept: "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+          }).then((res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+          })
+        )
+      );
+
+      const combined = responses
+        .flatMap((r) => (Array.isArray(r.data) ? r.data : []))
+        .reduce<any[]>((acc, p) => {
+          if (!acc.find((x) => x.id === p.id)) acc.push(p);
+          return acc;
+        }, []);
+
+      const mapped: Student[] = combined.map((raw: any) => ({
+        id: String(raw.id),
+        name: raw.nombre_completo?.split(" ")[0] || "",
+        lastName: raw.nombre_completo?.split(" ").slice(1).join(" ") || "",
+        email: raw.correo_electronico || "",
+        phone: raw.telefono || "",
+        program: raw.nombre_programa || "",
+        idNumber: raw.id || "",
+        birthDate: raw.fecha_nacimiento || "",
+        status: raw.status || "pending",
+        username: raw.username || undefined,
+        institutionalEmail: raw.institutional_email || undefined,
+        password: raw.password || undefined,
+      }));
+
+      setStudents(mapped);
+      setFetchError(null);
+
+    } catch (err) {
+      const error = err as Error;
+      console.error('[DEBUG] Error en fetchStudents:', error.message);
+      toast({
+        title: "Error",
+        description: `No se pudieron cargar los estudiantes: ${error.message}`,
+      });
+      setFetchError(
+        "No se pudieron cargar los estudiantes. Ver consola para más detalles."
+      );
+    }
+  }
+  
+  console.log('[DEBUG] Iniciando carga de estudiantes...');
+  fetchStudents();
+}, []);
+
   // Filtrar estudiantes
-  const filteredStudents = students.filter((student) => {
-    const matchesSearch =
-      student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.idNumber.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredStudents = useMemo(() => {
+    const res = students.filter((student) => {
+      const matchesSearch =
+        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.idNumber.toLowerCase().includes(searchTerm.toLowerCase())
 
-    const matchesStatus = statusFilter === "all" || student.status === statusFilter
+      const matchesStatus = statusFilter === "all" || student.status === statusFilter
 
-    return matchesSearch && matchesStatus
-  })
+      return matchesSearch && matchesStatus
+    })
+    return res
+  }, [students, searchTerm, statusFilter])
+
+  // Paginación
+  const paginatedStudents = useMemo(() => {
+    if (pageSize === "all") return filteredStudents
+    const size = Number(pageSize)
+    const start = (currentPage - 1) * size
+    return filteredStudents.slice(start, start + size)
+  }, [filteredStudents, pageSize, currentPage])
+
+  const totalPages = useMemo(() => {
+    if (pageSize === "all") return 1
+    return Math.ceil(filteredStudents.length / Number(pageSize))
+  }, [filteredStudents, pageSize])
 
   // Filtrar notificaciones por estudiante seleccionado
   const studentNotifications = selectedStudent ? notifications.filter((n) => n.studentId === selectedStudent.id) : []
@@ -195,17 +266,17 @@ export default function GestionUsuarios() {
     setIsFormOpen(true)
   }
 
-  // Guardar estudiante (crear o actualizar)
+  // Guardar estudiante (crear o actualizar) - Solo frontend, deberías implementar POST/PUT en tu API para persistir
   const handleSaveStudent = () => {
     if (selectedStudent) {
-      // Actualizar estudiante existente
+      // Actualizar estudiante existente (solo en frontend)
       setStudents((prev) => prev.map((s) => (s.id === selectedStudent.id ? { ...s, ...formData } : s)))
       toast({
         title: "Estudiante actualizado",
         description: `Los datos de ${formData.name} ${formData.lastName} han sido actualizados.`,
       })
     } else {
-      // Crear nuevo estudiante
+      // Crear nuevo estudiante (solo en frontend)
       const newStudent: Student = {
         id: `${Date.now()}`,
         ...formData,
@@ -221,7 +292,7 @@ export default function GestionUsuarios() {
     setIsFormOpen(false)
   }
 
-  // Eliminar estudiante
+  // Eliminar estudiante (solo frontend)
   const handleDelete = (id: string) => {
     setStudents((prev) => prev.filter((s) => s.id !== id))
     if (selectedStudent?.id === id) {
@@ -233,19 +304,65 @@ export default function GestionUsuarios() {
     })
   }
 
-  // Generar credenciales
-  const handleGenerateCredentials = () => {
+  const updateProspectStatus = async (id: string, status: string) => {
+    try {
+      const token = localStorage.getItem("token") || ""
+      const res = await fetch(`${API_URL}/prospectos/${id}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ status }),
+      })
+      if (!res.ok) {
+        const body = await res.json()
+        throw new Error(body.message || `HTTP ${res.status}`)
+      }
+    } catch (err) {
+      console.error("Error actualizando estado:", err)
+    }
+  }
+
+  const handleNextPage = () =>
+    currentPage < totalPages && setCurrentPage((p) => p + 1)
+  const handlePrevPage = () =>
+    currentPage > 1 && setCurrentPage((p) => p - 1)
+
+  // Generar credenciales y guardar usuario en la tabla users vía API
+  const handleGenerateCredentials = async () => {
     if (!selectedStudent) return
 
     setIsGeneratingCredentials(true)
 
-    // Simulación de proceso asíncrono
-    setTimeout(() => {
+    try {
+      // Generar username, email y password automáticamente
       const username = `${selectedStudent.name.toLowerCase()}.${selectedStudent.lastName.toLowerCase()}`
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
-      const institutionalEmail = `${username}@institucion.edu`
+      const institutionalEmail = `${username}@americanschool.edu.gt`
+      const password = generatePassword(selectedStudent)
 
+      // Payload para la API
+      const payload = {
+        username,
+        email: institutionalEmail,
+        password,
+        first_name: selectedStudent.name,
+        last_name: selectedStudent.lastName,
+        is_active: true,
+        email_verified: true,
+        mfa_enabled: false,
+        rol: 3, // ID de rol estudiante
+      }
+
+      // Llama a la utilidad para crear el usuario en la tabla users
+      await crearUsuarioEnBD(payload)
+
+      // Actualizar estado del prospecto en backend
+      await updateProspectStatus(selectedStudent.id, "Inscrito")
+
+      // Actualiza el estado local (frontend)
       setStudents((prev) =>
         prev.map((s) =>
           s.id === selectedStudent.id
@@ -253,7 +370,8 @@ export default function GestionUsuarios() {
                 ...s,
                 username,
                 institutionalEmail,
-                status: "active",
+                password,
+                status: "Inscrito",
               }
             : s,
         ),
@@ -265,27 +383,29 @@ export default function GestionUsuarios() {
               ...prev,
               username,
               institutionalEmail,
-              status: "active",
+              password,
+              status: "Inscrito",
             }
           : null,
       )
 
-      setIsGeneratingCredentials(false)
-
       toast({
         title: "Credenciales generadas",
-        description: `Usuario: ${username}\nCorreo: ${institutionalEmail}`,
+        description: `Usuario: ${username}\nCorreo: ${institutionalEmail}\nContraseña: ${password}\nEstado actualizado a Inscrito`,
       })
-    }, 1500)
+    } catch (err) {
+      // El error ya fue mostrado por Swal
+    } finally {
+      setIsGeneratingCredentials(false)
+    }
   }
 
-  // Enviar notificación
+  // Enviar notificación (solo frontend)
   const handleSendNotification = (type: "email" | "whatsapp") => {
     if (!selectedStudent) return
 
     setIsSendingNotification(true)
 
-    // Simulación de proceso asíncrono
     setTimeout(() => {
       const newNotification: Notification = {
         id: `n${Date.now()}`,
@@ -309,7 +429,7 @@ export default function GestionUsuarios() {
     }, 1500)
   }
 
-  // Reenviar notificación
+  // Reenviar notificación (solo frontend)
   const handleResendNotification = (notification: Notification) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === notification.id ? { ...n, status: "sent", date: new Date().toISOString() } : n)),
@@ -330,6 +450,12 @@ export default function GestionUsuarios() {
         </Button>
       </div>
 
+      {fetchError && (
+        <div className="mb-4 p-4 bg-red-100 text-red-700 rounded">
+          {fetchError}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Panel de búsqueda y filtros */}
         <Card className="md:col-span-3">
@@ -341,11 +467,20 @@ export default function GestionUsuarios() {
                   placeholder="Buscar por nombre, correo o ID..."
                   className="pl-8"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value)
+                    setCurrentPage(1)
+                  }}
                 />
               </div>
               <div className="flex gap-2">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) => {
+                    setStatusFilter(v)
+                    setCurrentPage(1)
+                  }}
+                >
                   <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Filtrar por estado" />
                   </SelectTrigger>
@@ -354,6 +489,7 @@ export default function GestionUsuarios() {
                     <SelectItem value="pending">Pendientes</SelectItem>
                     <SelectItem value="active">Activos</SelectItem>
                     <SelectItem value="inactive">Inactivos</SelectItem>
+                    <SelectItem value="Inscrito">Inscritos</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button variant="outline" size="icon">
@@ -388,7 +524,7 @@ export default function GestionUsuarios() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredStudents.map((student) => (
+                    paginatedStudents.map((student) => (
                       <TableRow
                         key={student.id}
                         className={selectedStudent?.id === student.id ? "bg-blue-50" : ""}
@@ -404,21 +540,10 @@ export default function GestionUsuarios() {
                           <div className="max-w-[200px] truncate">{student.program}</div>
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant={
-                              student.status === "active"
-                                ? "default"
-                                : student.status === "pending"
-                                  ? "outline"
-                                  : "secondary"
-                            }
-                          >
-                            {student.status === "active"
-                              ? "Activo"
-                              : student.status === "pending"
-                                ? "Pendiente"
-                                : "Inactivo"}
-                          </Badge>
+                          {(() => {
+                            const { variant, label } = getStatusBadgeInfo(student.status)
+                            return <Badge variant={variant}>{label}</Badge>
+                          })()}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
@@ -450,6 +575,41 @@ export default function GestionUsuarios() {
                 </TableBody>
               </Table>
             </div>
+
+            {pageSize !== "all" && (
+              <div className="flex items-center justify-end gap-2 p-2">
+                <Select
+                  value={pageSize}
+                  onValueChange={(v) => {
+                    setPageSize(v)
+                    setCurrentPage(1)
+                  }}
+                >
+                  <SelectTrigger className="w-[120px]">
+                    <SelectValue placeholder="Paginación" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="all">Todos</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" onClick={handlePrevPage} disabled={currentPage === 1}>
+                  Anterior
+                </Button>
+                <span className="text-sm text-gray-600">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -500,6 +660,10 @@ export default function GestionUsuarios() {
                         <div>
                           <Label>Correo institucional</Label>
                           <div className="font-medium">{selectedStudent.institutionalEmail}</div>
+                        </div>
+                        <div>
+                          <Label>Contraseña</Label>
+                          <div className="font-medium">{selectedStudent.password}</div>
                         </div>
                       </>
                     )}
@@ -676,4 +840,3 @@ export default function GestionUsuarios() {
     </div>
   )
 }
-

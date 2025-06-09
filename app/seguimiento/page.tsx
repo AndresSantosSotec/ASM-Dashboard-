@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import axios from "axios";
+import { api } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
 import Swal from "sweetalert2";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,18 +67,40 @@ export default function SeguimientoPage() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(5);
 
-  // Estados para token y user_id
-  const [token, setToken] = useState<string | null>(null);
+  // Token desde contexto y estado para user_id
+  const { token } = useAuth();
   const [userId, setUserId] = useState<string | null>(null);
 
-  // Obtener token y user_id del localStorage solo en el cliente
+  // Agrega estos estados nuevos cerca de los demás useState existentes:
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [emailFilter, setEmailFilter] = useState<string>("");
+  const [phoneFilter, setPhoneFilter] = useState<string>("");
+  const [estadoFilter, setEstadoFilter] = useState<string>("all");
+
+
+
+
+  //filters
+  const [filters, setFilters] = useState({
+    nombre: "",
+    email: "",
+    telefono: "",
+    estado: "",
+  });
+
+  // Crea un array derivado en base a los filtros aplicados:
+  const filteredProspectos = prospectos.filter((p) => {
+    const matchesNombre = p.nombre.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesEmail = p.email.toLowerCase().includes(emailFilter.toLowerCase());
+    const matchesTelefono = p.telefono.includes(phoneFilter);
+    const matchesEstado = estadoFilter === "all" ? true : p.estado === estadoFilter;
+    return matchesNombre && matchesEmail && matchesTelefono && matchesEstado;
+  });
+
+  // Obtener user_id del localStorage solo en el cliente
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const _token = localStorage.getItem("token");
       const _userId = localStorage.getItem("user_id");
-      console.log("Token recuperado:", _token);
-      console.log("User ID recuperado:", _userId);
-      setToken(_token);
       setUserId(_userId);
     }
   }, []);
@@ -109,17 +132,8 @@ export default function SeguimientoPage() {
       setLoading(true);
       setError("");
       try {
-        const url = "http://localhost:8000/api/prospectos";
-        const res = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-        if (!res.ok) {
-          throw new Error(`Error al obtener prospectos: status ${res.status}`);
-        }
-        const json = await res.json();
+        const res = await api.get("/prospectos");
+        const json = res.data;
         console.log("Respuesta completa de prospectos:", json);
         const prospectosTransformados: Prospecto[] = json.data.map((item: any) => ({
           id: String(item.id),
@@ -143,12 +157,10 @@ export default function SeguimientoPage() {
   // Cargar interacciones filtradas por prospecto
   useEffect(() => {
     if (!token || !selectedProspecto) return;
-  
+
     const fetchInteracciones = async () => {
       try {
-        const response = await axios.get(`http://localhost:8000/api/interacciones?id_lead=${selectedProspecto.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await api.get(`/interacciones?id_lead=${selectedProspecto.id}`);
         console.log("Interacciones recibidas:", response.data);
         if (Array.isArray(response.data.data)) {
           setInteracciones(response.data.data);
@@ -168,9 +180,7 @@ export default function SeguimientoPage() {
     if (!token) return;
     const fetchInteracciones = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/api/interacciones", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await api.get("/interacciones");
         console.log("Interacciones globales recibidas:", response.data);
         if (Array.isArray(response.data)) {
           setInteracciones(response.data);
@@ -190,9 +200,7 @@ export default function SeguimientoPage() {
     if (!token) return;
     const fetchCitas = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/api/citas", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await api.get("/citas");
         console.log("Citas recibidas:", response.data);
         const citasArray = Array.isArray(response.data)
           ? response.data
@@ -210,9 +218,7 @@ export default function SeguimientoPage() {
     if (!token) return;
     const fetchActividades = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/api/actividades", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await api.get("/actividades");
         console.log("Actividades recibidas:", response.data);
         setActividades(response.data);
       } catch (err: any) {
@@ -233,7 +239,7 @@ export default function SeguimientoPage() {
       });
       return;
     }
-    const currentToken = localStorage.getItem("token");
+    const currentToken = token;
     if (!currentToken) {
       Swal.fire({
         icon: "error",
@@ -255,10 +261,9 @@ export default function SeguimientoPage() {
     console.log("Enviando interacción:", JSON.stringify(newInteraction, null, 2));
 
     try {
-      const response = await axios.post(
-        "http://localhost:8000/api/interacciones",
-        newInteraction,
-        { headers: { Authorization: `Bearer ${currentToken}` } }
+      const response = await api.post(
+        "/interacciones",
+        newInteraction
       );
       console.log("✅ Interacción guardada:", response.data);
       setInteracciones((prev) => Array.isArray(prev) ? [...prev, response.data] : [response.data]);
@@ -293,7 +298,7 @@ export default function SeguimientoPage() {
       });
       return;
     }
-    const currentToken = localStorage.getItem("token");
+    const currentToken = token;
     if (!currentToken) {
       Swal.fire({
         icon: "error",
@@ -311,10 +316,9 @@ export default function SeguimientoPage() {
     console.log("Enviando cita:", JSON.stringify(newCita, null, 2));
 
     try {
-      const response = await axios.post(
-        "http://localhost:8000/api/citas",
-        newCita,
-        { headers: { Authorization: `Bearer ${currentToken}` } }
+      const response = await api.post(
+        "/citas",
+        newCita
       );
       console.log("✅ Cita guardada:", response.data);
       setCitas((prev) => Array.isArray(prev) ? [...prev, response.data] : [response.data]);
@@ -346,6 +350,56 @@ export default function SeguimientoPage() {
         </div>
       </div>
 
+      <div className="flex flex-col sm:flex-row gap-4 mb-4">
+        <Input
+          placeholder="Buscar por nombre"
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setCurrentPage(1);
+          }}
+          className="w-full sm:max-w-xs"
+        />
+        <Input
+          placeholder="Buscar por correo"
+          value={emailFilter}
+          onChange={(e) => {
+            setEmailFilter(e.target.value);
+            setCurrentPage(1);
+          }}
+          className="w-full sm:max-w-xs"
+        />
+        <Input
+          placeholder="Buscar por teléfono"
+          value={phoneFilter}
+          onChange={(e) => {
+            setPhoneFilter(e.target.value);
+            setCurrentPage(1);
+          }}
+          className="w-full sm:max-w-xs"
+        />
+        <Select
+          value={estadoFilter}
+          onValueChange={(value) => {
+            setEstadoFilter(value);
+            setCurrentPage(1);
+          }}
+        >
+          <SelectTrigger className="w-full sm:max-w-xs">
+            <SelectValue placeholder="Filtrar por estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="No contactado">No contactado</SelectItem>
+            <SelectItem value="En seguimiento">En seguimiento</SelectItem>
+            <SelectItem value="Le interesa a futuro">Le interesa a futuro</SelectItem>
+            <SelectItem value="Perdido">Perdido</SelectItem>
+            <SelectItem value="Inscrito">Inscrito</SelectItem>
+            <SelectItem value="Promesa de pago">Promesa de pago</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {loading && <p>Cargando prospectos...</p>}
       {error && <p className="text-red-500">{error}</p>}
 
@@ -360,12 +414,11 @@ export default function SeguimientoPage() {
                   <TableHead>Email</TableHead>
                   <TableHead>Teléfono</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead>Asesor</TableHead>
                   <TableHead>Acción</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {prospectos
+                {filteredProspectos
                   .slice((currentPage - 1) * pageSize, currentPage * pageSize)
                   .map((prospecto) => (
                     <TableRow key={prospecto.id}>
@@ -377,7 +430,6 @@ export default function SeguimientoPage() {
                           {prospecto.estado}
                         </Badge>
                       </TableCell>
-                      <TableCell>{prospecto.asesor}</TableCell>
                       <TableCell>
                         <Button variant="default" onClick={() => setSelectedProspecto(prospecto)}>
                           Ver detalles
@@ -422,29 +474,15 @@ export default function SeguimientoPage() {
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-md font-semibold mb-2">
-                    Asesor asignado: {selectedProspecto?.asesor}
-                  </h3>
-                  <Select defaultValue={selectedProspecto?.estado.toLowerCase()}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccione el estado" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="contactado">Contactado</SelectItem>
-                      <SelectItem value="interesado">Interesado</SelectItem>
-                      <SelectItem value="en_proceso">En proceso</SelectItem>
-                      <SelectItem value="matriculado">Matriculado</SelectItem>
-                      <SelectItem value="no_interesado">No volver a contactar</SelectItem>
-                    </SelectContent>
-                  </Select>
+
                 </div>
                 <div>
                   <h3 className="text-md font-semibold mb-2">Historial de Actividades</h3>
                   {/* Contenedor con scroll para interacciones */}
                   <div className="max-h-72 overflow-y-auto space-y-4">
                     {selectedProspecto &&
-                    Array.isArray(interacciones) &&
-                    interacciones.filter((inter) => inter.id_lead === parseInt(selectedProspecto.id, 10)).length > 0 ? (
+                      Array.isArray(interacciones) &&
+                      interacciones.filter((inter) => inter.id_lead === parseInt(selectedProspecto.id, 10)).length > 0 ? (
                       interacciones
                         .filter((inter: any) => inter.id_lead === parseInt(selectedProspecto.id, 10))
                         .map((actividad, index) => (
@@ -494,21 +532,21 @@ export default function SeguimientoPage() {
                         )}
                       </SelectContent>
                     </Select>
-                    <Input 
+                    <Input
                       type="datetime-local"
                       placeholder="Fecha de interacción"
                       value={interactionDate}
                       onChange={(e) => setInteractionDate(e.target.value)}
                     />
-                    <Input 
-                      placeholder="Duración (minutos)" 
-                      value={interactionDuration} 
+                    <Input
+                      placeholder="Duración (minutos)"
+                      value={interactionDuration}
                       onChange={(e) => setInteractionDuration(e.target.value)}
                     />
-                    <Textarea 
-                      placeholder="Notas" 
-                      className="min-h-[100px]" 
-                      value={interactionNotes} 
+                    <Textarea
+                      placeholder="Notas"
+                      className="min-h-[100px]"
+                      value={interactionNotes}
                       onChange={(e) => setInteractionNotes(e.target.value)}
                     />
                     <Button className="w-full" onClick={handleAddInteraction}>
@@ -518,16 +556,16 @@ export default function SeguimientoPage() {
                 </div>
                 <div>
                   <h3 className="text-md font-semibold mb-4">Fecha y Cita</h3>
-                  <Input 
+                  <Input
                     type="datetime-local"
                     placeholder="Fecha de la cita"
                     value={appointmentDate}
                     onChange={(e) => setAppointmentDate(e.target.value)}
                   />
                   <div className="mt-4 space-y-4">
-                    <Input 
-                      placeholder="Descripción de la cita" 
-                      value={appointmentDescription} 
+                    <Input
+                      placeholder="Descripción de la cita"
+                      value={appointmentDescription}
                       onChange={(e) => setAppointmentDescription(e.target.value)}
                     />
                     <Button className="w-full" onClick={handleAddCita}>
@@ -539,8 +577,11 @@ export default function SeguimientoPage() {
                     {/* Contenedor con scroll para citas */}
                     <div className="max-h-56 overflow-y-auto space-y-2">
                       {citas.length > 0 ? (
-                        citas.map((cita) => (
-                          <div key={cita.id} className="flex justify-between items-center text-sm border-b py-2">
+                        citas.map((cita, index) => (
+                          <div
+                            key={cita.id ?? `${cita.datecita}-${index}`}
+                            className="flex justify-between items-center text-sm border-b py-2"
+                          >
                             <span>{formatDate(cita.datecita)}</span>
                             <span>{cita.descricita}</span>
                           </div>

@@ -8,8 +8,10 @@ import * as z from "zod"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { API_BASE_URL } from "@/utils/apiConfig"
 import { Textarea } from "@/components/ui/textarea"
-import {Form,FormControl,FormField,FormItem,FormLabel,FormMessage,
+import {
+  Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from "@/components/ui/form"
 import {
   Select,
@@ -40,6 +42,7 @@ const formSchema = z.object({
   notasGenerales: z.string().optional(),
   observaciones: z.string().optional(),
   interes: z.string().optional(),
+  mesesPrograma: z.string().optional(), // Nuevo campo para los meses
   nota1: z.string().optional(),
   nota2: z.string().optional(),
   nota3: z.string().optional(),
@@ -70,6 +73,10 @@ export default function CapturaProspectos() {
     []
   )
 
+  const [empresas, setEmpresas] = useState<{ id: number; nombre: string; descripcion: string | null; activo: boolean }[]>([])
+
+  const [showOtherCompany, setShowOtherCompany] = useState(false);
+
   // useForm con defaultValues para país=1 (Guatemala)
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -84,12 +91,13 @@ export default function CapturaProspectos() {
       Origen: "",
       notasGenerales: "",
       observaciones: "",
-      interes: "",
+      interes: "",         // tu campo original
+      mesesPrograma: "",   // ← lo agregas aquí
       nota1: "",
       nota2: "",
       nota3: "",
       cierre: "",
-      pais: "1", // Guatemala
+      pais: "1",           // Guatemala
       departamento: "",
       municipio: "",
     },
@@ -99,7 +107,7 @@ export default function CapturaProspectos() {
   useEffect(() => {
     const fetchProgramas = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/api/programas")
+        const response = await axios.get(`${API_BASE_URL}/api/programas`)
         setProgramas(response.data)
       } catch (error) {
         console.error("❌ Error al obtener programas:", error)
@@ -108,11 +116,25 @@ export default function CapturaProspectos() {
     fetchProgramas()
   }, [])
 
+  //obtener la lista de empresas 
+  useEffect(() => {
+    const fetchEmpresas = async () => {
+      try {
+        const response = await axios.get(`${API_BASE_URL}/api/convenios`)
+        setEmpresas(response.data)
+      } catch (error) {
+        console.error("❌ Error al obtener empresas:", error)
+      }
+    }
+    fetchEmpresas()
+  }, [])
+
+
   // Obtener la estructura de departamentos y municipios de Guatemala
   useEffect(() => {
     const fetchUbicacionGuatemala = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/api/ubicacion/1")
+        const response = await axios.get(`${API_BASE_URL}/api/ubicacion/1`)
         setDepartamentos(response.data.departamentos)
       } catch (error) {
         console.error("❌ Error al obtener ubicación de Guatemala:", error)
@@ -150,7 +172,7 @@ export default function CapturaProspectos() {
         fecha: fechaFormateada,
         medio_conocimiento_institucion: data.Origen,
       }
-      await axios.post("http://localhost:8000/api/prospectos", payload, {
+      await axios.post(`${API_BASE_URL}/api/prospectos`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       })
       Swal.fire({
@@ -320,19 +342,65 @@ export default function CapturaProspectos() {
                 />
 
                 {/* Empresa donde labora */}
-                <FormField
-                  control={form.control}
-                  name="empresaDondeLaboraActualmente"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Empresa donde labora</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ingrese la empresa" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                <div className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="empresaDondeLaboraActualmente"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Empresa donde labora</FormLabel>
+                        <Select
+                          onValueChange={(value) => {
+                            if (value === "otros") {
+                              setShowOtherCompany(true);
+                              field.onChange("");
+                            } else {
+                              setShowOtherCompany(false);
+                              field.onChange(value);
+                            }
+                          }}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccione la empresa" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {empresas
+                              .filter(empresa => empresa.activo)
+                              .map((empresa) => (
+                                <SelectItem key={empresa.id} value={empresa.nombre}>
+                                  {empresa.nombre}
+                                </SelectItem>
+                              ))}
+                            <SelectItem value="otros">Otros</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {showOtherCompany && (
+                    <FormField
+                      control={form.control}
+                      name="empresaDondeLaboraActualmente"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Especifique la empresa</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Ingrese el nombre de la empresa"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   )}
-                />
+                </div>
 
                 {/* Puesto */}
                 <FormField
@@ -414,6 +482,7 @@ export default function CapturaProspectos() {
               />
 
               {/* Programa de Interés */}
+              {/* Programa de Interés */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -421,7 +490,17 @@ export default function CapturaProspectos() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Programa de Interés</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          // Actualizar los meses cuando se selecciona un programa
+                          const programaSeleccionado = programas.find(p => p.id.toString() === value);
+                          if (programaSeleccionado) {
+                            form.setValue("mesesPrograma", programaSeleccionado.meses.toString());
+                          }
+                        }}
+                        defaultValue={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleccione un programa" />
@@ -433,12 +512,36 @@ export default function CapturaProspectos() {
                               key={programa.id}
                               value={programa.id.toString()}
                             >
-                              {programa.abreviatura} - {programa.nombre_del_programa} (
-                              {programa.meses} meses)
+                              {programa.abreviatura} - {programa.nombre_del_programa}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Campo para los meses */}
+                <FormField
+                  control={form.control}
+                  name="mesesPrograma"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Duración (meses)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="Meses de duración"
+                          value={field.value ?? ""}   // ← aquí el fallback
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value === "" || /^[1-9]\d*$/.test(value)) {
+                              field.onChange(value);
+                            }
+                          }}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -1,376 +1,603 @@
-import { Header } from "@/components/header"
-import { Card, CardContent, CardFooter } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+"use client";
+
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { Header } from "@/components/header";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { API_BASE_URL } from "@/utils/apiConfig";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { Switch } from "@/components/ui/switch"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
-import { es } from "date-fns/locale"
-import { Search, Plus, Edit, FileText, CalendarIcon, Clock, CheckCircle, XCircle } from "lucide-react"
+} from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  CalendarIcon,
+  Search,
+  Plus,
+  Edit,
+  FileText,
+  Clock as ClockIcon,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { format, parseISO } from "date-fns";
+import { es } from "date-fns/locale";
+
+const API_DATE = "yyyy-MM-dd";
+const pretty = (iso: string) => (iso ? format(parseISO(iso), API_DATE) : "");
+
+function generateCodigo(nombre: string): string {
+  const añoMatch = nombre.match(/\d{4}/);
+  const year = añoMatch ? añoMatch[0] : format(new Date(), "yyyy");
+  const initials = nombre
+    .replace(/\d{4}/, "")
+    .trim()
+    .split(/\s+/)
+    .map(w => w.charAt(0))
+    .join("")
+    .slice(0, 4)
+    .toUpperCase();
+  return `${initials}-${year}`;
+}
+
+axios.defaults.baseURL = API_BASE_URL + "/api";
+
+type PeriodoAPI = {
+  id: number;
+  nombre: string;
+  codigo: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  descripcion: string;
+  cupos_total: number;
+  descuento: number;
+  activo: boolean;
+  visible: boolean;
+  notificaciones: boolean;
+  inscritos_count: number;
+  programas: { id: number; abreviatura: string }[];
+};
+
+type Periodo = PeriodoAPI & {
+  estado: "Activo" | "Finalizado";
+  porcentaje: number;
+};
 
 export default function PeriodosInscripcionPage() {
+  const [periodos, setPeriodos] = useState<Periodo[]>([]);
+  const [filtered, setFiltered] = useState<Periodo[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [search, setSearch] = useState("");
+  const [filterEstado, setFilterEstado] =
+    useState<"Todos" | "Activo" | "Finalizado">("Todos");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+
+  const [mode, setMode] = useState<"create" | "edit" | "view">("create");
+  const [isOpen, setIsOpen] = useState(false);
+  const [active, setActive] = useState<PeriodoAPI | null>(null);
+
+  const [form, setForm] = useState<Omit<PeriodoAPI, "id" | "inscritos_count">>({
+    nombre: "",
+    codigo: "",
+    fecha_inicio: format(new Date(), API_DATE),
+    fecha_fin: format(new Date(), API_DATE),
+    descripcion: "",
+    cupos_total: 0,
+    descuento: 0,
+    activo: true,
+    visible: true,
+    notificaciones: true,
+    programas: [],
+  });
+
+  useEffect(() => {
+    fetchPeriodos();
+  }, []);
+
+  async function fetchPeriodos() {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await axios.get<PeriodoAPI[]>("/periodos");
+      const mapped = data.map(p => ({
+        ...p,
+        estado: p.activo ? ("Activo" as const) : ("Finalizado" as const),
+        porcentaje: p.cupos_total
+          ? (p.inscritos_count / p.cupos_total) * 100
+          : 0,
+      }));
+      setPeriodos(mapped);
+      setFiltered(mapped);
+    } catch (e: any) {
+      console.error(e);
+      setError("No se pudieron cargar los periodos. Revisa tu API.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    let tmp = [...periodos];
+    if (search) {
+      tmp = tmp.filter(p =>
+        p.nombre.toLowerCase().includes(search.toLowerCase())
+      );
+    }
+    if (filterEstado !== "Todos") {
+      tmp = tmp.filter(p => p.estado === filterEstado);
+    }
+    if (dateFrom) {
+      const from = parseISO(dateFrom);
+      tmp = tmp.filter(p => parseISO(p.fecha_inicio) >= from);
+    }
+    if (dateTo) {
+      const to = parseISO(dateTo);
+      tmp = tmp.filter(p => parseISO(p.fecha_fin) <= to);
+    }
+    setFiltered(tmp);
+  }, [search, filterEstado, dateFrom, dateTo, periodos]);
+
+  function openCreate() {
+    setMode("create");
+    setForm({
+      nombre: "",
+      codigo: "",
+      fecha_inicio: format(new Date(), API_DATE),
+      fecha_fin: format(new Date(), API_DATE),
+      descripcion: "",
+      cupos_total: 0,
+      descuento: 0,
+      activo: true,
+      visible: true,
+      notificaciones: true,
+      programas: [],
+    });
+    setActive(null);
+    setIsOpen(true);
+  }
+
+  function openView(p: PeriodoAPI) {
+    setMode("view");
+    setActive(p);
+    setIsOpen(true);
+  }
+
+  function openEdit(p: PeriodoAPI) {
+    setMode("edit");
+    setActive(p);
+    const { id, inscritos_count, ...rest } = p;
+    setForm(rest);
+    setIsOpen(true);
+  }
+
+  async function handleSubmit() {
+    try {
+      if (mode === "create") {
+        await axios.post("/periodos", form);
+      } else if (mode === "edit" && active) {
+        await axios.put(`/periodos/${active.id}`, form);
+      }
+      await fetchPeriodos();
+      setIsOpen(false);
+    } catch (e) {
+      console.error(e);
+      alert("Error al guardar");
+    }
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm("Eliminar este periodo?")) return;
+    await axios.delete(`/periodos/${id}`);
+    await fetchPeriodos();
+  }
+
+  async function handleToggle(p: Periodo) {
+    await axios.put(`/periodos/${p.id}`, { activo: !p.activo });
+    await fetchPeriodos();
+  }
+
+  const badgeStyles: Record<Periodo["estado"], string> = {
+    Activo: "bg-green-100 text-green-700 dark:bg-green-800/30",
+    Finalizado: "bg-gray-100 text-gray-700 dark:bg-gray-800/30",
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header title="Administración de Periodos de Inscripción" />
+
       <main className="flex-1 p-4 md:p-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-xl font-semibold">Periodos de Inscripción</h1>
-            <p className="text-sm text-muted-foreground">
-              Gestione los periodos de inscripción para los diferentes programas académicos
-            </p>
+        {/* filtros + nuevo */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-6 mb-6">
+          <div className="relative w-full md:max-w-xs">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Buscar…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
           </div>
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input type="search" placeholder="Buscar periodo..." className="pl-8 w-[250px]" />
-            </div>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button className="gap-1">
-                  <Plus className="h-4 w-4" />
-                  Nuevo Periodo
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Crear Nuevo Periodo de Inscripción</DialogTitle>
-                  <DialogDescription>
-                    Configure las fechas y programas para el nuevo periodo de inscripción.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="nombre">Nombre del Periodo *</Label>
-                      <Input id="nombre" placeholder="Ej: Primavera 2023" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="codigo">Código *</Label>
-                      <Input id="codigo" placeholder="Ej: PRIM-2023" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Fecha de Inicio *</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className="w-full justify-start text-left font-normal">
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            15/01/2023
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar mode="single" locale={es} showOutsideDays={false} className="rounded-md border" />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Fecha de Fin *</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className="w-full justify-start text-left font-normal">
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            15/03/2023
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar mode="single" locale={es} showOutsideDays={false} className="rounded-md border" />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="programas">Programas Aplicables *</Label>
-                    <Select>
-                      <SelectTrigger id="programas">
-                        <SelectValue placeholder="Seleccionar programas" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todos">Todos los Programas</SelectItem>
-                        <SelectItem value="maestrias">Todas las Maestrías</SelectItem>
-                        <SelectItem value="diplomados">Todos los Diplomados</SelectItem>
-                        <SelectItem value="especificos">Programas Específicos</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="descripcion">Descripción</Label>
-                    <Input id="descripcion" placeholder="Descripción del periodo de inscripción..." />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="cupos">Cupos Disponibles *</Label>
-                      <Input id="cupos" type="number" min="1" placeholder="Ej: 100" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="descuento">Descuento por Inscripción Temprana (%)</Label>
-                      <Input id="descuento" type="number" min="0" max="100" placeholder="Ej: 10" />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Configuración Adicional</Label>
-                    <div className="flex flex-col gap-3">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="activo" className="cursor-pointer">
-                          Periodo Activo
-                        </Label>
-                        <Switch id="activo" defaultChecked />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="visible" className="cursor-pointer">
-                          Visible en Portal Público
-                        </Label>
-                        <Switch id="visible" defaultChecked />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="notificaciones" className="cursor-pointer">
-                          Enviar Notificaciones
-                        </Label>
-                        <Switch id="notificaciones" defaultChecked />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline">Cancelar</Button>
-                  <Button>Guardar Periodo</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+
+          <Select
+            value={filterEstado}
+            onValueChange={val => setFilterEstado(val as any)}
+          >
+            <SelectTrigger className="md:w-40">
+              <SelectValue placeholder="Estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Todos">Todos</SelectItem>
+              <SelectItem value="Activo">Activo</SelectItem>
+              <SelectItem value="Finalizado">Finalizado</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <div className="flex gap-2">
+            {[
+              { label: "Desde", state: dateFrom, setter: setDateFrom },
+              { label: "Hasta", state: dateTo, setter: setDateTo },
+            ].map(({ label, state, setter }) => (
+              <Popover key={label}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full md:w-auto justify-start"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" /> {label}
+                    {state && (
+                      <span className="ml-2 text-muted-foreground text-sm">
+                        {state}
+                      </span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0" align="start">
+                  <Calendar
+                    locale={es}
+                    mode="single"
+                    selected={state ? parseISO(state) : undefined}
+                    onSelect={d => d && setter(format(d, API_DATE))}
+                  />
+                </PopoverContent>
+              </Popover>
+            ))}
           </div>
+
+          <Button
+            onClick={openCreate}
+            className="md:ml-auto self-start md:self-auto"
+          >
+            <Plus className="h-4 w-4 mr-2" /> Nuevo Periodo
+          </Button>
         </div>
 
+        {/* tabla */}
         <Card>
+          <CardHeader className="border-b">
+            <CardTitle className="text-base">Listado de periodos</CardTitle>
+          </CardHeader>
+
           <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre del Periodo</TableHead>
-                  <TableHead>Fecha Inicio</TableHead>
-                  <TableHead>Fecha Fin</TableHead>
-                  <TableHead>Programas</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Cupos</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {[
-                  {
-                    nombre: "Primavera 2023",
-                    inicio: "15/01/2023",
-                    fin: "15/03/2023",
-                    programas: "Todos",
-                    estado: "Activo",
-                    cupos: "100/150",
-                    porcentaje: 67,
-                  },
-                  {
-                    nombre: "Verano 2023",
-                    inicio: "01/05/2023",
-                    fin: "30/06/2023",
-                    programas: "Maestrías",
-                    estado: "Próximo",
-                    cupos: "0/80",
-                    porcentaje: 0,
-                  },
-                  {
-                    nombre: "Otoño 2023",
-                    inicio: "15/08/2023",
-                    fin: "15/10/2023",
-                    programas: "Todos",
-                    estado: "Próximo",
-                    cupos: "0/120",
-                    porcentaje: 0,
-                  },
-                  {
-                    nombre: "Invierno 2022",
-                    inicio: "01/11/2022",
-                    fin: "31/12/2022",
-                    programas: "Diplomados",
-                    estado: "Finalizado",
-                    cupos: "75/75",
-                    porcentaje: 100,
-                  },
-                  {
-                    nombre: "Especial MBA 2023",
-                    inicio: "01/02/2023",
-                    fin: "28/02/2023",
-                    programas: "MBA Ejecutivo",
-                    estado: "Finalizado",
-                    cupos: "30/30",
-                    porcentaje: 100,
-                  },
-                ].map((periodo, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="font-medium">{periodo.nombre}</TableCell>
-                    <TableCell>{periodo.inicio}</TableCell>
-                    <TableCell>{periodo.fin}</TableCell>
-                    <TableCell>{periodo.programas}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={
-                          periodo.estado === "Activo"
-                            ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                            : periodo.estado === "Próximo"
-                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
-                              : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                        }
-                      >
-                        {periodo.estado}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="text-sm">{periodo.cupos}</div>
-                        <div className="h-2 w-full rounded-full bg-muted">
-                          <div
-                            className={`h-2 rounded-full ${
-                              periodo.porcentaje >= 90
-                                ? "bg-red-500"
-                                : periodo.porcentaje >= 60
-                                  ? "bg-amber-500"
-                                  : "bg-green-500"
-                            }`}
-                            style={{ width: `${periodo.porcentaje}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon">
-                          <Edit className="h-4 w-4" />
-                          <span className="sr-only">Editar</span>
-                        </Button>
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <FileText className="h-4 w-4" />
-                              <span className="sr-only">Ver detalles</span>
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Detalles del Periodo</DialogTitle>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <h3 className="text-sm font-medium text-gray-500">Nombre</h3>
-                                  <p>{periodo.nombre}</p>
-                                </div>
-                                <div>
-                                  <h3 className="text-sm font-medium text-gray-500">Código</h3>
-                                  <p>{periodo.nombre === "Primavera 2023" ? "PRIM-2023" : "VER-2023"}</p>
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <h3 className="text-sm font-medium text-gray-500">Fecha de Inicio</h3>
-                                  <p>{periodo.inicio}</p>
-                                </div>
-                                <div>
-                                  <h3 className="text-sm font-medium text-gray-500">Fecha de Fin</h3>
-                                  <p>{periodo.fin}</p>
-                                </div>
-                              </div>
-                              <div>
-                                <h3 className="text-sm font-medium text-gray-500">Programas Aplicables</h3>
-                                <p>{periodo.programas}</p>
-                              </div>
-                              <div>
-                                <h3 className="text-sm font-medium text-gray-500">Descripción</h3>
-                                <p className="text-sm text-gray-700">
-                                  {periodo.nombre === "Primavera 2023"
-                                    ? "Periodo regular de inscripciones para todos los programas académicos del primer semestre del año 2023."
-                                    : "Periodo especial de inscripciones para programas de maestría durante el verano de 2023."}
-                                </p>
-                              </div>
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <h3 className="text-sm font-medium text-gray-500">Cupos</h3>
-                                  <p>{periodo.cupos}</p>
-                                </div>
-                                <div>
-                                  <h3 className="text-sm font-medium text-gray-500">Ocupación</h3>
-                                  <p>{periodo.porcentaje}%</p>
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <h3 className="text-sm font-medium text-gray-500">
-                                    Descuento por Inscripción Temprana
-                                  </h3>
-                                  <p>{i % 2 === 0 ? "10%" : "5%"}</p>
-                                </div>
-                                <div>
-                                  <h3 className="text-sm font-medium text-gray-500">Visible en Portal</h3>
-                                  <p>{periodo.estado !== "Finalizado" ? "Sí" : "No"}</p>
-                                </div>
-                              </div>
-                              {periodo.estado === "Activo" && (
-                                <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-700">
-                                  <div className="flex items-center gap-2">
-                                    <Clock className="h-4 w-4" />
-                                    <span className="font-medium">Tiempo Restante:</span>
-                                  </div>
-                                  <p className="mt-1">15 días para finalizar el periodo de inscripción</p>
-                                </div>
-                              )}
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                        {periodo.estado !== "Finalizado" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className={periodo.estado === "Activo" ? "text-red-500" : "text-green-500"}
-                          >
-                            {periodo.estado === "Activo" ? (
-                              <XCircle className="h-4 w-4" />
-                            ) : (
-                              <CheckCircle className="h-4 w-4" />
-                            )}
-                            <span className="sr-only">{periodo.estado === "Activo" ? "Desactivar" : "Activar"}</span>
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
+            {error && <div className="p-4 text-red-500">{error}</div>}
+            <div className="overflow-x-auto text-sm">
+              <Table className="min-w-max">
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>Periodo</TableHead>
+                    <TableHead>Inicio</TableHead>
+                    <TableHead>Fin</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Cupos</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {loading && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-6 text-center">
+                        Cargando…
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {!loading && filtered.length === 0 && !error && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-6 text-center">
+                        No hay periodos.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {filtered.map(p => (
+                    <TableRow
+                      key={p.id}
+                      className="even:bg-muted/30 hover:bg-muted/50 transition-colors"
+                    >
+                      <TableCell>{p.nombre}</TableCell>
+                      <TableCell>{pretty(p.fecha_inicio)}</TableCell>
+                      <TableCell>{pretty(p.fecha_fin)}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={badgeStyles[p.estado]}
+                        >
+                          {p.estado}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="w-64">
+                        <div className="mb-1 flex justify-between">
+                          <span>
+                            {p.inscritos_count}/{p.cupos_total}
+                          </span>
+                          <span>{Math.round(p.porcentaje)}%</span>
+                        </div>
+                        <Progress value={p.porcentaje} className="h-1" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => openView(p)}
+                          >
+                            <FileText className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => openEdit(p)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleDelete(p.id)}
+                          >
+                            <XCircle className="h-4 w-4 text-red-500" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleToggle(p)}
+                          >
+                            {p.activo ? (
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <ClockIcon className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
-          <CardFooter className="flex justify-between border-t p-4">
-            <div className="text-sm text-muted-foreground">Mostrando 5 de 5 periodos</div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled>
+
+          <CardFooter className="flex flex-col md:flex-row md:justify-between gap-3 border-t p-4">
+            <span className="text-sm text-muted-foreground">
+              Mostrando {filtered.length} de {periodos.length} periodos
+            </span>
+            <div className="flex gap-2 self-end md:self-auto">
+              <Button size="sm" variant="outline" disabled>
                 Anterior
               </Button>
-              <Button variant="outline" size="sm" disabled>
+              <Button size="sm" variant="outline" disabled>
                 Siguiente
               </Button>
             </div>
           </CardFooter>
         </Card>
       </main>
-    </div>
-  )
-}
 
+      {/* modal de formulario */}
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              {mode === "create"
+                ? "Crear Periodo"
+                : mode === "edit"
+                ? "Editar Periodo"
+                : "Detalle de Periodo"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label>Nombre</Label>
+                <Input
+                  disabled={mode === "view"}
+                  value={mode === "view" ? active?.nombre ?? "" : form.nombre}
+                  onChange={e => {
+                    const nombreVal = e.target.value;
+                    setForm(f => ({
+                      ...f,
+                      nombre: nombreVal,
+                      codigo: generateCodigo(nombreVal),
+                    }));
+                  }}
+                />
+              </div>
+              <div>
+                <Label>Código</Label>
+                <Input
+                  disabled
+                  value={mode === "view" ? active?.codigo ?? "" : form.codigo}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(["fecha_inicio", "fecha_fin"] as const).map((field, i) => {
+                const dateStr =
+                  mode === "view"
+                    ? (active as any)?.[field]
+                    : (form as any)[field];
+                return (
+                  <div key={field}>
+                    <Label>{i === 0 ? "Inicio" : "Fin"}</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          disabled={mode === "view"}
+                          variant="outline"
+                          className="w-full justify-start"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {pretty(dateStr)}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0" align="start">
+                        <Calendar
+                          locale={es}
+                          mode="single"
+                          selected={
+                            dateStr ? parseISO(dateStr as string) : undefined
+                          }
+                          onSelect={d => {
+                            if (!d) return;
+                            setForm(f => ({
+                              ...f,
+                              [field]: format(d, API_DATE),
+                            }));
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div>
+              <Label>Descripción</Label>
+              <Input
+                disabled={mode === "view"}
+                value={
+                  mode === "view"
+                    ? active?.descripcion ?? ""
+                    : form.descripcion
+                }
+                onChange={e =>
+                  setForm(f => ({ ...f, descripcion: e.target.value }))
+                }
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Cupos Total</Label>
+                <Input
+                  type="number"
+                  disabled={mode === "view"}
+                  value={
+                    mode === "view"
+                      ? active?.cupos_total.toString() ?? "0"
+                      : form.cupos_total
+                  }
+                  onChange={e =>
+                    setForm(f => ({
+                      ...f,
+                      cupos_total: Number(e.target.value),
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <Label>Descuento</Label>
+                <Input
+                  type="number"
+                  disabled={mode === "view"}
+                  value={
+                    mode === "view"
+                      ? active?.descuento.toString() ?? "0"
+                      : form.descuento
+                  }
+                  onChange={e =>
+                    setForm(f => ({
+                      ...f,
+                      descuento: Number(e.target.value),
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-6">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="visible"
+                  checked={form.visible}
+                  disabled={mode === "view"}
+                  onCheckedChange={checked =>
+                    setForm(f => ({ ...f, visible: checked }))
+                  }
+                />
+                <Label htmlFor="visible">Visible</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="notificaciones"
+                  checked={form.notificaciones}
+                  disabled={mode === "view"}
+                  onCheckedChange={checked =>
+                    setForm(f => ({ ...f, notificaciones: checked }))
+                  }
+                />
+                <Label htmlFor="notificaciones">Notificaciones</Label>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsOpen(false)}>
+              Cerrar
+            </Button>
+            {mode !== "view" && (
+              <Button onClick={handleSubmit}>
+                {mode === "create" ? "Crear" : "Guardar"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

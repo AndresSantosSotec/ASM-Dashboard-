@@ -9,17 +9,35 @@ import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
-export function DatePickerWithRange() {
-  const [date, setDate] = React.useState<
-    | undefined
-    | {
-        from: Date
-        to: Date | undefined
-      }
-  >()
+export interface DateRange {
+  from: Date
+  to?: Date
+}
+
+interface DatePickerWithRangeProps
+  extends React.HTMLAttributes<HTMLDivElement> {
+  value?: DateRange | undefined
+  onChange?: (range: DateRange | undefined) => void
+}
+
+export function DatePickerWithRange({
+  className,
+  value,
+  onChange,
+}: DatePickerWithRangeProps) {
+  const [date, setDate] = React.useState<DateRange | undefined>(value)
+
+  React.useEffect(() => {
+    setDate(value)
+  }, [value])
+
+  const handleSelect = (range: DateRange | undefined) => {
+    setDate(range)
+    onChange?.(range)
+  }
 
   return (
-    <Popover>
+    <Popover className={className}>
       <PopoverTrigger asChild>
         <Button
           variant={"outline"}
@@ -38,7 +56,13 @@ export function DatePickerWithRange() {
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="end">
-        <Calendar mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2} />
+        <Calendar
+          mode="range"
+          defaultMonth={date?.from}
+          selected={date}
+          onSelect={handleSelect}
+          numberOfMonths={2}
+        />
       </PopoverContent>
     </Popover>
   )

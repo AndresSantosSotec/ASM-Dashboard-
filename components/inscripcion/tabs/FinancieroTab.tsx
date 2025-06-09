@@ -1,7 +1,8 @@
 "use client"
-import React, { useEffect, useState, useRef } from "react"
+import React, { useEffect, useState, useRef, useMemo } from "react"
 import axios, { AxiosError } from "axios"
-import { ArrowLeft, ArrowRight } from "lucide-react"
+import { API_BASE_URL } from "@/utils/apiConfig"
+import { ArrowLeft, ArrowRight, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -41,9 +42,21 @@ export default function FinancieroTab({
   const formas = ["deposito", "debito", "transferencia", "tarjeta"]
   const [convenios, setConvenios] = useState<Convenio[]>([])
 
+  // ——— Validación de campos obligatorios ———
+  const isFormValid = useMemo(() => {
+    // Debe haber respondido si tiene convenio o no,
+    // si tiene, debe seleccionar un convenio, y siempre forma de pago
+    return (
+      datos.tieneConvenio !== undefined &&
+      (!datos.tieneConvenio || !!datos.convenioId) &&
+      !!datos.formaPago
+    )
+  }, [datos.tieneConvenio, datos.convenioId, datos.formaPago])
+
   /* ——— Cargar convenios ——— */
   useEffect(() => {
-    axios.get<Convenio[]>("http://localhost:8000/api/convenios")
+    axios
+      .get<Convenio[]>(`${API_BASE_URL}/api/convenios`)
       .then(resp => setConvenios(resp.data))
       .catch(err => {
         console.error("Error cargando convenios:", err)
@@ -55,18 +68,17 @@ export default function FinancieroTab({
   useEffect(() => {
     if (datos.tieneConvenio && !datos.convenioId && convenios.length > 0) {
       const convenioUno = convenios.find(c => c.id === 1) || convenios[0]
-      if (convenioUno) {
-        setDatos(prev => ({ ...prev, convenioId: convenioUno.id }))
-      }
+      setDatos(prev => ({ ...prev, convenioId: convenioUno.id }))
     }
   }, [datos.tieneConvenio, convenios, datos.convenioId, setDatos])
 
   /* ——— Cálculo de precios dinámicos ——— */
   useEffect(() => {
     if (!programas.length) return
-    if (datos.tieneConvenio && !convenioId) return 
+    if (datos.tieneConvenio && !convenioId) return
 
-    const key = programas.map(p => `${p.programaId}:${p.duracion}`).join("|") + `|conv:${datos.tieneConvenio ? convenioId : "no"}`
+    const key = programas.map(p => `${p.programaId}:${p.duracion}`).join("|")
+      + `|conv:${datos.tieneConvenio ? convenioId : "no"}`
     if (key === lastKey.current) return
     lastKey.current = key
 
@@ -78,9 +90,9 @@ export default function FinancieroTab({
       if (cache.current.has(cacheKey)) {
         return Promise.resolve({ ok: true as const, data: cache.current.get(cacheKey)! })
       }
-      const url = datos.tieneConvenio
-        ? `http://localhost:8000/api/precios/convenio/${convenioId}/${programaId}?meses=${duracion}`
-        : `http://localhost:8000/api/precios/programa/${programaId}?meses=${duracion}`
+    const url = datos.tieneConvenio
+        ? `${API_BASE_URL}/api/precios/convenio/${convenioId}/${programaId}?meses=${duracion}`
+        : `${API_BASE_URL}/api/precios/programa/${programaId}?meses=${duracion}`
       return axios
         .get<{ inscripcion: number; cuota_mensual: number }>(url)
         .then(r => {
@@ -128,7 +140,6 @@ export default function FinancieroTab({
     })
   }, [programas, datos.tieneConvenio, convenioId, setDatos])
 
-  /* ——— Datos estáticos ——— */
   const gastosFinales = [
     { concepto: "Proyecto Final", transfer: "Q1,600.00", otro: "Q1,760.00" },
     { concepto: "Graduación", transfer: "Q2,845.00", otro: "Q3,129.50" },
@@ -147,7 +158,15 @@ export default function FinancieroTab({
 
   return (
     <>
-      {/* ——— Formulario ——— */}
+      {/* Indicador de éxito */}
+      {isFormValid && !loading && (
+        <div className="mb-4 flex items-center gap-2 rounded bg-green-100 px-4 py-2 text-green-800">
+          <CheckCircle className="h-5 w-5" />
+          Listo para continuar: campos financieros completos
+        </div>
+      )}
+
+      {/* — Formulario — */}
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-2">
           <Label>¿Posee convenio corporativo? *</Label>
@@ -203,7 +222,7 @@ export default function FinancieroTab({
         </div>
       </div>
 
-      {/* Costos dinámicos */}
+      {/* — Costos dinámicos — */}
       <div className={`mt-6 grid gap-4 md:grid-cols-4 ${loading ? "opacity-50" : ""}`}>
         <InputWithLabel id="ins" label="Inscripción (Q)" value={datos.inscripcion} />
         <InputWithLabel id="cuo" label="Cuota mensual (Q)" value={datos.cuotaMensual} />
@@ -213,7 +232,7 @@ export default function FinancieroTab({
 
       {error && <p className="text-red-600 mt-2">{error}</p>}
 
-      {/* Tablas fijas */}
+      {/* — Tablas fijas — */}
       <div className="mt-8 rounded-lg bg-blue-50 p-4">
         <h3 className="mb-3 font-semibold text-blue-900">INVERSIÓN ADICIONAL OBLIGATORIA</h3>
         <TableSimple
@@ -230,12 +249,16 @@ export default function FinancieroTab({
         <SmallPrint />
       </div>
 
-      {/* Navegación */}
+      {/* — Navegación — */}
       <div className="flex justify-between mt-6">
         <Button variant="outline" onClick={goPrev} disabled={loading}>
           <ArrowLeft className="h-4 w-4" /> Anterior
         </Button>
-        <Button onClick={goNext} disabled={loading}>
+        <Button
+          onClick={goNext}
+          disabled={!isFormValid || loading}
+          className={isFormValid && !loading ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+        >
           Siguiente <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
@@ -243,7 +266,17 @@ export default function FinancieroTab({
   )
 }
 
-function InputWithLabel({ id, label, value, bold = false }: { id: string; label: string; value: string; bold?: boolean }) {
+function InputWithLabel({
+  id,
+  label,
+  value,
+  bold = false,
+}: {
+  id: string
+  label: string
+  value: string
+  bold?: boolean
+}) {
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
@@ -252,20 +285,36 @@ function InputWithLabel({ id, label, value, bold = false }: { id: string; label:
   )
 }
 
-function TableSimple({ titulo, head, rows, className = "" }: { titulo: string; head: string[]; rows: string[][]; className?: string }) {
+function TableSimple({
+  titulo,
+  head,
+  rows,
+  className = "",
+}: {
+  titulo: string
+  head: string[]
+  rows: string[][]
+  className?: string
+}) {
   return (
     <div className={className}>
       <h4 className="mb-2 font-medium text-blue-800">{titulo}</h4>
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b">{head.map((h, i) => <th key={i} className="py-2 text-left">{h}</th>)}</tr>
+          <tr className="border-b">
+            {head.map((h, i) => (
+              <th key={i} className="py-2 text-left">{h}</th>
+            ))}
+          </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) =>
+          {rows.map((r, i) => (
             <tr key={i} className="border-b">
-              {r.map((c, j) => <td key={j} className="py-2">{c}</td>)}
+              {r.map((c, j) => (
+                <td key={j} className="py-2">{c}</td>
+              ))}
             </tr>
-          )}
+          ))}
         </tbody>
       </table>
     </div>
