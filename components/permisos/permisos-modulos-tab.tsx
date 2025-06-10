@@ -2,6 +2,7 @@
 
 import React from "react";
 import axios from "axios";
+import { API_BASE_URL } from "@/utils/apiConfig";
 import Swal from "sweetalert2";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -208,7 +209,7 @@ export default function PermisosModulosTab() {
 
   const fetchModulos = async () => {
     try {
-      const response = await axios.get("http://localhost:8000/api/modules");
+      const response = await axios.get(`${API_BASE_URL}/api/modules`);
       const modulosTransformados = response.data.map((m: any) =>
         transformModule(m)
       );
@@ -256,10 +257,10 @@ export default function PermisosModulosTab() {
         icono: data.icono,
       };
       if (isEditing && currentModulo) {
-        const response = await axios.put(
-          `http://localhost:8000/api/modules/${currentModulo.id}`,
-          payload
-        );
+          const response = await axios.put(
+            `${API_BASE_URL}/api/modules/${currentModulo.id}`,
+            payload
+          );
         const moduloActualizado = transformModule(response.data);
         setModulos(
           modulos.map((m) =>
@@ -267,10 +268,10 @@ export default function PermisosModulosTab() {
           )
         );
       } else {
-        const response = await axios.post(
-          "http://localhost:8000/api/modules",
-          payload
-        );
+          const response = await axios.post(
+            `${API_BASE_URL}/api/modules`,
+            payload
+          );
         const nuevoModulo = transformModule(response.data);
         setModulos([...modulos, nuevoModulo]);
       }
@@ -285,10 +286,10 @@ export default function PermisosModulosTab() {
       const modulo = modulos.find((m) => m.id === id);
       if (!modulo) return;
       const payload = { status: !modulo.activo };
-      const response = await axios.put(
-        `http://localhost:8000/api/modules/${id}`,
-        payload
-      );
+        const response = await axios.put(
+          `${API_BASE_URL}/api/modules/${id}`,
+          payload
+        );
       const moduloActualizado = transformModule(response.data);
       setModulos(
         modulos.map((m) => (m.id === id ? moduloActualizado : m))
@@ -316,7 +317,7 @@ export default function PermisosModulosTab() {
           return;
         }
       }
-      await axios.delete(`http://localhost:8000/api/modules/${id}`);
+        await axios.delete(`${API_BASE_URL}/api/modules/${id}`);
       setModulos(modulos.filter((m) => m.id !== id));
       // Mostrar mensaje de éxito
       Swal.fire({
@@ -657,10 +658,10 @@ function ModuleViewModal({
       }
       console.log("Enviando solicitud para crear vista en el módulo:", module_id);
       // Se incluye el campo icono en el payload
-      const response = await axios.post(
-        `http://localhost:8000/api/modules/${module_id}/views`,
-        { ...payload, icono: data.icono }
-      );
+        const response = await axios.post(
+          `${API_BASE_URL}/api/modules/${module_id}/views`,
+          { ...payload, icono: data.icono }
+        );
       console.log("Respuesta del servidor:", response.data);
       const nuevaVista: Vista = response.data.data;
       onViewCreated(nuevaVista);

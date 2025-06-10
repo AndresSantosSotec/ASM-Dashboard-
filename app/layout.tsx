@@ -5,6 +5,7 @@ import "./globals.css"
 import MainLayout from "@/components/layout/main-layout"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Suspense } from "react"
+import { AuthProvider } from "@/contexts/AuthContext"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -23,7 +24,9 @@ export default function RootLayout({
       <body className={inter.className}>
         <Suspense fallback={<div>Cargando...</div>}>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-            <MainLayout>{children}</MainLayout>
+            <AuthProvider>
+              <MainLayout>{children}</MainLayout>
+            </AuthProvider>
           </ThemeProvider>
         </Suspense>
       </body>

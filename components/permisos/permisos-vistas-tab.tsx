@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "@/utils/apiConfig";
 import Swal from "sweetalert2";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,7 +80,7 @@ export default function PermisosVistasTab() {
   useEffect(() => {
     const fetchUsuarios = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/api/users");
+        const response = await axios.get(`${API_BASE_URL}/api/users`);
         console.log("Respuesta de usuarios:", response.data);
         // Si la respuesta viene en response.data.data, ajusta aquí
         const usuariosTransformados = response.data.map((user: any) => ({
@@ -102,12 +103,14 @@ export default function PermisosVistasTab() {
   useEffect(() => {
     const fetchModulesWithViews = async () => {
       try {
-        const modulesRes = await axios.get("http://localhost:8000/api/modules");
+          const modulesRes = await axios.get(`${API_BASE_URL}/api/modules`);
         const modulesData: Module[] = modulesRes.data;
         const modulesWithViews = await Promise.all(
           modulesData.map(async (module) => {
             try {
-              const viewsRes = await axios.get(`http://localhost:8000/api/modules/${module.id}/views`);
+                const viewsRes = await axios.get(
+                  `${API_BASE_URL}/api/modules/${module.id}/views`
+                );
               const views: ModuleView[] = viewsRes.data.data;
               return { ...module, views };
             } catch (error) {
@@ -135,7 +138,9 @@ export default function PermisosVistasTab() {
       if (!selectedUsuario) return;
       setIsLoading(true);
       try {
-        const response = await axios.get(`http://localhost:8000/api/userpermissions?user_id=${selectedUsuario}`);
+          const response = await axios.get(
+            `${API_BASE_URL}/api/userpermissions?user_id=${selectedUsuario}`
+          );
         if (response.data.success) {
           const permisosIds = response.data.data.map((perm: any) => perm.permission_id);
           setSelectedPermisos(permisosIds);
@@ -185,7 +190,10 @@ export default function PermisosVistasTab() {
         user_id: selectedUsuario,
         permissions: selectedPermisos,
       };
-      const response = await axios.post("http://localhost:8000/api/userpermissions", payload);
+      const response = await axios.post(
+        `${API_BASE_URL}/api/userpermissions`,
+        payload
+      );
       if (response.data.success) {
         Swal.fire("Éxito", "Permisos actualizados correctamente", "success");
       } else {

@@ -1,6 +1,8 @@
 import Swal from "sweetalert2"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL 
+import api from "@/services/api"
+
+
 
 export interface CrearUsuarioPayload {
   username: string
@@ -14,8 +16,12 @@ export interface CrearUsuarioPayload {
   rol: number
 }
 
-export async function crearUsuarioEnBD(payload: CrearUsuarioPayload): Promise<{ id: number }> {
+export async function crearUsuarioEnBD(
+  payload: CrearUsuarioPayload
+): Promise<{ id: number }> {
   try {
+    console.log("[DEBUG] crearUsuarioEnBD → payload:", payload)
+
     const token = localStorage.getItem("token") || ""
     const res = await fetch(`${API_URL}/users`, {
       method: "POST",
@@ -26,25 +32,32 @@ export async function crearUsuarioEnBD(payload: CrearUsuarioPayload): Promise<{ 
       body: JSON.stringify(payload),
     })
 
-    const body = await res.json()
-    if (!res.ok) {
-      throw new Error(body.message || `HTTP ${res.status}`)
-    }
 
+    const res = await api.post("/users", payload)
+    const body = res.data
+
+    // Mostrar alerta de éxito
     await Swal.fire({
       icon: "success",
       title: "Usuario creado",
       text: "Las credenciales han sido almacenadas correctamente en la base de datos.",
-      confirmButtonText: "Aceptar"
+      confirmButtonText: "Aceptar",
     })
+
+    // Devolver el body (se asume que contiene { id: number, ... })
     return body
   } catch (err: any) {
     console.error("❌ Error creando usuario:", err)
+
+    const message =
+      err.response?.data?.message || err.message || "Ocurrió un error al guardar el usuario."
+
     await Swal.fire({
       icon: "error",
       title: "Error",
-      text: err.message || "Ocurrió un error al guardar el usuario.",
+      text: message,
     })
+
     throw err
   }
 }

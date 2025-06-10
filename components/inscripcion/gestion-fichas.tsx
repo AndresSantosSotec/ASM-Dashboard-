@@ -34,8 +34,9 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { FichaEstudiante } from "@/components/inscripcion/types"
 import FichaDetalleModal from "@/components/inscripcion/modal/FichaDetalleModal"
+import { API_BASE_URL } from "@/utils/apiConfig"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const API_URL = process.env.NEXT_PUBLIC_API_URL || API_BASE_URL
 const CONTEO_REVISADAS_KEY = "fichasRevisadasCount"
 
 function incrementarRevisadas() {
@@ -61,7 +62,7 @@ export function GestionFichas() {
     async function fetchFichas() {
       try {
         const res = await fetch(
-          `${API_URL}/api/prospectos/fichas/pendientes-public`,
+          `${API_URL}/prospectos/fichas/pendientes-public`,
           { headers: { Accept: "application/json" } }
         )
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -93,7 +94,7 @@ export function GestionFichas() {
     const token = localStorage.getItem("token")
     try {
       const res = await fetch(
-        `${API_URL}/api/documentos/prospecto/${f.id}`,
+        `${API_URL}/documentos/prospecto/${f.id}`,
         {
           headers: {
             Authorization: token ? `Bearer ${token}` : "",
@@ -115,7 +116,7 @@ export function GestionFichas() {
   const handleApprove = async (id: number) => {
     try {
       const token = localStorage.getItem("token")
-      const res = await fetch(`${API_URL}/api/prospectos/${id}/status`, {
+      const res = await fetch(`${API_URL}/prospectos/${id}/status`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -144,7 +145,7 @@ export function GestionFichas() {
   const handleReject = async (id: number) => {
     try {
       const token = localStorage.getItem("token")
-      const res = await fetch(`${API_URL}/api/fichas/${id}/reject`, {
+      const res = await fetch(`${API_URL}/fichas/${id}/reject`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

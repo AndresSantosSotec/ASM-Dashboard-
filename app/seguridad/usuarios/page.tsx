@@ -16,6 +16,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
+import { API_BASE_URL } from "@/utils/apiConfig"
 
 // Esquema para crear/editar usuario basado en el controlador de Laravel
 const usuarioSchema = z.object({
@@ -105,7 +106,7 @@ export default function GestionUsuarios() {
   useEffect(() => {
     const fetchRoles = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/api/roles")
+        const response = await axios.get(`${API_BASE_URL}/api/roles`)
         setRoles(response.data)
       } catch (error) {
         console.error("Error fetching roles:", error)
@@ -118,7 +119,7 @@ export default function GestionUsuarios() {
   useEffect(() => {
     const fetchUsuarios = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/api/users")
+        const response = await axios.get(`${API_BASE_URL}/api/users`)
         setUsuarios(response.data)
       } catch (error) {
         console.error("Error fetching users:", error)
@@ -170,7 +171,7 @@ export default function GestionUsuarios() {
   // Función para crear usuario
   const handleUserSubmit = async (data: Usuario) => {
     try {
-      const response = await axios.post("http://localhost:8000/api/users", data)
+      const response = await axios.post(`${API_BASE_URL}/api/users`, data)
       setUsuarios((prev) => [...prev, response.data])
       setIsUserDialogOpen(false)
       userForm.reset()
@@ -220,7 +221,7 @@ export default function GestionUsuarios() {
   const handleEditSubmit = async (data: Usuario) => {
     if (!selectedUser) return
     try {
-      const response = await axios.put(`http://localhost:8000/api/users/${selectedUser.id}`, data)
+      const response = await axios.put(`${API_BASE_URL}/api/users/${selectedUser.id}`, data)
       setUsuarios((prev) =>
         prev.map((u) => (u.id === selectedUser.id ? response.data : u))
       )
@@ -265,7 +266,7 @@ export default function GestionUsuarios() {
       if (result.isConfirmed) {
         try {
           const updatedData = { is_active: false }
-          const response = await axios.put(`http://localhost:8000/api/users/${usuario.id}`, updatedData)
+          const response = await axios.put(`${API_BASE_URL}/api/users/${usuario.id}`, updatedData)
           setUsuarios((prev) =>
             prev.map((u) => (u.id === usuario.id ? response.data : u))
           )
@@ -305,7 +306,7 @@ export default function GestionUsuarios() {
       })
       if (result.isConfirmed) {
         try {
-          const response = await axios.put(`http://localhost:8000/api/users/${usuario.id}`, { is_active: true })
+          const response = await axios.put(`${API_BASE_URL}/api/users/${usuario.id}`, { is_active: true })
           setUsuarios((prev) =>
             prev.map((u) => (u.id === usuario.id ? response.data : u))
           )
@@ -365,7 +366,7 @@ export default function GestionUsuarios() {
       try {
         await Promise.all(
           selectedUserIds.map((userId: number) =>
-            axios.put(`http://localhost:8000/api/users/${userId}`, {
+            axios.put(`${API_BASE_URL}/api/users/${userId}`, {
               is_active: action === "inactivate" ? false : true
             })
           )
@@ -877,7 +878,7 @@ const handleToggleActiveUser = async (usuario: any) => {
     if (result.isConfirmed) {
       try {
         const updatedData = { is_active: false }
-        const response = await axios.put(`http://localhost:8000/api/users/${usuario.id}`, updatedData)
+        const response = await axios.put(`${API_BASE_URL}/api/users/${usuario.id}`, updatedData)
         window.location.reload()
       } catch (error: any) {
         console.error("Error inactivating user:", error)
@@ -910,7 +911,7 @@ const handleToggleActiveUser = async (usuario: any) => {
     })
     if (result.isConfirmed) {
       try {
-        const response = await axios.put(`http://localhost:8000/api/users/${usuario.id}`, { is_active: true })
+        const response = await axios.put(`${API_BASE_URL}/api/users/${usuario.id}`, { is_active: true })
         window.location.reload()
       } catch (error: any) {
         console.error("Error reactivating user:", error)
@@ -946,7 +947,7 @@ const handleReactivateUser = async (usuario: any) => {
   })
   if (result.isConfirmed) {
     try {
-      const response = await axios.put(`http://localhost:8000/api/users/${usuario.id}`, { is_active: true })
+      const response = await axios.put(`${API_BASE_URL}/api/users/${usuario.id}`, { is_active: true })
       window.location.reload()
     } catch (error: any) {
       console.error("Error reactivating user:", error)

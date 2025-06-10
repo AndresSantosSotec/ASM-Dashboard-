@@ -5,6 +5,7 @@ import Swal from "sweetalert2"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { API_BASE_URL } from "@/utils/apiConfig"
 
 interface Prospecto {
   id: string
@@ -17,7 +18,7 @@ interface CambiarEstadoProps {
   onClose: () => void
 }
 
-const API_URL = "http://127.0.0.1:8000/api"
+const API_URL = `${API_BASE_URL}/api`
 
 export default function CambiarEstado({ prospecto, onClose }: CambiarEstadoProps) {
   const [selectedEstado, setSelectedEstado] = useState(prospecto.estado)

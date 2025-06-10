@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { API_BASE_URL } from "@/utils/apiConfig"
 
 import { Prospecto } from "../types"
 
@@ -59,7 +60,7 @@ export default function ProspectSearchModal({
 
       try {
         const token = localStorage.getItem("token")
-        const url = `http://127.0.0.1:8000/api/prospectos?status=${encodeURIComponent(
+        const url = `${API_BASE_URL}/api/prospectos?status=${encodeURIComponent(
           "Preinscripción"
         )}`
         const res = await fetch(url, {

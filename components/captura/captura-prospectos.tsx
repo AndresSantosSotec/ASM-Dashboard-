@@ -8,6 +8,7 @@ import * as z from "zod"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { API_BASE_URL } from "@/utils/apiConfig"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
@@ -106,7 +107,7 @@ export default function CapturaProspectos() {
   useEffect(() => {
     const fetchProgramas = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/api/programas")
+        const response = await axios.get(`${API_BASE_URL}/api/programas`)
         setProgramas(response.data)
       } catch (error) {
         console.error("❌ Error al obtener programas:", error)
@@ -119,7 +120,7 @@ export default function CapturaProspectos() {
   useEffect(() => {
     const fetchEmpresas = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/api/convenios")
+        const response = await axios.get(`${API_BASE_URL}/api/convenios`)
         setEmpresas(response.data)
       } catch (error) {
         console.error("❌ Error al obtener empresas:", error)
@@ -133,7 +134,7 @@ export default function CapturaProspectos() {
   useEffect(() => {
     const fetchUbicacionGuatemala = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/api/ubicacion/1")
+        const response = await axios.get(`${API_BASE_URL}/api/ubicacion/1`)
         setDepartamentos(response.data.departamentos)
       } catch (error) {
         console.error("❌ Error al obtener ubicación de Guatemala:", error)
@@ -171,7 +172,7 @@ export default function CapturaProspectos() {
         fecha: fechaFormateada,
         medio_conocimiento_institucion: data.Origen,
       }
-      await axios.post("http://localhost:8000/api/prospectos", payload, {
+      await axios.post(`${API_BASE_URL}/api/prospectos`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       })
       Swal.fire({

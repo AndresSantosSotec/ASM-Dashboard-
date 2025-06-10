@@ -29,6 +29,7 @@ import {
   Database,
   AlertTriangle,
 } from "lucide-react"
+import { API_BASE_URL } from "@/utils/apiConfig"
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -44,7 +45,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
 
   // Hacemos fetch para obtener el rol del usuario
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/api/user", {
+    fetch(`${API_BASE_URL}/user`, {
       credentials: "include",
     })
       .then(res => res.json())

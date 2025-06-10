@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { API_BASE_URL } from "@/utils/apiConfig"
 import {
   Select,
   SelectTrigger,
@@ -23,7 +24,7 @@ import {
   SelectItem,
 } from "@/components/ui/select"
 
-const API_URL = "http://127.0.0.1:8000/api"
+const API_URL = `${API_BASE_URL}/api`
 
 interface Prospect {
   id: number

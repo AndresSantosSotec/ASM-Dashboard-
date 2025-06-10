@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { API_BASE_URL } from "@/utils/apiConfig"
 import { Input } from "@/components/ui/input"
 import {
   Search,
@@ -63,7 +64,7 @@ export default function FirmaPage() {
 
   useEffect(() => {
     const token = localStorage.getItem("token") || ""
-    fetch("http://127.0.0.1:8000/api/contactos-enviados", {
+    fetch(`${API_BASE_URL}/api/contactos-enviados`, {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
@@ -84,7 +85,7 @@ export default function FirmaPage() {
     const token = localStorage.getItem("token") || ""
     try {
       const res = await fetch(
-        `http://127.0.0.1:8000/api/contactos-enviados/${id}`,
+        `${API_BASE_URL}/api/contactos-enviados/${id}`,
         {
           method: "DELETE",
           headers: {
@@ -246,7 +247,7 @@ function ProspectosPendientes() {
         const respuestas = await Promise.all(
           estados.map(estado =>
             fetch(
-              `http://localhost:8000/api/prospectos/status/${encodeURIComponent(
+              `${API_BASE_URL}/api/prospectos/status/${encodeURIComponent(
                 estado
               )}`,
               { headers: { Authorization: `Bearer ${token}` } }
@@ -271,7 +272,7 @@ function ProspectosPendientes() {
 
     async function loadDocumentos() {
       try {
-        const res = await fetch("http://localhost:8000/api/documentos", {
+        const res = await fetch(`${API_BASE_URL}/api/documentos`, {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)

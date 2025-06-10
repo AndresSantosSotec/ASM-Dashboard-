@@ -26,6 +26,7 @@ import ProspectSearchModal from "./tabs/ProspectSearchModal"
 import type { ProgramaConDuracion } from "./types"
 
 import axios from "axios"
+import { API_BASE_URL } from "@/utils/apiConfig"
 
 export default function RegistrationForm() {
   const [activeTab, setActiveTab] = useState<TabId>("personal")
@@ -74,12 +75,15 @@ export default function RegistrationForm() {
 
   const handleFinalizarInscripcion = async () => {
     try {
-      const response = await axios.post("http://localhost:8000/api/inscripciones/finalizar", {
-        personales: { ...datosPersonales, id: prospectoId },
-        laborales: datosLaborales,
-        academicos: datosAcademicos,
-        financieros: datosFinancieros,
-      });
+      const response = await axios.post(
+        `${API_BASE_URL}/api/inscripciones/finalizar`,
+        {
+          personales: { ...datosPersonales, id: prospectoId },
+          laborales: datosLaborales,
+          academicos: datosAcademicos,
+          financieros: datosFinancieros,
+        }
+      );
   
       const nuevoId = response.data.prospecto_id;
       const estudianteProgramas: any[] = response.data.programas || [];
@@ -93,14 +97,14 @@ export default function RegistrationForm() {
         formData.append("tipo_documento", doc.id);
         formData.append("file", doc.archivo!);
   
-        await axios.post("http://localhost:8000/api/documentos", formData, {
+        await axios.post(`${API_BASE_URL}/api/documentos`, formData, {
           headers: { "Content-Type": "multipart/form-data" },
         });
       }
   
       // Generar plan de pagos para cada programa
       for (const programa of estudianteProgramas) {
-        await axios.post("http://localhost:8000/api/plan-pagos/generar", {
+        await axios.post(`${API_BASE_URL}/api/plan-pagos/generar`, {
           estudiante_programa_id: programa.id,
         });
       }

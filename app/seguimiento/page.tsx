@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import axios from "axios";
+import { api } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
 import Swal from "sweetalert2";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,8 +67,8 @@ export default function SeguimientoPage() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(5);
 
-  // Estados para token y user_id
-  const [token, setToken] = useState<string | null>(null);
+  // Token desde contexto y estado para user_id
+  const { token } = useAuth();
   const [userId, setUserId] = useState<string | null>(null);
 
   // Agrega estos estados nuevos cerca de los demás useState existentes:
@@ -96,14 +97,10 @@ export default function SeguimientoPage() {
     return matchesNombre && matchesEmail && matchesTelefono && matchesEstado;
   });
 
-  // Obtener token y user_id del localStorage solo en el cliente
+  // Obtener user_id del localStorage solo en el cliente
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const _token = localStorage.getItem("token");
       const _userId = localStorage.getItem("user_id");
-      console.log("Token recuperado:", _token);
-      console.log("User ID recuperado:", _userId);
-      setToken(_token);
       setUserId(_userId);
     }
   }, []);
@@ -135,17 +132,8 @@ export default function SeguimientoPage() {
       setLoading(true);
       setError("");
       try {
-        const url = "http://localhost:8000/api/prospectos";
-        const res = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-        if (!res.ok) {
-          throw new Error(`Error al obtener prospectos: status ${res.status}`);
-        }
-        const json = await res.json();
+        const res = await api.get("/prospectos");
+        const json = res.data;
         console.log("Respuesta completa de prospectos:", json);
         const prospectosTransformados: Prospecto[] = json.data.map((item: any) => ({
           id: String(item.id),
@@ -172,9 +160,7 @@ export default function SeguimientoPage() {
 
     const fetchInteracciones = async () => {
       try {
-        const response = await axios.get(`http://localhost:8000/api/interacciones?id_lead=${selectedProspecto.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await api.get(`/interacciones?id_lead=${selectedProspecto.id}`);
         console.log("Interacciones recibidas:", response.data);
         if (Array.isArray(response.data.data)) {
           setInteracciones(response.data.data);
@@ -194,9 +180,7 @@ export default function SeguimientoPage() {
     if (!token) return;
     const fetchInteracciones = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/api/interacciones", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await api.get("/interacciones");
         console.log("Interacciones globales recibidas:", response.data);
         if (Array.isArray(response.data)) {
           setInteracciones(response.data);
@@ -216,9 +200,7 @@ export default function SeguimientoPage() {
     if (!token) return;
     const fetchCitas = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/api/citas", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await api.get("/citas");
         console.log("Citas recibidas:", response.data);
         const citasArray = Array.isArray(response.data)
           ? response.data
@@ -236,9 +218,7 @@ export default function SeguimientoPage() {
     if (!token) return;
     const fetchActividades = async () => {
       try {
-        const response = await axios.get("http://localhost:8000/api/actividades", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await api.get("/actividades");
         console.log("Actividades recibidas:", response.data);
         setActividades(response.data);
       } catch (err: any) {
@@ -259,7 +239,7 @@ export default function SeguimientoPage() {
       });
       return;
     }
-    const currentToken = localStorage.getItem("token");
+    const currentToken = token;
     if (!currentToken) {
       Swal.fire({
         icon: "error",
@@ -281,10 +261,9 @@ export default function SeguimientoPage() {
     console.log("Enviando interacción:", JSON.stringify(newInteraction, null, 2));
 
     try {
-      const response = await axios.post(
-        "http://localhost:8000/api/interacciones",
-        newInteraction,
-        { headers: { Authorization: `Bearer ${currentToken}` } }
+      const response = await api.post(
+        "/interacciones",
+        newInteraction
       );
       console.log("✅ Interacción guardada:", response.data);
       setInteracciones((prev) => Array.isArray(prev) ? [...prev, response.data] : [response.data]);
@@ -319,7 +298,7 @@ export default function SeguimientoPage() {
       });
       return;
     }
-    const currentToken = localStorage.getItem("token");
+    const currentToken = token;
     if (!currentToken) {
       Swal.fire({
         icon: "error",
@@ -337,10 +316,9 @@ export default function SeguimientoPage() {
     console.log("Enviando cita:", JSON.stringify(newCita, null, 2));
 
     try {
-      const response = await axios.post(
-        "http://localhost:8000/api/citas",
-        newCita,
-        { headers: { Authorization: `Bearer ${currentToken}` } }
+      const response = await api.post(
+        "/citas",
+        newCita
       );
       console.log("✅ Cita guardada:", response.data);
       setCitas((prev) => Array.isArray(prev) ? [...prev, response.data] : [response.data]);
@@ -599,8 +577,11 @@ export default function SeguimientoPage() {
                     {/* Contenedor con scroll para citas */}
                     <div className="max-h-56 overflow-y-auto space-y-2">
                       {citas.length > 0 ? (
-                        citas.map((cita) => (
-                          <div key={cita.id} className="flex justify-between items-center text-sm border-b py-2">
+                        citas.map((cita, index) => (
+                          <div
+                            key={cita.id ?? `${cita.datecita}-${index}`}
+                            className="flex justify-between items-center text-sm border-b py-2"
+                          >
                             <span>{formatDate(cita.datecita)}</span>
                             <span>{cita.descricita}</span>
                           </div>

@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import axios from "axios"
+import { API_BASE_URL } from "@/utils/apiConfig"
 import { useRouter, usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Loader } from "lucide-react"
@@ -58,7 +59,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
       const token = localStorage.getItem("token")
       if (token) {
         try {
-          const response = await axios.get("http://localhost:8000/api/users", {
+          const response = await axios.get(`${API_BASE_URL}/api/users`, {
             headers: {
               Authorization: `Bearer ${token}`,
             },
@@ -84,7 +85,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
       const token = localStorage.getItem("token");
       if (token) {
         await axios.post(
-          "http://localhost:8000/api/logout",
+          `${API_BASE_URL}/api/logout`,
           {},
           {
             headers: {

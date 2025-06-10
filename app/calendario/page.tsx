@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import axios from "axios";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, parseISO, isToday,} from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -13,8 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {  Select,  SelectContent,  SelectItem,  SelectTrigger,  SelectValue,} from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Clock, Plus, Trash2, Edit, CalendarIcon,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Plus, Trash2, Edit, CalendarIcon,} from "lucide-react";
 
 import {api} from "@/services/api"; 
 
@@ -76,9 +74,8 @@ export default function CalendarioPage() {
   // --- Fetch tareas ---
   useEffect(() => {
     if (!token) return;
-    axios
-      .get("http://localhost:8000/api/tareas", {
-        headers: { Authorization: `Bearer ${token}` },
+    api
+      .get("/tareas", {
         withCredentials: true,
       })
       .then((res) => setTareas(res.data.data))
@@ -88,10 +85,8 @@ export default function CalendarioPage() {
   // --- Fetch citas ---
   useEffect(() => {
     if (!token) return;
-    axios
-      .get("http://localhost:8000/api/citas", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+    api
+      .get("/citas")
       .then((res) => {
         const arr = Array.isArray(res.data) ? res.data : res.data.data || [];
         setCitas(arr);
@@ -157,13 +152,12 @@ export default function CalendarioPage() {
     const payload = preparePayload();
     try {
       if (selectedTarea) {
-        const res = await axios.put(
-          `http://localhost:8000/api/tareas/${selectedTarea.id}`,
+        const res = await api.put(
+          `/tareas/${selectedTarea.id}`,
           payload,
           {
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
             },
             withCredentials: true,
           }
@@ -174,13 +168,12 @@ export default function CalendarioPage() {
           )
         );
       } else {
-        const res = await axios.post(
-          "http://localhost:8000/api/tareas",
+        const res = await api.post(
+          "/tareas",
           payload,
           {
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
             },
             withCredentials: true,
           }
@@ -196,8 +189,7 @@ export default function CalendarioPage() {
   const deleteTarea = async (id: string) => {
     if (!token) return;
     try {
-      await axios.delete(`http://localhost:8000/api/tareas/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      await api.delete(`/tareas/${id}`, {
         withCredentials: true,
       });
       setTareas((prev) => prev.filter((t) => t.id !== id));
@@ -211,13 +203,12 @@ export default function CalendarioPage() {
     const t = tareas.find((x) => x.id === id);
     if (!t || !token) return;
     try {
-      const res = await axios.put(
-        `http://localhost:8000/api/tareas/${id}`,
+      const res = await api.put(
+        `/tareas/${id}`,
         { completada: !t.completada },
         {
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           withCredentials: true,
         }
@@ -233,9 +224,7 @@ export default function CalendarioPage() {
   const deleteCita = async (id: string) => {
     if (!token) return;
     try {
-      await axios.delete(`http://localhost:8000/api/citas/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await api.delete(`/citas/${id}`);
       setCitas((prev) => prev.filter((x) => x.id !== id));
       setCitaModalOpen(false);
     } catch (err) {
