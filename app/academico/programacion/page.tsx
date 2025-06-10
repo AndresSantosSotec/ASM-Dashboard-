@@ -34,7 +34,7 @@ import {
 
 // Tipos
 interface Course {
-  id: string
+  id: number  // Cambiado de string a number
   name: string
   code: string
   area: "common" | "specialty"
@@ -49,7 +49,7 @@ interface Course {
 }
 
 interface Facilitator {
-  id: string
+  id: number  // Cambiado de string a number
   name: string
   specialty: string
   availability?: string[]
@@ -152,20 +152,19 @@ export default function ProgramacionCursos() {
       endDate: formData.endDate,
       schedule: formData.schedule,
       duration: formData.duration,
-
     }
 
     try {
       if (selectedCourse) {
-        const updated = await updateCourse(Number(selectedCourse.id), payload)
-        setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+        const updated = await updateCourse(selectedCourse.id, payload)
+        setCourses(prev => prev.map(c => c.id === updated.id ? {...updated, students: c.students} : c))
         toast({
           title: "Curso actualizado",
           description: `El curso ${updated.name} ha sido actualizado.`,
         })
       } else {
         const created = await createCourse(payload)
-        setCourses((prev) => [...prev, created])
+        setCourses(prev => [...prev, {...created, students: 0}])
         toast({
           title: "Curso creado",
           description: `El curso ${created.name} ha sido creado correctamente.`,
@@ -178,10 +177,10 @@ export default function ProgramacionCursos() {
   }
 
   // Eliminar curso
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {  // Cambiado de string a number
     try {
-      await apiDeleteCourse(Number(id))
-      setCourses((prev) => prev.filter((c) => c.id !== id))
+      await apiDeleteCourse(id)
+      setCourses(prev => prev.filter(c => c.id !== id))
       if (selectedCourse?.id === id) {
         setSelectedCourse(null)
       }
@@ -232,16 +231,18 @@ export default function ProgramacionCursos() {
   }
 
   // Asignar facilitador
-  const handleAssignFacilitator = async (courseId: string, facilitatorId: string | null) => {
+  const handleAssignFacilitator = async (courseId: number, facilitatorId: number | null) => {
     try {
-      const updated = await apiAssignFacilitator(Number(courseId), facilitatorId ? Number(facilitatorId) : null)
-      setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+      const updated = await apiAssignFacilitator(courseId, facilitatorId)
+      setCourses(prev => prev.map(c => c.id === updated.id ? {...updated, students: c.students} : c))
       if (selectedCourse?.id === courseId) {
-        setSelectedCourse(updated)
+        setSelectedCourse({...updated, students: selectedCourse.students})
       }
       toast({
         title: facilitatorId ? "Facilitador asignado" : "Facilitador removido",
-        description: facilitatorId ? "El facilitador ha sido asignado al curso." : "El facilitador ha sido removido del curso.",
+        description: facilitatorId 
+          ? "El facilitador ha sido asignado al curso." 
+          : "El facilitador ha sido removido del curso.",
       })
     } catch (err) {
       console.error(err)
@@ -496,16 +497,16 @@ export default function ProgramacionCursos() {
                               </div>
                             </div>
                             <Button
-                              variant={selectedCourse.facilitator?.id === facilitator.id ? "outline" : "default"}
+                              variant={selectedCourse.facilitator?.id === Number(facilitator.id) ? "outline" : "default"}
                               size="sm"
                               onClick={() =>
                                 handleAssignFacilitator(
-                                  selectedCourse.id,
-                                  selectedCourse.facilitator?.id === facilitator.id ? null : facilitator.id,
+                                  Number(selectedCourse.id),
+                                  selectedCourse.facilitator?.id === Number(facilitator.id) ? null : Number(facilitator.id)
                                 )
                               }
                             >
-                              {selectedCourse.facilitator?.id === facilitator.id ? "Remover" : "Asignar"}
+                              {selectedCourse.facilitator?.id === Number(facilitator.id) ? "Remover" : "Asignar"}
                             </Button>
                           </div>
                         </div>
@@ -658,4 +659,3 @@ export default function ProgramacionCursos() {
     </div>
   )
 }
-
