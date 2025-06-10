@@ -1,3 +1,6 @@
+"use client"
+
+import { dateLocale } from '@/lib/date-utils'
 import { Header } from "@/components/header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
