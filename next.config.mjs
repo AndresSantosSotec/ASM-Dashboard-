@@ -7,6 +7,10 @@ try {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  basePath: '/webpanel',
+  assetPrefix: '/webpanel',
+  output: 'standalone',
+  
   eslint: {
     ignoreDuringBuilds: true,
   },
