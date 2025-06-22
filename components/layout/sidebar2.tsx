@@ -366,10 +366,398 @@ export default function Sidebar({ open, className }: SidebarProps) {
                   <Users size={16} className="mr-2" />
                   <span>Gestión de Estudiante</span>
                 </Link>
+                <Link
+                  href="/academico/programacion"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/programacion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Calendar size={16} className="mr-2" />
+                  <span>Programación de Cursos</span>
+                </Link>
+                <Link
+                  href="/academico/asignacion"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/asignacion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <ClipboardList size={16} className="mr-2" />
+                  <span>Asignación de Cursos</span>
+                </Link>
+                <Link
+                  href="/academico/estatus-alumno"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/estatus-alumno" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <UserCheck size={16} className="mr-2" />
+                  <span>Estatus Académico</span>
+                </Link>
+                {/* <Link
+                  href="/academico/estado-sistema"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/estado-sistema" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Activity size={16} className="mr-2" />
+                  <span>Estatus General</span>
+                </Link> */}
+                <Link
+                  href="/academico/ranking"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/ranking" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <BarChart2 size={16} className="mr-2" />
+                  <span>Ranking Académico</span>
+                </Link>
               </div>
             )}
           </div>
         )}
+
+        {/* Docentes (expandible) */}
+        {userRole === "Administrador" && (
+          <div className="mb-1">
+            <button
+              onClick={() => toggleSection("docentes")}
+              className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md transition-colors duration-200"
+            >
+              <div className="flex items-center">
+                <GraduationCapIcon size={18} className="mr-2" />
+                <span>Docentes</span>
+              </div>
+              {expandedSections["docentes"] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </button>
+
+            {expandedSections["docentes"] && (
+              <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
+                <Link
+                  href="/docente"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <LayoutDashboard size={16} className="mr-2" />
+                  <span>Portal Docente</span>
+                </Link>
+                <Link
+                  href="/docente/cursos"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/cursos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <BookOpen size={16} className="mr-2" />
+                  <span>Mis Cursos</span>
+                </Link>
+                <Link
+                  href="/docente/alumnos"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/alumnos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Users size={16} className="mr-2" />
+                  <span>Alumnos</span>
+                </Link>
+                <Link
+                  href="/docente/material"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/material" || pathname === "/docente/material/nuevo"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <FileText size={16} className="mr-2" />
+                  <span>Material Didáctico</span>
+                </Link>
+                {/* Eliminada la opción de Evaluaciones */}
+                <Link
+                  href="/docente/mensajes"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/mensajes" || pathname === "/docente/invitaciones"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Mail size={16} className="mr-2" />
+                  <span>Mensajería e Invitaciones</span>
+                </Link>
+                <Link
+                  href="/docente/medallero"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/medallero" || pathname === "/docente/insignias"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Medal size={16} className="mr-2" />
+                  <span>Medallero e Insignias</span>
+                </Link>
+                <Link
+                  href="/docente/mi-aprendizaje"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/mi-aprendizaje" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <BookOpen size={16} className="mr-2" />
+                  <span>Mi Aprendizaje</span>
+                </Link>
+                <Link
+                  href="/docente/calendario"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/calendario" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Calendar size={16} className="mr-2" />
+                  <span>Calendario</span>
+                </Link>
+                <Link
+                  href="/docente/notificaciones"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/notificaciones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Bell size={16} className="mr-2" />
+                  <span>Notificaciones</span>
+                </Link>
+                <Link
+                  href="/docente/certificaciones"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/certificaciones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Award size={16} className="mr-2" />
+                  <span>Certificaciones</span>
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Estudiantes (expandible) */}
+        {userRole === "Administrador" && (
+          <div className="mb-1">
+            <button
+              onClick={() => toggleSection("estudiantes")}
+              className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md transition-colors duration-200"
+            >
+              <div className="flex items-center">
+                <Users size={18} className="mr-2" />
+                <span>Estudiantes</span>
+              </div>
+              {expandedSections["estudiantes"] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </button>
+
+            {expandedSections["estudiantes"] && (
+              <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
+                <Link
+                  href="/estudiantes"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <LayoutDashboard size={16} className="mr-2" />
+                  <span>Dashboard Estudiantil</span>
+                </Link>
+                <Link
+                  href="/estudiantes/documentos"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/documentos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <FileText size={16} className="mr-2" />
+                  <span>Documentos</span>
+                </Link>
+                <Link
+                  href="/estudiantes/pagos"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/pagos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <DollarSign size={16} className="mr-2" />
+                  <span>Gestión de Pagos</span>
+                </Link>
+                <Link
+                  href="/estudiantes/ranking"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/ranking" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Award size={16} className="mr-2" />
+                  <span>Ranking Estudiantil</span>
+                </Link>
+                <Link
+                  href="/estudiantes/calendario"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/calendario" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Calendar size={16} className="mr-2" />
+                  <span>Calendario Académico</span>
+                </Link>
+                <Link
+                  href="/estudiantes/notificaciones"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/notificaciones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Bell size={16} className="mr-2" />
+                  <span>Notificaciones</span>
+                </Link>
+                <Link
+                  href="/estudiantes/perfil"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/perfil" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <UserCheck size={16} className="mr-2" />
+                  <span>Mi Perfil</span>
+                </Link>
+                <Link
+                  href="/estudiantes/estado-cuenta"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/estado-cuenta" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <CreditCard size={16} className="mr-2" />
+                  <span>Estado de Cuenta</span>
+                </Link>
+                <Link
+                  href="/estudiantes/chat-docente" // Cambiar la ruta a la correcta si es necesario
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/chat-docente" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Mail size={16} className="mr-2" /> {/* Puedes cambiar el ícono si lo consideras necesario */}
+                  <span>Chat Docente</span>
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Finanzas y Pagos (expandible) */}
+        {userRole === "Administrador" && (
+          <div className="mb-1">
+            <button
+              onClick={() => toggleSection("finanzas")}
+              className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md transition-colors duration-200"
+            >
+              <div className="flex items-center">
+                <DollarSign size={18} className="mr-2" />
+                <span>Finanzas y Pagos</span>
+              </div>
+              {expandedSections["finanzas"] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </button>
+
+            {expandedSections["finanzas"] && (
+              <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
+                <Link
+                  href="/finanzas/dashboard"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/dashboard" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <PieChart size={16} className="mr-2" />
+                  <span>Dashboard Financiero</span>
+                </Link>
+                <Link
+                  href="/finanzas/estado-cuenta"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/estado-cuenta" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <FileText size={16} className="mr-2" />
+                  <span>Estado de Cuenta</span>
+                </Link>
+                <Link
+                  href="/finanzas/gestion-pagos"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/gestion-pagos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <CreditCard size={16} className="mr-2" />
+                  <span>Gestión de Pagos</span>
+                </Link>
+                <Link
+                  href="/finanzas/conciliacion"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/conciliacion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <RefreshCw size={16} className="mr-2" />
+                  <span>Conciliación Bancaria</span>
+                </Link>
+                <Link
+                  href="/finanzas/seguimiento-cobros"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/seguimiento-cobros" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Phone size={16} className="mr-2" />
+                  <span>Seguimiento de Cobros</span>
+                </Link>
+                <Link
+                  href="/finanzas/reportes"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/reportes" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <BarChart size={16} className="mr-2" />
+                  <span>Reportes Financieros</span>
+                </Link>
+                <Link
+                  href="/finanzas/configuracion"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/configuracion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Settings size={16} className="mr-2" />
+                  <span>Configuración</span>
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Administración (expandible) */}
+        {userRole === "Administrador" && (
+          <div className="mb-1">
+            <button
+              onClick={() => toggleSection("administracion")}
+              className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md transition-colors duration-200"
+            >
+              <div className="flex items-center">
+                <Settings size={18} className="mr-2" />
+                <span>Administración</span>
+              </div>
+              {expandedSections["administracion"] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </button>
+
+            {expandedSections["administracion"] && (
+              <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
+                <Link
+                  href="/admin/dashboard"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/dashboard" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <LayoutDashboard size={16} className="mr-2" />
+                  <span>Dashboard Administrativo</span>
+                </Link>
+                <Link
+                  href="/admin/programacion-cursos"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/programacion-cursos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Calendar size={16} className="mr-2" />
+                  <span>Programación de Cursos</span>
+                </Link>
+                <Link
+                  href="/admin/reportes-matricula"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/reportes-matricula" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <FileCheck size={16} className="mr-2" />
+                  <span>Reportes de Matrícula</span>
+                </Link>
+                <Link
+                  href="/admin/reporte-graduaciones"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/reporte-graduaciones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <GraduationCapIcon size={16} className="mr-2" />
+                  <span>Reporte de Graduaciones</span>
+                </Link>
+                <Link
+                  href="/admin/plantillas-mailing"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/plantillas-mailing" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Send size={16} className="mr-2" />
+                  <span>Plantillas y Mailing</span>
+                </Link>
+                <Link
+                  href="/admin/configuracion"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/configuracion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Settings size={16} className="mr-2" />
+                  <span>Configuración General</span>
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Seguridad (expandible) */}
         {userRole === "Administrador" && (
           <div className="mb-1">
@@ -490,7 +878,9 @@ export default function Sidebar({ open, className }: SidebarProps) {
           </div>
 
         )}
+
       </div>
+
       <div className="mt-auto p-4 border-t border-asm-medium-gold/30">
         {/* Botón de Cerrar Sesión */}
         <button
