@@ -82,7 +82,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
     }
   }, [datos.duracion, datos.titulo1_duracion, setDatos])
 
-  // Validación de sólo los campos obligatorios
+  // Checks whether the required fields are completed
   const isFormValid = useMemo(() => {
     return (
       !!datos.programa &&
