@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { RequiredAsterisk } from "@/components/ui/required-asterisk"
 import {
   Select,
   SelectContent,
@@ -169,7 +170,9 @@ export default function FinancieroTab({
       {/* — Formulario — */}
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-2">
-          <Label>¿Posee convenio corporativo? *</Label>
+          <Label>
+            ¿Posee convenio corporativo? <RequiredAsterisk />
+          </Label>
           <Select
             value={datos.tieneConvenio ? "si" : "no"}
             onValueChange={v => setDatos(d => ({ ...d, tieneConvenio: v === "si" }))}
@@ -185,7 +188,9 @@ export default function FinancieroTab({
 
         {datos.tieneConvenio && (
           <div className="space-y-2">
-            <Label>Seleccionar convenio *</Label>
+            <Label>
+              Seleccionar convenio <RequiredAsterisk />
+            </Label>
             <Select
               value={datos.convenioId?.toString() || ""}
               onValueChange={v => setDatos(d => ({ ...d, convenioId: Number(v) }))}
@@ -204,7 +209,9 @@ export default function FinancieroTab({
         )}
 
         <div className="space-y-2">
-          <Label>Modalidad de pago *</Label>
+          <Label>
+            Modalidad de pago <RequiredAsterisk />
+          </Label>
           <Select
             value={datos.formaPago}
             onValueChange={v => setDatos(d => ({ ...d, formaPago: v as DatosFinancieros["formaPago"] }))}
