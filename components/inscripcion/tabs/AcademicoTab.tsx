@@ -60,11 +60,14 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
 
   // Actualiza la duración sólo si está vacía para permitir edición manual
   useEffect(() => {
+
     const prog = programasUnicos.find((p) => p.id.toString() === datos.programa)
+
     const nuevaDur = prog?.meses.toString() ?? ""
     if (datos.duracion === "" && nuevaDur) {
       setDatos((prev) => ({ ...prev, duracion: nuevaDur }))
     }
+
   }, [datos.programa, programasUnicos, datos.duracion, setDatos])
 
   // Programa 1 siempre refleja el programa principal
@@ -80,6 +83,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
       setDatos((prev) => ({ ...prev, titulo1_duracion: datos.duracion }))
     }
   }, [datos.duracion, datos.titulo1_duracion, setDatos])
+
 
   // validación de sólo los campos obligatorios
 // Reemplaza tu isFormValid por esto:
