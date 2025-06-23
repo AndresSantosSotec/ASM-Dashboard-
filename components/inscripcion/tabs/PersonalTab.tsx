@@ -1,19 +1,14 @@
 "use client"
-import { useMemo, useState, useEffect } from "react"
+
+import { useMemo, useEffect, useState } from "react"
 import { Search, ArrowRight, CheckCircle } from "lucide-react"
 import Swal from "sweetalert2"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import CountryCombobox from "../CountryCombobox"
 import { Label } from "@/components/ui/label"
 import { RequiredAsterisk } from "@/components/ui/required-asterisk"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { DatosPersonales } from "../types"
 import { useCountries } from "@/hooks/useCountries"
@@ -32,15 +27,6 @@ export default function PersonalTab({
   goNext,
 }: Props) {
   const { countries } = useCountries()
-  const [filter, setFilter] = useState("")
-
-  const filteredCountries = useMemo(
-    () =>
-      countries.filter((p) =>
-        p.toLowerCase().includes(filter.toLowerCase()),
-      ),
-    [countries, filter],
-  )
 
   // Set default countries when data is empty
   useEffect(() => {
@@ -119,48 +105,23 @@ export default function PersonalTab({
             <Label>
               País de origen <RequiredAsterisk />
             </Label>
-            <Input
-              placeholder="Filtrar países"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-            />
-            <Select
+            <CountryCombobox
+              countries={countries}
               value={datos.paisOrigen || ""}
-              onValueChange={(v) => setDatos({ ...datos, paisOrigen: v })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccione" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredCountries.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(v) => setDatos({ ...datos, paisOrigen: v })}
+            />
           </div>
           <div className="space-y-2">
             <Label>
               País de residencia <RequiredAsterisk />
             </Label>
-            <Select
+            <CountryCombobox
+              countries={countries}
               value={datos.paisResidencia || ""}
-              onValueChange={(v) =>
+              onChange={(v) =>
                 setDatos({ ...datos, paisResidencia: v })
               }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccione" />
-              </SelectTrigger>
-              <SelectContent>
-                {countries.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           </div>
         </div>
 
@@ -251,7 +212,11 @@ export default function PersonalTab({
         <Button
           onClick={goNext}
           disabled={!isFormValid}
-          className={isFormValid ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+          className={
+            isFormValid
+              ? "bg-green-600 hover:bg-green-700 text-white"
+              : ""
+          }
         >
           Siguiente
           <ArrowRight className="ml-2 h-4 w-4" />
