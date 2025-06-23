@@ -51,6 +51,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
   }, [programas])
   const [error, setError] = useState<string | null>(null)
 
+  // Obtiene la lista de programas del backend
   useEffect(() => {
     axios
       .get<Programa[]>(`${API_BASE_URL}/api/programas`)
@@ -60,6 +61,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
 
   // Actualiza la duración sólo si está vacía para permitir edición manual
   useEffect(() => {
+
     const prog = programasUnicos.find((p) => p.id.toString() === datos.programa)
     const nuevaDur = prog?.meses.toString() ?? ""
     if (datos.duracion === "" && nuevaDur) {
@@ -81,26 +83,39 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
     }
   }, [datos.duracion, datos.titulo1_duracion, setDatos])
 
-  // validación de sólo los campos obligatorios
-// Reemplaza tu isFormValid por esto:
-const isFormValid = useMemo(() => {
-  return (
-    !!datos.programa &&                                   // truthy en lugar de !== ""
-    !!datos.ultimoTitulo &&                               // idem
-    datos.institucionAnterior.trim().length > 0 &&        // evita comparar con ""
-    datos.añoGraduacion.trim().length > 0 &&              // idem
-    !!datos.modalidad &&                                  // truthy
-    !!datos.fechaInicio &&                                // truthy
-    !!datos.diaEstudio &&                                 // truthy
-    !!datos.fechaInicioEspecifica &&                      // truthy
-    !!datos.fechaTallerInduccion &&                       // truthy
-    !!datos.fechaTallerIntegracion &&                     // truthy
-    !!datos.medioConocio &&                               // truthy
-    datos.titulo1 === datos.programa &&                   // comparas dos uniones del mismo tipo
-    datos.titulo1_duracion.trim().length > 0              // idem a trim() !== ""
-  )
-}, [datos])
 
+  // Programa 1 siempre refleja el programa principal
+  useEffect(() => {
+    if (datos.programa && datos.titulo1 !== datos.programa) {
+      setDatos(prev => ({ ...prev, titulo1: datos.programa }))
+    }
+  }, [datos.programa, datos.titulo1, setDatos])
+
+  // Copia la duración al campo de Programa 1 si está vacío
+  useEffect(() => {
+    if (datos.duracion && datos.titulo1_duracion === "") {
+      setDatos(prev => ({ ...prev, titulo1_duracion: datos.duracion }))
+    }
+  }, [datos.duracion, datos.titulo1_duracion, setDatos])
+
+  // Checks whether the required fields are completed
+  const isFormValid = useMemo(() => {
+    return (
+      !!datos.programa &&
+      !!datos.ultimoTitulo &&
+      datos.institucionAnterior.trim().length > 0 &&
+      datos.añoGraduacion.trim().length > 0 &&
+      !!datos.modalidad &&
+      !!datos.fechaInicio &&
+      !!datos.diaEstudio &&
+      !!datos.fechaInicioEspecifica &&
+      !!datos.fechaTallerInduccion &&
+      !!datos.fechaTallerIntegracion &&
+      !!datos.medioConocio &&
+      datos.titulo1 === datos.programa &&
+      datos.titulo1_duracion.trim().length > 0
+    )
+  }, [datos])
 
   const handleNext = () => {
     if (datos.titulo1 !== datos.programa) {
@@ -117,7 +132,7 @@ const isFormValid = useMemo(() => {
 
   return (
     <>
-      {/* indicador de éxito */}
+      {/* Indicador de éxito */}
       {isFormValid && (
         <div className="mb-4 flex items-center gap-2 rounded bg-green-100 px-4 py-2 text-green-800">
           <CheckCircle className="h-5 w-5" />
