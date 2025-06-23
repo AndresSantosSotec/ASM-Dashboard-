@@ -42,6 +42,7 @@ export default function FinancieroTab({
   const lastKey = useRef("")
   const formas = ["deposito", "debito", "transferencia", "tarjeta"]
   const [convenios, setConvenios] = useState<Convenio[]>([])
+  const [sugeridos, setSugeridos] = useState({ inscripcion: "", cuota: "" })
 
   // ——— Validación de campos obligatorios ———
   const isFormValid = useMemo(() => {
@@ -128,6 +129,7 @@ export default function FinancieroTab({
       }, 0)
       const invTotal = sumaTotal.toFixed(2)
 
+      setSugeridos({ inscripcion: insc, cuota })
       setDatos(prev => ({
         ...prev,
         inscripcion: insc,
@@ -140,6 +142,15 @@ export default function FinancieroTab({
       setError(null)
     })
   }, [programas, datos.tieneConvenio, convenioId, setDatos])
+
+  // Recalcular inversión total al editar montos
+  useEffect(() => {
+    const insc = parseFloat(datos.inscripcion.replace(/,/g, "")) || 0
+    const cuota = parseFloat(datos.cuotaMensual.replace(/,/g, "")) || 0
+    const meses = parseInt(datos.cantidadMeses) || 0
+    const total = cuota * meses + insc
+    setDatos(prev => ({ ...prev, inversionTotal: total.toFixed(2) }))
+  }, [datos.inscripcion, datos.cuotaMensual, datos.cantidadMeses, setDatos])
 
   const gastosFinales = [
     { concepto: "Proyecto Final", transfer: "Q1,600.00", otro: "Q1,760.00" },
@@ -231,10 +242,33 @@ export default function FinancieroTab({
 
       {/* — Costos dinámicos — */}
       <div className={`mt-6 grid gap-4 md:grid-cols-4 ${loading ? "opacity-50" : ""}`}>
-        <InputWithLabel id="ins" label="Inscripción (Q)" value={datos.inscripcion} />
-        <InputWithLabel id="cuo" label="Cuota mensual (Q)" value={datos.cuotaMensual} />
-        <InputWithLabel id="mes" label="Cantidad en meses" value={datos.cantidadMeses} />
-        <InputWithLabel id="inv" label="Inversión total (Q)" value={datos.inversionTotal} bold />
+        <InputWithLabel
+          id="ins"
+          label="Inscripción (Q)"
+          value={datos.inscripcion}
+          placeholder={sugeridos.inscripcion}
+          onChange={(v) => setDatos((d) => ({ ...d, inscripcion: v }))}
+        />
+        <InputWithLabel
+          id="cuo"
+          label="Cuota mensual (Q)"
+          value={datos.cuotaMensual}
+          placeholder={sugeridos.cuota}
+          onChange={(v) => setDatos((d) => ({ ...d, cuotaMensual: v }))}
+        />
+        <InputWithLabel
+          id="mes"
+          label="Cantidad en meses"
+          value={datos.cantidadMeses}
+          readOnly
+        />
+        <InputWithLabel
+          id="inv"
+          label="Inversión total (Q)"
+          value={datos.inversionTotal}
+          readOnly
+          bold
+        />
       </div>
 
       {error && <p className="text-red-600 mt-2">{error}</p>}
@@ -277,17 +311,31 @@ function InputWithLabel({
   id,
   label,
   value,
+  onChange,
+  placeholder,
+  readOnly = false,
   bold = false,
 }: {
   id: string
   label: string
   value: string
+  onChange?: (v: string) => void
+  placeholder?: string
+  readOnly?: boolean
   bold?: boolean
 }) {
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
-      <Input id={id} readOnly value={value} className={bold ? "font-bold" : ""} />
+      <Input
+        id={id}
+        value={value}
+        placeholder={placeholder}
+        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+        readOnly={readOnly}
+        title={placeholder ? `Precio sugerido: ${placeholder}` : undefined}
+        className={bold ? "font-bold" : ""}
+      />
     </div>
   )
 }
