@@ -1,21 +1,17 @@
 "use client"
-import { useMemo } from "react"
+import { useMemo, useEffect } from "react"
 import { Search, ArrowRight, CheckCircle } from "lucide-react"
 import Swal from "sweetalert2"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import CountryCombobox from "../CountryCombobox"
 import { Label } from "@/components/ui/label"
 import { RequiredAsterisk } from "@/components/ui/required-asterisk"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+
 import { Textarea } from "@/components/ui/textarea"
 import { DatosPersonales } from "../types"
+import { useCountries } from "@/hooks/useCountries"
 
 interface Props {
   datos: DatosPersonales
@@ -30,15 +26,20 @@ export default function PersonalTab({
   openModal,
   goNext,
 }: Props) {
-  const paises = [
-    "Guatemala",
-    "El Salvador",
-    "Honduras",
-    "Nicaragua",
-    "Costa Rica",
-    "Panamá",
-    "México",
-  ]
+  const { countries } = useCountries()
+
+  // Set default countries when data is empty
+  useEffect(() => {
+    if (countries.length > 0) {
+      if (!datos.paisOrigen) {
+        setDatos((prev) => ({ ...prev, paisOrigen: "Guatemala" }))
+      }
+      if (!datos.paisResidencia) {
+        setDatos((prev) => ({ ...prev, paisResidencia: "Guatemala" }))
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countries])
 
   // Validación de campos obligatorios con DPI de 13 dígitos
   const isFormValid = useMemo(() => {
@@ -104,43 +105,23 @@ export default function PersonalTab({
             <Label>
               País de origen <RequiredAsterisk />
             </Label>
-            <Select
+            <CountryCombobox
+              countries={countries}
               value={datos.paisOrigen || ""}
-              onValueChange={(v) => setDatos({ ...datos, paisOrigen: v })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccione" />
-              </SelectTrigger>
-              <SelectContent>
-                {paises.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(v) => setDatos({ ...datos, paisOrigen: v })}
+            />
           </div>
           <div className="space-y-2">
             <Label>
               País de residencia <RequiredAsterisk />
             </Label>
-            <Select
+            <CountryCombobox
+              countries={countries}
               value={datos.paisResidencia || ""}
-              onValueChange={(v) =>
+              onChange={(v) =>
                 setDatos({ ...datos, paisResidencia: v })
               }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccione" />
-              </SelectTrigger>
-              <SelectContent>
-                {paises.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           </div>
         </div>
 
