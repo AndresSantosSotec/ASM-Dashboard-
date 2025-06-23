@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { RequiredAsterisk } from "@/components/ui/required-asterisk"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
@@ -87,7 +88,9 @@ export default function LaboralTab({ datos, setDatos, goPrev, goNext }: Props) {
       <div className="grid gap-6 md:grid-cols-2">
         {/* Empresa */}
         <div className="space-y-2">
-          <Label>Empresa en donde labora *</Label>
+          <Label>
+            Empresa en donde labora <RequiredAsterisk />
+          </Label>
           <Input
             value={datos.empresa || ""}
             onChange={(e) => setDatos({ ...datos, empresa: e.target.value })}
@@ -98,7 +101,9 @@ export default function LaboralTab({ datos, setDatos, goPrev, goNext }: Props) {
 
         {/* Puesto */}
         <div className="space-y-2">
-          <Label>Puesto de trabajo *</Label>
+          <Label>
+            Puesto de trabajo <RequiredAsterisk />
+          </Label>
           <Input
             value={datos.puesto || ""}
             onChange={(e) => setDatos({ ...datos, puesto: e.target.value })}
@@ -121,7 +126,9 @@ export default function LaboralTab({ datos, setDatos, goPrev, goNext }: Props) {
 
         {/* Departamento dinámico */}
         <div className="space-y-2">
-          <Label>Departamento *</Label>
+          <Label>
+            Departamento <RequiredAsterisk />
+          </Label>
           <Select
             value={datos.departamento || ""}
             onValueChange={handleDepartamentoChange}
@@ -141,7 +148,9 @@ export default function LaboralTab({ datos, setDatos, goPrev, goNext }: Props) {
 
         {/* Dirección de la empresa */}
         <div className="space-y-2 md:col-span-2">
-          <Label>Dirección de la empresa *</Label>
+          <Label>
+            Dirección de la empresa <RequiredAsterisk />
+          </Label>
           <Textarea
             value={datos.direccionEmpresa || ""}
             onChange={(e) =>
