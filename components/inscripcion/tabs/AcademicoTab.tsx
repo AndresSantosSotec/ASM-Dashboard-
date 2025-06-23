@@ -58,13 +58,32 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
       .catch((err) => console.error("❌ Error al obtener programas:", err))
   }, [])
 
+  // Actualiza la duración sólo si está vacía para permitir edición manual
   useEffect(() => {
-    const prog = programasUnicos.find(p => p.id.toString() === datos.programa)
+
+    const prog = programasUnicos.find((p) => p.id.toString() === datos.programa)
+
     const nuevaDur = prog?.meses.toString() ?? ""
-    if (nuevaDur && nuevaDur !== datos.duracion) {
-      setDatos(prev => ({ ...prev, duracion: nuevaDur }))
+    if (datos.duracion === "" && nuevaDur) {
+      setDatos((prev) => ({ ...prev, duracion: nuevaDur }))
     }
-  }, [datos.programa, datos.duracion, programasUnicos, setDatos])
+
+  }, [datos.programa, programasUnicos, datos.duracion, setDatos])
+
+  // Programa 1 siempre refleja el programa principal
+  useEffect(() => {
+    if (datos.programa && datos.titulo1 !== datos.programa) {
+      setDatos((prev) => ({ ...prev, titulo1: datos.programa }))
+    }
+  }, [datos.programa, datos.titulo1, setDatos])
+
+  // Copia la duración al campo de Programa 1 si está vacío
+  useEffect(() => {
+    if (datos.duracion && datos.titulo1_duracion === "") {
+      setDatos((prev) => ({ ...prev, titulo1_duracion: datos.duracion }))
+    }
+  }, [datos.duracion, datos.titulo1_duracion, setDatos])
+
 
   // validación de sólo los campos obligatorios
 // Reemplaza tu isFormValid por esto:
