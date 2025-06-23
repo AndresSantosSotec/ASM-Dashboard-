@@ -1,5 +1,5 @@
 "use client"
-import { useMemo } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { Search, ArrowRight, CheckCircle } from "lucide-react"
 import Swal from "sweetalert2"
 
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { DatosPersonales } from "../types"
+import { useCountries } from "@/hooks/useCountries"
 
 interface Props {
   datos: DatosPersonales
@@ -30,15 +31,29 @@ export default function PersonalTab({
   openModal,
   goNext,
 }: Props) {
-  const paises = [
-    "Guatemala",
-    "El Salvador",
-    "Honduras",
-    "Nicaragua",
-    "Costa Rica",
-    "Panamá",
-    "México",
-  ]
+  const { countries } = useCountries()
+  const [filter, setFilter] = useState("")
+
+  const filteredCountries = useMemo(
+    () =>
+      countries.filter((p) =>
+        p.toLowerCase().includes(filter.toLowerCase()),
+      ),
+    [countries, filter],
+  )
+
+  // Set default countries when data is empty
+  useEffect(() => {
+    if (countries.length > 0) {
+      if (!datos.paisOrigen) {
+        setDatos((prev) => ({ ...prev, paisOrigen: "Guatemala" }))
+      }
+      if (!datos.paisResidencia) {
+        setDatos((prev) => ({ ...prev, paisResidencia: "Guatemala" }))
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countries])
 
   // Validación de campos obligatorios con DPI de 13 dígitos
   const isFormValid = useMemo(() => {
@@ -104,6 +119,11 @@ export default function PersonalTab({
             <Label>
               País de origen <RequiredAsterisk />
             </Label>
+            <Input
+              placeholder="Filtrar países"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
             <Select
               value={datos.paisOrigen || ""}
               onValueChange={(v) => setDatos({ ...datos, paisOrigen: v })}
@@ -112,7 +132,7 @@ export default function PersonalTab({
                 <SelectValue placeholder="Seleccione" />
               </SelectTrigger>
               <SelectContent>
-                {paises.map((p) => (
+                {filteredCountries.map((p) => (
                   <SelectItem key={p} value={p}>
                     {p}
                   </SelectItem>
@@ -134,7 +154,7 @@ export default function PersonalTab({
                 <SelectValue placeholder="Seleccione" />
               </SelectTrigger>
               <SelectContent>
-                {paises.map((p) => (
+                {countries.map((p) => (
                   <SelectItem key={p} value={p}>
                     {p}
                   </SelectItem>
