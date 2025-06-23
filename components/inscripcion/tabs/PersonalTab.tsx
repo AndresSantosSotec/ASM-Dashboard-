@@ -6,6 +6,7 @@ import Swal from "sweetalert2"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { RequiredAsterisk } from "@/components/ui/required-asterisk"
 import {
   Select,
   SelectContent,
@@ -87,7 +88,9 @@ export default function PersonalTab({
       <div className="grid gap-6 md:grid-cols-2">
         {/* Nombre completo */}
         <div className="space-y-2">
-          <Label>Nombre completo *</Label>
+          <Label>
+            Nombre completo <RequiredAsterisk />
+          </Label>
           <Input
             value={datos.nombre || ""}
             onChange={(e) => setDatos({ ...datos, nombre: e.target.value })}
@@ -98,7 +101,9 @@ export default function PersonalTab({
         {/* País origen / residencia */}
         <div className="grid gap-6 md:grid-cols-2">
           <div className="space-y-2">
-            <Label>País de origen *</Label>
+            <Label>
+              País de origen <RequiredAsterisk />
+            </Label>
             <Select
               value={datos.paisOrigen || ""}
               onValueChange={(v) => setDatos({ ...datos, paisOrigen: v })}
@@ -116,7 +121,9 @@ export default function PersonalTab({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>País de residencia *</Label>
+            <Label>
+              País de residencia <RequiredAsterisk />
+            </Label>
             <Select
               value={datos.paisResidencia || ""}
               onValueChange={(v) =>
@@ -139,7 +146,9 @@ export default function PersonalTab({
 
         {/* Teléfono */}
         <div className="space-y-2">
-          <Label>Teléfono móvil *</Label>
+          <Label>
+            Teléfono móvil <RequiredAsterisk />
+          </Label>
           <Input
             value={datos.telefono || ""}
             onChange={(e) =>
@@ -151,7 +160,9 @@ export default function PersonalTab({
 
         {/* DPI con validación onBlur */}
         <div className="space-y-2">
-          <Label>DPI *</Label>
+          <Label>
+            DPI <RequiredAsterisk />
+          </Label>
           <Input
             value={datos.dpi || ""}
             onChange={(e) => setDatos({ ...datos, dpi: e.target.value })}
@@ -162,7 +173,9 @@ export default function PersonalTab({
 
         {/* Emails */}
         <div className="space-y-2">
-          <Label>Email personal *</Label>
+          <Label>
+            Email personal <RequiredAsterisk />
+          </Label>
           <Input
             type="email"
             value={datos.emailPersonal || ""}
@@ -185,7 +198,9 @@ export default function PersonalTab({
 
         {/* Fecha nacimiento */}
         <div className="space-y-2">
-          <Label>Fecha de nacimiento *</Label>
+          <Label>
+            Fecha de nacimiento <RequiredAsterisk />
+          </Label>
           <Input
             type="date"
             value={datos.fechaNacimiento || ""}
@@ -198,7 +213,9 @@ export default function PersonalTab({
 
         {/* Dirección */}
         <div className="space-y-2 md:col-span-2">
-          <Label>Dirección de residencia *</Label>
+          <Label>
+            Dirección de residencia <RequiredAsterisk />
+          </Label>
           <Textarea
             value={datos.direccion || ""}
             onChange={(e) =>

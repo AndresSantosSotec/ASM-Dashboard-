@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { RequiredAsterisk } from "@/components/ui/required-asterisk"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
@@ -40,6 +41,14 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
   const medios = ["redes", "amigo", "empresa", "evento", "busqueda", "otros"] as const
 
   const [programas, setProgramas] = useState<Programa[]>([])
+  const programasUnicos = useMemo(() => {
+    const map = new Map<string, Programa>()
+    programas.forEach(p => {
+      const key = `${p.abreviatura}-${p.nombre_del_programa}`
+      if (!map.has(key)) map.set(key, p)
+    })
+    return Array.from(map.values())
+  }, [programas])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -49,13 +58,28 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
       .catch((err) => console.error("❌ Error al obtener programas:", err))
   }, [])
 
+  // Actualiza la duración sólo si está vacía para permitir edición manual
   useEffect(() => {
-    const prog = programas.find(p => p.id.toString() === datos.programa)
+    const prog = programasUnicos.find((p) => p.id.toString() === datos.programa)
     const nuevaDur = prog?.meses.toString() ?? ""
-    if (nuevaDur && nuevaDur !== datos.duracion) {
-      setDatos(prev => ({ ...prev, duracion: nuevaDur }))
+    if (datos.duracion === "" && nuevaDur) {
+      setDatos((prev) => ({ ...prev, duracion: nuevaDur }))
     }
-  }, [datos.programa, datos.duracion, programas, setDatos])
+  }, [datos.programa, programasUnicos, datos.duracion, setDatos])
+
+  // Programa 1 siempre refleja el programa principal
+  useEffect(() => {
+    if (datos.programa && datos.titulo1 !== datos.programa) {
+      setDatos((prev) => ({ ...prev, titulo1: datos.programa }))
+    }
+  }, [datos.programa, datos.titulo1, setDatos])
+
+  // Copia la duración al campo de Programa 1 si está vacío
+  useEffect(() => {
+    if (datos.duracion && datos.titulo1_duracion === "") {
+      setDatos((prev) => ({ ...prev, titulo1_duracion: datos.duracion }))
+    }
+  }, [datos.duracion, datos.titulo1_duracion, setDatos])
 
   // validación de sólo los campos obligatorios
 // Reemplaza tu isFormValid por esto:
@@ -105,7 +129,9 @@ const isFormValid = useMemo(() => {
         {/* Programa + duración */}
         <div className="flex space-x-4">
           <div className="flex-1 space-y-2">
-            <Label>Programa *</Label>
+            <Label>
+              Programa <RequiredAsterisk />
+            </Label>
             <Select
               value={datos.programa}
               onValueChange={v => setDatos({ ...datos, programa: v })}
@@ -114,9 +140,9 @@ const isFormValid = useMemo(() => {
                 <SelectValue placeholder="Seleccionar programa" />
               </SelectTrigger>
               <SelectContent>
-                {programas.map(p => (
+                {programasUnicos.map(p => (
                   <SelectItem key={p.id} value={p.id.toString()}>
-                    {p.abreviatura} – {p.nombre_del_programa} ({p.meses} meses)
+                    {p.abreviatura} – {p.nombre_del_programa}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -134,7 +160,9 @@ const isFormValid = useMemo(() => {
 
         {/* Último título */}
         <div className="space-y-2">
-          <Label>Último título obtenido *</Label>
+          <Label>
+            Último título obtenido <RequiredAsterisk />
+          </Label>
           <Select
             value={datos.ultimoTitulo}
             onValueChange={v => setDatos({ ...datos, ultimoTitulo: v as DatosAcademicos["ultimoTitulo"] })}
@@ -154,7 +182,9 @@ const isFormValid = useMemo(() => {
 
         {/* Institución */}
         <div className="space-y-2">
-          <Label>Institución donde obtuvo su último título *</Label>
+          <Label>
+            Institución donde obtuvo su último título <RequiredAsterisk />
+          </Label>
           <Input
             value={datos.institucionAnterior}
             onChange={e => setDatos({ ...datos, institucionAnterior: e.target.value })}
@@ -164,7 +194,9 @@ const isFormValid = useMemo(() => {
 
         {/* Año de graduación */}
         <div className="space-y-2">
-          <Label>Año de graduación *</Label>
+          <Label>
+            Año de graduación <RequiredAsterisk />
+          </Label>
           <Input
             type="number"
             min={1950}
@@ -177,7 +209,9 @@ const isFormValid = useMemo(() => {
 
         {/* Modalidad */}
         <div className="space-y-2">
-          <Label>Modalidad *</Label>
+          <Label>
+            Modalidad <RequiredAsterisk />
+          </Label>
           <Select
             value={datos.modalidad}
             onValueChange={v => setDatos({ ...datos, modalidad: v as "sincronica" })}
@@ -193,7 +227,9 @@ const isFormValid = useMemo(() => {
 
         {/* Mes de inicio */}
         <div className="space-y-2">
-          <Label>Mes de inicio *</Label>
+          <Label>
+            Mes de inicio <RequiredAsterisk />
+          </Label>
           <Select
             value={datos.fechaInicio}
             onValueChange={v => setDatos({ ...datos, fechaInicio: v })}
@@ -213,7 +249,9 @@ const isFormValid = useMemo(() => {
 
         {/* Día de estudio */}
         <div className="space-y-2">
-          <Label>Día que estudiará *</Label>
+          <Label>
+            Día que estudiará <RequiredAsterisk />
+          </Label>
           <Select
             value={datos.diaEstudio}
             onValueChange={v => setDatos({ ...datos, diaEstudio: v as DatosAcademicos["diaEstudio"] })}
@@ -233,7 +271,9 @@ const isFormValid = useMemo(() => {
 
         {/* Fechas específicas */}
         <div className="space-y-2">
-          <Label>Fecha de inicio específica *</Label>
+          <Label>
+            Fecha de inicio específica <RequiredAsterisk />
+          </Label>
           <Input
             type="date"
             value={datos.fechaInicioEspecifica}
@@ -242,7 +282,9 @@ const isFormValid = useMemo(() => {
           />
         </div>
         <div className="space-y-2">
-          <Label>Fecha taller de inducción *</Label>
+          <Label>
+            Fecha taller de inducción <RequiredAsterisk />
+          </Label>
           <Input
             type="date"
             value={datos.fechaTallerInduccion}
@@ -251,7 +293,9 @@ const isFormValid = useMemo(() => {
           />
         </div>
         <div className="space-y-2">
-          <Label>Fecha taller de integración *</Label>
+          <Label>
+            Fecha taller de integración <RequiredAsterisk />
+          </Label>
           <Input
             type="date"
             value={datos.fechaTallerIntegracion}
@@ -262,7 +306,9 @@ const isFormValid = useMemo(() => {
 
         {/* Medio conoció */}
         <div className="space-y-2">
-          <Label>¿Por qué medio conoció ASM? *</Label>
+          <Label>
+            ¿Por qué medio conoció ASM? <RequiredAsterisk />
+          </Label>
           <Select
             value={datos.medioConocio}
             onValueChange={v => setDatos({ ...datos, medioConocio: v as DatosAcademicos["medioConocio"] })}
@@ -310,9 +356,9 @@ const isFormValid = useMemo(() => {
                   <SelectValue placeholder="Seleccionar programa" />
                 </SelectTrigger>
                 <SelectContent>
-                  {programas.map(p => (
+                  {programasUnicos.map(p => (
                     <SelectItem key={p.id} value={p.id.toString()}>
-                      {p.abreviatura} – {p.nombre_del_programa} ({p.meses} meses)
+                      {p.abreviatura} – {p.nombre_del_programa}
                     </SelectItem>
                   ))}
                 </SelectContent>
