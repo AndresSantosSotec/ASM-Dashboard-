@@ -1,5 +1,6 @@
 "use client"
-import { useMemo, useEffect } from "react"
+
+import { useMemo, useEffect, useState } from "react"
 import { Search, ArrowRight, CheckCircle } from "lucide-react"
 import Swal from "sweetalert2"
 
@@ -8,7 +9,6 @@ import { Input } from "@/components/ui/input"
 import CountryCombobox from "../CountryCombobox"
 import { Label } from "@/components/ui/label"
 import { RequiredAsterisk } from "@/components/ui/required-asterisk"
-
 import { Textarea } from "@/components/ui/textarea"
 import { DatosPersonales } from "../types"
 import { useCountries } from "@/hooks/useCountries"
@@ -212,7 +212,11 @@ export default function PersonalTab({
         <Button
           onClick={goNext}
           disabled={!isFormValid}
-          className={isFormValid ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+          className={
+            isFormValid
+              ? "bg-green-600 hover:bg-green-700 text-white"
+              : ""
+          }
         >
           Siguiente
           <ArrowRight className="ml-2 h-4 w-4" />

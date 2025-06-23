@@ -9,6 +9,7 @@ export function useCountries() {
   useEffect(() => {
     const fetchCountries = async () => {
       try {
+
         const res = await fetch(
           "https://restcountries.com/v3.1/all?fields=name",
         )
@@ -25,6 +26,7 @@ export function useCountries() {
       } catch (err) {
         console.error("Error fetching countries", err)
         setCountries(["Guatemala"])
+
       } finally {
         setLoading(false)
       }
