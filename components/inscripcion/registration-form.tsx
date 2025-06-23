@@ -35,7 +35,10 @@ export default function RegistrationForm() {
   const [prospectoId, setProspectoId] = useState<number | null>(null)
 
   const [datosPersonales, setDatosPersonales] = useState<DatosPersonales>({
-    nombre: "", paisOrigen: "", paisResidencia: "", telefono: "",
+    nombre: "",
+    paisOrigen: "Guatemala",
+    paisResidencia: "Guatemala",
+    telefono: "",
     dpi: "", emailPersonal: "", emailCorporativo: "",
     fechaNacimiento: "", direccion: ""
   })

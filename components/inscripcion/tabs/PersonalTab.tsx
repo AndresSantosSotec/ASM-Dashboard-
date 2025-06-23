@@ -1,5 +1,5 @@
 "use client"
-import { useMemo } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { Search, ArrowRight, CheckCircle } from "lucide-react"
 import Swal from "sweetalert2"
 
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { DatosPersonales } from "../types"
+import { fetchCountries } from "@/services/countries"
 
 interface Props {
   datos: DatosPersonales
@@ -30,15 +31,19 @@ export default function PersonalTab({
   openModal,
   goNext,
 }: Props) {
-  const paises = [
-    "Guatemala",
-    "El Salvador",
-    "Honduras",
-    "Nicaragua",
-    "Costa Rica",
-    "Panamá",
-    "México",
-  ]
+  const [paises, setPaises] = useState<string[]>(["Guatemala"])
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await fetchCountries()
+        setPaises(data.map((c) => c.nombre))
+      } catch (err) {
+        console.error("Error al obtener países", err)
+      }
+    }
+    load()
+  }, [])
 
   // Validación de campos obligatorios con DPI de 13 dígitos
   const isFormValid = useMemo(() => {
@@ -105,7 +110,7 @@ export default function PersonalTab({
               País de origen <RequiredAsterisk />
             </Label>
             <Select
-              value={datos.paisOrigen || ""}
+              value={datos.paisOrigen || "Guatemala"}
               onValueChange={(v) => setDatos({ ...datos, paisOrigen: v })}
             >
               <SelectTrigger>
@@ -125,7 +130,7 @@ export default function PersonalTab({
               País de residencia <RequiredAsterisk />
             </Label>
             <Select
-              value={datos.paisResidencia || ""}
+              value={datos.paisResidencia || "Guatemala"}
               onValueChange={(v) =>
                 setDatos({ ...datos, paisResidencia: v })
               }
