@@ -2,6 +2,19 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Search, FileText, Download } from "lucide-react"
 
 // Tipos de datos
 interface Estudiante {
@@ -110,5 +123,89 @@ export function ListaEstudiantes() {
   };
 
   // Función para obtener el color de la badge según el estado de pago
+  // Función para obtener el color de la badge según el estado de pago
   const getEstadoPagoColor = (estado: string) => {
+    switch (estado) {
+      case "Al día":
+        return "bg-green-100 text-green-800";
+      case "Pendiente":
+        return "bg-yellow-100 text-yellow-800";
+      case "Atrasado":
+        return "bg-red-100 text-red-800";
+      default:
+        return "";
+    }
+  };
 
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Lista de Estudiantes</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex justify-end">
+          <div className="relative w-full max-w-xs">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Buscar estudiante..."
+              className="pl-8"
+              value={busqueda}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBusqueda(e.target.value)}
+            />
+          </div>
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nombre</TableHead>
+              <TableHead>Carnet</TableHead>
+              <TableHead>Programa</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead>Inicio</TableHead>
+              <TableHead>Pago</TableHead>
+              <TableHead className="text-right">Acciones</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {estudiantesFiltrados.map((est) => (
+              <TableRow key={est.id}>
+                <TableCell className="font-medium">{est.nombre}</TableCell>
+                <TableCell>{est.carnet}</TableCell>
+                <TableCell>{est.programa}</TableCell>
+                <TableCell>
+                  <Badge variant="outline" className={getEstadoColor(est.estado)}>
+                    {est.estado}
+                  </Badge>
+                </TableCell>
+                <TableCell>{est.fechaInicio}</TableCell>
+                <TableCell>
+                  <Badge variant="outline" className={getEstadoPagoColor(est.estadoPago)}>
+                    {est.estadoPago}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right space-x-2">
+                  <Button variant="ghost" size="sm" onClick={() => verPerfil(est.id)}>
+                    <FileText className="h-4 w-4 mr-1" /> Perfil
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => verEstadoCuenta(est.id)}>
+                    <FileText className="h-4 w-4 mr-1" /> Cuenta
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => descargarEstadoCuenta(est.id, est.nombre)}
+                    disabled={cargando}
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    {cargando ? "Descargando..." : "Descargar"}
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
