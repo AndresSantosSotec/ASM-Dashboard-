@@ -97,7 +97,9 @@ function generatePassword(student: { name: string; lastName: string; idNumber: s
   return `${nameInitial}${lastNameInitial}${idSuffix}${randomDigits}`;
 }
 
-function getStatusBadgeInfo(status: string) {
+function getStatusBadgeInfo(
+  status: string
+): { variant: "success" | "default" | "destructive" | "outline" | "secondary"; label: string } {
   switch (status.toLowerCase()) {
     case "active":
       return { variant: "default", label: "Activo" };
