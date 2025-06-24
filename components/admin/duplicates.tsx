@@ -55,6 +55,24 @@ export default function Duplicates() {
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
 
+
+  const fetchDuplicates = async () => {
+    const token = localStorage.getItem("token") || ""
+    const res = await fetch(`${API_URL}/duplicates?per_page=999999`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const j = await res.json()
+    setAllDups((j.data || []).map((r: any) => ({
+      id: r.id,
+      similarity_score: r.similarity_score,
+      status: r.status,
+      originalProspect: r.original_prospect,
+      duplicateProspect: r.duplicate_prospect,
+    })))
+  }
+
+
   // Trae y detecta duplicados al entrar
   useEffect(() => {
     detectDuplicates()
@@ -72,18 +90,7 @@ export default function Duplicates() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       await res.json()
       Swal.fire("¡Hecho!", "Detección completada.", "success")
-      // recargar todo
-      const reload = await fetch(`${API_URL}/duplicates?per_page=999999`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const j = await reload.json()
-      setAllDups((j.data || []).map((r: any) => ({
-        id: r.id,
-        similarity_score: r.similarity_score,
-        status: r.status,
-        originalProspect: r.original_prospect,
-        duplicateProspect: r.duplicate_prospect,
-      })))
+      await fetchDuplicates()
       setCurrentPage(1)
     } catch (err: any) {
       console.error(err)
@@ -123,10 +130,10 @@ export default function Duplicates() {
         const err = await res.json().catch(() => null)
         throw new Error(err?.message || `HTTP ${res.status}`)
       }
-      // marcar resueltos localmente
-      setAllDups(prev => prev.map(d =>
-        selectedIds.includes(d.id) ? { ...d, status: "resolved" } : d
-      ))
+
+      await fetchDuplicates()
+      setCurrentPage(1)
+
 
       Swal.fire("¡Hecho!", "Operación completada.", "success")
       setSelectedIds([])
@@ -154,10 +161,9 @@ export default function Duplicates() {
       if (!silent) {
         Swal.fire("¡Hecho!", "Operación completada.", "success")
       }
-      // recarga local: quitamos el duplicado resuelto
-      setAllDups((prev) => prev.map(d =>
-        d.id === id ? { ...d, status: "resolved" } : d
-      ))
+
+      await fetchDuplicates()
+      setCurrentPage(1)
     } catch (err: any) {
       console.error(err)
       if (!silent) {
