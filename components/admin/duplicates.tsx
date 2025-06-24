@@ -55,6 +55,7 @@ export default function Duplicates() {
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
 
+
   const fetchDuplicates = async () => {
     const token = localStorage.getItem("token") || ""
     const res = await fetch(`${API_URL}/duplicates?per_page=999999`, {
@@ -70,6 +71,7 @@ export default function Duplicates() {
       duplicateProspect: r.duplicate_prospect,
     })))
   }
+
 
   // Trae y detecta duplicados al entrar
   useEffect(() => {
@@ -114,6 +116,7 @@ export default function Duplicates() {
     if (selectedIds.length === 0) return
     setLoading(true)
     try {
+
       const token = localStorage.getItem("token") || ""
       const res = await fetch(`${API_URL}/duplicates/bulk-action`, {
         method: "POST",
@@ -127,8 +130,11 @@ export default function Duplicates() {
         const err = await res.json().catch(() => null)
         throw new Error(err?.message || `HTTP ${res.status}`)
       }
+
       await fetchDuplicates()
       setCurrentPage(1)
+
+
       Swal.fire("¡Hecho!", "Operación completada.", "success")
       setSelectedIds([])
     } finally {
@@ -155,6 +161,7 @@ export default function Duplicates() {
       if (!silent) {
         Swal.fire("¡Hecho!", "Operación completada.", "success")
       }
+
       await fetchDuplicates()
       setCurrentPage(1)
     } catch (err: any) {
