@@ -10,7 +10,9 @@ import {
   CourseInput,
   approveCourse,
   syncCourseToMoodle,
+
   fetchFacilitators
+
 } from "@/services/courses"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,7 +33,9 @@ interface Facilitator {
 const formatDate = (date: string) => format(new Date(date), "yyyy-MM-dd")
 
 export function CoursesManagement() {
+
   const [courses, setCourses] = useState<Course[]>([])
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
@@ -39,8 +43,6 @@ export function CoursesManagement() {
   const [formMode, setFormMode] = useState<"create" | "edit">("create")
   const [isOpen, setIsOpen] = useState(false)
   const [active, setActive] = useState<Course | null>(null)
-  const [facilitators, setFacilitators] = useState<Facilitator[]>([])
-  const { toast } = useToast()
 
   const [form, setForm] = useState<CourseInput>({
     name: "",
@@ -205,6 +207,7 @@ export function CoursesManagement() {
       {error && !loading && (
         <p className="text-sm text-red-500">{error}</p>
       )}
+
       <div className="flex justify-between items-center gap-2">
         <Input
           placeholder="Buscar curso..."
@@ -239,7 +242,9 @@ export function CoursesManagement() {
                 <TableCell>{c.credits}</TableCell>
                 <TableCell>{c.facilitator?.name ?? "-"}</TableCell>
                 <TableCell>
+
                   <Badge variant={c.status === "approved" ? "secondary" : c.status === "synced" ? "default" : "outline"}>{c.status}</Badge>
+
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-2">
@@ -282,6 +287,7 @@ export function CoursesManagement() {
             <DialogTitle>{formMode === "create" ? "Nuevo Curso" : "Editar Curso"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Código</Label>
@@ -326,11 +332,14 @@ export function CoursesManagement() {
               <Label>Duración</Label>
               <Input value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })} />
             </div>
+
             <div className="space-y-2">
               <Label>Facilitador</Label>
               <Select
                 value={form.facilitatorId ? String(form.facilitatorId) : "none"}
+
                 onValueChange={(v) =>
+
                   setForm({ ...form, facilitatorId: v === "none" ? null : Number(v) })
                 }
               >
@@ -340,14 +349,18 @@ export function CoursesManagement() {
                 <SelectContent>
                   <SelectItem value="none">Sin asignar</SelectItem>
                   {facilitators.map(f => (
+
                     <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+
                   ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
+
             <Button variant="outline" onClick={() => setIsOpen(false)}>Cancelar</Button>
+
             <Button onClick={handleSave}>Guardar</Button>
           </DialogFooter>
         </DialogContent>
