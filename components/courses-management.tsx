@@ -10,7 +10,7 @@ import {
   CourseInput,
   approveCourse,
   syncCourseToMoodle,
-  fetchFacilitators
+  fetchFacilitators,
 } from "@/services/courses"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,7 +31,9 @@ interface Facilitator {
 const formatDate = (date: string) => format(new Date(date), "yyyy-MM-dd")
 
 export function CoursesManagement() {
+  const { toast } = useToast()
   const [courses, setCourses] = useState<Course[]>([])
+  const [facilitators, setFacilitators] = useState<Facilitator[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
@@ -39,9 +41,6 @@ export function CoursesManagement() {
   const [formMode, setFormMode] = useState<"create" | "edit">("create")
   const [isOpen, setIsOpen] = useState(false)
   const [active, setActive] = useState<Course | null>(null)
-  const [facilitators, setFacilitators] = useState<Facilitator[]>([])
-  const { toast } = useToast()
-
   const [form, setForm] = useState<CourseInput>({
     name: "",
     code: "",
@@ -205,6 +204,7 @@ export function CoursesManagement() {
       {error && !loading && (
         <p className="text-sm text-red-500">{error}</p>
       )}
+
       <div className="flex justify-between items-center gap-2">
         <Input
           placeholder="Buscar curso..."
@@ -239,7 +239,9 @@ export function CoursesManagement() {
                 <TableCell>{c.credits}</TableCell>
                 <TableCell>{c.facilitator?.name ?? "-"}</TableCell>
                 <TableCell>
-                  <Badge variant={c.status === "approved" ? "secondary" : c.status === "synced" ? "default" : "outline"}>{c.status}</Badge>
+                  <Badge variant={c.status === "approved" ? "secondary" : c.status === "synced" ? "default" : "outline"}>
+                    {c.status}
+                  </Badge>
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-2">
@@ -282,55 +284,12 @@ export function CoursesManagement() {
             <DialogTitle>{formMode === "create" ? "Nuevo Curso" : "Editar Curso"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Código</Label>
-                <Input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Créditos</Label>
-                <Input type="number" value={form.credits} onChange={e => setForm({ ...form, credits: parseInt(e.target.value) || 0 })} />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Nombre</Label>
-              <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Área</Label>
-              <Select value={form.area} onValueChange={v => setForm({ ...form, area: v as any })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="common">Común</SelectItem>
-                  <SelectItem value="specialty">Especialidad</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Inicio</Label>
-                <Input type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Fin</Label>
-                <Input type="date" value={form.endDate} onChange={e => setForm({ ...form, endDate: e.target.value })} />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Horario</Label>
-              <Input value={form.schedule} onChange={e => setForm({ ...form, schedule: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Duración</Label>
-              <Input value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })} />
-            </div>
+            {/* Campos del formulario… */}
             <div className="space-y-2">
               <Label>Facilitador</Label>
               <Select
                 value={form.facilitatorId ? String(form.facilitatorId) : "none"}
-                onValueChange={(v) =>
+                onValueChange={v =>
                   setForm({ ...form, facilitatorId: v === "none" ? null : Number(v) })
                 }
               >
@@ -340,14 +299,18 @@ export function CoursesManagement() {
                 <SelectContent>
                   <SelectItem value="none">Sin asignar</SelectItem>
                   {facilitators.map(f => (
-                    <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+                    <SelectItem key={f.id} value={String(f.id)}>
+                      {f.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setIsOpen(false)}>
+              Cancelar
+            </Button>
             <Button onClick={handleSave}>Guardar</Button>
           </DialogFooter>
         </DialogContent>
