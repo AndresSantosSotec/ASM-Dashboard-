@@ -23,6 +23,7 @@ export async function crearUsuarioEnBD(
     console.log("[DEBUG] crearUsuarioEnBD → payload:", payload)
 
     const res = await api.post("/api/users", payload)
+
     const body = res.data
 
     // Mostrar alerta de éxito

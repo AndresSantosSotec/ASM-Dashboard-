@@ -109,6 +109,7 @@ export default function Duplicates() {
     if (selectedIds.length === 0) return
     setLoading(true)
     try {
+
       const token = localStorage.getItem("token") || ""
       const res = await fetch(`${API_URL}/duplicates/bulk-action`, {
         method: "POST",
@@ -126,6 +127,7 @@ export default function Duplicates() {
       setAllDups(prev => prev.map(d =>
         selectedIds.includes(d.id) ? { ...d, status: "resolved" } : d
       ))
+
       Swal.fire("¡Hecho!", "Operación completada.", "success")
       setSelectedIds([])
     } finally {
