@@ -109,7 +109,25 @@ export default function Duplicates() {
     if (selectedIds.length === 0) return
     setLoading(true)
     try {
-      await Promise.all(selectedIds.map(id => doAction(id, action, true)))
+
+      const token = localStorage.getItem("token") || ""
+      const res = await fetch(`${API_URL}/duplicates/bulk-action`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ids: selectedIds, action }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        throw new Error(err?.message || `HTTP ${res.status}`)
+      }
+      // marcar resueltos localmente
+      setAllDups(prev => prev.map(d =>
+        selectedIds.includes(d.id) ? { ...d, status: "resolved" } : d
+      ))
+
       Swal.fire("¡Hecho!", "Operación completada.", "success")
       setSelectedIds([])
     } finally {
