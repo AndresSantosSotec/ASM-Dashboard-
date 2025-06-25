@@ -10,17 +10,43 @@ import {
   CourseInput,
   approveCourse,
   syncCourseToMoodle,
-  fetchFacilitators
+  fetchFacilitators,
 } from "@/services/courses"
 import { fetchPrograms, Program } from "@/services/programs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Edit, Trash2, CheckCircle, UploadCloud, Loader2 } from "lucide-react"
+import {
+  Plus,
+  Edit,
+  Trash2,
+  CheckCircle,
+  UploadCloud,
+  Loader2,
+} from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { format } from "date-fns"
 
@@ -34,9 +60,14 @@ interface ProgramOption {
   nombre_del_programa: string
 }
 
-const formatDate = (date: string) => format(new Date(date), "yyyy-MM-dd")
+const formatDate = (date: string) =>
+  format(new Date(date), "yyyy-MM-dd")
 
 export function CoursesManagement() {
+  const { toast } = useToast()
+
+  const [facilitators, setFacilitators] = useState<Facilitator[]>([])
+  const [programs, setPrograms] = useState<ProgramOption[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -45,9 +76,6 @@ export function CoursesManagement() {
   const [formMode, setFormMode] = useState<"create" | "edit">("create")
   const [isOpen, setIsOpen] = useState(false)
   const [active, setActive] = useState<Course | null>(null)
-  const [facilitators, setFacilitators] = useState<Facilitator[]>([])
-  const [programs, setPrograms] = useState<ProgramOption[]>([])
-  const { toast } = useToast()
 
   const [form, setForm] = useState<CourseInput>({
     name: "",
@@ -90,9 +118,10 @@ export function CoursesManagement() {
     }
   }
 
-  const filtered = courses.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.code.toLowerCase().includes(search.toLowerCase())
+  const filtered = courses.filter(
+    (c) =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.code.toLowerCase().includes(search.toLowerCase())
   )
 
   const openCreate = () => {
@@ -142,7 +171,11 @@ export function CoursesManagement() {
         })
       } else if (active) {
         const updated = await updateCourse(active.id, form)
-        setCourses(courses.map(c => (c.id === active.id ? updated : c)))
+        setCourses(
+          courses.map((c) =>
+            c.id === active.id ? updated : c
+          )
+        )
         toast({
           title: "Curso actualizado",
           description: `Se actualizó el curso ${updated.name}.`,
@@ -164,7 +197,7 @@ export function CoursesManagement() {
     if (!confirm(`Eliminar curso "${course.name}"?`)) return
     try {
       await deleteCourse(course.id)
-      setCourses(courses.filter(c => c.id !== course.id))
+      setCourses(courses.filter((c) => c.id !== course.id))
       toast({
         title: "Curso eliminado",
         description: `El curso ${course.name} fue eliminado`,
@@ -183,8 +216,15 @@ export function CoursesManagement() {
   const handleApprove = async (course: Course) => {
     try {
       const updated = await approveCourse(course.id)
-      setCourses(courses.map(c => (c.id === updated.id ? updated : c)))
-      toast({ title: "Curso aprobado", description: `Se aprobó ${updated.name}.` })
+      setCourses(
+        courses.map((c) =>
+          c.id === updated.id ? updated : c
+        )
+      )
+      toast({
+        title: "Curso aprobado",
+        description: `Se aprobó ${updated.name}.`,
+      })
     } catch (e) {
       console.error(e)
       toast({
@@ -198,8 +238,15 @@ export function CoursesManagement() {
   const handleSync = async (course: Course) => {
     try {
       const updated = await syncCourseToMoodle(course.id)
-      setCourses(courses.map(c => (c.id === updated.id ? updated : c)))
-      toast({ title: "Sincronizado", description: `Curso ${updated.name} sincronizado con Moodle.` })
+      setCourses(
+        courses.map((c) =>
+          c.id === updated.id ? updated : c
+        )
+      )
+      toast({
+        title: "Sincronizado",
+        description: `Curso ${updated.name} sincronizado con Moodle.`,
+      })
     } catch (e) {
       console.error(e)
       toast({
@@ -220,11 +267,12 @@ export function CoursesManagement() {
       {error && !loading && (
         <p className="text-sm text-red-500">{error}</p>
       )}
+
       <div className="flex justify-between items-center gap-2">
         <Input
           placeholder="Buscar curso..."
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={(e) => setSearch(e.target.value)}
           className="w-full sm:w-64"
         />
         <Button onClick={openCreate}>
@@ -247,34 +295,62 @@ export function CoursesManagement() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map(c => (
+            {filtered.map((c) => (
               <TableRow key={c.id} className="hover:bg-gray-50">
                 <TableCell>{c.code}</TableCell>
                 <TableCell>{c.name}</TableCell>
-                <TableCell>{c.area === "common" ? "Común" : "Especialidad"}</TableCell>
+                <TableCell>
+                  {c.area === "common" ? "Común" : "Especialidad"}
+                </TableCell>
                 <TableCell>{c.credits}</TableCell>
                 <TableCell>{c.program?.nombre_del_programa ?? "-"}</TableCell>
                 <TableCell>{c.facilitator?.name ?? "-"}</TableCell>
                 <TableCell>
-                  <Badge variant={c.status === "approved" ? "secondary" : c.status === "synced" ? "default" : "outline"}>{c.status}</Badge>
+                  <Badge
+                    variant={
+                      c.status === "approved"
+                        ? "secondary"
+                        : c.status === "synced"
+                        ? "default"
+                        : "outline"
+                    }
+                  >
+                    {c.status}
+                  </Badge>
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-2">
-                    <Button size="icon" variant="outline" onClick={() => openEdit(c)}>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onClick={() => openEdit(c)}
+                    >
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button size="icon" variant="destructive" onClick={() => handleDelete(c)}>
+                    <Button
+                      size="icon"
+                      variant="destructive"
+                      onClick={() => handleDelete(c)}
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                   <div className="flex gap-2 mt-2">
                     {c.status === "draft" && (
-                      <Button size="icon" variant="outline" onClick={() => handleApprove(c)}>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => handleApprove(c)}
+                      >
                         <CheckCircle className="h-4 w-4" />
                       </Button>
                     )}
                     {c.status === "approved" && (
-                      <Button size="icon" variant="outline" onClick={() => handleSync(c)}>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => handleSync(c)}
+                      >
                         <UploadCloud className="h-4 w-4" />
                       </Button>
                     )}
@@ -296,26 +372,52 @@ export function CoursesManagement() {
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[700px]">
           <DialogHeader>
-            <DialogTitle>{formMode === "create" ? "Nuevo Curso" : "Editar Curso"}</DialogTitle>
+            <DialogTitle>
+              {formMode === "create" ? "Nuevo Curso" : "Editar Curso"}
+            </DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Código</Label>
-                <Input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} />
+                <Input
+                  value={form.code}
+                  onChange={(e) =>
+                    setForm({ ...form, code: e.target.value })
+                  }
+                />
               </div>
               <div className="space-y-2">
                 <Label>Créditos</Label>
-                <Input type="number" value={form.credits} onChange={e => setForm({ ...form, credits: parseInt(e.target.value) || 0 })} />
+                <Input
+                  type="number"
+                  value={form.credits}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      credits: parseInt(e.target.value) || 0,
+                    })
+                  }
+                />
               </div>
             </div>
+
             <div className="space-y-2">
               <Label>Nombre</Label>
-              <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+              <Input
+                value={form.name}
+                onChange={(e) =>
+                  setForm({ ...form, name: e.target.value })
+                }
+              />
             </div>
+
             <div className="space-y-2">
               <Label>Área</Label>
-              <Select value={form.area} onValueChange={v => setForm({ ...form, area: v as any })}>
+              <Select
+                value={form.area}
+                onValueChange={(v) => setForm({ ...form, area: v as any })}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccione" />
                 </SelectTrigger>
@@ -325,29 +427,55 @@ export function CoursesManagement() {
                 </SelectContent>
               </Select>
             </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Inicio</Label>
-                <Input type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} />
+                <Input
+                  type="date"
+                  value={form.startDate}
+                  onChange={(e) =>
+                    setForm({ ...form, startDate: e.target.value })
+                  }
+                />
               </div>
               <div className="space-y-2">
                 <Label>Fin</Label>
-                <Input type="date" value={form.endDate} onChange={e => setForm({ ...form, endDate: e.target.value })} />
+                <Input
+                  type="date"
+                  value={form.endDate}
+                  onChange={(e) =>
+                    setForm({ ...form, endDate: e.target.value })
+                  }
+                />
               </div>
             </div>
+
             <div className="space-y-2">
               <Label>Horario</Label>
-              <Input value={form.schedule} onChange={e => setForm({ ...form, schedule: e.target.value })} />
+              <Input
+                value={form.schedule}
+                onChange={(e) =>
+                  setForm({ ...form, schedule: e.target.value })
+                }
+              />
             </div>
+
             <div className="space-y-2">
               <Label>Duración</Label>
-              <Input value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })} />
+              <Input
+                value={form.duration}
+                onChange={(e) =>
+                  setForm({ ...form, duration: e.target.value })
+                }
+              />
             </div>
+
             <div className="space-y-2">
               <Label>Programa</Label>
               <Select
                 value={form.programId ? String(form.programId) : "none"}
-                onValueChange={v =>
+                onValueChange={(v) =>
                   setForm({ ...form, programId: v === "none" ? null : Number(v) })
                 }
               >
@@ -356,7 +484,7 @@ export function CoursesManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sin asignar</SelectItem>
-                  {programs.map(p => (
+                  {programs.map((p) => (
                     <SelectItem key={p.id} value={String(p.id)}>
                       {p.nombre_del_programa}
                     </SelectItem>
@@ -364,6 +492,7 @@ export function CoursesManagement() {
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-2">
               <Label>Facilitador</Label>
               <Select
@@ -377,15 +506,19 @@ export function CoursesManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sin asignar</SelectItem>
-                  {facilitators.map(f => (
-                    <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+                  {facilitators.map((f) => (
+                    <SelectItem key={f.id} value={String(f.id)}>
+                      {f.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setIsOpen(false)}>
+              Cancelar
+            </Button>
             <Button onClick={handleSave}>Guardar</Button>
           </DialogFooter>
         </DialogContent>
