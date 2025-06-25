@@ -43,7 +43,7 @@ export function CoursesManagement() {
   const [search, setSearch] = useState("")
   const [filterArea, setFilterArea] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
-  const [filterProgram, setFilterProgram] = useState<number | 'all'>('all')
+  const [filterProgram, setFilterProgram] = useState<string>('all')
   const [page, setPage] = useState(1)
   const perPage = 10
 
@@ -63,7 +63,7 @@ export function CoursesManagement() {
     endDate: formatDate(new Date().toISOString()),
     schedule: "",
     duration: "",
-    programId: null,
+    carrera: null,
     facilitatorId: null,
   })
 
@@ -102,7 +102,7 @@ export function CoursesManagement() {
     const matchArea = filterArea === 'all' || c.area === filterArea
     const matchStatus = filterStatus === 'all' || c.status === filterStatus
     const matchProgram =
-      filterProgram === 'all' || c.programId === filterProgram
+      filterProgram === 'all' || c.carrera === filterProgram
     return matchText && matchArea && matchStatus && matchProgram
   })
 
@@ -135,7 +135,7 @@ export function CoursesManagement() {
       endDate: formatDate(new Date().toISOString()),
       schedule: "",
       duration: "",
-      programId: null,
+      carrera: null,
       facilitatorId: null,
     })
     setFormMode("create")
@@ -154,7 +154,7 @@ export function CoursesManagement() {
       endDate: course.endDate,
       schedule: course.schedule,
       duration: course.duration,
-      programId: course.programId ?? null,
+      carrera: course.carrera ?? null,
       facilitatorId: course.facilitatorId ?? null,
     })
     setFormMode("edit")
@@ -295,9 +295,9 @@ export function CoursesManagement() {
             </SelectContent>
           </Select>
           <Select
-            value={filterProgram === 'all' ? 'all' : String(filterProgram)}
+            value={filterProgram}
             onValueChange={(v) => {
-              setFilterProgram(v === 'all' ? 'all' : Number(v))
+              setFilterProgram(v)
               setPage(1)
             }}
           >
@@ -307,7 +307,7 @@ export function CoursesManagement() {
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
               {programs.map((p) => (
-                <SelectItem key={p.id} value={String(p.id)}>
+                <SelectItem key={p.id} value={p.nombre_del_programa}>
                   {p.nombre_del_programa}
                 </SelectItem>
               ))}
@@ -340,7 +340,7 @@ export function CoursesManagement() {
                 <TableCell>{c.name}</TableCell>
                 <TableCell>{c.area === "common" ? "Común" : "Especialidad"}</TableCell>
                 <TableCell>{c.credits}</TableCell>
-                <TableCell>{c.program?.nombre_del_programa ?? "-"}</TableCell>
+                <TableCell>{c.carrera ?? "-"}</TableCell>
                 <TableCell>{c.facilitator?.name ?? "-"}</TableCell>
                 <TableCell>
                   <Badge variant={c.status === "approved" ? "secondary" : c.status === "synced" ? "default" : "outline"}>{c.status}</Badge>
@@ -457,9 +457,12 @@ export function CoursesManagement() {
             <div className="space-y-2">
               <Label>Programa</Label>
               <Select
-                value={form.programId ? String(form.programId) : "none"}
+                value={form.carrera ?? "none"}
                 onValueChange={v =>
-                  setForm({ ...form, programId: v === "none" ? null : Number(v) })
+                  setForm({
+                    ...form,
+                    carrera: v === "none" ? null : v,
+                  })
                 }
               >
                 <SelectTrigger>
@@ -468,7 +471,7 @@ export function CoursesManagement() {
                 <SelectContent>
                   <SelectItem value="none">Sin asignar</SelectItem>
                   {programs.map(p => (
-                    <SelectItem key={p.id} value={String(p.id)}>
+                    <SelectItem key={p.id} value={p.nombre_del_programa}>
                       {p.nombre_del_programa}
                     </SelectItem>
                   ))}
