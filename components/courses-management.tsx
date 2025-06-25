@@ -12,6 +12,7 @@ import {
   syncCourseToMoodle,
   fetchFacilitators,
 } from "@/services/courses"
+import { fetchPrograms, Program } from "@/services/programs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -54,23 +55,25 @@ interface Facilitator {
   name: string
 }
 
+interface ProgramOption {
+  id: number
+  nombre_del_programa: string
+}
+
 const formatDate = (date: string) =>
   format(new Date(date), "yyyy-MM-dd")
 
 export function CoursesManagement() {
-  // --- AÑADIDO: hook para toasts ---
   const { toast } = useToast()
 
-  // --- AÑADIDO: estado para facilitators ---
   const [facilitators, setFacilitators] = useState<Facilitator[]>([])
-
+  const [programs, setPrograms] = useState<ProgramOption[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
 
-  const [formMode, setFormMode] =
-    useState<"create" | "edit">("create")
+  const [formMode, setFormMode] = useState<"create" | "edit">("create")
   const [isOpen, setIsOpen] = useState(false)
   const [active, setActive] = useState<Course | null>(null)
 
@@ -83,6 +86,7 @@ export function CoursesManagement() {
     endDate: formatDate(new Date().toISOString()),
     schedule: "",
     duration: "",
+    programId: null,
     facilitatorId: null,
   })
 
@@ -93,12 +97,14 @@ export function CoursesManagement() {
   async function loadData() {
     setLoading(true)
     try {
-      const [crs, facs] = await Promise.all([
+      const [crs, facs, progs] = await Promise.all([
         fetchCourses(),
         fetchFacilitators(),
+        fetchPrograms(),
       ])
       setCourses(crs)
       setFacilitators(facs)
+      setPrograms(progs)
     } catch (e) {
       console.error(e)
       setError("No se pudieron cargar los cursos")
@@ -128,6 +134,7 @@ export function CoursesManagement() {
       endDate: formatDate(new Date().toISOString()),
       schedule: "",
       duration: "",
+      programId: null,
       facilitatorId: null,
     })
     setFormMode("create")
@@ -146,6 +153,7 @@ export function CoursesManagement() {
       endDate: course.endDate,
       schedule: course.schedule,
       duration: course.duration,
+      programId: course.programId ?? null,
       facilitatorId: course.facilitatorId ?? null,
     })
     setFormMode("edit")
@@ -186,15 +194,10 @@ export function CoursesManagement() {
   }
 
   const handleDelete = async (course: Course) => {
-    if (
-      !confirm(`Eliminar curso "${course.name}"?`)
-    )
-      return
+    if (!confirm(`Eliminar curso "${course.name}"?`)) return
     try {
       await deleteCourse(course.id)
-      setCourses(
-        courses.filter((c) => c.id !== course.id)
-      )
+      setCourses(courses.filter((c) => c.id !== course.id))
       toast({
         title: "Curso eliminado",
         description: `El curso ${course.name} fue eliminado`,
@@ -234,9 +237,7 @@ export function CoursesManagement() {
 
   const handleSync = async (course: Course) => {
     try {
-      const updated = await syncCourseToMoodle(
-        course.id
-      )
+      const updated = await syncCourseToMoodle(course.id)
       setCourses(
         courses.map((c) =>
           c.id === updated.id ? updated : c
@@ -264,18 +265,14 @@ export function CoursesManagement() {
         </div>
       )}
       {error && !loading && (
-        <p className="text-sm text-red-500">
-          {error}
-        </p>
+        <p className="text-sm text-red-500">{error}</p>
       )}
 
       <div className="flex justify-between items-center gap-2">
         <Input
           placeholder="Buscar curso..."
           value={search}
-          onChange={(e) =>
-            setSearch(e.target.value)
-          }
+          onChange={(e) => setSearch(e.target.value)}
           className="w-full sm:w-64"
         />
         <Button onClick={openCreate}>
@@ -291,30 +288,23 @@ export function CoursesManagement() {
               <TableHead>Nombre</TableHead>
               <TableHead>Área</TableHead>
               <TableHead>Créditos</TableHead>
+              <TableHead>Programa</TableHead>
               <TableHead>Facilitador</TableHead>
               <TableHead>Estado</TableHead>
-              <TableHead className="w-32">
-                Acciones
-              </TableHead>
+              <TableHead className="w-32">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.map((c) => (
-              <TableRow
-                key={c.id}
-                className="hover:bg-gray-50"
-              >
+              <TableRow key={c.id} className="hover:bg-gray-50">
                 <TableCell>{c.code}</TableCell>
                 <TableCell>{c.name}</TableCell>
                 <TableCell>
-                  {c.area === "common"
-                    ? "Común"
-                    : "Especialidad"}
+                  {c.area === "common" ? "Común" : "Especialidad"}
                 </TableCell>
                 <TableCell>{c.credits}</TableCell>
-                <TableCell>
-                  {c.facilitator?.name ?? "-"}
-                </TableCell>
+                <TableCell>{c.program?.nombre_del_programa ?? "-"}</TableCell>
+                <TableCell>{c.facilitator?.name ?? "-"}</TableCell>
                 <TableCell>
                   <Badge
                     variant={
@@ -340,9 +330,7 @@ export function CoursesManagement() {
                     <Button
                       size="icon"
                       variant="destructive"
-                      onClick={() =>
-                        handleDelete(c)
-                      }
+                      onClick={() => handleDelete(c)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -352,9 +340,7 @@ export function CoursesManagement() {
                       <Button
                         size="icon"
                         variant="outline"
-                        onClick={() =>
-                          handleApprove(c)
-                        }
+                        onClick={() => handleApprove(c)}
                       >
                         <CheckCircle className="h-4 w-4" />
                       </Button>
@@ -363,9 +349,7 @@ export function CoursesManagement() {
                       <Button
                         size="icon"
                         variant="outline"
-                        onClick={() =>
-                          handleSync(c)
-                        }
+                        onClick={() => handleSync(c)}
                       >
                         <UploadCloud className="h-4 w-4" />
                       </Button>
@@ -376,10 +360,7 @@ export function CoursesManagement() {
             ))}
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="text-center py-4"
-                >
+                <TableCell colSpan={8} className="text-center py-4">
                   No se encontraron cursos
                 </TableCell>
               </TableRow>
@@ -388,30 +369,21 @@ export function CoursesManagement() {
         </Table>
       </div>
 
-      <Dialog
-        open={isOpen}
-        onOpenChange={setIsOpen}
-      >
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[700px]">
           <DialogHeader>
             <DialogTitle>
-              {formMode === "create"
-                ? "Nuevo Curso"
-                : "Editar Curso"}
+              {formMode === "create" ? "Nuevo Curso" : "Editar Curso"}
             </DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
-            {/* Campos del formulario */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Código</Label>
                 <Input
                   value={form.code}
                   onChange={(e) =>
-                    setForm({
-                      ...form,
-                      code: e.target.value,
-                    })
+                    setForm({ ...form, code: e.target.value })
                   }
                 />
               </div>
@@ -423,9 +395,7 @@ export function CoursesManagement() {
                   onChange={(e) =>
                     setForm({
                       ...form,
-                      credits:
-                        parseInt(e.target.value) ||
-                        0,
+                      credits: parseInt(e.target.value) || 0,
                     })
                   }
                 />
@@ -437,10 +407,7 @@ export function CoursesManagement() {
               <Input
                 value={form.name}
                 onChange={(e) =>
-                  setForm({
-                    ...form,
-                    name: e.target.value,
-                  })
+                  setForm({ ...form, name: e.target.value })
                 }
               />
             </div>
@@ -449,23 +416,14 @@ export function CoursesManagement() {
               <Label>Área</Label>
               <Select
                 value={form.area}
-                onValueChange={(v) =>
-                  setForm({
-                    ...form,
-                    area: v as any,
-                  })
-                }
+                onValueChange={(v) => setForm({ ...form, area: v as any })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccione" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="common">
-                    Común
-                  </SelectItem>
-                  <SelectItem value="specialty">
-                    Especialidad
-                  </SelectItem>
+                  <SelectItem value="common">Común</SelectItem>
+                  <SelectItem value="specialty">Especialidad</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -477,10 +435,7 @@ export function CoursesManagement() {
                   type="date"
                   value={form.startDate}
                   onChange={(e) =>
-                    setForm({
-                      ...form,
-                      startDate: e.target.value,
-                    })
+                    setForm({ ...form, startDate: e.target.value })
                   }
                 />
               </div>
@@ -490,10 +445,7 @@ export function CoursesManagement() {
                   type="date"
                   value={form.endDate}
                   onChange={(e) =>
-                    setForm({
-                      ...form,
-                      endDate: e.target.value,
-                    })
+                    setForm({ ...form, endDate: e.target.value })
                   }
                 />
               </div>
@@ -504,10 +456,7 @@ export function CoursesManagement() {
               <Input
                 value={form.schedule}
                 onChange={(e) =>
-                  setForm({
-                    ...form,
-                    schedule: e.target.value,
-                  })
+                  setForm({ ...form, schedule: e.target.value })
                 }
               />
             </div>
@@ -517,63 +466,60 @@ export function CoursesManagement() {
               <Input
                 value={form.duration}
                 onChange={(e) =>
-                  setForm({
-                    ...form,
-                    duration: e.target.value,
-                  })
+                  setForm({ ...form, duration: e.target.value })
                 }
               />
             </div>
 
             <div className="space-y-2">
+              <Label>Programa</Label>
+              <Select
+                value={form.programId ? String(form.programId) : "none"}
+                onValueChange={(v) =>
+                  setForm({ ...form, programId: v === "none" ? null : Number(v) })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin asignar</SelectItem>
+                  {programs.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.nombre_del_programa}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label>Facilitador</Label>
               <Select
-                value={
-                  form.facilitatorId
-                    ? String(form.facilitatorId)
-                    : "none"
-                }
+                value={form.facilitatorId ? String(form.facilitatorId) : "none"}
                 onValueChange={(v) =>
-                  setForm({
-                    ...form,
-                    facilitatorId:
-                      v === "none"
-                        ? null
-                        : Number(v),
-                  })
+                  setForm({ ...form, facilitatorId: v === "none" ? null : Number(v) })
                 }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Sin asignar" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">
-                    Sin asignar
-                  </SelectItem>
-                  {facilitators.map(
-                    (f: Facilitator) => (
-                      <SelectItem
-                        key={f.id}
-                        value={String(f.id)}
-                      >
-                        {f.name}
-                      </SelectItem>
-                    )
-                  )}
+                  <SelectItem value="none">Sin asignar</SelectItem>
+                  {facilitators.map((f) => (
+                    <SelectItem key={f.id} value={String(f.id)}>
+                      {f.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsOpen(false)}
-            >
+            <Button variant="outline" onClick={() => setIsOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSave}>
-              Guardar
-            </Button>
+            <Button onClick={handleSave}>Guardar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
