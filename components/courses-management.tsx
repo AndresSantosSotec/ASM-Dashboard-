@@ -10,43 +10,17 @@ import {
   CourseInput,
   approveCourse,
   syncCourseToMoodle,
-  fetchFacilitators,
+  fetchFacilitators
 } from "@/services/courses"
 import { fetchPrograms, Program } from "@/services/programs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import {
-  Plus,
-  Edit,
-  Trash2,
-  CheckCircle,
-  UploadCloud,
-  Loader2,
-} from "lucide-react"
+import { Plus, Edit, Trash2, CheckCircle, UploadCloud, Loader2 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { format } from "date-fns"
 
@@ -60,22 +34,26 @@ interface ProgramOption {
   nombre_del_programa: string
 }
 
-const formatDate = (date: string) =>
-  format(new Date(date), "yyyy-MM-dd")
+const formatDate = (date: string) => format(new Date(date), "yyyy-MM-dd")
 
 export function CoursesManagement() {
   const { toast } = useToast()
 
-  const [facilitators, setFacilitators] = useState<Facilitator[]>([])
-  const [programs, setPrograms] = useState<ProgramOption[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
+  const [filterArea, setFilterArea] = useState<string>("all")
+  const [filterStatus, setFilterStatus] = useState<string>("all")
+  const [filterProgram, setFilterProgram] = useState<string>("all")
+  const [page, setPage] = useState(1)
+  const perPage = 10
 
   const [formMode, setFormMode] = useState<"create" | "edit">("create")
   const [isOpen, setIsOpen] = useState(false)
   const [active, setActive] = useState<Course | null>(null)
+  const [facilitators, setFacilitators] = useState<Facilitator[]>([])
+  const [programs, setPrograms] = useState<ProgramOption[]>([])
 
   const [form, setForm] = useState<CourseInput>({
     name: "",
@@ -107,10 +85,10 @@ export function CoursesManagement() {
       setPrograms(progs)
     } catch (e) {
       console.error(e)
-      setError("No se pudieron cargar los cursos")
+      setError("No se pudieron cargar los datos")
       toast({
         title: "Error",
-        description: "No se pudieron cargar los cursos",
+        description: "No se pudieron cargar los datos",
         variant: "destructive",
       })
     } finally {
@@ -118,16 +96,40 @@ export function CoursesManagement() {
     }
   }
 
-  const filtered = courses.filter(
-    (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.code.toLowerCase().includes(search.toLowerCase())
-  )
+  const generateNextCode = () => {
+    let max = 0
+    for (const c of courses) {
+      const m = c.code.match(/(\d+)$/)
+      if (m) {
+        const n = parseInt(m[1], 10)
+        if (n > max) max = n
+      }
+    }
+    return `CRS-${String(max + 1).padStart(4, '0')}`
+  }
+
+  // Filtros y paginación
+  const filtered = courses.filter((c) => {
+    const term = search.toLowerCase()
+    const matchText =
+      c.name.toLowerCase().includes(term) || c.code.toLowerCase().includes(term)
+    const matchArea = filterArea === "all" || c.area === filterArea
+    const matchStatus = filterStatus === "all" || c.status === filterStatus
+    const matchProgram =
+      filterProgram === "all" || c.program?.nombre_del_programa === filterProgram
+    return matchText && matchArea && matchStatus && matchProgram
+  })
+  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage))
+  const paged = filtered.slice((page - 1) * perPage, page * perPage)
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [totalPages])
 
   const openCreate = () => {
     setForm({
       name: "",
-      code: "",
+      code: generateNextCode(),
       area: "common",
       credits: 1,
       startDate: formatDate(new Date().toISOString()),
@@ -153,7 +155,7 @@ export function CoursesManagement() {
       endDate: course.endDate,
       schedule: course.schedule,
       duration: course.duration,
-      programId: course.programId ?? null,
+      programId: course.program?.id ?? null,
       facilitatorId: course.facilitatorId ?? null,
     })
     setFormMode("edit")
@@ -165,95 +167,52 @@ export function CoursesManagement() {
       if (formMode === "create") {
         const newCourse = await createCourse(form)
         setCourses([...courses, newCourse])
-        toast({
-          title: "Curso creado",
-          description: `Se creó el curso ${newCourse.name}.`,
-        })
+        toast({ title: "Curso creado", description: `Se creó ${newCourse.name}.` })
       } else if (active) {
         const updated = await updateCourse(active.id, form)
-        setCourses(
-          courses.map((c) =>
-            c.id === active.id ? updated : c
-          )
-        )
-        toast({
-          title: "Curso actualizado",
-          description: `Se actualizó el curso ${updated.name}.`,
-        })
+        setCourses(courses.map((c) => (c.id === active.id ? updated : c)))
+        toast({ title: "Curso actualizado", description: `Se actualizó ${updated.name}.` })
       }
       setIsOpen(false)
     } catch (e) {
       console.error(e)
-      setError("Error al guardar el curso")
-      toast({
-        title: "Error",
-        description: "No se pudo guardar el curso",
-        variant: "destructive",
-      })
+      setError("No se pudo guardar el curso")
+      toast({ title: "Error", description: "No se pudo guardar el curso", variant: "destructive" })
     }
   }
 
   const handleDelete = async (course: Course) => {
-    if (!confirm(`Eliminar curso "${course.name}"?`)) return
+    if (!confirm(`¿Eliminar curso "${course.name}"?`)) return
     try {
       await deleteCourse(course.id)
       setCourses(courses.filter((c) => c.id !== course.id))
-      toast({
-        title: "Curso eliminado",
-        description: `El curso ${course.name} fue eliminado`,
-      })
+      toast({ title: "Curso eliminado", description: `Se eliminó ${course.name}.` })
     } catch (e) {
       console.error(e)
       setError("No se pudo eliminar el curso")
-      toast({
-        title: "Error",
-        description: "No se pudo eliminar el curso",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "No se pudo eliminar el curso", variant: "destructive" })
     }
   }
 
   const handleApprove = async (course: Course) => {
     try {
       const updated = await approveCourse(course.id)
-      setCourses(
-        courses.map((c) =>
-          c.id === updated.id ? updated : c
-        )
-      )
-      toast({
-        title: "Curso aprobado",
-        description: `Se aprobó ${updated.name}.`,
-      })
+      setCourses(courses.map((c) => (c.id === updated.id ? updated : c)))
+      toast({ title: "Curso aprobado", description: `Se aprobó ${updated.name}.` })
     } catch (e) {
       console.error(e)
-      toast({
-        title: "Error",
-        description: "No se pudo aprobar el curso",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "No se pudo aprobar el curso", variant: "destructive" })
     }
   }
 
   const handleSync = async (course: Course) => {
     try {
       const updated = await syncCourseToMoodle(course.id)
-      setCourses(
-        courses.map((c) =>
-          c.id === updated.id ? updated : c
-        )
-      )
-      toast({
-        title: "Sincronizado",
-        description: `Curso ${updated.name} sincronizado con Moodle.`,
-      })
+      setCourses(courses.map((c) => (c.id === updated.id ? updated : c)))
+      toast({ title: "Sincronizado", description: `Se sincronizó ${updated.name}.` })
     } catch (e) {
       console.error(e)
-      toast({
-        title: "Error",
-        description: "No se pudo sincronizar el curso",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "No se pudo sincronizar", variant: "destructive" })
     }
   }
 
@@ -264,17 +223,45 @@ export function CoursesManagement() {
           <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
         </div>
       )}
-      {error && !loading && (
-        <p className="text-sm text-red-500">{error}</p>
-      )}
+      {error && !loading && <p className="text-sm text-red-500">{error}</p>}
 
-      <div className="flex justify-between items-center gap-2">
-        <Input
-          placeholder="Buscar curso..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full sm:w-64"
-        />
+      <div className="flex flex-wrap justify-between items-end gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Input
+            placeholder="Buscar curso..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+            className="w-full sm:w-48"
+          />
+          <Select value={filterArea} onValueChange={(v) => { setFilterArea(v); setPage(1) }}>
+            <SelectTrigger className="w-32"><SelectValue placeholder="Área" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              <SelectItem value="common">Común</SelectItem>
+              <SelectItem value="specialty">Especialidad</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setPage(1) }}>
+            <SelectTrigger className="w-32"><SelectValue placeholder="Estado" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="draft">Borrador</SelectItem>
+              <SelectItem value="approved">Aprobado</SelectItem>
+              <SelectItem value="synced">Sincronizado</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterProgram} onValueChange={(v) => { setFilterProgram(v); setPage(1) }}>
+            <SelectTrigger className="w-40"><SelectValue placeholder="Programa" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {programs.map((p) => (
+                <SelectItem key={p.id} value={p.nombre_del_programa}>
+                  {p.nombre_del_programa}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4 mr-2" /> Nuevo Curso
         </Button>
@@ -295,13 +282,11 @@ export function CoursesManagement() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((c) => (
+            {paged.map((c) => (
               <TableRow key={c.id} className="hover:bg-gray-50">
                 <TableCell>{c.code}</TableCell>
                 <TableCell>{c.name}</TableCell>
-                <TableCell>
-                  {c.area === "common" ? "Común" : "Especialidad"}
-                </TableCell>
+                <TableCell>{c.area === "common" ? "Común" : "Especialidad"}</TableCell>
                 <TableCell>{c.credits}</TableCell>
                 <TableCell>{c.program?.nombre_del_programa ?? "-"}</TableCell>
                 <TableCell>{c.facilitator?.name ?? "-"}</TableCell>
@@ -320,37 +305,21 @@ export function CoursesManagement() {
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-2">
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      onClick={() => openEdit(c)}
-                    >
+                    <Button size="icon" variant="outline" onClick={() => openEdit(c)}>
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button
-                      size="icon"
-                      variant="destructive"
-                      onClick={() => handleDelete(c)}
-                    >
+                    <Button size="icon" variant="destructive" onClick={() => handleDelete(c)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                   <div className="flex gap-2 mt-2">
                     {c.status === "draft" && (
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        onClick={() => handleApprove(c)}
-                      >
+                      <Button size="icon" variant="outline" onClick={() => handleApprove(c)}>
                         <CheckCircle className="h-4 w-4" />
                       </Button>
                     )}
                     {c.status === "approved" && (
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        onClick={() => handleSync(c)}
-                      >
+                      <Button size="icon" variant="outline" onClick={() => handleSync(c)}>
                         <UploadCloud className="h-4 w-4" />
                       </Button>
                     )}
@@ -369,6 +338,30 @@ export function CoursesManagement() {
         </Table>
       </div>
 
+      <div className="flex justify-between items-center text-sm">
+        <div>
+          Página {page} de {totalPages}
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            Anterior
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Siguiente
+          </Button>
+        </div>
+      </div>
+
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[700px]">
           <DialogHeader>
@@ -382,9 +375,7 @@ export function CoursesManagement() {
                 <Label>Código</Label>
                 <Input
                   value={form.code}
-                  onChange={(e) =>
-                    setForm({ ...form, code: e.target.value })
-                  }
+                  onChange={(e) => setForm({ ...form, code: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
@@ -393,25 +384,18 @@ export function CoursesManagement() {
                   type="number"
                   value={form.credits}
                   onChange={(e) =>
-                    setForm({
-                      ...form,
-                      credits: parseInt(e.target.value) || 0,
-                    })
+                    setForm({ ...form, credits: parseInt(e.target.value) || 0 })
                   }
                 />
               </div>
             </div>
-
             <div className="space-y-2">
               <Label>Nombre</Label>
               <Input
                 value={form.name}
-                onChange={(e) =>
-                  setForm({ ...form, name: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </div>
-
             <div className="space-y-2">
               <Label>Área</Label>
               <Select
@@ -427,16 +411,13 @@ export function CoursesManagement() {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Inicio</Label>
                 <Input
                   type="date"
                   value={form.startDate}
-                  onChange={(e) =>
-                    setForm({ ...form, startDate: e.target.value })
-                  }
+                  onChange={(e) => setForm({ ...form, startDate: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
@@ -444,33 +425,24 @@ export function CoursesManagement() {
                 <Input
                   type="date"
                   value={form.endDate}
-                  onChange={(e) =>
-                    setForm({ ...form, endDate: e.target.value })
-                  }
+                  onChange={(e) => setForm({ ...form, endDate: e.target.value })}
                 />
               </div>
             </div>
-
             <div className="space-y-2">
               <Label>Horario</Label>
               <Input
                 value={form.schedule}
-                onChange={(e) =>
-                  setForm({ ...form, schedule: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, schedule: e.target.value })}
               />
             </div>
-
             <div className="space-y-2">
               <Label>Duración</Label>
               <Input
                 value={form.duration}
-                onChange={(e) =>
-                  setForm({ ...form, duration: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, duration: e.target.value })}
               />
             </div>
-
             <div className="space-y-2">
               <Label>Programa</Label>
               <Select
@@ -492,7 +464,6 @@ export function CoursesManagement() {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label>Facilitador</Label>
               <Select

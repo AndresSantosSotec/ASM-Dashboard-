@@ -102,4 +102,3 @@ export const fetchFacilitators = async () => {
   const res = await api.get('/users/role/2')
   return res.data
 }
-
