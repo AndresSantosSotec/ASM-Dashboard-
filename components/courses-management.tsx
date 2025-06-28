@@ -449,6 +449,7 @@ export function CoursesManagement() {
             </div>
             <div className="space-y-2">
               <Label>Programa</Label>
+
               <ReactSelect
                 isMulti
                 classNamePrefix="rs"
@@ -466,6 +467,7 @@ export function CoursesManagement() {
                   })
                 }
               />
+
             </div>
             <div className="space-y-2">
               <Label>Facilitador</Label>
