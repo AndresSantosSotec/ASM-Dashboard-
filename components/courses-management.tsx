@@ -64,7 +64,7 @@ export function CoursesManagement() {
     endDate: formatDate(new Date().toISOString()),
     schedule: "",
     duration: "",
-    programId: null,
+    programIds: [],
     facilitatorId: null,
   })
 
@@ -116,7 +116,8 @@ export function CoursesManagement() {
     const matchArea = filterArea === "all" || c.area === filterArea
     const matchStatus = filterStatus === "all" || c.status === filterStatus
     const matchProgram =
-      filterProgram === "all" || c.program?.nombre_del_programa === filterProgram
+      filterProgram === "all" ||
+      c.programas.some((p) => p.nombre_del_programa === filterProgram)
     return matchText && matchArea && matchStatus && matchProgram
   })
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage))
@@ -136,7 +137,7 @@ export function CoursesManagement() {
       endDate: formatDate(new Date().toISOString()),
       schedule: "",
       duration: "",
-      programId: null,
+      programIds: [],
       facilitatorId: null,
     })
     setFormMode("create")
@@ -155,7 +156,7 @@ export function CoursesManagement() {
       endDate: course.endDate,
       schedule: course.schedule,
       duration: course.duration,
-      programId: course.program?.id ?? null,
+      programIds: course.programas.map((p) => p.id),
       facilitatorId: course.facilitatorId ?? null,
     })
     setFormMode("edit")
@@ -288,7 +289,9 @@ export function CoursesManagement() {
                 <TableCell>{c.name}</TableCell>
                 <TableCell>{c.area === "common" ? "Común" : "Especialidad"}</TableCell>
                 <TableCell>{c.credits}</TableCell>
-                <TableCell>{c.program?.nombre_del_programa ?? "-"}</TableCell>
+                <TableCell>
+                  {c.programas.map((p) => p.nombre_del_programa).join(', ') || '-'}
+                </TableCell>
                 <TableCell>{c.facilitator?.name ?? "-"}</TableCell>
                 <TableCell>
                   <Badge
@@ -445,24 +448,25 @@ export function CoursesManagement() {
             </div>
             <div className="space-y-2">
               <Label>Programa</Label>
-              <Select
-                value={form.programId ? String(form.programId) : "none"}
-                onValueChange={(v) =>
-                  setForm({ ...form, programId: v === "none" ? null : Number(v) })
+              <select
+                multiple
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                value={form.programIds.map(String)}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    programIds: Array.from(e.target.selectedOptions).map((o) =>
+                      Number(o.value)
+                    ),
+                  })
                 }
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin asignar</SelectItem>
-                  {programs.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.nombre_del_programa}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                {programs.map((p) => (
+                  <option key={p.id} value={String(p.id)}>
+                    {p.nombre_del_programa}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="space-y-2">
               <Label>Facilitador</Label>
