@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import ReactSelect from "react-select"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -448,25 +449,25 @@ export function CoursesManagement() {
             </div>
             <div className="space-y-2">
               <Label>Programa</Label>
-              <select
-                multiple
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                value={form.programIds.map(String)}
-                onChange={(e) =>
+
+              <ReactSelect
+                isMulti
+                classNamePrefix="rs"
+                options={programs.map((p) => ({
+                  value: p.id,
+                  label: p.nombre_del_programa,
+                }))}
+                value={programs
+                  .filter((p) => form.programIds.includes(p.id))
+                  .map((p) => ({ value: p.id, label: p.nombre_del_programa }))}
+                onChange={(vals) =>
                   setForm({
                     ...form,
-                    programIds: Array.from(e.target.selectedOptions).map((o) =>
-                      Number(o.value)
-                    ),
+                    programIds: (vals as any[]).map((v) => v.value as number),
                   })
                 }
-              >
-                {programs.map((p) => (
-                  <option key={p.id} value={String(p.id)}>
-                    {p.nombre_del_programa}
-                  </option>
-                ))}
-              </select>
+              />
+
             </div>
             <div className="space-y-2">
               <Label>Facilitador</Label>
