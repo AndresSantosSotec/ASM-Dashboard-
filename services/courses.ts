@@ -9,7 +9,7 @@ export interface CourseInput {
   endDate: string
   schedule: string
   duration: string
-  programId?: number | null
+  programIds: number[]
   facilitatorId?: number | null
 }
 
@@ -17,7 +17,7 @@ export interface Course extends CourseInput {
   id: number
   status: 'draft' | 'approved' | 'synced'
   facilitator?: { id: number; name: string } | null
-  program?: { id: number; nombre_del_programa: string } | null
+  programas: { id: number; nombre_del_programa: string }[]
 }
 
 const mapCourseFromApi = (course: any): Course => ({
@@ -30,11 +30,13 @@ const mapCourseFromApi = (course: any): Course => ({
   endDate: course.end_date,
   schedule: course.schedule,
   duration: course.duration,
-  programId: course.program_id ?? null,
+  programIds: Array.isArray(course.programas)
+    ? course.programas.map((p: any) => p.id)
+    : [],
   facilitatorId: course.facilitator_id ?? null,
   status: course.status,
   facilitator: course.facilitator ?? null,
-  program: course.program ?? null,
+  programas: course.programas ?? [],
 })
 
 const mapCourseToApi = (data: Partial<CourseInput> & { status?: Course['status'] }) => {
@@ -47,7 +49,7 @@ const mapCourseToApi = (data: Partial<CourseInput> & { status?: Course['status']
   if (data.endDate !== undefined) payload.end_date = data.endDate
   if (data.schedule !== undefined) payload.schedule = data.schedule
   if (data.duration !== undefined) payload.duration = data.duration
-  if (data.programId !== undefined) payload.program_id = data.programId
+  if (data.programIds !== undefined) payload.program_ids = data.programIds
   if (data.facilitatorId !== undefined) payload.facilitator_id = data.facilitatorId
   if ((data as any).status !== undefined) payload.status = (data as any).status
   return payload
