@@ -35,6 +35,40 @@ interface ProgramOption {
   nombre_del_programa: string
 }
 
+const courseAreas = [
+  { value: 'common', label: 'Común' },
+  { value: 'specialty', label: 'Especialidad' },
+  { value: 'closure', label: 'Cierre del Programa' },
+] as const
+
+type CourseArea = (typeof courseAreas)[number]['value']
+
+const areaLabels: Record<CourseArea, string> = {
+  common: 'Común',
+  specialty: 'Especialidad',
+  closure: 'Cierre del Programa',
+}
+
+const areaBadgeVariant: Record<CourseArea, 'default' | 'secondary' | 'outline'> = {
+  common: 'secondary',
+  specialty: 'default',
+  closure: 'outline',
+}
+
+const courseStatuses = [
+  { value: 'draft', label: 'Borrador' },
+  { value: 'approved', label: 'Aprobado' },
+  { value: 'synced', label: 'Sincronizado' },
+] as const
+
+type CourseStatus = (typeof courseStatuses)[number]['value']
+
+const statusBadgeVariant: Record<CourseStatus, 'default' | 'secondary' | 'outline' | 'success'> = {
+  draft: 'outline',
+  approved: 'secondary',
+  synced: 'success',
+}
+
 const reactSelectStyles = {
   control: (base: any) => ({
     ...base,
@@ -83,11 +117,11 @@ export function CoursesManagement() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
-  const [filterArea, setFilterArea] = useState<string>("all")
-  const [filterStatus, setFilterStatus] = useState<string>("all")
+  const [filterArea, setFilterArea] = useState<'all' | CourseArea>("all")
+  const [filterStatus, setFilterStatus] = useState<'all' | CourseStatus>("all")
   const [filterPrograms, setFilterPrograms] = useState<number[]>([])
   const [page, setPage] = useState(1)
-  const perPage = 10
+  const [perPage, setPerPage] = useState(10)
 
   const [formMode, setFormMode] = useState<"create" | "edit">("create")
   const [isOpen, setIsOpen] = useState(false)
@@ -168,6 +202,10 @@ export function CoursesManagement() {
   useEffect(() => {
     if (page > totalPages) setPage(totalPages)
   }, [totalPages])
+
+  useEffect(() => {
+    setPage(1)
+  }, [perPage])
 
   const openCreate = () => {
     setForm({
@@ -276,21 +314,22 @@ export function CoursesManagement() {
             onChange={(e) => { setSearch(e.target.value); setPage(1) }}
             className="w-full sm:w-48"
           />
-          <Select value={filterArea} onValueChange={(v) => { setFilterArea(v); setPage(1) }}>
+          <Select value={filterArea} onValueChange={(v) => { setFilterArea(v as any); setPage(1) }}>
             <SelectTrigger className="w-32"><SelectValue placeholder="Área" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas</SelectItem>
-              <SelectItem value="common">Común</SelectItem>
-              <SelectItem value="specialty">Especialidad</SelectItem>
+              {courseAreas.map((a) => (
+                <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
-          <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setPage(1) }}>
+          <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v as any); setPage(1) }}>
             <SelectTrigger className="w-32"><SelectValue placeholder="Estado" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="draft">Borrador</SelectItem>
-              <SelectItem value="approved">Aprobado</SelectItem>
-              <SelectItem value="synced">Sincronizado</SelectItem>
+              {courseStatuses.map((s) => (
+                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <ReactSelect
@@ -337,23 +376,19 @@ export function CoursesManagement() {
               <TableRow key={c.id} className="hover:bg-gray-50">
                 <TableCell>{c.code}</TableCell>
                 <TableCell>{c.name}</TableCell>
-                <TableCell>{c.area === "common" ? "Común" : "Especialidad"}</TableCell>
+                <TableCell>
+                  <Badge variant={areaBadgeVariant[c.area]}>
+                    {areaLabels[c.area]}
+                  </Badge>
+                </TableCell>
                 <TableCell>{c.credits}</TableCell>
                 <TableCell>
                   {c.programas.map((p) => p.nombre_del_programa).join(', ') || '-'}
                 </TableCell>
                 <TableCell>{c.facilitator?.name ?? "-"}</TableCell>
                 <TableCell>
-                  <Badge
-                    variant={
-                      c.status === "approved"
-                        ? "secondary"
-                        : c.status === "synced"
-                        ? "default"
-                        : "outline"
-                    }
-                  >
-                    {c.status}
+                  <Badge variant={statusBadgeVariant[c.status]}>
+                    {courseStatuses.find((s) => s.value === c.status)?.label || c.status}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -391,9 +426,20 @@ export function CoursesManagement() {
         </Table>
       </div>
 
-      <div className="flex justify-between items-center text-sm">
-        <div>
-          Página {page} de {totalPages}
+      <div className="flex flex-wrap justify-between items-center text-sm gap-2">
+        <div className="flex items-center gap-2">
+          <span>Página {page} de {totalPages}</span>
+          <div className="flex items-center gap-1">
+            <span>Mostrar</span>
+            <Select value={String(perPage)} onValueChange={(v) => setPerPage(parseInt(v))}>
+              <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[5,10,25].map((n) => (
+                  <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button
@@ -455,13 +501,14 @@ export function CoursesManagement() {
                 value={form.area}
                 onValueChange={(v) => setForm({ ...form, area: v as any })}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="common">Común</SelectItem>
-                  <SelectItem value="specialty">Especialidad</SelectItem>
-                </SelectContent>
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccione" />
+              </SelectTrigger>
+              <SelectContent>
+                {courseAreas.map((a) => (
+                  <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+                ))}
+              </SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-4">
