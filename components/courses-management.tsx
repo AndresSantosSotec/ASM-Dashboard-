@@ -35,6 +35,34 @@ interface ProgramOption {
   nombre_del_programa: string
 }
 
+const reactSelectStyles = {
+  control: (base: any) => ({
+    ...base,
+    minHeight: '2.5rem',
+    backgroundColor: 'hsl(var(--background))',
+    borderColor: 'hsl(var(--input))',
+    boxShadow: 'none',
+    ':hover': { borderColor: 'hsl(var(--ring))' },
+  }),
+  multiValue: (base: any) => ({
+    ...base,
+    backgroundColor: 'hsl(var(--secondary))',
+  }),
+  multiValueLabel: (base: any) => ({
+    ...base,
+    color: 'hsl(var(--secondary-foreground))',
+  }),
+  multiValueRemove: (base: any) => ({
+    ...base,
+    color: 'hsl(var(--secondary-foreground))',
+    ':hover': {
+      backgroundColor: 'hsl(var(--secondary))',
+      color: 'hsl(var(--foreground))',
+    },
+  }),
+  menuPortal: (base: any) => ({ ...base, zIndex: 9999 }),
+}
+
 const formatDate = (date: string) => format(new Date(date), "yyyy-MM-dd")
 
 export function CoursesManagement() {
@@ -46,7 +74,7 @@ export function CoursesManagement() {
   const [search, setSearch] = useState("")
   const [filterArea, setFilterArea] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
-  const [filterProgram, setFilterProgram] = useState<string>("all")
+  const [filterPrograms, setFilterPrograms] = useState<number[]>([])
   const [page, setPage] = useState(1)
   const perPage = 10
 
@@ -117,8 +145,10 @@ export function CoursesManagement() {
     const matchArea = filterArea === "all" || c.area === filterArea
     const matchStatus = filterStatus === "all" || c.status === filterStatus
     const matchProgram =
-      filterProgram === "all" ||
-      c.programas.some((p) => p.nombre_del_programa === filterProgram)
+
+      filterPrograms.length === 0 ||
+      c.programas.some((p) => filterPrograms.includes(p.id))
+
     return matchText && matchArea && matchStatus && matchProgram
   })
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage))
@@ -252,17 +282,22 @@ export function CoursesManagement() {
               <SelectItem value="synced">Sincronizado</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={filterProgram} onValueChange={(v) => { setFilterProgram(v); setPage(1) }}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Programa" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              {programs.map((p) => (
-                <SelectItem key={p.id} value={p.nombre_del_programa}>
-                  {p.nombre_del_programa}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <ReactSelect
+            isMulti
+            placeholder="Filtrar programas"
+            classNamePrefix="rs"
+            options={programs.map((p) => ({ value: p.id, label: p.nombre_del_programa }))}
+            value={programs
+              .filter((p) => filterPrograms.includes(p.id))
+              .map((p) => ({ value: p.id, label: p.nombre_del_programa }))}
+            onChange={(vals) => {
+              setFilterPrograms((vals as any[]).map((v) => v.value as number))
+              setPage(1)
+            }}
+            styles={reactSelectStyles}
+            menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+            closeMenuOnSelect={false}
+          />
         </div>
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4 mr-2" /> Nuevo Curso
@@ -452,6 +487,8 @@ export function CoursesManagement() {
 
               <ReactSelect
                 isMulti
+                placeholder="Seleccione programas"
+
                 classNamePrefix="rs"
                 options={programs.map((p) => ({
                   value: p.id,
@@ -466,6 +503,11 @@ export function CoursesManagement() {
                     programIds: (vals as any[]).map((v) => v.value as number),
                   })
                 }
+
+                styles={reactSelectStyles}
+                menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+                closeMenuOnSelect={false}
+                isClearable
               />
 
             </div>
