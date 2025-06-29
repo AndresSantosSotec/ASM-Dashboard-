@@ -145,8 +145,10 @@ export function CoursesManagement() {
     const matchArea = filterArea === "all" || c.area === filterArea
     const matchStatus = filterStatus === "all" || c.status === filterStatus
     const matchProgram =
+
       filterPrograms.length === 0 ||
       c.programas.some((p) => filterPrograms.includes(p.id))
+
     return matchText && matchArea && matchStatus && matchProgram
   })
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage))
@@ -482,9 +484,11 @@ export function CoursesManagement() {
             </div>
             <div className="space-y-2">
               <Label>Programa</Label>
+
               <ReactSelect
                 isMulti
                 placeholder="Seleccione programas"
+
                 classNamePrefix="rs"
                 options={programs.map((p) => ({
                   value: p.id,
@@ -499,11 +503,13 @@ export function CoursesManagement() {
                     programIds: (vals as any[]).map((v) => v.value as number),
                   })
                 }
+
                 styles={reactSelectStyles}
                 menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
                 closeMenuOnSelect={false}
                 isClearable
               />
+
             </div>
             <div className="space-y-2">
               <Label>Facilitador</Label>
