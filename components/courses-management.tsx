@@ -61,6 +61,17 @@ const reactSelectStyles = {
     },
   }),
   menuPortal: (base: any) => ({ ...base, zIndex: 9999 }),
+
+  menu: (base: any) => ({
+    ...base,
+    zIndex: 9999,
+  }),
+  menuList: (base: any) => ({
+    ...base,
+    maxHeight: '12rem',
+    overflowY: 'auto',
+  }),
+
 }
 
 const formatDate = (date: string) => format(new Date(date), "yyyy-MM-dd")
@@ -284,6 +295,9 @@ export function CoursesManagement() {
           </Select>
           <ReactSelect
             isMulti
+
+            isSearchable
+
             placeholder="Filtrar programas"
             classNamePrefix="rs"
             options={programs.map((p) => ({ value: p.id, label: p.nombre_del_programa }))}
@@ -487,6 +501,7 @@ export function CoursesManagement() {
 
               <ReactSelect
                 isMulti
+                isSearchable
                 placeholder="Seleccione programas"
 
                 classNamePrefix="rs"
