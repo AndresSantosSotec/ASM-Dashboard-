@@ -73,7 +73,7 @@ export default function AsignacionPage() {
   const [selectedProspectIds, setSelectedProspectIds] = useState<string[]>([])
   const [selectedCourseIds, setSelectedCourseIds] = useState<number[]>([])
   const [courseSearch, setCourseSearch] = useState("")
-  const [courseArea, setCourseArea] = useState("all")
+  const [courseArea, setCourseArea] = useState<'all' | 'common' | 'specialty' | 'closure'>("all")
   const [courseStatus, setCourseStatus] = useState("all")
   const [coursePage, setCoursePage] = useState(1)
   const coursePageSize = 10
@@ -447,6 +447,7 @@ export default function AsignacionPage() {
               <option value="all">Todas áreas</option>
               <option value="common">Común</option>
               <option value="specialty">Especialidad</option>
+              <option value="closure">Cierre del Programa</option>
             </select>
             <select
               className="border rounded p-2 text-sm"
