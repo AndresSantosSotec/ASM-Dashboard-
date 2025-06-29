@@ -61,6 +61,7 @@ const reactSelectStyles = {
     },
   }),
   menuPortal: (base: any) => ({ ...base, zIndex: 9999 }),
+
   menu: (base: any) => ({
     ...base,
     zIndex: 9999,
@@ -70,6 +71,7 @@ const reactSelectStyles = {
     maxHeight: '12rem',
     overflowY: 'auto',
   }),
+
 }
 
 const formatDate = (date: string) => format(new Date(date), "yyyy-MM-dd")
@@ -154,8 +156,10 @@ export function CoursesManagement() {
     const matchArea = filterArea === "all" || c.area === filterArea
     const matchStatus = filterStatus === "all" || c.status === filterStatus
     const matchProgram =
+
       filterPrograms.length === 0 ||
       c.programas.some((p) => filterPrograms.includes(p.id))
+
     return matchText && matchArea && matchStatus && matchProgram
   })
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage))
@@ -291,7 +295,9 @@ export function CoursesManagement() {
           </Select>
           <ReactSelect
             isMulti
+
             isSearchable
+
             placeholder="Filtrar programas"
             classNamePrefix="rs"
             options={programs.map((p) => ({ value: p.id, label: p.nombre_del_programa }))}
@@ -492,10 +498,12 @@ export function CoursesManagement() {
             </div>
             <div className="space-y-2">
               <Label>Programa</Label>
+
               <ReactSelect
                 isMulti
                 isSearchable
                 placeholder="Seleccione programas"
+
                 classNamePrefix="rs"
                 options={programs.map((p) => ({
                   value: p.id,
@@ -510,11 +518,13 @@ export function CoursesManagement() {
                     programIds: (vals as any[]).map((v) => v.value as number),
                   })
                 }
+
                 styles={reactSelectStyles}
                 menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
                 closeMenuOnSelect={false}
                 isClearable
               />
+
             </div>
             <div className="space-y-2">
               <Label>Facilitador</Label>
