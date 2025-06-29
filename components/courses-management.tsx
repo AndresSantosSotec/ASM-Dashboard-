@@ -37,6 +37,12 @@ interface ProgramOption {
 
 const formatDate = (date: string) => format(new Date(date), "yyyy-MM-dd")
 
+const areaLabels: Record<string, string> = {
+  common: "Común",
+  specialty: "Especialidad",
+  closure: "Cierre del Programa",
+}
+
 export function CoursesManagement() {
   const { toast } = useToast()
 
@@ -44,7 +50,7 @@ export function CoursesManagement() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
-  const [filterArea, setFilterArea] = useState<string>("all")
+  const [filterArea, setFilterArea] = useState<'all' | 'common' | 'specialty' | 'closure'>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [filterProgram, setFilterProgram] = useState<string>("all")
   const [page, setPage] = useState(1)
@@ -235,12 +241,13 @@ export function CoursesManagement() {
             onChange={(e) => { setSearch(e.target.value); setPage(1) }}
             className="w-full sm:w-48"
           />
-          <Select value={filterArea} onValueChange={(v) => { setFilterArea(v); setPage(1) }}>
+          <Select value={filterArea} onValueChange={(v) => { setFilterArea(v as 'all' | 'common' | 'specialty' | 'closure'); setPage(1) }}>
             <SelectTrigger className="w-32"><SelectValue placeholder="Área" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas</SelectItem>
               <SelectItem value="common">Común</SelectItem>
               <SelectItem value="specialty">Especialidad</SelectItem>
+              <SelectItem value="closure">Cierre del Programa</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setPage(1) }}>
@@ -288,7 +295,11 @@ export function CoursesManagement() {
               <TableRow key={c.id} className="hover:bg-gray-50">
                 <TableCell>{c.code}</TableCell>
                 <TableCell>{c.name}</TableCell>
-                <TableCell>{c.area === "common" ? "Común" : "Especialidad"}</TableCell>
+                <TableCell>
+                  <Badge variant={c.area === 'common' ? 'secondary' : c.area === 'specialty' ? 'default' : 'outline'}>
+                    {areaLabels[c.area]}
+                  </Badge>
+                </TableCell>
                 <TableCell>{c.credits}</TableCell>
                 <TableCell>
                   {c.programas.map((p) => p.nombre_del_programa).join(', ') || '-'}
@@ -412,6 +423,7 @@ export function CoursesManagement() {
                 <SelectContent>
                   <SelectItem value="common">Común</SelectItem>
                   <SelectItem value="specialty">Especialidad</SelectItem>
+                  <SelectItem value="closure">Cierre del Programa</SelectItem>
                 </SelectContent>
               </Select>
             </div>

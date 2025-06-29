@@ -3,7 +3,7 @@ import api from './api'
 export interface CourseInput {
   name: string
   code: string
-  area: 'common' | 'specialty'
+  area: 'common' | 'specialty' | 'closure'
   credits: number
   startDate: string
   endDate: string
