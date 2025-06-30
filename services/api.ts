@@ -1,8 +1,9 @@
 import axios from 'axios';
+import { API_BASE_URL } from '@/utils/apiConfig';
 
 // Create axios instance with environment variable
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: `${API_BASE_URL}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
