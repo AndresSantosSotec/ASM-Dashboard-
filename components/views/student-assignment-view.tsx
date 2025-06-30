@@ -7,7 +7,15 @@ import type { Course } from "@/services/courses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Check, X, GripVertical, Save, Award, BookOpen } from "lucide-react";
+import {
+  Check,
+  X,
+  GripVertical,
+  Save,
+  Award,
+  BookOpen,
+  User,
+} from "lucide-react";
 import type React from "react";
 
 interface StudentAssignmentViewProps {
