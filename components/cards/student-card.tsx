@@ -54,3 +54,4 @@ export function StudentCard({ student, isSelected, onSelect, onViewAssignment }:
     </Card>
   )
 }
+

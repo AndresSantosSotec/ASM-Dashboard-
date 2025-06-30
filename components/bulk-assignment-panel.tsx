@@ -16,7 +16,12 @@ interface BulkAssignmentPanelProps {
   onClose: () => void
 }
 
-export function BulkAssignmentPanel({ selectedStudents, courses, onBulkAssignment, onClose }: BulkAssignmentPanelProps) {
+export function BulkAssignmentPanel({
+  selectedStudents,
+  courses,
+  onBulkAssignment,
+  onClose,
+}: BulkAssignmentPanelProps) {
   const [selectedCourses, setSelectedCourses] = useState<string[]>([])
 
   const handleCourseSelect = (courseId: string, isSelected: boolean) => {
@@ -90,7 +95,9 @@ export function BulkAssignmentPanel({ selectedStudents, courses, onBulkAssignmen
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <h4 className="font-medium mb-2">Estudiantes Seleccionados ({selectedStudents.length})</h4>
+          <h4 className="font-medium mb-2">
+            Estudiantes Seleccionados ({selectedStudents.length})
+          </h4>
           <div className="flex flex-wrap gap-2">
             {selectedStudents.map((student) => (
               <Badge key={student.id} variant="secondary">
@@ -110,7 +117,9 @@ export function BulkAssignmentPanel({ selectedStudents, courses, onBulkAssignmen
               <div key={course.id} className="flex items-center space-x-2 p-2 border rounded">
                 <Checkbox
                   checked={selectedCourses.includes(course.id)}
-                  onCheckedChange={(checked) => handleCourseSelect(course.id, checked as boolean)}
+                  onCheckedChange={(checked) =>
+                    handleCourseSelect(course.id, checked as boolean)
+                  }
                 />
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
@@ -127,7 +136,11 @@ export function BulkAssignmentPanel({ selectedStudents, courses, onBulkAssignmen
         </div>
 
         <div className="flex space-x-2 pt-4">
-          <Button onClick={handleBulkAssign} disabled={selectedCourses.length === 0} className="flex-1">
+          <Button
+            onClick={handleBulkAssign}
+            disabled={selectedCourses.length === 0}
+            className="flex-1"
+          >
             <Plus className="h-4 w-4 mr-2" />
             Asignar Cursos
           </Button>
