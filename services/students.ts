@@ -15,11 +15,17 @@ export interface Student {
 export const fetchStudentProgram = async (
   studentId: string,
 ): Promise<Program | null> => {
+  try {
+    const res = await api.get(`/estudiante-programa/${studentId}`)
 
-  const res = await api.get(`/estudiante-programa/${studentId}`)
-
-  const data = Array.isArray(res.data) ? res.data : res.data.data
-  return data && data.length > 0 ? data[0] : null
+    const data = Array.isArray(res.data) ? res.data : res.data.data
+    return data && data.length > 0 ? data[0] : null
+  } catch (err: any) {
+    if (err.response?.status === 404) {
+      return null
+    }
+    throw err
+  }
 }
 
 export const fetchEnrolledStudents = async (): Promise<Student[]> => {
@@ -29,7 +35,10 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
   const data = Array.isArray(res.data.data) ? res.data.data : res.data
   const students = await Promise.all(
     data.map(async (p: any) => {
-        Array.isArray(p.programas) && p.programas.length > 0 ? p.programas[0] : null
+      let prog =
+        Array.isArray(p.programas) && p.programas.length > 0
+          ? p.programas[0]
+          : null
 
       if (!prog) {
         try {
