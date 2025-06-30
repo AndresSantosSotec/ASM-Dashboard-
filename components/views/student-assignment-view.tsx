@@ -14,15 +14,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 import {
   Check,
   X,
   GripVertical,
-
-
   Award,
   BookOpen,
+  Calendar,
   User,
 } from "lucide-react";
 import type React from "react";
@@ -172,7 +172,14 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
   const [completed, setCompleted] = useState<Course[]>([])
   const [allCourses, setAllCourses] = useState<Course[]>([])
   const [available, setAvailable] = useState<Course[]>([])
+
+  const [monthCourses, setMonthCourses] = useState<Course[]>([])
   const [searchTerm, setSearchTerm] = useState("")
+  const [showMonth, setShowMonth] = useState(false)
+  const [pendingAssign, setPendingAssign] = useState<string[]>([])
+  const [pendingUnassign, setPendingUnassign] = useState<string[]>([])
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+
 
   useEffect(() => {
     ;(async () => {
@@ -191,34 +198,52 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
   }, [student.id])
 
   useEffect(() => {
-    setAvailable(
-      allCourses.filter(
-        (c) => !assigned.some((a) => a.id === c.id) && !completed.some((co) => co.id === c.id),
-      ),
+
+    const avail = allCourses.filter(
+      (c) => !assigned.some((a) => a.id === c.id) && !completed.some((co) => co.id === c.id),
+    )
+    setAvailable(avail)
+
+    const now = new Date()
+    const start = new Date(now.getFullYear(), now.getMonth(), 1)
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    setMonthCourses(
+      avail.filter((c) => {
+        const d = new Date(c.startDate)
+        return d >= start && d <= end
+      }),
     )
   }, [allCourses, assigned, completed])
 
-  const handleCourseDrop = async (course: Course, toStatus: "assigned" | "available") => {
+  const handleCourseDrop = (course: Course, toStatus: "assigned" | "available") => {
     if (toStatus === "assigned") {
       setAssigned((prev) => [...prev, course])
       setAvailable((prev) => prev.filter((c) => c.id !== course.id))
-      try {
-        await assignCourses([student.id], [String(course.id)])
-      } catch (err) {
-        console.error(err)
-        setAssigned((prev) => prev.filter((c) => c.id !== course.id))
-        setAvailable((prev) => [...prev, course])
-      }
+      setPendingAssign((prev) => (prev.includes(String(course.id)) ? prev : [...prev, String(course.id)]))
+      setPendingUnassign((prev) => prev.filter((id) => id !== String(course.id)))
     } else {
       setAvailable((prev) => [...prev, course])
       setAssigned((prev) => prev.filter((c) => c.id !== course.id))
-      try {
-        await unassignCourses([student.id], [String(course.id)])
-      } catch (err) {
-        console.error(err)
-        setAvailable((prev) => prev.filter((c) => c.id !== course.id))
-        setAssigned((prev) => [...prev, course])
+      setPendingUnassign((prev) => (prev.includes(String(course.id)) ? prev : [...prev, String(course.id)]))
+      setPendingAssign((prev) => prev.filter((id) => id !== String(course.id)))
+    }
+    setHasUnsavedChanges(true)
+  }
+
+  const handleSaveChanges = async () => {
+    try {
+      if (pendingAssign.length) {
+        await assignCourses([student.id], pendingAssign)
       }
+      if (pendingUnassign.length) {
+        await unassignCourses([student.id], pendingUnassign)
+      }
+      setPendingAssign([])
+      setPendingUnassign([])
+      setHasUnsavedChanges(false)
+    } catch (err) {
+      console.error(err)
+
     }
   }
 
@@ -258,16 +283,27 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
         </CardContent>
       </Card>
 
-      <div className="flex justify-end">
+
+      <div className="flex justify-between items-center">
+
         <Input
           placeholder="Buscar curso..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-xs mb-4"
         />
+
+        <Button
+          onClick={() => setShowMonth((v) => !v)}
+          variant="outline"
+          className="mb-4"
+        >
+          {showMonth ? "Ocultar mes actual" : "Ver cursos del mes"}
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className={`grid grid-cols-1 lg:grid-cols-${showMonth ? 4 : 3} gap-6`}>
+
         <DropZone
           status="assigned"
           onDrop={handleCourseDrop}
@@ -290,6 +326,31 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
               ))
           )}
         </DropZone>
+
+        {showMonth && (
+          <DropZone
+            status="available"
+            onDrop={handleCourseDrop}
+            title="Mes Actual"
+            count={monthCourses.length}
+            icon={<Calendar className="h-5 w-5 mr-2" />}
+          >
+            {monthCourses.filter((c) =>
+              c.name.toLowerCase().includes(searchTerm.toLowerCase()),
+            ).length === 0 ? (
+              <div className="text-center py-12">
+                <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">No hay cursos este mes</p>
+              </div>
+            ) : (
+              monthCourses
+                .filter((c) => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                .map((course) => (
+                  <DraggableCourse key={course.id} course={course} status="available" />
+                ))
+            )}
+          </DropZone>
+        )}
 
         <DropZone
           status="available"
@@ -345,6 +406,14 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
           </div>
         </div>
       </div>
+
+      {hasUnsavedChanges && (
+        <div className="flex justify-end mt-4">
+          <Button onClick={handleSaveChanges}>
+            Guardar Cambios
+          </Button>
+        </div>
+      )}
 
 
     </div>
