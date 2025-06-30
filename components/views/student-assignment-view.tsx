@@ -178,7 +178,7 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   useEffect(() => {
-    ;(async () => {
+    (async () => {
       try {
         const [lists, courses] = await Promise.all([
           fetchStudentCourseLists(student.id),
@@ -214,12 +214,12 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
     if (toStatus === "assigned") {
       setAssigned((prev) => [...prev, course])
       setAvailable((prev) => prev.filter((c) => c.id !== course.id))
-      setPendingAssign((prev) => (prev.includes(String(course.id)) ? prev : [...prev, String(course.id)]))
+      setPendingAssign((prev) => (prev.includes(String(course.id)) ? prev : [...prev, String(course.id)])
       setPendingUnassign((prev) => prev.filter((id) => id !== String(course.id)))
     } else {
       setAvailable((prev) => [...prev, course])
       setAssigned((prev) => prev.filter((c) => c.id !== course.id))
-      setPendingUnassign((prev) => (prev.includes(String(course.id)) ? prev : [...prev, String(course.id)]))
+      setPendingUnassign((prev) => (prev.includes(String(course.id)) ? prev : [...prev, String(course.id)])
       setPendingAssign((prev) => prev.filter((id) => id !== String(course.id)))
     }
     setHasUnsavedChanges(true)
@@ -403,7 +403,6 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
           </Button>
         </div>
       )}
-
     </div>
   );
 }
