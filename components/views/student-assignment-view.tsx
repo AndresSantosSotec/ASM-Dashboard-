@@ -9,7 +9,7 @@ import {
   assignCourses,
   unassignCourses,
 } from "@/services/students";
-import { fetchCourses } from "@/services/courses";
+import { fetchStudentCourses } from "@/services/courses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -160,7 +160,9 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
       try {
         const [lists, courses] = await Promise.all([
           fetchStudentCourseLists(student.id),
-          fetchCourses(student.programId),
+
+          fetchStudentCourses(student.id),
+
         ]);
         setAssigned(lists.assigned);
         setCompleted(lists.completed);
