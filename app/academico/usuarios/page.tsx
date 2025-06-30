@@ -116,7 +116,7 @@ function getStatusBadgeInfo(
 
 async function checkEmailExists(email: string): Promise<boolean> {
   try {
-    const res = await api.get('/api/users', { params: { email } })
+    const res = await api.get('/users', { params: { email } })
     const data = Array.isArray(res.data)
       ? res.data
       : Array.isArray(res.data?.data)
@@ -134,7 +134,7 @@ async function checkEmailExists(email: string): Promise<boolean> {
 
 async function checkUsernameExists(username: string): Promise<boolean> {
   try {
-    const res = await api.get('/api/users', { params: { username } })
+    const res = await api.get('/users', { params: { username } })
     const data = Array.isArray(res.data)
       ? res.data
       : Array.isArray(res.data?.data)

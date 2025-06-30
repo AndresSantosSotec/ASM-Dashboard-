@@ -55,10 +55,30 @@ const mapCourseToApi = (data: Partial<CourseInput> & { status?: Course['status']
   return payload
 }
 
-export const fetchCourses = async () => {
-  const res = await api.get('/courses')
+export const fetchCourses = async (programId?: number) => {
+  const res = await api.get('/courses', {
+    params: programId ? { program_id: programId } : undefined,
+  })
   const data = Array.isArray(res.data) ? res.data : res.data.data
   return data.map(mapCourseFromApi)
+}
+
+export const fetchProgramCourses = async (programId: number) => {
+  return fetchCourses(programId)
+}
+
+export const fetchStudentCourses = async (studentId: string): Promise<Course[]> => {
+  const res = await api.get(`/estudiante-programa/${studentId}/with-courses`)
+  const data = Array.isArray(res.data) ? res.data : res.data.data
+  const courses: Course[] = []
+  data.forEach((ep: any) => {
+    if (ep.programa && Array.isArray(ep.programa.courses)) {
+      ep.programa.courses.forEach((c: any) => {
+        courses.push(mapCourseFromApi(c))
+      })
+    }
+  })
+  return courses
 }
 
 export const createCourse = async (data: CourseInput) => {
