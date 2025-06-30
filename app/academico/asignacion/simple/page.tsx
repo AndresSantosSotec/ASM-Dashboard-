@@ -9,12 +9,17 @@ import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import type { Student } from "@/services/students"
 import type { Course } from "@/services/courses"
-import { fetchEnrolledStudents, assignCourses, unassignCourses } from "@/services/students"
-import { fetchCourses } from "@/services/courses"
+import {
+  fetchEnrolledStudents,
+  assignCourses,
+  unassignCourses,
+} from "@/services/students"
+import { fetchCourses, fetchStudentCourses } from "@/services/courses"
 
 export default function CourseAssignmentDashboard() {
   const [students, setStudents] = useState<Student[]>([])
   const [courses, setCourses] = useState<Course[]>([])
+  const [programCourses, setProgramCourses] = useState<Course[]>([])
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
   const [currentView, setCurrentView] = useState<"main" | "assignment">("main")
 
@@ -83,14 +88,24 @@ export default function CourseAssignmentDashboard() {
     }
   }
 
-  const handleViewAssignment = (studentId: string) => {
+  const handleViewAssignment = async (studentId: string) => {
     setSelectedStudentId(studentId)
+    const student = students.find((s) => s.id === studentId)
+    if (student) {
+      try {
+        const crs = await fetchStudentCourses(student.id)
+        setProgramCourses(crs)
+      } catch (err) {
+        console.error(err)
+      }
+    }
     setCurrentView("assignment")
   }
 
   const handleBackToMain = () => {
     setCurrentView("main")
     setSelectedStudentId(null)
+    setProgramCourses([])
   }
 
   const selectedStudent = selectedStudentId ? students.find((s) => s.id === selectedStudentId) : null
@@ -109,7 +124,7 @@ export default function CourseAssignmentDashboard() {
             </div>
             <StudentAssignmentView
               student={selectedStudent}
-              courses={courses}
+              courses={programCourses}
               onCourseAssignment={handleCourseAssignment}
             />
           </div>
@@ -129,4 +144,6 @@ export default function CourseAssignmentDashboard() {
           onBulkAssignment={handleBulkAssignment}
         />
       </div>
-   
+    </div>
+  )
+}

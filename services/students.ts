@@ -1,4 +1,5 @@
 import api from './api'
+import type { Program } from './programs'
 
 export interface Student {
   id: string
@@ -11,25 +12,49 @@ export interface Student {
   completedCourses: string[]
 }
 
+export const fetchStudentProgram = async (
+  studentId: string,
+): Promise<Program | null> => {
+  const res = await api.get('/estudiante-programa', {
+    params: { prospecto_id: studentId },
+  })
+  const data = Array.isArray(res.data) ? res.data : res.data.data
+  return data && data.length > 0 ? data[0] : null
+}
+
 export const fetchEnrolledStudents = async (): Promise<Student[]> => {
-  const res = await api.get('/prospectos/status/Inscrito', { params: { per_page: 9999 } })
+  const res = await api.get('/prospectos/status/Inscrito', {
+    params: { per_page: 9999 },
+  })
   const data = Array.isArray(res.data.data) ? res.data.data : res.data
-  return data
-    .map((p: any) => {
-      const prog = Array.isArray(p.programas) && p.programas.length > 0 ? p.programas[0] : null
+  const students = await Promise.all(
+    data.map(async (p: any) => {
+      let prog = Array.isArray(p.programas) && p.programas.length > 0 ? p.programas[0] : null
+      if (!prog) {
+        try {
+          prog = await fetchStudentProgram(String(p.id))
+        } catch (err) {
+          console.error(err)
+          return null
+        }
+      }
       if (!prog) return null
+      
       return {
         id: String(p.id),
         name: p.nombre_completo ?? '',
         carnet: String(p.id),
-        programId: prog.id,
-        program: prog.nombre_del_programa,
-        specialty: prog.abreviatura ?? '',
-        assignedCourses: Array.isArray(p.courses) ? p.courses.map((c: any) => String(c.id)) : [],
+        programId: prog?.id ?? 0,
+        program: prog?.nombre_del_programa ?? '',
+        specialty: prog?.abreviatura ?? '',
+        assignedCourses: Array.isArray(p.courses)
+          ? p.courses.map((c: any) => String(c.id))
+          : [],
         completedCourses: [],
       }
-    })
-    .filter(Boolean)
+    }),
+  )
+  return students.filter(Boolean) as Student[]
 }
 
 export const assignCourses = async (studentIds: string[], courseIds: string[]) => {

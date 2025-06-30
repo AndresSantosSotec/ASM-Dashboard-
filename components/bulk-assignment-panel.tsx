@@ -114,10 +114,7 @@ export function BulkAssignmentPanel({
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
             {courses.map((course) => (
-              <div
-                key={course.id}
-                className="flex items-center space-x-2 p-2 border rounded"
-              >
+              <div key={course.id} className="flex items-center space-x-2 p-2 border rounded">
                 <Checkbox
                   checked={selectedCourses.includes(course.id)}
                   onCheckedChange={(checked) =>
@@ -126,14 +123,8 @@ export function BulkAssignmentPanel({
                 />
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-sm">
-                      {course.name}
-                    </span>
-                    <Badge
-                      className={`${getTypeColor(
-                        course.area
-                      )} text-white text-xs`}
-                    >
+                    <span className="font-medium text-sm">{course.name}</span>
+                    <Badge className={`${getTypeColor(course.area)} text-white text-xs`}>
                       {getTypeLabel(course.area)}
                     </Badge>
                   </div>
