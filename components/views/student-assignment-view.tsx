@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useDrag, useDrop } from "react-dnd";
 import type { Student } from "@/services/students";
 import type { Course } from "@/services/courses";
@@ -23,7 +23,6 @@ import {
   Calendar,
   User,
 } from "lucide-react";
-import type React from "react";
 
 interface StudentAssignmentViewProps {
   student: Student;
@@ -93,9 +92,14 @@ const DraggableCourse = ({ course, status }: DraggableCourseProps) => {
     }
   };
 
+  const cardRef = useRef<HTMLDivElement>(null)
+  if (status !== "completed") {
+    drag(cardRef)
+  }
+
   return (
     <Card
-      ref={status !== "completed" ? drag : undefined}
+      ref={status !== "completed" ? cardRef : undefined}
       className={`transition-all duration-200 ${status !== "completed" ? "cursor-move" : "cursor-not-allowed opacity-75"} ${isDragging ? "opacity-50 scale-95" : ""} ${getStatusStyle()}`}
     >
       <CardContent className="p-4">
@@ -163,6 +167,9 @@ const DropZone = ({
       : `${base} border-blue-200 bg-blue-25`;
   };
 
+  const dropRef = useRef<HTMLDivElement>(null)
+  drop(dropRef)
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -177,7 +184,7 @@ const DropZone = ({
         </Badge>
       </div>
 
-      <div ref={drop} className={getDropZoneStyle()}>
+      <div ref={dropRef} className={getDropZoneStyle()}>
         <div className="space-y-3">{children}</div>
       </div>
     </div>
