@@ -175,7 +175,8 @@ export function StudentsView({ students, courses, onViewAssignment, onBulkAssign
           </CardContent>
         </Card>
       )}
-    </div>
-  )
+      </div>
+    )
+  }
 
 
