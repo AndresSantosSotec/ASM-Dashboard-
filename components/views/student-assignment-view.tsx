@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { useDrag, useDrop } from "react-dnd"
-import type { Student, Course } from "@/academico/asignacion/simple/page"
+import type { Student } from "@/services/students"
+import type { Course } from "@/services/courses"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -29,16 +30,29 @@ const DraggableCourse = ({ course, status }: DraggableCourseProps) => {
     }),
   }))
 
-  const getTypeColor = (type: Course["type"]) => {
-    switch (type) {
-      case "Básico":
+  const getTypeColor = (area: Course["area"]) => {
+    switch (area) {
+      case "common":
         return "bg-blue-500"
-      case "Optativo":
+      case "specialty":
         return "bg-green-500"
-      case "Especialización":
+      case "closure":
         return "bg-purple-500"
       default:
         return "bg-gray-500"
+    }
+  }
+
+  const getTypeLabel = (area: Course["area"]) => {
+    switch (area) {
+      case "common":
+        return "Común"
+      case "specialty":
+        return "Especialidad"
+      case "closure":
+        return "Cierre"
+      default:
+        return ""
     }
   }
 
@@ -78,13 +92,15 @@ const DraggableCourse = ({ course, status }: DraggableCourseProps) => {
             {getStatusIcon()}
             <span className="font-medium">{course.name}</span>
           </div>
-          <Badge className={`${getTypeColor(course.type)} text-white text-xs`}>{course.type}</Badge>
+          <Badge className={`${getTypeColor(course.area)} text-white text-xs`}>
+            {getTypeLabel(course.area)}
+          </Badge>
         </div>
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-600">{course.code}</span>
           <BookOpen className="h-4 w-4 text-gray-400" />
         </div>
-        <p className="text-xs text-gray-500 mt-1">{course.description}</p>
+        <p className="text-xs text-gray-500 mt-1">{course.schedule}</p>
       </CardContent>
     </Card>
   )
@@ -139,10 +155,13 @@ const DropZone = ({ status, onDrop, children, title, count, icon }: DropZoneProp
 export function StudentAssignmentView({ student, courses, onCourseAssignment }: StudentAssignmentViewProps) {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
-  const assignedCourses = courses.filter((course) => student.assignedCourses.includes(course.id))
-  const completedCourses = courses.filter((course) => student.completedCourses.includes(course.id))
-  const availableCourses = courses.filter(
-    (course) => !student.assignedCourses.includes(course.id) && !student.completedCourses.includes(course.id)
+  const programCourses = courses.filter((c) => c.programIds.includes(student.programId))
+  const assignedCourses = programCourses.filter((course) => student.assignedCourses.includes(String(course.id)))
+  const completedCourses = programCourses.filter((course) => student.completedCourses.includes(String(course.id)))
+  const availableCourses = programCourses.filter(
+    (course) =>
+      !student.assignedCourses.includes(String(course.id)) &&
+      !student.completedCourses.includes(String(course.id))
   )
 
   const handleCourseDrop = (courseId: string, toStatus: "assigned" | "available") => {

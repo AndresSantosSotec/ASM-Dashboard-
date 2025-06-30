@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import type { Student, Course } from "@/academico/asignacion/simple/page"
+import type { Student } from "@/services/students"
+import type { Course } from "@/services/courses"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -48,16 +49,29 @@ export function BulkAssignmentPanel({ selectedStudents, courses, onBulkAssignmen
     }
   }
 
-  const getTypeColor = (type: Course["type"]) => {
-    switch (type) {
-      case "Básico":
+  const getTypeColor = (area: Course["area"]) => {
+    switch (area) {
+      case "common":
         return "bg-blue-500"
-      case "Optativo":
+      case "specialty":
         return "bg-green-500"
-      case "Especialización":
+      case "closure":
         return "bg-purple-500"
       default:
         return "bg-gray-500"
+    }
+  }
+
+  const getTypeLabel = (area: Course["area"]) => {
+    switch (area) {
+      case "common":
+        return "Común"
+      case "specialty":
+        return "Especialidad"
+      case "closure":
+        return "Cierre"
+      default:
+        return ""
     }
   }
 
@@ -101,7 +115,9 @@ export function BulkAssignmentPanel({ selectedStudents, courses, onBulkAssignmen
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-sm">{course.name}</span>
-                    <Badge className={`${getTypeColor(course.type)} text-white text-xs`}>{course.type}</Badge>
+                    <Badge className={`${getTypeColor(course.area)} text-white text-xs`}>
+                      {getTypeLabel(course.area)}
+                    </Badge>
                   </div>
                   <p className="text-xs text-gray-500">{course.code}</p>
                 </div>

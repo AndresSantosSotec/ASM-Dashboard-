@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+
+import { useState, useEffect } from "react"
+
 import { DndProvider } from "react-dnd"
 import { HTML5Backend } from "react-dnd-html5-backend"
 import { StudentsView } from "@/components/views/students-view"
@@ -8,112 +10,66 @@ import { StudentAssignmentView } from "@/components/views/student-assignment-vie
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 
-export interface Course {
-  id: string
-  name: string
-  code: string
-  type: "Básico" | "Optativo" | "Especialización"
-  description: string
-}
-
-export interface Student {
-  id: string
-  name: string
-  carnet: string
-  program: string
-  specialty: string
-  assignedCourses: string[]
-  completedCourses: string[]
-}
-
-const initialCourses: Course[] = [
-  { id: "1", name: "Estadística I", code: "EST101", type: "Básico", description: "Fundamentos de estadística" },
-  { id: "2", name: "Finanzas I", code: "FIN101", type: "Básico", description: "Principios de finanzas" },
-  { id: "3", name: "Marketing Digital", code: "MKT201", type: "Optativo", description: "Estrategias de marketing digital" },
-  { id: "4", name: "Liderazgo", code: "LID301", type: "Especialización", description: "Desarrollo de liderazgo" },
-  { id: "5", name: "Planeación Estratégica", code: "PLA301", type: "Especialización", description: "Planificación empresarial" },
-  { id: "6", name: "Matemática", code: "MAT101", type: "Básico", description: "Matemáticas básicas" },
-  { id: "7", name: "Física", code: "FIS101", type: "Básico", description: "Principios de física" },
-  { id: "8", name: "Sociales", code: "SOC101", type: "Optativo", description: "Ciencias sociales" },
-]
-
-const initialStudents: Student[] = [
-  {
-    id: "1",
-    name: "Juan Pérez",
-    carnet: "2024001",
-    program: "Ingeniería",
-    specialty: "Sistemas",
-    assignedCourses: ["1", "6"],
-    completedCourses: ["2"],
-  },
-  {
-    id: "2",
-    name: "Byron Caal",
-    carnet: "2024002",
-    program: "MBA",
-    specialty: "Administración",
-    assignedCourses: ["6", "7"],
-    completedCourses: ["8", "3"],
-  },
-  {
-    id: "3",
-    name: "María González",
-    carnet: "2024003",
-    program: "Ingeniería",
-    specialty: "Industrial",
-    assignedCourses: ["2"],
-    completedCourses: ["4"],
-  },
-  {
-    id: "4",
-    name: "Carlos López",
-    carnet: "2024004",
-    program: "Ingeniería",
-    specialty: "Sistemas",
-    assignedCourses: ["3"],
-    completedCourses: ["1"],
-  },
-  {
-    id: "5",
-    name: "Ana Rodríguez",
-    carnet: "2024005",
-    program: "MBA",
-    specialty: "Finanzas",
-    assignedCourses: ["4"],
-    completedCourses: ["2", "6"],
-  },
-]
+import type { Student } from "@/services/students"
+import type { Course } from "@/services/courses"
+import { fetchEnrolledStudents, assignCourses, unassignCourses } from "@/services/students"
+import { fetchCourses } from "@/services/courses"
 
 export default function CourseAssignmentDashboard() {
-  const [students, setStudents] = useState<Student[]>(initialStudents)
+  const [students, setStudents] = useState<Student[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
   const [currentView, setCurrentView] = useState<"main" | "assignment">("main")
 
-  const handleCourseAssignment = (studentId: string, courseId: string, isAssigned: boolean) => {
-    setStudents(prev =>
-      prev.map(student => {
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const [st, cr] = await Promise.all([fetchEnrolledStudents(), fetchCourses()])
+        setStudents(st)
+        setCourses(cr)
+      } catch (err) {
+        console.error(err)
+      }
+    })()
+  }, [])
+
+  const handleCourseAssignment = async (studentId: string, courseId: string, isAssigned: boolean) => {
+    setStudents((prev) =>
+      prev.map((student) => {
         if (student.id === studentId) {
-          const updatedCourses = isAssigned
+          const updated = isAssigned
             ? [...student.assignedCourses, courseId]
-            : student.assignedCourses.filter(id => id !== courseId)
-          return { ...student, assignedCourses: updatedCourses }
+            : student.assignedCourses.filter((id) => id !== courseId)
+          return { ...student, assignedCourses: updated }
+
         }
         return student
       })
     )
+
+
+    try {
+      if (isAssigned) {
+        await assignCourses([studentId], [courseId])
+      } else {
+        await unassignCourses([studentId], [courseId])
+      }
+    } catch (err) {
+      console.error(err)
+    }
   }
 
-  const handleBulkAssignment = (studentIds: string[], courseIds: string[], isAssigned: boolean) => {
-    setStudents(prev =>
-      prev.map(student => {
+  const handleBulkAssignment = async (studentIds: string[], courseIds: string[], isAssigned: boolean) => {
+    setStudents((prev) =>
+      prev.map((student) => {
         if (studentIds.includes(student.id)) {
           let updated = [...student.assignedCourses]
-          courseIds.forEach(courseId => {
+          courseIds.forEach((courseId) => {
             if (isAssigned) {
               if (!updated.includes(courseId)) updated.push(courseId)
             } else {
-              updated = updated.filter(id => id !== courseId)
+              updated = updated.filter((id) => id !== courseId)
+
             }
           })
           return { ...student, assignedCourses: updated }
@@ -121,6 +77,16 @@ export default function CourseAssignmentDashboard() {
         return student
       })
     )
+    try {
+      if (isAssigned) {
+        await assignCourses(studentIds, courseIds)
+      } else {
+        await unassignCourses(studentIds, courseIds)
+      }
+    } catch (err) {
+      console.error(err)
+    }
+
   }
 
   const handleViewAssignment = (studentId: string) => {
@@ -133,7 +99,9 @@ export default function CourseAssignmentDashboard() {
     setSelectedStudentId(null)
   }
 
-  const selectedStudent = selectedStudentId ? students.find(s => s.id === selectedStudentId) : null
+
+  const selectedStudent = selectedStudentId ? students.find((s) => s.id === selectedStudentId) : null
+
 
   if (currentView === "assignment" && selectedStudent) {
     return (
@@ -149,7 +117,9 @@ export default function CourseAssignmentDashboard() {
             </div>
             <StudentAssignmentView
               student={selectedStudent}
-              courses={initialCourses}
+
+              courses={courses}
+
               onCourseAssignment={handleCourseAssignment}
             />
           </div>
@@ -164,7 +134,9 @@ export default function CourseAssignmentDashboard() {
         <h1 className="text-3xl font-bold text-center mb-6">Dashboard de Gestión de Inscripciones</h1>
         <StudentsView
           students={students}
-          courses={initialCourses}
+
+          courses={courses}
+
           onViewAssignment={handleViewAssignment}
           onBulkAssignment={handleBulkAssignment}
         />
