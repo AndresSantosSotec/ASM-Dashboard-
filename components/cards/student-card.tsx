@@ -51,6 +51,7 @@ export function StudentCard({ student, isSelected, onSelect, onViewAssignment }:
           Asignar Cursos
         </Button>
       </CardContent>
-    </Card>
-  )
+      </Card>
+    )
+  }
 
