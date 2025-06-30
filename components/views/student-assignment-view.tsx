@@ -160,9 +160,7 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
       try {
         const [lists, courses] = await Promise.all([
           fetchStudentCourseLists(student.id),
-
           fetchStudentCourses(student.id),
-
         ]);
         setAssigned(lists.assigned);
         setCompleted(lists.completed);
@@ -230,8 +228,18 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
     }
   };
 
-  const filterByName = (list: Course[]) =>
-    list.filter((c) => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filterCourses = useCallback(
+    (list: Course[]) => {
+      const term = searchTerm.trim().toLowerCase();
+      if (!term) return list;
+      return list.filter(
+        (c) =>
+          c.name.toLowerCase().includes(term) ||
+          c.code.toLowerCase().includes(term),
+      );
+    },
+    [searchTerm],
+  );
 
   return (
     <div className="space-y-6">
@@ -269,16 +277,23 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
         </CardContent>
       </Card>
 
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Input
-          placeholder="Buscar curso..."
+          placeholder="Buscar por nombre o código..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-xs mb-4"
         />
-        <Button onClick={() => setShowMonth((v) => !v)} variant="outline" className="mb-4">
-          {showMonth ? "Ocultar mes actual" : "Ver cursos del mes"}
-        </Button>
+        <div className="flex items-center gap-2 ml-auto">
+          <Button onClick={() => setShowMonth((v) => !v)} variant="outline" className="mb-4">
+            {showMonth ? "Ocultar mes actual" : "Ver cursos del mes"}
+          </Button>
+          {hasUnsavedChanges && (
+            <Button onClick={handleSaveChanges} className="mb-4">
+              Guardar Cambios
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className={`grid grid-cols-1 lg:grid-cols-${showMonth ? 4 : 3} gap-6`}>
@@ -289,13 +304,13 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
           count={assigned.length}
           icon={<Check className="h-5 w-5 mr-2" />}
         >
-          {filterByName(assigned).length === 0 ? (
+          {filterCourses(assigned).length === 0 ? (
             <div className="text-center py-12">
               <BookOpen className="h-12 w-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">Arrastra cursos aquí para asignar</p>
             </div>
           ) : (
-            filterByName(assigned).map((course) => (
+            filterCourses(assigned).map((course) => (
               <CourseCard key={course.id} course={course} status="assigned" />
             ))
           )}
@@ -309,13 +324,13 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
             count={monthCourses.length}
             icon={<Calendar className="h-5 w-5 mr-2" />}
           >
-            {filterByName(monthCourses).length === 0 ? (
+            {filterCourses(monthCourses).length === 0 ? (
               <div className="text-center py-12">
                 <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500">No hay cursos este mes</p>
               </div>
             ) : (
-              filterByName(monthCourses).map((course) => (
+              filterCourses(monthCourses).map((course) => (
                 <CourseCard key={course.id} course={course} status="available" />
               ))
             )}
@@ -329,13 +344,13 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
           count={available.length}
           icon={<X className="h-5 w-5 mr-2" />}
         >
-          {filterByName(available).length === 0 ? (
+          {filterCourses(available).length === 0 ? (
             <div className="text-center py-12">
               <Check className="h-12 w-12 text-green-300 mx-auto mb-4" />
               <p className="text-gray-500">Todos los cursos están asignados o completados</p>
             </div>
           ) : (
-            filterByName(available).map((course) => (
+            filterCourses(available).map((course) => (
               <CourseCard key={course.id} course={course} status="available" />
             ))
           )}
@@ -353,13 +368,13 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
           </div>
           <div className="min-h-[400px] p-6 rounded-lg border-2 border-solid border-green-200 bg-green-50">
             <div className="space-y-3">
-              {filterByName(completed).length === 0 ? (
+              {filterCourses(completed).length === 0 ? (
                 <div className="text-center py-12">
                   <Award className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                   <p className="text-gray-500">No hay cursos completados</p>
                 </div>
               ) : (
-                filterByName(completed).map((course) => (
+                filterCourses(completed).map((course) => (
                   <CourseCard key={course.id} course={course} status="completed" />
                 ))
               )}
@@ -367,12 +382,6 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
           </div>
         </div>
       </div>
-
-      {hasUnsavedChanges && (
-        <div className="flex justify-end mt-4">
-          <Button onClick={handleSaveChanges}>Guardar Cambios</Button>
-        </div>
-      )}
     </div>
   );
 }
