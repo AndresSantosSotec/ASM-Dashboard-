@@ -112,7 +112,7 @@ export const assignCourses = async (
   studentIds: string[],
   courseIds: string[],
 ) => {
-  await api.post('/courses/assign', {
+  await api.post('/courses/courses/assign', {
     prospecto_ids: studentIds.map(Number),
     course_ids: courseIds.map(Number),
   })
@@ -122,7 +122,7 @@ export const unassignCourses = async (
   studentIds: string[],
   courseIds: string[],
 ) => {
-  await api.post('/courses/unassign', {
+  await api.post('/courses/courses/unassign', {
     prospecto_ids: studentIds.map(Number),
     course_ids: courseIds.map(Number),
   })
