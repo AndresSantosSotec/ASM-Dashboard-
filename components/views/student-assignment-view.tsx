@@ -160,7 +160,9 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
       try {
         const [lists, courses] = await Promise.all([
           fetchStudentCourseLists(student.id),
+
           fetchStudentCourses(student.id),
+
         ]);
         setAssigned(lists.assigned);
         setCompleted(lists.completed);
@@ -169,7 +171,7 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
         console.error(err);
       }
     })();
-  }, [student.id]);
+  }, [student.id, student.programId]);
 
   useEffect(() => {
     const avail = allCourses.filter(
