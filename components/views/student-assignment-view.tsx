@@ -101,7 +101,9 @@ const DraggableCourse = ({ course, status }: DraggableCourseProps) => {
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-2">
-            {status !== "completed" && <GripVertical className="h-4 w-4 text-gray-400" />}
+            {status !== "completed" && (
+              <GripVertical className="h-4 w-4 text-gray-400" />
+            )}
             {getStatusIcon()}
             <span className="font-medium">{course.name}</span>
           </div>
@@ -128,7 +130,14 @@ interface DropZoneProps {
   icon: React.ReactNode;
 }
 
-const DropZone = ({ status, onDrop, children, title, count, icon }: DropZoneProps) => {
+const DropZone = ({
+  status,
+  onDrop,
+  children,
+  title,
+  count,
+  icon,
+}: DropZoneProps) => {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: "course",
     drop: (item: { course: Course; status: "assigned" | "available" | "completed" }) => {
@@ -142,17 +151,27 @@ const DropZone = ({ status, onDrop, children, title, count, icon }: DropZoneProp
   }));
 
   const getDropZoneStyle = () => {
-    const base = "min-h-[400px] p-6 rounded-lg border-2 border-dashed transition-all duration-200";
+    const base =
+      "min-h-[400px] p-6 rounded-lg border-2 border-dashed transition-all duration-200";
     if (isOver) {
-      return status === "assigned" ? `${base} border-yellow-400 bg-yellow-50` : `${base} border-blue-400 bg-blue-50`;
+      return status === "assigned"
+        ? `${base} border-yellow-400 bg-yellow-50`
+        : `${base} border-blue-400 bg-blue-50`;
     }
-    return status === "assigned" ? `${base} border-yellow-200 bg-yellow-25` : `${base} border-blue-200 bg-blue-25`;
+    return status === "assigned"
+      ? `${base} border-yellow-200 bg-yellow-25`
+      : `${base} border-blue-200 bg-blue-25`;
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className={`font-semibold text-lg flex items-center ${status === "assigned" ? "text-yellow-700" : "text-blue-700"}`}>{icon}{title}</h3>
+        <h3
+          className={`font-semibold text-lg flex items-center ${status === "assigned" ? "text-yellow-700" : "text-blue-700"}`}
+        >
+          {icon}
+          {title}
+        </h3>
         <Badge variant="outline" className="text-sm">
           {count} cursos
         </Badge>
@@ -166,16 +185,16 @@ const DropZone = ({ status, onDrop, children, title, count, icon }: DropZoneProp
 };
 
 export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
-  const [assigned, setAssigned] = useState<Course[]>([])
-  const [completed, setCompleted] = useState<Course[]>([])
-  const [allCourses, setAllCourses] = useState<Course[]>([])
-  const [available, setAvailable] = useState<Course[]>([])
-  const [monthCourses, setMonthCourses] = useState<Course[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
-  const [showMonth, setShowMonth] = useState(false)
-  const [pendingAssign, setPendingAssign] = useState<string[]>([])
-  const [pendingUnassign, setPendingUnassign] = useState<string[]>([])
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [assigned, setAssigned] = useState<Course[]>([]);
+  const [completed, setCompleted] = useState<Course[]>([]);
+  const [allCourses, setAllCourses] = useState<Course[]>([]);
+  const [available, setAvailable] = useState<Course[]>([]);
+  const [monthCourses, setMonthCourses] = useState<Course[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showMonth, setShowMonth] = useState(false);
+  const [pendingAssign, setPendingAssign] = useState<string[]>([]);
+  const [pendingUnassign, setPendingUnassign] = useState<string[]>([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -183,63 +202,74 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
         const [lists, courses] = await Promise.all([
           fetchStudentCourseLists(student.id),
           fetchCourses(student.programId || undefined),
-        ])
-        setAssigned(lists.assigned)
-        setCompleted(lists.completed)
-        setAllCourses(courses)
+        ]);
+        setAssigned(lists.assigned);
+        setCompleted(lists.completed);
+        setAllCourses(courses);
       } catch (err) {
-        console.error(err)
+        console.error(err);
       }
-    })()
-  }, [student.id])
+    })();
+  }, [student.id]);
 
   useEffect(() => {
     const avail = allCourses.filter(
-      (c) => !assigned.some((a) => a.id === c.id) && !completed.some((co) => co.id === c.id),
-    )
-    setAvailable(avail)
+      (c) =>
+        !assigned.some((a) => a.id === c.id) &&
+        !completed.some((co) => co.id === c.id),
+    );
+    setAvailable(avail);
 
-    const now = new Date()
-    const start = new Date(now.getFullYear(), now.getMonth(), 1)
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     setMonthCourses(
       avail.filter((c) => {
-        const d = new Date(c.startDate)
-        return d >= start && d <= end
+        const d = new Date(c.startDate);
+        return d >= start && d <= end;
       }),
-    )
-  }, [allCourses, assigned, completed])
+    );
+  }, [allCourses, assigned, completed]);
 
-  const handleCourseDrop = (course: Course, toStatus: "assigned" | "available") => {
+  const handleCourseDrop = (
+    course: Course,
+    toStatus: "assigned" | "available",
+  ) => {
     if (toStatus === "assigned") {
-      setAssigned((prev) => [...prev, course])
-      setAvailable((prev) => prev.filter((c) => c.id !== course.id))
-      setPendingAssign((prev) => (prev.includes(String(course.id)) ? prev : [...prev, String(course.id)])
-      setPendingUnassign((prev) => prev.filter((id) => id !== String(course.id)))
+      setAssigned((prev) => [...prev, course]);
+      setAvailable((prev) => prev.filter((c) => c.id !== course.id));
+      setPendingAssign((prev) =>
+        prev.includes(String(course.id)) ? prev : [...prev, String(course.id)],
+      );
+      setPendingUnassign((prev) =>
+        prev.filter((id) => id !== String(course.id)),
+      );
     } else {
-      setAvailable((prev) => [...prev, course])
-      setAssigned((prev) => prev.filter((c) => c.id !== course.id))
-      setPendingUnassign((prev) => (prev.includes(String(course.id)) ? prev : [...prev, String(course.id)])
-      setPendingAssign((prev) => prev.filter((id) => id !== String(course.id)))
+      setAvailable((prev) => [...prev, course]);
+      setAssigned((prev) => prev.filter((c) => c.id !== course.id));
+      setPendingUnassign((prev) =>
+        prev.includes(String(course.id)) ? prev : [...prev, String(course.id)],
+      );
+      setPendingAssign((prev) => prev.filter((id) => id !== String(course.id)));
     }
-    setHasUnsavedChanges(true)
-  }
+    setHasUnsavedChanges(true);
+  };
 
   const handleSaveChanges = async () => {
     try {
       if (pendingAssign.length) {
-        await assignCourses([student.id], pendingAssign)
+        await assignCourses([student.id], pendingAssign);
       }
       if (pendingUnassign.length) {
-        await unassignCourses([student.id], pendingUnassign)
+        await unassignCourses([student.id], pendingUnassign);
       }
-      setPendingAssign([])
-      setPendingUnassign([])
-      setHasUnsavedChanges(false)
+      setPendingAssign([]);
+      setPendingUnassign([]);
+      setHasUnsavedChanges(false);
     } catch (err) {
-      console.error(err)
+      console.error(err);
     }
-  }
+  };
 
   return (
     <div className="space-y-6">
@@ -354,7 +384,9 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
           ).length === 0 ? (
             <div className="text-center py-12">
               <Check className="h-12 w-12 text-green-300 mx-auto mb-4" />
-              <p className="text-gray-500">Todos los cursos están asignados o completados</p>
+              <p className="text-gray-500">
+                Todos los cursos están asignados o completados
+              </p>
             </div>
           ) : (
             available
@@ -398,9 +430,7 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
       </div>
       {hasUnsavedChanges && (
         <div className="flex justify-end mt-4">
-          <Button onClick={handleSaveChanges}>
-            Guardar Cambios
-          </Button>
+          <Button onClick={handleSaveChanges}>Guardar Cambios</Button>
         </div>
       )}
     </div>

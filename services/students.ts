@@ -18,9 +18,10 @@ export const fetchStudentProgram = async (
 ): Promise<Program | null> => {
   try {
     const res = await api.get(`/estudiante-programa/${studentId}`)
-
-    const data = Array.isArray(res.data) ? res.data : res.data.data
-    return data && data.length > 0 ? data[0] : null
+    const data = Array.isArray(res.data)
+      ? res.data
+      : res.data.data
+    return data.length > 0 ? data[0] : null
   } catch (err: any) {
     if (err.response?.status === 404) {
       return null
@@ -34,21 +35,21 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
     params: { per_page: 9999 },
   })
   const data = Array.isArray(res.data.data) ? res.data.data : res.data
+
   const students = await Promise.all(
     data.map(async (p: any) => {
-
+      // Intentamos leer el programa desde p.programas
       let prog =
         Array.isArray(p.programas) && p.programas.length > 0
           ? p.programas[0]
           : null
 
-
+      // Si no hay, lo pedimos al endpoint
       if (!prog) {
         try {
           prog = await fetchStudentProgram(String(p.id))
         } catch (err) {
-          console.error(err)
-
+          console.error('Error fetching student program', err)
         }
       }
 
@@ -84,7 +85,7 @@ export const fetchStudentCourseLists = async (
   }
 
   const data = Array.isArray(res.data) ? res.data : res.data.data
-  const map = (c: any): Course => ({
+  const mapCourse = (c: any): Course => ({
     id: c.id,
     name: c.name,
     code: c.code,
@@ -102,24 +103,27 @@ export const fetchStudentCourseLists = async (
   })
 
   return {
-    assigned: Array.isArray(data.assigned) ? data.assigned.map(map) : [],
-    completed: Array.isArray(data.completed) ? data.completed.map(map) : [],
+    assigned: Array.isArray(data.assigned) ? data.assigned.map(mapCourse) : [],
+    completed: Array.isArray(data.completed) ? data.completed.map(mapCourse) : [],
   }
 }
 
-export const assignCourses = async (studentIds: string[], courseIds: string[]) => {
-  await api.post('/courses/courses/assign', {
-
+export const assignCourses = async (
+  studentIds: string[],
+  courseIds: string[],
+) => {
+  await api.post('/courses/assign', {
     prospecto_ids: studentIds.map(Number),
     course_ids: courseIds.map(Number),
   })
 }
 
-export const unassignCourses = async (studentIds: string[], courseIds: string[]) => {
-
-  await api.post('/courses/courses/unassign', {
+export const unassignCourses = async (
+  studentIds: string[],
+  courseIds: string[],
+) => {
+  await api.post('/courses/unassign', {
     prospecto_ids: studentIds.map(Number),
     course_ids: courseIds.map(Number),
   })
 }
-
