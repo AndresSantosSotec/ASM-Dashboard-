@@ -29,15 +29,17 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
   const data = Array.isArray(res.data.data) ? res.data.data : res.data
   const students = await Promise.all(
     data.map(async (p: any) => {
-      let prog =
-        Array.isArray(p.programas) && p.programas.length > 0 ? p.programas[0] : null
+      let prog = Array.isArray(p.programas) && p.programas.length > 0 ? p.programas[0] : null
       if (!prog) {
         try {
           prog = await fetchStudentProgram(String(p.id))
         } catch (err) {
           console.error(err)
+          return null
         }
       }
+      if (!prog) return null
+      
       return {
         id: String(p.id),
         name: p.nombre_completo ?? '',
@@ -52,7 +54,7 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
       }
     }),
   )
-  return students
+  return students.filter(Boolean) as Student[]
 }
 
 export const assignCourses = async (studentIds: string[], courseIds: string[]) => {
