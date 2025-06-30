@@ -12,10 +12,8 @@ import {
 import { fetchCourses } from "@/services/courses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-
 import {
   Check,
   X,
@@ -172,7 +170,6 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
   const [completed, setCompleted] = useState<Course[]>([])
   const [allCourses, setAllCourses] = useState<Course[]>([])
   const [available, setAvailable] = useState<Course[]>([])
-
   const [monthCourses, setMonthCourses] = useState<Course[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [showMonth, setShowMonth] = useState(false)
@@ -180,13 +177,12 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
   const [pendingUnassign, setPendingUnassign] = useState<string[]>([])
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
-
   useEffect(() => {
-    ;(async () => {
+    (async () => {
       try {
         const [lists, courses] = await Promise.all([
           fetchStudentCourseLists(student.id),
-          fetchCourses(),
+          fetchCourses(student.programId || undefined),
         ])
         setAssigned(lists.assigned)
         setCompleted(lists.completed)
@@ -198,7 +194,6 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
   }, [student.id])
 
   useEffect(() => {
-
     const avail = allCourses.filter(
       (c) => !assigned.some((a) => a.id === c.id) && !completed.some((co) => co.id === c.id),
     )
@@ -219,12 +214,12 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
     if (toStatus === "assigned") {
       setAssigned((prev) => [...prev, course])
       setAvailable((prev) => prev.filter((c) => c.id !== course.id))
-      setPendingAssign((prev) => (prev.includes(String(course.id)) ? prev : [...prev, String(course.id)]))
+      setPendingAssign((prev) => (prev.includes(String(course.id)) ? prev : [...prev, String(course.id)])
       setPendingUnassign((prev) => prev.filter((id) => id !== String(course.id)))
     } else {
       setAvailable((prev) => [...prev, course])
       setAssigned((prev) => prev.filter((c) => c.id !== course.id))
-      setPendingUnassign((prev) => (prev.includes(String(course.id)) ? prev : [...prev, String(course.id)]))
+      setPendingUnassign((prev) => (prev.includes(String(course.id)) ? prev : [...prev, String(course.id)])
       setPendingAssign((prev) => prev.filter((id) => id !== String(course.id)))
     }
     setHasUnsavedChanges(true)
@@ -243,7 +238,6 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
       setHasUnsavedChanges(false)
     } catch (err) {
       console.error(err)
-
     }
   }
 
@@ -283,16 +277,13 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
         </CardContent>
       </Card>
 
-
       <div className="flex justify-between items-center">
-
         <Input
           placeholder="Buscar curso..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-xs mb-4"
         />
-
         <Button
           onClick={() => setShowMonth((v) => !v)}
           variant="outline"
@@ -303,7 +294,6 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
       </div>
 
       <div className={`grid grid-cols-1 lg:grid-cols-${showMonth ? 4 : 3} gap-6`}>
-
         <DropZone
           status="assigned"
           onDrop={handleCourseDrop}
@@ -406,7 +396,6 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
           </div>
         </div>
       </div>
-
       {hasUnsavedChanges && (
         <div className="flex justify-end mt-4">
           <Button onClick={handleSaveChanges}>
@@ -414,8 +403,6 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
           </Button>
         </div>
       )}
-
-
     </div>
   );
 }
