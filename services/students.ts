@@ -15,9 +15,9 @@ export interface Student {
 export const fetchStudentProgram = async (
   studentId: string,
 ): Promise<Program | null> => {
-  const res = await api.get('/estudiante-programa', {
-    params: { prospecto_id: studentId },
-  })
+
+  const res = await api.get(`/estudiante-programa/${studentId}`)
+
   const data = Array.isArray(res.data) ? res.data : res.data.data
   return data && data.length > 0 ? data[0] : null
 }
@@ -29,17 +29,17 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
   const data = Array.isArray(res.data.data) ? res.data.data : res.data
   const students = await Promise.all(
     data.map(async (p: any) => {
-      let prog = Array.isArray(p.programas) && p.programas.length > 0 ? p.programas[0] : null
+        Array.isArray(p.programas) && p.programas.length > 0 ? p.programas[0] : null
+
       if (!prog) {
         try {
           prog = await fetchStudentProgram(String(p.id))
         } catch (err) {
           console.error(err)
-          return null
+
         }
       }
-      if (!prog) return null
-      
+
       return {
         id: String(p.id),
         name: p.nombre_completo ?? '',
@@ -54,19 +54,23 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
       }
     }),
   )
-  return students.filter(Boolean) as Student[]
+
+  return students
 }
 
 export const assignCourses = async (studentIds: string[], courseIds: string[]) => {
-  await api.post('/courses/assign', {
+  await api.post('/courses/courses/assign', {
+
     prospecto_ids: studentIds.map(Number),
     course_ids: courseIds.map(Number),
   })
 }
 
 export const unassignCourses = async (studentIds: string[], courseIds: string[]) => {
-  await api.post('/courses/unassign', {
+
+  await api.post('/courses/courses/unassign', {
     prospecto_ids: studentIds.map(Number),
     course_ids: courseIds.map(Number),
   })
 }
+
