@@ -35,10 +35,12 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
   const data = Array.isArray(res.data.data) ? res.data.data : res.data
   const students = await Promise.all(
     data.map(async (p: any) => {
+
       let prog =
         Array.isArray(p.programas) && p.programas.length > 0
           ? p.programas[0]
           : null
+
 
       if (!prog) {
         try {
