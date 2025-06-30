@@ -1,15 +1,12 @@
 "use client"
 
-
 import { useState, useEffect } from "react"
-
 import { DndProvider } from "react-dnd"
 import { HTML5Backend } from "react-dnd-html5-backend"
 import { StudentsView } from "@/components/views/students-view"
 import { StudentAssignmentView } from "@/components/views/student-assignment-view"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
-
 import type { Student } from "@/services/students"
 import type { Course } from "@/services/courses"
 import { fetchEnrolledStudents, assignCourses, unassignCourses } from "@/services/students"
@@ -41,12 +38,10 @@ export default function CourseAssignmentDashboard() {
             ? [...student.assignedCourses, courseId]
             : student.assignedCourses.filter((id) => id !== courseId)
           return { ...student, assignedCourses: updated }
-
         }
         return student
       })
     )
-
 
     try {
       if (isAssigned) {
@@ -69,7 +64,6 @@ export default function CourseAssignmentDashboard() {
               if (!updated.includes(courseId)) updated.push(courseId)
             } else {
               updated = updated.filter((id) => id !== courseId)
-
             }
           })
           return { ...student, assignedCourses: updated }
@@ -77,6 +71,7 @@ export default function CourseAssignmentDashboard() {
         return student
       })
     )
+
     try {
       if (isAssigned) {
         await assignCourses(studentIds, courseIds)
@@ -86,7 +81,6 @@ export default function CourseAssignmentDashboard() {
     } catch (err) {
       console.error(err)
     }
-
   }
 
   const handleViewAssignment = (studentId: string) => {
@@ -99,9 +93,7 @@ export default function CourseAssignmentDashboard() {
     setSelectedStudentId(null)
   }
 
-
   const selectedStudent = selectedStudentId ? students.find((s) => s.id === selectedStudentId) : null
-
 
   if (currentView === "assignment" && selectedStudent) {
     return (
@@ -117,9 +109,7 @@ export default function CourseAssignmentDashboard() {
             </div>
             <StudentAssignmentView
               student={selectedStudent}
-
               courses={courses}
-
               onCourseAssignment={handleCourseAssignment}
             />
           </div>
@@ -134,14 +124,9 @@ export default function CourseAssignmentDashboard() {
         <h1 className="text-3xl font-bold text-center mb-6">Dashboard de Gestión de Inscripciones</h1>
         <StudentsView
           students={students}
-
           courses={courses}
-
           onViewAssignment={handleViewAssignment}
           onBulkAssignment={handleBulkAssignment}
         />
       </div>
-    </div>
-  )
-}
-
+   
