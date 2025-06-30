@@ -140,10 +140,7 @@ const DropZone = ({
 }: DropZoneProps) => {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: "course",
-    drop: (item: {
-      course: Course;
-      status: "assigned" | "available" | "completed";
-    }) => {
+    drop: (item: { course: Course; status: "assigned" | "available" | "completed" }) => {
       if (item.status !== status && item.status !== "completed") {
         onDrop(item.course, status);
       }
@@ -303,9 +300,7 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
               <p className="text-gray-900">{assigned.length}</p>
             </div>
             <div>
-              <span className="font-medium text-gray-600">
-                Cursos Completados:
-              </span>
+              <span className="font-medium text-gray-600">Cursos Completados:</span>
               <p className="text-gray-900">{completed.length}</p>
             </div>
           </div>
@@ -328,9 +323,7 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
         </Button>
       </div>
 
-      <div
-        className={`grid grid-cols-1 lg:grid-cols-${showMonth ? 4 : 3} gap-6`}
-      >
+      <div className={`grid grid-cols-1 lg:grid-cols-${showMonth ? 4 : 3} gap-6`}>
         <DropZone
           status="assigned"
           onDrop={handleCourseDrop}
@@ -347,15 +340,9 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
             </div>
           ) : (
             assigned
-              .filter((c) =>
-                c.name.toLowerCase().includes(searchTerm.toLowerCase()),
-              )
+              .filter((c) => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
               .map((course) => (
-                <DraggableCourse
-                  key={course.id}
-                  course={course}
-                  status="assigned"
-                />
+                <DraggableCourse key={course.id} course={course} status="assigned" />
               ))
           )}
         </DropZone>
@@ -377,15 +364,9 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
               </div>
             ) : (
               monthCourses
-                .filter((c) =>
-                  c.name.toLowerCase().includes(searchTerm.toLowerCase()),
-                )
+                .filter((c) => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
                 .map((course) => (
-                  <DraggableCourse
-                    key={course.id}
-                    course={course}
-                    status="available"
-                  />
+                  <DraggableCourse key={course.id} course={course} status="available" />
                 ))
             )}
           </DropZone>
@@ -409,15 +390,9 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
             </div>
           ) : (
             available
-              .filter((c) =>
-                c.name.toLowerCase().includes(searchTerm.toLowerCase()),
-              )
+              .filter((c) => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
               .map((course) => (
-                <DraggableCourse
-                  key={course.id}
-                  course={course}
-                  status="available"
-                />
+                <DraggableCourse key={course.id} course={course} status="available" />
               ))
           )}
         </DropZone>
@@ -444,15 +419,9 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
                 </div>
               ) : (
                 completed
-                  .filter((c) =>
-                    c.name.toLowerCase().includes(searchTerm.toLowerCase()),
-                  )
+                  .filter((c) => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
                   .map((course) => (
-                    <DraggableCourse
-                      key={course.id}
-                      course={course}
-                      status="completed"
-                    />
+                    <DraggableCourse key={course.id} course={course} status="completed" />
                   ))
               )}
             </div>
