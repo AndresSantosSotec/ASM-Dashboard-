@@ -1,8 +1,10 @@
 "use client"
 
 import { useState } from "react"
+
 import type { Student } from "@/services/students"
 import type { Course } from "@/services/courses"
+
 import { StudentCard } from "@/components/cards/student-card"
 import { BulkAssignmentPanel } from "@/components/bulk-assignment-panel"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -69,6 +71,7 @@ export function StudentsView({ students, courses, onViewAssignment, onBulkAssign
   const bulkCourses = courses.filter((c) =>
     c.programIds.some((pid) => selectedProgramIds.includes(pid))
   )
+
 
   return (
     <div className="space-y-6">
@@ -148,7 +151,9 @@ export function StudentsView({ students, courses, onViewAssignment, onBulkAssign
       {showBulkPanel && (
         <BulkAssignmentPanel
           selectedStudents={selectedStudents.map((id) => students.find((s) => s.id === id)!)}
+
           courses={bulkCourses}
+
           onBulkAssignment={onBulkAssignment}
           onClose={() => setShowBulkPanel(false)}
         />
