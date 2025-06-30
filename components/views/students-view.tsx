@@ -26,9 +26,6 @@ export function StudentsView({ students, courses, onViewAssignment, onBulkAssign
   const [selectedStudents, setSelectedStudents] = useState<string[]>([])
   const [showBulkPanel, setShowBulkPanel] = useState(false)
 
-
-  // Deduplicate and filter empty strings to avoid invalid values in SelectItem
-
   const programs = Array.from(new Set(students.map((s) => s.program).filter(Boolean)))
   const specialties = Array.from(new Set(students.map((s) => s.specialty).filter(Boolean)))
 
@@ -181,5 +178,4 @@ export function StudentsView({ students, courses, onViewAssignment, onBulkAssign
     </div>
   )
 
-}
 
