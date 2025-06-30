@@ -1,19 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useDrag, useDrop } from "react-dnd";
 import type { Student } from "@/services/students";
 import type { Course } from "@/services/courses";
+import {
+  assignCourses,
+  unassignCourses,
+  fetchStudentCourseLists,
+} from "@/services/students";
+import { fetchCourses } from "@/services/courses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Check, X, GripVertical, Save, Award, BookOpen } from "lucide-react";
+import {
+  Check,
+  X,
+  GripVertical,
+  Award,
+  BookOpen,
+  Calendar,
+  User,
+} from "lucide-react";
 import type React from "react";
 
 interface StudentAssignmentViewProps {
   student: Student;
-  courses: Course[];
-  onCourseAssignment: (studentId: string, courseId: string, isAssigned: boolean) => void;
 }
 
 interface DraggableCourseProps {
@@ -24,7 +37,7 @@ interface DraggableCourseProps {
 const DraggableCourse = ({ course, status }: DraggableCourseProps) => {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: "course",
-    item: { courseId: course.id, status },
+    item: { course, status },
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
@@ -108,7 +121,7 @@ const DraggableCourse = ({ course, status }: DraggableCourseProps) => {
 
 interface DropZoneProps {
   status: "assigned" | "available";
-  onDrop: (courseId: string, toStatus: "assigned" | "available") => void;
+  onDrop: (course: Course, toStatus: "assigned" | "available") => void;
   children: React.ReactNode;
   title: string;
   count: number;
@@ -118,9 +131,9 @@ interface DropZoneProps {
 const DropZone = ({ status, onDrop, children, title, count, icon }: DropZoneProps) => {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: "course",
-    drop: (item: { courseId: string; status: "assigned" | "available" | "completed" }) => {
+    drop: (item: { course: Course; status: "assigned" | "available" | "completed" }) => {
       if (item.status !== status && item.status !== "completed") {
-        onDrop(item.courseId, status);
+        onDrop(item.course, status);
       }
     },
     collect: (monitor) => ({
@@ -152,33 +165,81 @@ const DropZone = ({ status, onDrop, children, title, count, icon }: DropZoneProp
   );
 };
 
-export function StudentAssignmentView({ student, courses, onCourseAssignment }: StudentAssignmentViewProps) {
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
+  const [assigned, setAssigned] = useState<Course[]>([])
+  const [completed, setCompleted] = useState<Course[]>([])
+  const [allCourses, setAllCourses] = useState<Course[]>([])
+  const [available, setAvailable] = useState<Course[]>([])
+  const [monthCourses, setMonthCourses] = useState<Course[]>([])
+  const [searchTerm, setSearchTerm] = useState("")
+  const [showMonth, setShowMonth] = useState(false)
+  const [pendingAssign, setPendingAssign] = useState<string[]>([])
+  const [pendingUnassign, setPendingUnassign] = useState<string[]>([])
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
-  const programCourses = courses;
-  const assignedCourses = programCourses.filter((course) =>
-    student.assignedCourses.includes(String(course.id)),
-  );
-  const completedCourses = programCourses.filter((course) =>
-    student.completedCourses.includes(String(course.id)),
-  );
-  const availableCourses = programCourses.filter(
-    (course) =>
-      !student.assignedCourses.includes(String(course.id)) &&
-      !student.completedCourses.includes(String(course.id))
-  );
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const [lists, courses] = await Promise.all([
+          fetchStudentCourseLists(student.id),
+          fetchCourses(),
+        ])
+        setAssigned(lists.assigned)
+        setCompleted(lists.completed)
+        setAllCourses(courses)
+      } catch (err) {
+        console.error(err)
+      }
+    })()
+  }, [student.id])
 
-  const handleCourseDrop = (courseId: string, toStatus: "assigned" | "available") => {
-    const isAssigned = toStatus === "assigned";
-    onCourseAssignment(student.id, courseId, isAssigned);
-    setHasUnsavedChanges(true);
-  };
+  useEffect(() => {
+    const avail = allCourses.filter(
+      (c) => !assigned.some((a) => a.id === c.id) && !completed.some((co) => co.id === c.id),
+    )
+    setAvailable(avail)
+
+    const now = new Date()
+    const start = new Date(now.getFullYear(), now.getMonth(), 1)
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    setMonthCourses(
+      avail.filter((c) => {
+        const d = new Date(c.startDate)
+        return d >= start && d <= end
+      }),
+    )
+  }, [allCourses, assigned, completed])
+
+  const handleCourseDrop = (course: Course, toStatus: "assigned" | "available") => {
+    if (toStatus === "assigned") {
+      setAssigned((prev) => [...prev, course])
+      setAvailable((prev) => prev.filter((c) => c.id !== course.id))
+      setPendingAssign((prev) => (prev.includes(String(course.id)) ? prev : [...prev, String(course.id)]))
+      setPendingUnassign((prev) => prev.filter((id) => id !== String(course.id)))
+    } else {
+      setAvailable((prev) => [...prev, course])
+      setAssigned((prev) => prev.filter((c) => c.id !== course.id))
+      setPendingUnassign((prev) => (prev.includes(String(course.id)) ? prev : [...prev, String(course.id)]))
+      setPendingAssign((prev) => prev.filter((id) => id !== String(course.id)))
+    }
+    setHasUnsavedChanges(true)
+  }
 
   const handleSaveChanges = async () => {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setHasUnsavedChanges(false);
-    alert("Cambios guardados exitosamente");
-  };
+    try {
+      if (pendingAssign.length) {
+        await assignCourses([student.id], pendingAssign)
+      }
+      if (pendingUnassign.length) {
+        await unassignCourses([student.id], pendingUnassign)
+      }
+      setPendingAssign([])
+      setPendingUnassign([])
+      setHasUnsavedChanges(false)
+    } catch (err) {
+      console.error(err)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -206,48 +267,101 @@ export function StudentAssignmentView({ student, courses, onCourseAssignment }: 
             </div>
             <div>
               <span className="font-medium text-gray-600">Cursos Activos:</span>
-              <p className="text-gray-900">{assignedCourses.length}</p>
+              <p className="text-gray-900">{assigned.length}</p>
             </div>
             <div>
               <span className="font-medium text-gray-600">Cursos Completados:</span>
-              <p className="text-gray-900">{completedCourses.length}</p>
+              <p className="text-gray-900">{completed.length}</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="flex justify-between items-center">
+        <Input
+          placeholder="Buscar curso..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="max-w-xs mb-4"
+        />
+        <Button
+          onClick={() => setShowMonth((v) => !v)}
+          variant="outline"
+          className="mb-4"
+        >
+          {showMonth ? "Ocultar mes actual" : "Ver cursos del mes"}
+        </Button>
+      </div>
+
+      <div className={`grid grid-cols-1 lg:grid-cols-${showMonth ? 4 : 3} gap-6`}>
         <DropZone
           status="assigned"
           onDrop={handleCourseDrop}
           title="Cursos Asignados"
-          count={assignedCourses.length}
+          count={assigned.length}
           icon={<Check className="h-5 w-5 mr-2" />}
         >
-          {assignedCourses.length === 0 ? (
+          {assigned.filter((c) =>
+            c.name.toLowerCase().includes(searchTerm.toLowerCase()),
+          ).length === 0 ? (
             <div className="text-center py-12">
               <BookOpen className="h-12 w-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">Arrastra cursos aquí para asignar</p>
             </div>
           ) : (
-            assignedCourses.map((course) => <DraggableCourse key={course.id} course={course} status="assigned" />)
+            assigned
+              .filter((c) => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+              .map((course) => (
+                <DraggableCourse key={course.id} course={course} status="assigned" />
+              ))
           )}
         </DropZone>
+
+        {showMonth && (
+          <DropZone
+            status="available"
+            onDrop={handleCourseDrop}
+            title="Mes Actual"
+            count={monthCourses.length}
+            icon={<Calendar className="h-5 w-5 mr-2" />}
+          >
+            {monthCourses.filter((c) =>
+              c.name.toLowerCase().includes(searchTerm.toLowerCase()),
+            ).length === 0 ? (
+              <div className="text-center py-12">
+                <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">No hay cursos este mes</p>
+              </div>
+            ) : (
+              monthCourses
+                .filter((c) => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                .map((course) => (
+                  <DraggableCourse key={course.id} course={course} status="available" />
+                ))
+            )}
+          </DropZone>
+        )}
 
         <DropZone
           status="available"
           onDrop={handleCourseDrop}
           title="Cursos Disponibles"
-          count={availableCourses.length}
+          count={available.length}
           icon={<X className="h-5 w-5 mr-2" />}
         >
-          {availableCourses.length === 0 ? (
+          {available.filter((c) =>
+            c.name.toLowerCase().includes(searchTerm.toLowerCase()),
+          ).length === 0 ? (
             <div className="text-center py-12">
               <Check className="h-12 w-12 text-green-300 mx-auto mb-4" />
               <p className="text-gray-500">Todos los cursos están asignados o completados</p>
             </div>
           ) : (
-            availableCourses.map((course) => <DraggableCourse key={course.id} course={course} status="available" />)
+            available
+              .filter((c) => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+              .map((course) => (
+                <DraggableCourse key={course.id} course={course} status="available" />
+              ))
           )}
         </DropZone>
 
@@ -258,33 +372,38 @@ export function StudentAssignmentView({ student, courses, onCourseAssignment }: 
               Cursos Completados
             </h3>
             <Badge variant="outline" className="text-sm">
-              {completedCourses.length} cursos
+              {completed.length} cursos
             </Badge>
           </div>
 
           <div className="min-h-[400px] p-6 rounded-lg border-2 border-solid border-green-200 bg-green-25">
             <div className="space-y-3">
-              {completedCourses.length === 0 ? (
+              {completed.filter((c) =>
+                c.name.toLowerCase().includes(searchTerm.toLowerCase()),
+              ).length === 0 ? (
                 <div className="text-center py-12">
                   <Award className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                   <p className="text-gray-500">No hay cursos completados</p>
                 </div>
               ) : (
-                completedCourses.map((course) => <DraggableCourse key={course.id} course={course} status="completed" />)
+                completed
+                  .filter((c) => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                  .map((course) => (
+                    <DraggableCourse key={course.id} course={course} status="completed" />
+                  ))
               )}
             </div>
           </div>
         </div>
       </div>
-
       {hasUnsavedChanges && (
-        <div className="fixed bottom-6 right-6">
-          <Button onClick={handleSaveChanges} size="lg" className="shadow-lg">
-            <Save className="h-4 w-4 mr-2" />
+        <div className="flex justify-end mt-4">
+          <Button onClick={handleSaveChanges}>
             Guardar Cambios
           </Button>
         </div>
       )}
+
     </div>
   );
 }
