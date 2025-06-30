@@ -83,12 +83,18 @@ const DraggableCourse = ({ course, status }: DraggableCourseProps) => {
   return (
     <Card
       ref={status !== "completed" ? drag : undefined}
-      className={`transition-all duration-200 ${status !== "completed" ? "cursor-move" : "cursor-not-allowed opacity-75"} ${isDragging ? "opacity-50 scale-95" : ""} ${getStatusStyle()}`}
+      className={`transition-all duration-200 ${
+        status !== "completed"
+          ? "cursor-move"
+          : "cursor-not-allowed opacity-75"
+      } ${isDragging ? "opacity-50 scale-95" : ""} ${getStatusStyle()}`}
     >
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-2">
-            {status !== "completed" && <GripVertical className="h-4 w-4 text-gray-400" />}
+            {status !== "completed" && (
+              <GripVertical className="h-4 w-4 text-gray-400" />
+            )}
             {getStatusIcon()}
             <span className="font-medium">{course.name}</span>
           </div>
@@ -115,10 +121,20 @@ interface DropZoneProps {
   icon: React.ReactNode
 }
 
-const DropZone = ({ status, onDrop, children, title, count, icon }: DropZoneProps) => {
+const DropZone = ({
+  status,
+  onDrop,
+  children,
+  title,
+  count,
+  icon,
+}: DropZoneProps) => {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: "course",
-    drop: (item: { courseId: string; status: "assigned" | "available" | "completed" }) => {
+    drop: (item: {
+      courseId: string
+      status: "assigned" | "available" | "completed"
+    }) => {
       if (item.status !== status && item.status !== "completed") {
         onDrop(item.courseId, status)
       }
@@ -129,17 +145,29 @@ const DropZone = ({ status, onDrop, children, title, count, icon }: DropZoneProp
   }))
 
   const getDropZoneStyle = () => {
-    const base = "min-h-[400px] p-6 rounded-lg border-2 border-dashed transition-all duration-200"
+    const base =
+      "min-h-[400px] p-6 rounded-lg border-2 border-dashed transition-all duration-200"
     if (isOver) {
-      return status === "assigned" ? `${base} border-yellow-400 bg-yellow-50` : `${base} border-blue-400 bg-blue-50`
+      return status === "assigned"
+        ? `${base} border-yellow-400 bg-yellow-50`
+        : `${base} border-blue-400 bg-blue-50`
     }
-    return status === "assigned" ? `${base} border-yellow-200 bg-yellow-25` : `${base} border-blue-200 bg-blue-25`
+    return status === "assigned"
+      ? `${base} border-yellow-200 bg-yellow-25`
+      : `${base} border-blue-200 bg-blue-25`
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className={`font-semibold text-lg flex items-center ${status === "assigned" ? "text-yellow-700" : "text-blue-700"}`}>{icon}{title}</h3>
+        <h3
+          className={`font-semibold text-lg flex items-center ${
+            status === "assigned" ? "text-yellow-700" : "text-blue-700"
+          }`}
+        >
+          {icon}
+          {title}
+        </h3>
         <Badge variant="outline" className="text-sm">
           {count} cursos
         </Badge>
@@ -152,19 +180,32 @@ const DropZone = ({ status, onDrop, children, title, count, icon }: DropZoneProp
   )
 }
 
-export function StudentAssignmentView({ student, courses, onCourseAssignment }: StudentAssignmentViewProps) {
+export function StudentAssignmentView({
+  student,
+  courses,
+  onCourseAssignment,
+}: StudentAssignmentViewProps) {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
-  const programCourses = courses.filter((c) => c.programIds.includes(student.programId))
-  const assignedCourses = programCourses.filter((course) => student.assignedCourses.includes(String(course.id)))
-  const completedCourses = programCourses.filter((course) => student.completedCourses.includes(String(course.id)))
+  const programCourses = courses.filter((c) =>
+    c.programIds.includes(student.programId)
+  )
+  const assignedCourses = programCourses.filter((course) =>
+    student.assignedCourses.includes(String(course.id))
+  )
+  const completedCourses = programCourses.filter((course) =>
+    student.completedCourses.includes(String(course.id))
+  )
   const availableCourses = programCourses.filter(
     (course) =>
       !student.assignedCourses.includes(String(course.id)) &&
       !student.completedCourses.includes(String(course.id))
   )
 
-  const handleCourseDrop = (courseId: string, toStatus: "assigned" | "available") => {
+  const handleCourseDrop = (
+    courseId: string,
+    toStatus: "assigned" | "available"
+  ) => {
     const isAssigned = toStatus === "assigned"
     onCourseAssignment(student.id, courseId, isAssigned)
     setHasUnsavedChanges(true)
@@ -205,7 +246,9 @@ export function StudentAssignmentView({ student, courses, onCourseAssignment }: 
               <p className="text-gray-900">{assignedCourses.length}</p>
             </div>
             <div>
-              <span className="font-medium text-gray-600">Cursos Completados:</span>
+              <span className="font-medium text-gray-600">
+                Cursos Completados:
+              </span>
               <p className="text-gray-900">{completedCourses.length}</p>
             </div>
           </div>
@@ -226,7 +269,13 @@ export function StudentAssignmentView({ student, courses, onCourseAssignment }: 
               <p className="text-gray-500">Arrastra cursos aquí para asignar</p>
             </div>
           ) : (
-            assignedCourses.map((course) => <DraggableCourse key={course.id} course={course} status="assigned" />)
+            assignedCourses.map((course) => (
+              <DraggableCourse
+                key={course.id}
+                course={course}
+                status="assigned"
+              />
+            ))
           )}
         </DropZone>
 
@@ -240,10 +289,18 @@ export function StudentAssignmentView({ student, courses, onCourseAssignment }: 
           {availableCourses.length === 0 ? (
             <div className="text-center py-12">
               <Check className="h-12 w-12 text-green-300 mx-auto mb-4" />
-              <p className="text-gray-500">Todos los cursos están asignados o completados</p>
+              <p className="text-gray-500">
+                Todos los cursos están asignados o completados
+              </p>
             </div>
           ) : (
-            availableCourses.map((course) => <DraggableCourse key={course.id} course={course} status="available" />)
+            availableCourses.map((course) => (
+              <DraggableCourse
+                key={course.id}
+                course={course}
+                status="available"
+              />
+            ))
           )}
         </DropZone>
 
@@ -266,7 +323,13 @@ export function StudentAssignmentView({ student, courses, onCourseAssignment }: 
                   <p className="text-gray-500">No hay cursos completados</p>
                 </div>
               ) : (
-                completedCourses.map((course) => <DraggableCourse key={course.id} course={course} status="completed" />)
+                completedCourses.map((course) => (
+                  <DraggableCourse
+                    key={course.id}
+                    course={course}
+                    status="completed"
+                  />
+                ))
               )}
             </div>
           </div>

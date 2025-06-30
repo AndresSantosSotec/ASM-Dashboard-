@@ -129,6 +129,4 @@ export default function CourseAssignmentDashboard() {
           onBulkAssignment={handleBulkAssignment}
         />
       </div>
-    </div>
-  )
-}
+   
