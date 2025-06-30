@@ -1,5 +1,6 @@
 import api from './api'
 import type { Program } from './programs'
+import type { Course } from './courses'
 
 export interface Student {
   id: string
@@ -67,6 +68,34 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
   )
 
   return students
+}
+
+export const fetchStudentCourseLists = async (
+  studentId: string,
+): Promise<{ assigned: Course[]; completed: Course[] }> => {
+  const res = await api.get(`/estudiante-programa/${studentId}/with-courses`)
+  const data = Array.isArray(res.data) ? res.data : res.data.data
+  const map = (c: any): Course => ({
+    id: c.id,
+    name: c.name,
+    code: c.code,
+    area: c.area,
+    credits: c.credits,
+    startDate: c.start_date,
+    endDate: c.end_date,
+    schedule: c.schedule,
+    duration: c.duration,
+    programIds: Array.isArray(c.programas) ? c.programas.map((p: any) => p.id) : [],
+    facilitatorId: c.facilitator_id ?? null,
+    status: c.status,
+    facilitator: c.facilitator ?? null,
+    programas: c.programas ?? [],
+  })
+
+  return {
+    assigned: Array.isArray(data.assigned) ? data.assigned.map(map) : [],
+    completed: Array.isArray(data.completed) ? data.completed.map(map) : [],
+  }
 }
 
 export const assignCourses = async (studentIds: string[], courseIds: string[]) => {
