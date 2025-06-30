@@ -14,12 +14,11 @@ import {
   assignCourses,
   unassignCourses,
 } from "@/services/students"
-import { fetchCourses, fetchStudentCourses } from "@/services/courses"
+import { fetchCourses } from "@/services/courses"
 
 export default function CourseAssignmentDashboard() {
   const [students, setStudents] = useState<Student[]>([])
   const [courses, setCourses] = useState<Course[]>([])
-  const [programCourses, setProgramCourses] = useState<Course[]>([])
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
   const [currentView, setCurrentView] = useState<"main" | "assignment">("main")
 
@@ -35,29 +34,6 @@ export default function CourseAssignmentDashboard() {
     })()
   }, [])
 
-  const handleCourseAssignment = async (studentId: string, courseId: string, isAssigned: boolean) => {
-    setStudents((prev) =>
-      prev.map((student) => {
-        if (student.id === studentId) {
-          const updated = isAssigned
-            ? [...student.assignedCourses, courseId]
-            : student.assignedCourses.filter((id) => id !== courseId)
-          return { ...student, assignedCourses: updated }
-        }
-        return student
-      })
-    )
-
-    try {
-      if (isAssigned) {
-        await assignCourses([studentId], [courseId])
-      } else {
-        await unassignCourses([studentId], [courseId])
-      }
-    } catch (err) {
-      console.error(err)
-    }
-  }
 
   const handleBulkAssignment = async (studentIds: string[], courseIds: string[], isAssigned: boolean) => {
     setStudents((prev) =>
@@ -88,24 +64,14 @@ export default function CourseAssignmentDashboard() {
     }
   }
 
-  const handleViewAssignment = async (studentId: string) => {
+  const handleViewAssignment = (studentId: string) => {
     setSelectedStudentId(studentId)
-    const student = students.find((s) => s.id === studentId)
-    if (student) {
-      try {
-        const crs = await fetchStudentCourses(student.id)
-        setProgramCourses(crs)
-      } catch (err) {
-        console.error(err)
-      }
-    }
     setCurrentView("assignment")
   }
 
   const handleBackToMain = () => {
     setCurrentView("main")
     setSelectedStudentId(null)
-    setProgramCourses([])
   }
 
   const selectedStudent = selectedStudentId ? students.find((s) => s.id === selectedStudentId) : null
@@ -122,11 +88,7 @@ export default function CourseAssignmentDashboard() {
               </Button>
               <h1 className="text-3xl font-bold">Asignación de Cursos - {selectedStudent.name}</h1>
             </div>
-            <StudentAssignmentView
-              student={selectedStudent}
-              courses={programCourses}
-              onCourseAssignment={handleCourseAssignment}
-            />
+            <StudentAssignmentView student={selectedStudent} />
           </div>
         </div>
       </DndProvider>
