@@ -169,7 +169,7 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
         console.error(err);
       }
     })();
-  }, [student.id]);
+  }, [student.id, student.programId]);
 
   useEffect(() => {
     const avail = allCourses.filter(
@@ -382,7 +382,6 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
           </div>
         </div>
       </div>
-
     </div>
   );
 }
