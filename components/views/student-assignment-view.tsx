@@ -170,7 +170,7 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
         console.error(err);
       }
     })();
-  }, [student.id]);
+  }, [student.id, student.programId]);
 
   useEffect(() => {
     const avail = allCourses.filter(
@@ -224,10 +224,12 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
       }
       setPendingAssign([]);
       setPendingUnassign([]);
-      onCoursesChange?.(
-        assigned.map((c) => String(c.id)),
-        assigned.map((c) => c.name),
-      );
+      if (onCoursesChange) {
+        onCoursesChange(
+          assigned.map((c) => String(c.id)),
+          assigned.map((c) => c.name),
+        );
+      }
     } catch (err) {
       console.error(err);
     }
@@ -387,7 +389,6 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
           </div>
         </div>
       </div>
-
     </div>
   );
 }

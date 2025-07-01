@@ -35,21 +35,23 @@ export function StudentCard({ student, isSelected, onSelect, onViewAssignment }:
             <span className="font-medium">Especialidad:</span> {student.specialty}
           </div>
           <div className="flex justify-between">
-          <div className="flex items-center space-x-1">
-            <BookOpen className="h-4 w-4" />
-            <span>Asignados</span>
-            <Badge variant="secondary" className="ml-1">
-              {student.assignedCourses.length}
-            </Badge>
-          </div>
-          <div className="flex items-center space-x-1">
-            <Award className="h-4 w-4" />
-            <span>Completados</span>
-            <Badge variant="secondary" className="ml-1">
-              {student.completedCourses.length}
-            </Badge>
+            <div className="flex items-center space-x-1">
+              <BookOpen className="h-4 w-4" />
+              <span>Asignados</span>
+              <Badge variant="secondary" className="ml-1">
+                {student.assignedCourses.length}
+              </Badge>
+            </div>
+            <div className="flex items-center space-x-1">
+              <Award className="h-4 w-4" />
+              <span>Completados</span>
+              <Badge variant="secondary" className="ml-1">
+                {student.completedCourses.length}
+              </Badge>
+            </div>
           </div>
         </div>
+        
         {student.assignedCourseNames.length > 0 && (
           <div className="mt-2 text-xs text-gray-700 space-y-1">
             {student.assignedCourseNames.map((name) => (
@@ -59,9 +61,8 @@ export function StudentCard({ student, isSelected, onSelect, onViewAssignment }:
             ))}
           </div>
         )}
-      </div>
 
-        <Button onClick={() => onViewAssignment(student.id)} className="w-full">
+        <Button onClick={() => onViewAssignment(student.id)} className="w-full mt-4">
           <Settings className="h-4 w-4 mr-2" />
           Asignar Cursos
         </Button>
@@ -69,4 +70,3 @@ export function StudentCard({ student, isSelected, onSelect, onViewAssignment }:
     </Card>
   )
 }
-
