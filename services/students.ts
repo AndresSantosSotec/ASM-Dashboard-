@@ -76,7 +76,7 @@ export const fetchStudentCourseLists = async (
 ): Promise<{ assigned: Course[]; completed: Course[] }> => {
   let res
   try {
-    res = await api.get(`/estudiante-programa/${studentId}/with-courses`)
+    res = await api.get(`/prospectos/${studentId}`)
   } catch (err: any) {
     if (err.response?.status === 404) {
       return { assigned: [], completed: [] }
@@ -102,9 +102,13 @@ export const fetchStudentCourseLists = async (
     programas: c.programas ?? [],
   })
 
+  const assigned = Array.isArray(data.courses) ? data.courses.map(mapCourse) : []
+
   return {
-    assigned: Array.isArray(data.assigned) ? data.assigned.map(mapCourse) : [],
-    completed: Array.isArray(data.completed) ? data.completed.map(mapCourse) : [],
+    assigned,
+    completed: Array.isArray(data.completed_courses)
+      ? data.completed_courses.map(mapCourse)
+      : [],
   }
 }
 
