@@ -47,6 +47,7 @@ const CourseCard = ({ course, status }: CourseCardProps) => {
     common: "bg-blue-500",
     specialty: "bg-green-500",
     closure: "bg-purple-500",
+
   };
 
   const areaLabels: Record<Course["area"], string> = {
@@ -61,6 +62,7 @@ const CourseCard = ({ course, status }: CourseCardProps) => {
       : status === "available"
       ? "bg-blue-50 border-blue-200 hover:bg-blue-100"
       : "bg-green-50 border-green-200";
+
 
   const ref = useRef<HTMLDivElement>(null);
   if (status !== "completed") drag(ref);
@@ -169,7 +171,7 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
         console.error(err);
       }
     })();
-  }, [student.id]);
+  }, [student.id, student.programId]);
 
   useEffect(() => {
     const avail = allCourses.filter(
@@ -382,7 +384,6 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
           </div>
         </div>
       </div>
-
     </div>
   );
 }
