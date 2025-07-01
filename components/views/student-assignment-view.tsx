@@ -47,6 +47,7 @@ const CourseCard = ({ course, status }: CourseCardProps) => {
     common: "bg-blue-500",
     specialty: "bg-green-500",
     closure: "bg-purple-500",
+
   };
 
   const areaLabels: Record<Course["area"], string> = {
@@ -61,6 +62,7 @@ const CourseCard = ({ course, status }: CourseCardProps) => {
       : status === "available"
       ? "bg-blue-50 border-blue-200 hover:bg-blue-100"
       : "bg-green-50 border-green-200";
+
 
   const ref = useRef<HTMLDivElement>(null);
   if (status !== "completed") drag(ref);
@@ -266,7 +268,7 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
               <p className="text-gray-900">{student.specialty}</p>
             </div>
             <div>
-              <span className="font-medium text-gray-600">Cursos Activos:</span>
+              <span className="font-medium text-gray-600">Cursos Asignados:</span>
               <p className="text-gray-900">{assigned.length}</p>
             </div>
             <div>

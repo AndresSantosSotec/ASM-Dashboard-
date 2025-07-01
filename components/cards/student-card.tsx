@@ -37,11 +37,17 @@ export function StudentCard({ student, isSelected, onSelect, onViewAssignment }:
           <div className="flex justify-between">
             <div className="flex items-center space-x-1">
               <BookOpen className="h-4 w-4" />
-              <span>Asignados: {student.assignedCourses.length}</span>
+              <span>Asignados</span>
+              <Badge variant="secondary" className="ml-1">
+                {student.assignedCourses.length}
+              </Badge>
             </div>
             <div className="flex items-center space-x-1">
               <Award className="h-4 w-4" />
-              <span>Completados: {student.completedCourses.length}</span>
+              <span>Completados</span>
+              <Badge variant="secondary" className="ml-1">
+                {student.completedCourses.length}
+              </Badge>
             </div>
           </div>
         </div>
