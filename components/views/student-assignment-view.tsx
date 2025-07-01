@@ -26,6 +26,7 @@ import {
 
 interface StudentAssignmentViewProps {
   student: Student;
+  onCoursesChange?: (assignedIds: string[], names: string[]) => void;
 }
 
 interface CourseCardProps {
@@ -47,7 +48,6 @@ const CourseCard = ({ course, status }: CourseCardProps) => {
     common: "bg-blue-500",
     specialty: "bg-green-500",
     closure: "bg-purple-500",
-
   };
 
   const areaLabels: Record<Course["area"], string> = {
@@ -62,7 +62,6 @@ const CourseCard = ({ course, status }: CourseCardProps) => {
       : status === "available"
       ? "bg-blue-50 border-blue-200 hover:bg-blue-100"
       : "bg-green-50 border-green-200";
-
 
   const ref = useRef<HTMLDivElement>(null);
   if (status !== "completed") drag(ref);
@@ -146,7 +145,7 @@ const DropZone = ({ status, onDrop, title, count, icon, children }: DropZoneProp
   );
 };
 
-export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
+export function StudentAssignmentView({ student, onCoursesChange }: StudentAssignmentViewProps) {
   const [assigned, setAssigned] = useState<Course[]>([]);
   const [completed, setCompleted] = useState<Course[]>([]);
   const [allCourses, setAllCourses] = useState<Course[]>([]);
@@ -225,6 +224,12 @@ export function StudentAssignmentView({ student }: StudentAssignmentViewProps) {
       }
       setPendingAssign([]);
       setPendingUnassign([]);
+      if (onCoursesChange) {
+        onCoursesChange(
+          assigned.map((c) => String(c.id)),
+          assigned.map((c) => c.name),
+        );
+      }
     } catch (err) {
       console.error(err);
     }
