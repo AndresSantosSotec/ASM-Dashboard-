@@ -74,6 +74,24 @@ export default function CourseAssignmentDashboard() {
     setSelectedStudentId(null)
   }
 
+  const handleCoursesChange = (
+    studentId: string,
+    assignedIds: string[],
+    names: string[],
+  ) => {
+    setStudents((prev) =>
+      prev.map((s) =>
+        s.id === studentId
+          ? {
+              ...s,
+              assignedCourses: assignedIds,
+              assignedCourseNames: names,
+            }
+          : s,
+      ),
+    )
+  }
+
   const selectedStudent = selectedStudentId ? students.find((s) => s.id === selectedStudentId) : null
 
   if (currentView === "assignment" && selectedStudent) {
@@ -88,7 +106,12 @@ export default function CourseAssignmentDashboard() {
               </Button>
               <h1 className="text-3xl font-bold">Asignación de Cursos - {selectedStudent.name}</h1>
             </div>
-            <StudentAssignmentView student={selectedStudent} />
+            <StudentAssignmentView
+              student={selectedStudent}
+              onCoursesChange={(ids, names) =>
+                handleCoursesChange(selectedStudent.id, ids, names)
+              }
+            />
           </div>
         </div>
       </DndProvider>

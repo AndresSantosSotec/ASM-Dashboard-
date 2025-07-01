@@ -35,16 +35,31 @@ export function StudentCard({ student, isSelected, onSelect, onViewAssignment }:
             <span className="font-medium">Especialidad:</span> {student.specialty}
           </div>
           <div className="flex justify-between">
-            <div className="flex items-center space-x-1">
-              <BookOpen className="h-4 w-4" />
-              <span>Asignados: {student.assignedCourses.length}</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <Award className="h-4 w-4" />
-              <span>Completados: {student.completedCourses.length}</span>
-            </div>
+          <div className="flex items-center space-x-1">
+            <BookOpen className="h-4 w-4" />
+            <span>Asignados</span>
+            <Badge variant="secondary" className="ml-1">
+              {student.assignedCourses.length}
+            </Badge>
+          </div>
+          <div className="flex items-center space-x-1">
+            <Award className="h-4 w-4" />
+            <span>Completados</span>
+            <Badge variant="secondary" className="ml-1">
+              {student.completedCourses.length}
+            </Badge>
           </div>
         </div>
+        {student.assignedCourseNames.length > 0 && (
+          <div className="mt-2 text-xs text-gray-700 space-y-1">
+            {student.assignedCourseNames.map((name) => (
+              <div key={name} className="truncate">
+                • {name}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
         <Button onClick={() => onViewAssignment(student.id)} className="w-full">
           <Settings className="h-4 w-4 mr-2" />
