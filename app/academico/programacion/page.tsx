@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { Search, Plus, Edit, Trash, Calendar, Clock, User, CheckCircle, ArrowRight, ExternalLink } from "lucide-react"
+import { Search, Plus, Edit, Trash, Calendar, Clock, User, CheckCircle, ArrowRight, ExternalLink, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -65,10 +65,25 @@ export default function ProgramacionCursos() {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isSyncingToMoodle, setIsSyncingToMoodle] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchCourses().then(setCourses).catch(console.error)
-    fetchFacilitators().then(setFacilitators).catch(console.error)
+    const loadData = async () => {
+      setLoading(true)
+      try {
+        const [courseData, facilitatorData] = await Promise.all([
+          fetchCourses(),
+          fetchFacilitators(),
+        ])
+        setCourses(courseData)
+        setFacilitators(facilitatorData)
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
   }, [])
 
 
@@ -296,7 +311,8 @@ export default function ProgramacionCursos() {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -306,8 +322,14 @@ export default function ProgramacionCursos() {
               <CardTitle>Cursos Programados</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
-                <Table>
+              {loading ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <span>Cargando cursos...</span>
+                </div>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Curso</TableHead>
@@ -413,6 +435,7 @@ export default function ProgramacionCursos() {
                   </TableBody>
                 </Table>
               </div>
+              )}
             </CardContent>
           </Card>
 
