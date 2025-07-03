@@ -22,8 +22,10 @@ export async function crearUsuarioEnBD(
   try {
     console.log("[DEBUG] crearUsuarioEnBD → payload:", payload)
 
+
     const res = await api.post("/users", payload)
     const body = res.data
+
 
     // Mostrar alerta de éxito
     await Swal.fire({
