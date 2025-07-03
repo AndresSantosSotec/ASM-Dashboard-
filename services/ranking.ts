@@ -45,7 +45,7 @@ export interface RankingParams {
 // Requires an endpoint like GET /ranking/students
 
 export const fetchRankingStudents = async (
-  params: RankingParams & { onlyEnrolled?: boolean } = {},
+  params: RankingParams & { onlyEnrolled?: boolean } = { onlyEnrolled: true },
 ) => {
   const res = await api.get('/ranking/students', {
     params: {

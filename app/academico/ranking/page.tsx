@@ -41,17 +41,16 @@ export default function RankingAcademico() {
     const getStudents = async () => {
       setLoadingStudents(true)
       try {
-        const { data, total } = await fetchRankingStudents({
+        const { data } = await fetchRankingStudents({
           search: debouncedSearch || undefined,
           program: programFilter !== 'all' ? programFilter : undefined,
           semester: semesterFilter !== 'all' ? Number(semesterFilter) : undefined,
           sortBy,
-
-          onlyEnrolled: true,
-
         })
-        setStudents(data)
-        setTotalStudents(total)
+
+        const withCourses = data.filter((s) => s.totalCourses > 0)
+        setStudents(withCourses)
+        setTotalStudents(withCourses.length)
       } catch (err) {
         console.error(err)
       } finally {
