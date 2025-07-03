@@ -28,6 +28,7 @@ export interface CoursePerformance {
     id?: string
     name?: string
     grade?: number | null
+
   }
 }
 
