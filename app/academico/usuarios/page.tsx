@@ -23,7 +23,7 @@ import { toast } from "@/hooks/use-toast"
 import { crearUsuarioEnBD } from "@/utils/crearUsuario" // Importa la utilidad nueva
 import api from "@/services/api"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL 
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 
 // Tipos
@@ -175,69 +175,69 @@ export default function GestionUsuarios() {
   })
 
   // Cargar estudiantes desde la API
-useEffect(() => {
-  async function fetchStudents() {
-    try {
-      const token = localStorage.getItem("token") || "";
-      const statuses = ["Pendiente Aprobacion", "aprobada"];
+  useEffect(() => {
+    async function fetchStudents() {
+      try {
+        const token = localStorage.getItem("token") || "";
+        const statuses = ["Pendiente Aprobacion", "aprobada"];
 
-      const responses = await Promise.all(
-        statuses.map((st) =>
-          fetch(`${API_URL}/prospectos/status/${encodeURIComponent(st)}`, {
-            headers: {
-              Accept: "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-          }).then((res) => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return res.json();
-          })
-        )
-      );
+        const responses = await Promise.all(
+          statuses.map((st) =>
+            fetch(`${API_URL}/prospectos/status/${encodeURIComponent(st)}`, {
+              headers: {
+                Accept: "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+            }).then((res) => {
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              return res.json();
+            })
+          )
+        );
 
-      const combined = responses
-        .flatMap((r) => (Array.isArray(r.data) ? r.data : []))
-        .reduce<any[]>((acc, p) => {
-          if (!acc.find((x) => x.id === p.id)) acc.push(p);
-          return acc;
-        }, []);
+        const combined = responses
+          .flatMap((r) => (Array.isArray(r.data) ? r.data : []))
+          .reduce<any[]>((acc, p) => {
+            if (!acc.find((x) => x.id === p.id)) acc.push(p);
+            return acc;
+          }, []);
 
-      const mapped: Student[] = combined.map((raw: any) => ({
-        id: String(raw.id),
-        name: raw.nombre_completo?.split(" ")[0] || "",
-        lastName: raw.nombre_completo?.split(" ").slice(1).join(" ") || "",
-        email: raw.correo_electronico || "",
-        phone: raw.telefono || "",
-        program: raw.nombre_programa || "",
-        idNumber: raw.id || "",
-        birthDate: raw.fecha_nacimiento || "",
-        status: raw.status || "pending",
-        username: raw.username || undefined,
-        institutionalEmail: raw.institutional_email || undefined,
-        password: raw.password || undefined,
-      }));
+        const mapped: Student[] = combined.map((raw: any) => ({
+          id: String(raw.id),
+          name: raw.nombre_completo?.split(" ")[0] || "",
+          lastName: raw.nombre_completo?.split(" ").slice(1).join(" ") || "",
+          email: raw.correo_electronico || "",
+          phone: raw.telefono || "",
+          program: raw.nombre_programa || "",
+          idNumber: raw.id || "",
+          birthDate: raw.fecha_nacimiento || "",
+          status: raw.status || "pending",
+          username: raw.username || undefined,
+          institutionalEmail: raw.institutional_email || undefined,
+          password: raw.password || undefined,
+        }));
 
-      setStudents(mapped);
-      setFetchError(null);
+        setStudents(mapped);
+        setFetchError(null);
 
-    } catch (err) {
-      const error = err as Error;
-      console.error('[DEBUG] Error en fetchStudents:', error.message);
-      toast({
-        title: "Error",
-        description: `No se pudieron cargar los estudiantes: ${error.message}`,
-      });
-      setFetchError(
-        "No se pudieron cargar los estudiantes. Ver consola para más detalles."
-      );
+      } catch (err) {
+        const error = err as Error;
+        console.error('[DEBUG] Error en fetchStudents:', error.message);
+        toast({
+          title: "Error",
+          description: `No se pudieron cargar los estudiantes: ${error.message}`,
+        });
+        setFetchError(
+          "No se pudieron cargar los estudiantes. Ver consola para más detalles."
+        );
+      }
     }
-  }
-  
-  console.log('[DEBUG] Iniciando carga de estudiantes...');
-  fetchStudents();
-  const interval = setInterval(fetchStudents, 300000); // refresh cada 5 min
-  return () => clearInterval(interval);
-}, []);
+
+    console.log('[DEBUG] Iniciando carga de estudiantes...');
+    fetchStudents();
+    const interval = setInterval(fetchStudents, 300000); // refresh cada 5 min
+    return () => clearInterval(interval);
+  }, []);
 
   // Filtrar estudiantes
   const filteredStudents = useMemo(() => {
@@ -379,9 +379,11 @@ useEffect(() => {
     try {
       // Generar username base
       const base = `${selectedStudent.name.toLowerCase().trim()}.${selectedStudent.lastName.toLowerCase().trim()}`
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/\s+/g, "")
+
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, "")
+
       let username = base
       let institutionalEmail = `${username}@americanschool.edu.gt`
       let suffix = 1
@@ -419,12 +421,12 @@ useEffect(() => {
         prev.map((s) =>
           s.id === selectedStudent.id
             ? {
-                ...s,
-                username,
-                institutionalEmail,
-                password,
-                status: "Inscrito",
-              }
+              ...s,
+              username,
+              institutionalEmail,
+              password,
+              status: "Inscrito",
+            }
             : s,
         ),
       )
@@ -432,12 +434,12 @@ useEffect(() => {
       setSelectedStudent((prev) =>
         prev
           ? {
-              ...prev,
-              username,
-              institutionalEmail,
-              password,
-              status: "Inscrito",
-            }
+            ...prev,
+            username,
+            institutionalEmail,
+            password,
+            status: "Inscrito",
+          }
           : null,
       )
 
