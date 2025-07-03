@@ -411,6 +411,83 @@ export default function Sidebar({ open, className }: SidebarProps) {
           </div>
         )}
 
+                {/* Finanzas y Pagos (expandible) */}
+        {userRole === "Administrador" && (
+          <div className="mb-1">
+            <button
+              onClick={() => toggleSection("finanzas")}
+              className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md transition-colors duration-200"
+            >
+              <div className="flex items-center">
+                <DollarSign size={18} className="mr-2" />
+                <span>Finanzas y Pagos</span>
+              </div>
+              {expandedSections["finanzas"] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </button>
+
+            {expandedSections["finanzas"] && (
+              <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
+                <Link
+                  href="/finanzas/dashboard"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/dashboard" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <PieChart size={16} className="mr-2" />
+                  <span>Dashboard Financiero</span>
+                </Link>
+                <Link
+                  href="/finanzas/estado-cuenta"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/estado-cuenta" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <FileText size={16} className="mr-2" />
+                  <span>Estado de Cuenta</span>
+                </Link>
+                <Link
+                  href="/finanzas/gestion-pagos"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/gestion-pagos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <CreditCard size={16} className="mr-2" />
+                  <span>Gestión de Pagos</span>
+                </Link>
+                <Link
+                  href="/finanzas/conciliacion"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/conciliacion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <RefreshCw size={16} className="mr-2" />
+                  <span>Conciliación Bancaria</span>
+                </Link>
+                <Link
+                  href="/finanzas/seguimiento-cobros"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/seguimiento-cobros" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Phone size={16} className="mr-2" />
+                  <span>Seguimiento de Cobros</span>
+                </Link>
+                <Link
+                  href="/finanzas/reportes"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/reportes" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <BarChart size={16} className="mr-2" />
+                  <span>Reportes Financieros</span>
+                </Link>
+                <Link
+                  href="/finanzas/configuracion"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/configuracion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <Settings size={16} className="mr-2" />
+                  <span>Configuración</span>
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Docentes (expandible) */}
         {userRole === "Administrador" && (
           <div className="mb-1">
@@ -612,82 +689,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
           </div>
         )}
 
-        {/* Finanzas y Pagos (expandible) */}
-        {userRole === "Administrador" && (
-          <div className="mb-1">
-            <button
-              onClick={() => toggleSection("finanzas")}
-              className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md transition-colors duration-200"
-            >
-              <div className="flex items-center">
-                <DollarSign size={18} className="mr-2" />
-                <span>Finanzas y Pagos</span>
-              </div>
-              {expandedSections["finanzas"] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            </button>
 
-            {expandedSections["finanzas"] && (
-              <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
-                <Link
-                  href="/finanzas/dashboard"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/dashboard" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
-                >
-                  <PieChart size={16} className="mr-2" />
-                  <span>Dashboard Financiero</span>
-                </Link>
-                <Link
-                  href="/finanzas/estado-cuenta"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/estado-cuenta" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
-                >
-                  <FileText size={16} className="mr-2" />
-                  <span>Estado de Cuenta</span>
-                </Link>
-                <Link
-                  href="/finanzas/gestion-pagos"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/gestion-pagos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
-                >
-                  <CreditCard size={16} className="mr-2" />
-                  <span>Gestión de Pagos</span>
-                </Link>
-                <Link
-                  href="/finanzas/conciliacion"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/conciliacion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
-                >
-                  <RefreshCw size={16} className="mr-2" />
-                  <span>Conciliación Bancaria</span>
-                </Link>
-                <Link
-                  href="/finanzas/seguimiento-cobros"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/seguimiento-cobros" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
-                >
-                  <Phone size={16} className="mr-2" />
-                  <span>Seguimiento de Cobros</span>
-                </Link>
-                <Link
-                  href="/finanzas/reportes"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/reportes" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
-                >
-                  <BarChart size={16} className="mr-2" />
-                  <span>Reportes Financieros</span>
-                </Link>
-                <Link
-                  href="/finanzas/configuracion"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/configuracion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
-                >
-                  <Settings size={16} className="mr-2" />
-                  <span>Configuración</span>
-                </Link>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Administración (expandible) */}
         {userRole === "Administrador" && (
