@@ -22,12 +22,13 @@ export interface CoursePerformance {
   code: string
   period: string
   students: number
-  averageGrade: number
-  passingRate: number
-  topStudent: {
-    id: string
-    name: string
-    grade: number
+  averageGrade?: number | null
+  passingRate?: number | null
+  topStudent?: {
+    id?: string
+    name?: string
+    grade?: number | null
+
   }
 }
 

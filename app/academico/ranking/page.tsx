@@ -477,10 +477,20 @@ export default function RankingAcademico() {
                           <TableCell>{course.code}</TableCell>
                           <TableCell>{course.period}</TableCell>
                           <TableCell>{course.students}</TableCell>
-                          <TableCell>{course.averageGrade.toFixed(1)}</TableCell>
-                          <TableCell>{Math.round(course.passingRate * 100)}%</TableCell>
                           <TableCell>
-                            {course.topStudent.name} ({course.topStudent.grade.toFixed(1)})
+                            {course.averageGrade !== undefined && course.averageGrade !== null
+                              ? course.averageGrade.toFixed(1)
+                              : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {course.passingRate !== undefined && course.passingRate !== null
+                              ? `${Math.round(course.passingRate * 100)}%`
+                              : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {course.topStudent && course.topStudent.name
+                              ? `${course.topStudent.name} (${course.topStudent.grade?.toFixed(1) ?? "-"})`
+                              : "-"}
                           </TableCell>
                         </TableRow>
                       ))
