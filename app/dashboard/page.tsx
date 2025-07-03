@@ -1,4 +1,7 @@
+"use client"
+
 import type { Metadata } from "next"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -13,6 +16,9 @@ import {
   Settings,
 } from "lucide-react"
 import Link from "next/link"
+import { fetchCourses } from "@/services/courses"
+import { fetchEnrolledStudents } from "@/services/students"
+import { fetchUsers } from "@/services/users"
 
 export const metadata: Metadata = {
   title: "Dashboard | Blue Atlas",
@@ -86,6 +92,28 @@ export default function DashboardPage() {
     },
   ]
 
+  const [totalUsers, setTotalUsers] = useState<number>(0)
+  const [activeStudents, setActiveStudents] = useState<number>(0)
+  const [activeCourses, setActiveCourses] = useState<number>(0)
+
+  useEffect(() => {
+    const loadMetrics = async () => {
+      try {
+        const [users, students, courses] = await Promise.all([
+          fetchUsers(),
+          fetchEnrolledStudents(),
+          fetchCourses(),
+        ])
+        setTotalUsers(users.length)
+        setActiveStudents(students.length)
+        setActiveCourses(courses.length)
+      } catch (err) {
+        console.error('Error fetching dashboard metrics', err)
+      }
+    }
+    loadMetrics()
+  }, [])
+
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
@@ -107,8 +135,8 @@ export default function DashboardPage() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">1,248</div>
-                <p className="text-xs text-muted-foreground">+12% respecto al mes anterior</p>
+                <div className="text-2xl font-bold">{totalUsers}</div>
+                <p className="text-xs text-muted-foreground">Usuarios registrados</p>
               </CardContent>
             </Card>
             <Card>
@@ -117,8 +145,8 @@ export default function DashboardPage() {
                 <BookOpen className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">845</div>
-                <p className="text-xs text-muted-foreground">+5% respecto al mes anterior</p>
+                <div className="text-2xl font-bold">{activeStudents}</div>
+                <p className="text-xs text-muted-foreground">Estudiantes inscritos</p>
               </CardContent>
             </Card>
             <Card>
@@ -127,8 +155,8 @@ export default function DashboardPage() {
                 <GraduationCap className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">42</div>
-                <p className="text-xs text-muted-foreground">+2 nuevos cursos este mes</p>
+                <div className="text-2xl font-bold">{activeCourses}</div>
+                <p className="text-xs text-muted-foreground">Cursos activos</p>
               </CardContent>
             </Card>
           </div>
