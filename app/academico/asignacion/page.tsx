@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Search } from "lucide-react"
+import { Search, Loader2 } from "lucide-react"
 import {
   Pagination,
   PaginationContent,
@@ -297,7 +297,12 @@ export default function AsignacionPage() {
             </Select>
           </div>
 
-          {loading && <p>Cargando...</p>}
+          {loading && (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <span>Cargando estudiantes...</span>
+            </div>
+          )}
           {error && <p className="text-red-500">{error}</p>}
 
           <div className="overflow-x-auto">
