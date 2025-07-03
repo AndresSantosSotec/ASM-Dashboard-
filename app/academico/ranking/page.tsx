@@ -46,7 +46,9 @@ export default function RankingAcademico() {
           program: programFilter !== 'all' ? programFilter : undefined,
           semester: semesterFilter !== 'all' ? Number(semesterFilter) : undefined,
           sortBy,
+
           onlyEnrolled: true,
+
         })
         setStudents(data)
         setTotalStudents(total)

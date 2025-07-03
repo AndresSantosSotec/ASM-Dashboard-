@@ -28,6 +28,7 @@ export interface CoursePerformance {
     id?: string
     name?: string
     grade?: number | null
+
   }
 }
 
@@ -42,6 +43,7 @@ export interface RankingParams {
 
 // Fetch ranking of students from backend
 // Requires an endpoint like GET /ranking/students
+
 export const fetchRankingStudents = async (
   params: RankingParams & { onlyEnrolled?: boolean } = {},
 ) => {
@@ -51,6 +53,7 @@ export const fetchRankingStudents = async (
       ...params,
     },
   })
+
   const data = Array.isArray(res.data.data) ? res.data : { data: res.data, total: res.data.length }
   return { data: data.data as RankingStudent[], total: data.total as number }
 }

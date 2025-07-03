@@ -60,7 +60,7 @@ interface Payment {
   studentId: string
   concept: string
   amount: number
-  date: string
+  date: string | null
   status: "paid" | "pending" | "overdue"
   dueDate: string
 }
