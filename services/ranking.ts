@@ -43,8 +43,17 @@ export interface RankingParams {
 
 // Fetch ranking of students from backend
 // Requires an endpoint like GET /ranking/students
-export const fetchRankingStudents = async (params: RankingParams) => {
-  const res = await api.get('/ranking/students', { params })
+
+export const fetchRankingStudents = async (
+  params: RankingParams & { onlyEnrolled?: boolean } = {},
+) => {
+  const res = await api.get('/ranking/students', {
+    params: {
+      status: params.onlyEnrolled ? 'Inscrito' : undefined,
+      ...params,
+    },
+  })
+
   const data = Array.isArray(res.data.data) ? res.data : { data: res.data, total: res.data.length }
   return { data: data.data as RankingStudent[], total: data.total as number }
 }
