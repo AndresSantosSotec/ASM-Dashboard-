@@ -380,9 +380,9 @@ export default function GestionUsuarios() {
       // Generar username base
       const base = `${selectedStudent.name.toLowerCase().trim()}.${selectedStudent.lastName.toLowerCase().trim()}`
 
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\s+/g, "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, "")
 
       let username = base
       let institutionalEmail = `${username}@americanschool.edu.gt`

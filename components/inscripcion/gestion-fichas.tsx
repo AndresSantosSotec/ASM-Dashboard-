@@ -29,7 +29,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select"
-import { Eye, CheckCircle, XCircle, Calendar } from "lucide-react"
+import { Eye, CheckCircle, XCircle, Calendar, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { FichaEstudiante } from "@/components/inscripcion/types"
@@ -57,6 +57,7 @@ export function GestionFichas() {
   const [selectedFicha, setSelectedFicha] = useState<FichaEstudiante | null>(null)
   const [activeTab, setActiveTab] = useState<"fichas" | "documentos">("fichas")
   const [isDetalleModalOpen, setDetalleModalOpen] = useState(false)
+  const [processingId, setProcessingId] = useState<number | null>(null)
 
   useEffect(() => {
     async function fetchFichas() {
@@ -114,6 +115,7 @@ export function GestionFichas() {
   }
 
   const handleApprove = async (id: number) => {
+    setProcessingId(id)
     try {
       const token = localStorage.getItem("token")
       const res = await fetch(`${API_URL}/prospectos/${id}/status`, {
@@ -139,10 +141,13 @@ export function GestionFichas() {
     } catch (err) {
       console.error("Error al aprobar ficha", err)
       Swal.fire("Oops...", "No se pudo aprobar la ficha", "error")
+    } finally {
+      setProcessingId(null)
     }
   }
 
   const handleReject = async (id: number) => {
+    setProcessingId(id)
     try {
       const token = localStorage.getItem("token")
       const res = await fetch(`${API_URL}/fichas/${id}/reject`, {
@@ -158,6 +163,8 @@ export function GestionFichas() {
     } catch (err) {
       console.error("Error al rechazar ficha", err)
       Swal.fire("Error", "No se pudo rechazar la ficha", "error")
+    } finally {
+      setProcessingId(null)
     }
   }
 
@@ -293,11 +300,29 @@ export function GestionFichas() {
                       <Button variant="ghost" size="icon" onClick={() => handleViewDetalle(f)}>
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleApprove(f.id)} disabled={f.estado === "aprobada"}>
-                        <CheckCircle className={`h-4 w-4 ${f.estado === "aprobada" ? "text-gray-400" : "text-green-500"}`} />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleApprove(f.id)}
+                        disabled={f.estado === "aprobada" || processingId === f.id}
+                      >
+                        {processingId === f.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle className={`h-4 w-4 ${f.estado === "aprobada" ? "text-gray-400" : "text-green-500"}`} />
+                        )}
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleReject(f.id)}>
-                        <XCircle className="h-4 w-4 text-red-500" />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleReject(f.id)}
+                        disabled={processingId === f.id}
+                      >
+                        {processingId === f.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-red-500" />
+                        )}
                       </Button>
                     </div>
                   </TableCell>

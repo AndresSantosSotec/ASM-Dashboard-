@@ -473,8 +473,8 @@ export default function RankingAcademico() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      courses.map((course) => (
-                        <TableRow key={course.id}>
+                      courses.map((course, idx) => (
+                        <TableRow key={course.id ?? idx}>
                           <TableCell>{course.name}</TableCell>
                           <TableCell>{course.code}</TableCell>
                           <TableCell>{course.period}</TableCell>
