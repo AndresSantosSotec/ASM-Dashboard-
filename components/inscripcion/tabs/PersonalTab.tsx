@@ -1,20 +1,17 @@
 "use client"
-import { useMemo } from "react"
+
+import { useMemo, useEffect, useState } from "react"
 import { Search, ArrowRight, CheckCircle } from "lucide-react"
 import Swal from "sweetalert2"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import CountryCombobox from "../CountryCombobox"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { RequiredAsterisk } from "@/components/ui/required-asterisk"
 import { Textarea } from "@/components/ui/textarea"
 import { DatosPersonales } from "../types"
+import { useCountries } from "@/hooks/useCountries"
 
 interface Props {
   datos: DatosPersonales
@@ -29,15 +26,20 @@ export default function PersonalTab({
   openModal,
   goNext,
 }: Props) {
-  const paises = [
-    "Guatemala",
-    "El Salvador",
-    "Honduras",
-    "Nicaragua",
-    "Costa Rica",
-    "Panamá",
-    "México",
-  ]
+  const { countries } = useCountries()
+
+  // Set default countries when data is empty
+  useEffect(() => {
+    if (countries.length > 0) {
+      if (!datos.paisOrigen) {
+        setDatos((prev) => ({ ...prev, paisOrigen: "Guatemala" }))
+      }
+      if (!datos.paisResidencia) {
+        setDatos((prev) => ({ ...prev, paisResidencia: "Guatemala" }))
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countries])
 
   // Validación de campos obligatorios con DPI de 13 dígitos
   const isFormValid = useMemo(() => {
@@ -87,7 +89,9 @@ export default function PersonalTab({
       <div className="grid gap-6 md:grid-cols-2">
         {/* Nombre completo */}
         <div className="space-y-2">
-          <Label>Nombre completo *</Label>
+          <Label>
+            Nombre completo <RequiredAsterisk />
+          </Label>
           <Input
             value={datos.nombre || ""}
             onChange={(e) => setDatos({ ...datos, nombre: e.target.value })}
@@ -98,48 +102,34 @@ export default function PersonalTab({
         {/* País origen / residencia */}
         <div className="grid gap-6 md:grid-cols-2">
           <div className="space-y-2">
-            <Label>País de origen *</Label>
-            <Select
+            <Label>
+              País de origen <RequiredAsterisk />
+            </Label>
+            <CountryCombobox
+              countries={countries}
               value={datos.paisOrigen || ""}
-              onValueChange={(v) => setDatos({ ...datos, paisOrigen: v })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccione" />
-              </SelectTrigger>
-              <SelectContent>
-                {paises.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(v) => setDatos({ ...datos, paisOrigen: v })}
+            />
           </div>
           <div className="space-y-2">
-            <Label>País de residencia *</Label>
-            <Select
+            <Label>
+              País de residencia <RequiredAsterisk />
+            </Label>
+            <CountryCombobox
+              countries={countries}
               value={datos.paisResidencia || ""}
-              onValueChange={(v) =>
+              onChange={(v) =>
                 setDatos({ ...datos, paisResidencia: v })
               }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccione" />
-              </SelectTrigger>
-              <SelectContent>
-                {paises.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           </div>
         </div>
 
         {/* Teléfono */}
         <div className="space-y-2">
-          <Label>Teléfono móvil *</Label>
+          <Label>
+            Teléfono móvil <RequiredAsterisk />
+          </Label>
           <Input
             value={datos.telefono || ""}
             onChange={(e) =>
@@ -151,7 +141,9 @@ export default function PersonalTab({
 
         {/* DPI con validación onBlur */}
         <div className="space-y-2">
-          <Label>DPI *</Label>
+          <Label>
+            DPI <RequiredAsterisk />
+          </Label>
           <Input
             value={datos.dpi || ""}
             onChange={(e) => setDatos({ ...datos, dpi: e.target.value })}
@@ -162,7 +154,9 @@ export default function PersonalTab({
 
         {/* Emails */}
         <div className="space-y-2">
-          <Label>Email personal *</Label>
+          <Label>
+            Email personal <RequiredAsterisk />
+          </Label>
           <Input
             type="email"
             value={datos.emailPersonal || ""}
@@ -185,7 +179,9 @@ export default function PersonalTab({
 
         {/* Fecha nacimiento */}
         <div className="space-y-2">
-          <Label>Fecha de nacimiento *</Label>
+          <Label>
+            Fecha de nacimiento <RequiredAsterisk />
+          </Label>
           <Input
             type="date"
             value={datos.fechaNacimiento || ""}
@@ -198,7 +194,9 @@ export default function PersonalTab({
 
         {/* Dirección */}
         <div className="space-y-2 md:col-span-2">
-          <Label>Dirección de residencia *</Label>
+          <Label>
+            Dirección de residencia <RequiredAsterisk />
+          </Label>
           <Textarea
             value={datos.direccion || ""}
             onChange={(e) =>
@@ -214,7 +212,11 @@ export default function PersonalTab({
         <Button
           onClick={goNext}
           disabled={!isFormValid}
-          className={isFormValid ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+          className={
+            isFormValid
+              ? "bg-green-600 hover:bg-green-700 text-white"
+              : ""
+          }
         >
           Siguiente
           <ArrowRight className="ml-2 h-4 w-4" />

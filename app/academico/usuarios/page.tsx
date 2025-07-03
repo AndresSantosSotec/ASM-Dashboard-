@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
 import { crearUsuarioEnBD } from "@/utils/crearUsuario" // Importa la utilidad nueva
+import api from "@/services/api"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL 
 
@@ -96,7 +97,9 @@ function generatePassword(student: { name: string; lastName: string; idNumber: s
   return `${nameInitial}${lastNameInitial}${idSuffix}${randomDigits}`;
 }
 
-function getStatusBadgeInfo(status: string) {
+function getStatusBadgeInfo(
+  status: string
+): { variant: "success" | "default" | "destructive" | "outline" | "secondary"; label: string } {
   switch (status.toLowerCase()) {
     case "active":
       return { variant: "default", label: "Activo" };
@@ -108,6 +111,42 @@ function getStatusBadgeInfo(status: string) {
       return { variant: "default", label: "Inscrito" };
     default:
       return { variant: "secondary", label: status };
+  }
+}
+
+async function checkEmailExists(email: string): Promise<boolean> {
+  try {
+    const res = await api.get('/users', { params: { email } })
+    const data = Array.isArray(res.data)
+      ? res.data
+      : Array.isArray(res.data?.data)
+        ? res.data.data
+        : res.data
+    if (Array.isArray(data)) {
+      return data.some((u: any) => u.email === email)
+    }
+    return !!data
+  } catch (err) {
+    console.error('Error checking email', err)
+    return false
+  }
+}
+
+async function checkUsernameExists(username: string): Promise<boolean> {
+  try {
+    const res = await api.get('/users', { params: { username } })
+    const data = Array.isArray(res.data)
+      ? res.data
+      : Array.isArray(res.data?.data)
+        ? res.data.data
+        : res.data
+    if (Array.isArray(data)) {
+      return data.some((u: any) => u.username === username)
+    }
+    return !!data
+  } catch (err) {
+    console.error('Error checking username', err)
+    return false
   }
 }
 
@@ -196,6 +235,8 @@ useEffect(() => {
   
   console.log('[DEBUG] Iniciando carga de estudiantes...');
   fetchStudents();
+  const interval = setInterval(fetchStudents, 300000); // refresh cada 5 min
+  return () => clearInterval(interval);
 }, []);
 
   // Filtrar estudiantes
@@ -336,11 +377,21 @@ useEffect(() => {
     setIsGeneratingCredentials(true)
 
     try {
-      // Generar username, email y password automáticamente
-      const username = `${selectedStudent.name.toLowerCase()}.${selectedStudent.lastName.toLowerCase()}`
+      // Generar username base
+      const base = `${selectedStudent.name.toLowerCase()}.${selectedStudent.lastName.toLowerCase()}`
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
-      const institutionalEmail = `${username}@americanschool.edu.gt`
+      let username = base
+      let institutionalEmail = `${username}@americanschool.edu.gt`
+      let suffix = 1
+
+      // Verificar si el correo o el username ya existen y ajustar de ser necesario
+      while (await checkEmailExists(institutionalEmail) || await checkUsernameExists(username)) {
+        username = `${base}${suffix}`
+        institutionalEmail = `${username}@americanschool.edu.gt`
+        suffix++
+      }
+
       const password = generatePassword(selectedStudent)
 
       // Payload para la API

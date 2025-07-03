@@ -53,35 +53,29 @@ export default function Duplicates() {
   const [sortDesc, setSortDesc] = useState<boolean>(true)
   const [pageSize, setPageSize] = useState<number>(5)
   const [currentPage, setCurrentPage] = useState<number>(1)
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
 
-  // Trae todos los duplicados de golpe
+
+  const fetchDuplicates = async () => {
+    const token = localStorage.getItem("token") || ""
+    const res = await fetch(`${API_URL}/duplicates?per_page=999999`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const j = await res.json()
+    setAllDups((j.data || []).map((r: any) => ({
+      id: r.id,
+      similarity_score: r.similarity_score,
+      status: r.status,
+      originalProspect: r.original_prospect,
+      duplicateProspect: r.duplicate_prospect,
+    })))
+  }
+
+
+  // Trae y detecta duplicados al entrar
   useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true)
-      try {
-        const token = localStorage.getItem("token") || ""
-        const res = await fetch(`${API_URL}/duplicates?per_page=999999`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const json = await res.json()
-        // normalizamos camelCase
-        const list: Duplicate[] = (json.data || []).map((row: any) => ({
-          id: row.id,
-          similarity_score: row.similarity_score,
-          status: row.status,
-          originalProspect: row.original_prospect,
-          duplicateProspect: row.duplicate_prospect,
-        }))
-        setAllDups(list)
-      } catch (err: any) {
-        console.error(err)
-        Swal.fire("Error", "No se pudieron cargar los duplicados.", "error")
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchAll()
+    detectDuplicates()
   }, [])
 
   // 1) Detección en servidor
@@ -96,18 +90,7 @@ export default function Duplicates() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       await res.json()
       Swal.fire("¡Hecho!", "Detección completada.", "success")
-      // recargar todo
-      const reload = await fetch(`${API_URL}/duplicates?per_page=999999`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const j = await reload.json()
-      setAllDups((j.data || []).map((r: any) => ({
-        id: r.id,
-        similarity_score: r.similarity_score,
-        status: r.status,
-        originalProspect: r.original_prospect,
-        duplicateProspect: r.duplicate_prospect,
-      })))
+      await fetchDuplicates()
       setCurrentPage(1)
     } catch (err: any) {
       console.error(err)
@@ -117,8 +100,50 @@ export default function Duplicates() {
     }
   }
 
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+
+  const toggleSelectAll = () => {
+    const ids = filtered.map(d => d.id)
+    const allSelected = ids.every(id => selectedIds.includes(id))
+    setSelectedIds(allSelected ? [] : ids)
+  }
+
+  const doBulkAction = async (action: string) => {
+    if (selectedIds.length === 0) return
+    setLoading(true)
+    try {
+
+      const token = localStorage.getItem("token") || ""
+      const res = await fetch(`${API_URL}/duplicates/bulk-action`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ids: selectedIds, action }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        throw new Error(err?.message || `HTTP ${res.status}`)
+      }
+
+      await fetchDuplicates()
+      setCurrentPage(1)
+
+
+      Swal.fire("¡Hecho!", "Operación completada.", "success")
+      setSelectedIds([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // 2) Acción sobre un duplicado
-  const doAction = async (id: number, action: string) => {
+  const doAction = async (id: number, action: string, silent = false) => {
     try {
       const token = localStorage.getItem("token") || ""
       const res = await fetch(`${API_URL}/duplicates/${id}/action`, {
@@ -133,14 +158,17 @@ export default function Duplicates() {
         const err = await res.json()
         throw new Error(err.message || `HTTP ${res.status}`)
       }
-      Swal.fire("¡Hecho!", "Operación completada.", "success")
-      // recarga local: quitamos el duplicado resuelto
-      setAllDups((prev) => prev.map(d =>
-        d.id === id ? { ...d, status: "resolved" } : d
-      ))
+      if (!silent) {
+        Swal.fire("¡Hecho!", "Operación completada.", "success")
+      }
+
+      await fetchDuplicates()
+      setCurrentPage(1)
     } catch (err: any) {
       console.error(err)
-      Swal.fire("Error", err.message, "error")
+      if (!silent) {
+        Swal.fire("Error", err.message, "error")
+      }
     }
   }
 
@@ -290,6 +318,13 @@ export default function Duplicates() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-4 text-center">
+                        <input
+                          type="checkbox"
+                          onChange={toggleSelectAll}
+                          checked={filtered.length > 0 && filtered.every(d => selectedIds.includes(d.id))}
+                        />
+                      </TableHead>
                       <TableHead>Original</TableHead>
                       <TableHead>Duplicado</TableHead>
                       <TableHead>Similitud</TableHead>
@@ -304,6 +339,13 @@ export default function Duplicates() {
                       const u = d.duplicateProspect
                       return (
                         <TableRow key={d.id} className="hover:bg-gray-50">
+                          <TableCell className="text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(d.id)}
+                              onChange={() => toggleSelect(d.id)}
+                            />
+                          </TableCell>
                           <TableCell>
                             {o?.id ? (
                               <div className="space-y-1">
@@ -380,14 +422,24 @@ export default function Duplicates() {
 
                     {paginated.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-4">
+                        <TableCell colSpan={6} className="text-center py-4">
                           No se encontraron duplicados.
                         </TableCell>
                       </TableRow>
                     )}
-                  </TableBody>
-                </Table>
+                 </TableBody>
+               </Table>
               </div>
+
+              {selectedIds.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 p-4">
+                  <span className="text-sm mr-2">{selectedIds.length} seleccionados</span>
+                  <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => doBulkAction('keep_original')}>Mantener originales</Button>
+                  <Button size="sm" variant="outline" onClick={() => doBulkAction('keep_duplicate')}>Mantener duplicados</Button>
+                  <Button size="sm" variant="destructive" onClick={() => doBulkAction('delete_duplicate')}>Eliminar duplicados</Button>
+                  <Button size="sm" variant="outline" onClick={() => doBulkAction('mark_reviewed')}>Marcar revisados</Button>
+                </div>
+              )}
 
               {/* Paginación */}
               {pageSize !== 0 && (
