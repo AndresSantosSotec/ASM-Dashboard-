@@ -15,11 +15,13 @@ import {
 import Link from "next/link"
 import { fetchCourses } from "@/services/courses"
 import { fetchEnrolledStudents } from "@/services/students"
+
 import { fetchUsers, fetchCurrentUser } from "@/services/users"
 import {
   fetchProspectos,
   fetchProspectCountByStatus,
 } from '@/services/prospectos'
+
 
 export const metadata: Metadata = {
   title: "Dashboard | Blue Atlas",
@@ -81,6 +83,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const loadMetrics = async () => {
       try {
+
         const currentUser = await fetchCurrentUser()
         const [users, students, courses, prospects] = await Promise.all([
           fetchUsers(),
@@ -100,8 +103,8 @@ export default function DashboardPage() {
               : prospects.filter(
                   p => p.created_by === currentUser.id,
                 ).length
-          setMyStudents(mine)
 
+          setMyStudents(mine)
           const statuses = [
             'Interesado',
             'No le interesa',
@@ -114,6 +117,7 @@ export default function DashboardPage() {
           }
           setLeadStats(counts)
         }
+
       } catch (err) {
         console.error('Error fetching dashboard metrics', err)
       }
@@ -164,6 +168,7 @@ export default function DashboardPage() {
               <CardContent>
                 <div className="text-2xl font-bold">{activeCourses}</div>
                 <p className="text-xs text-muted-foreground">Cursos activos</p>
+
               </CardContent>
             </Card>
             <Card>
@@ -174,6 +179,7 @@ export default function DashboardPage() {
               <CardContent>
                 <div className="text-2xl font-bold">{myStudents}</div>
                 <p className="text-xs text-muted-foreground">Estudiantes asignados</p>
+
               </CardContent>
             </Card>
           </div>

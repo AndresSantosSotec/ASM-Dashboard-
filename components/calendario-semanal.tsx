@@ -1,23 +1,28 @@
 "use client"
 
 import { useEffect, useState } from "react"
+
 import { startOfWeek, endOfWeek, isWithinInterval } from 'date-fns'
 import { fetchCurrentUser, type User } from '@/services/users'
 import { fetchCitas, type Cita } from '@/services/citas'
 import { fetchTareas, type Tarea } from '@/services/tareas'
 
+
 interface Cita {
   id: number
   datecita: string
   descricita: string
+
   created_by?: number
   user_id?: number
+
 }
 
 export default function CalendarioSemanal() {
   const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
   const [citas, setCitas] = useState<Cita[]>([])
+
   const [tareas, setTareas] = useState<Tarea[]>([])
   const [user, setUser] = useState<User | null>(null)
 
@@ -32,8 +37,10 @@ export default function CalendarioSemanal() {
           fetchTareas(),
         ])
 
+
         const start = startOfWeek(new Date(), { weekStartsOn: 1 })
         const end = endOfWeek(new Date(), { weekStartsOn: 1 })
+
 
         const filterOwn = <T extends { created_by?: number; user_id?: number; [key: string]: any }>(arr: T[], getDate: (item: T) => string) =>
           arr.filter(item => {
@@ -77,6 +84,7 @@ export default function CalendarioSemanal() {
       }
     }),
   ]
+
 
   const hoy = dias[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1]
 
