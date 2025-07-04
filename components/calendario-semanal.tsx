@@ -1,22 +1,27 @@
 "use client"
 
 import { useEffect, useState } from "react"
+
 import { fetchWeekEvents } from '@/lib/calendar-events'
 import type { Cita } from '@/services/citas'
 import type { Tarea } from '@/services/tareas'
+
+
 
 export default function CalendarioSemanal() {
   const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
   const [citas, setCitas] = useState<Cita[]>([])
-  const [tareas, setTareas] = useState<Tarea[]>([])
 
-  useEffect(() => {
+  const [tareas, setTareas] = useState<Tarea[]>([])
+   useEffect(() => {
     const loadEvents = async () => {
       try {
+
         const { citas, tareas } = await fetchWeekEvents()
         setCitas(citas)
         setTareas(tareas)
+
       } catch (err) {
         console.error('Error fetching calendar events', err)
       }
@@ -46,6 +51,7 @@ export default function CalendarioSemanal() {
       }
     }),
   ]
+
 
   const hoy = dias[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1]
 

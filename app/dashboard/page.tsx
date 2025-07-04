@@ -21,6 +21,7 @@ import {
   fetchProspectCountByStatus,
 } from '@/services/prospectos'
 
+
 export const metadata: Metadata = {
   title: "Dashboard | Blue Atlas",
   description: "Panel de control principal",
@@ -100,8 +101,8 @@ export default function DashboardPage() {
               : prospects.filter(
                   p => p.created_by === currentUser.id,
                 ).length
-          setMyStudents(mine)
 
+          setMyStudents(mine)
           const statuses = [
             'Interesado',
             'No le interesa',
