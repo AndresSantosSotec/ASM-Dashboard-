@@ -2,26 +2,33 @@
 
 import { useEffect, useState } from "react"
 import { api } from "@/services/api"
+
 import { startOfWeek, endOfWeek, isWithinInterval } from 'date-fns'
 import { fetchCurrentUser, type User } from '@/services/users'
+
 
 interface Cita {
   id: number
   datecita: string
   descricita: string
+
   created_by?: number
   user_id?: number
+
 }
 
 export default function CalendarioSemanal() {
   const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
   const [citas, setCitas] = useState<Cita[]>([])
+
   const [user, setUser] = useState<User | null>(null)
+
 
   useEffect(() => {
     const fetchCitas = async () => {
       try {
+
         const currentUser = await fetchCurrentUser()
         setUser(currentUser)
 
@@ -40,6 +47,7 @@ export default function CalendarioSemanal() {
             c.user_id === currentUser?.id
           return inWeek && owned
         })
+
 
         setCitas(data)
       } catch (err) {

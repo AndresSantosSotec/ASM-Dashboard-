@@ -4,7 +4,9 @@ export interface User {
   id: number
   name: string
   email: string
+
   rol?: string
+
 }
 
 export const fetchUsers = async (): Promise<User[]> => {
@@ -22,3 +24,4 @@ export const fetchCurrentUser = async (): Promise<User | null> => {
     return null
   }
 }
+
