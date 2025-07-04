@@ -1,28 +1,66 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { api } from "@/services/api"
+import { startOfWeek, endOfWeek, isWithinInterval } from 'date-fns'
+import { fetchCurrentUser, type User } from '@/services/users'
+
+interface Cita {
+  id: number
+  datecita: string
+  descricita: string
+  created_by?: number
+  user_id?: number
+}
+
 export default function CalendarioSemanal() {
   const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
-  const eventos = [
-    { dia: "Lunes", hora: "09:00", titulo: "Llamada con Juan Pérez", color: "bg-blue-100 border-blue-300" },
-    {
-      dia: "Martes",
-      hora: "11:00",
-      titulo: "Reunión virtual con María García",
-      color: "bg-purple-100 border-purple-300",
-      hoy: true,
-    },
-    {
-      dia: "Miércoles",
-      hora: "15:00",
-      titulo: "Seguimiento a Carlos Rodríguez",
-      color: "bg-green-100 border-green-300",
-    },
-    {
-      dia: "Viernes",
-      hora: "10:00",
-      titulo: "Presentación a nuevo prospecto",
-      color: "bg-orange-100 border-orange-300",
-    },
-  ]
+  const [citas, setCitas] = useState<Cita[]>([])
+  const [user, setUser] = useState<User | null>(null)
+
+  useEffect(() => {
+    const fetchCitas = async () => {
+      try {
+        const currentUser = await fetchCurrentUser()
+        setUser(currentUser)
+
+        const res = await api.get('/citas')
+        let data = Array.isArray(res.data) ? res.data : res.data.data || []
+
+        const start = startOfWeek(new Date(), { weekStartsOn: 1 })
+        const end = endOfWeek(new Date(), { weekStartsOn: 1 })
+
+        data = data.filter((c: Cita) => {
+          const d = new Date(c.datecita)
+          const inWeek = isWithinInterval(d, { start, end })
+          const owned =
+            currentUser?.rol === 'Administrador' ||
+            c.created_by === currentUser?.id ||
+            c.user_id === currentUser?.id
+          return inWeek && owned
+        })
+
+        setCitas(data)
+      } catch (err) {
+        console.error('Error fetching citas', err)
+      }
+    }
+    fetchCitas()
+  }, [])
+
+  const eventos = citas.map(c => {
+    const d = new Date(c.datecita)
+    const diaIdx = d.getDay() === 0 ? 6 : d.getDay() - 1
+    return {
+      dia: dias[diaIdx],
+      hora: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      titulo: c.descricita,
+      color: 'bg-blue-100 border-blue-300',
+    }
+  })
+
+  const hoy = dias[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1]
 
   return (
     <div className="bg-white rounded-lg border shadow-sm p-4">
@@ -33,11 +71,11 @@ export default function CalendarioSemanal() {
           <div key={dia} className="border rounded-lg">
             <div
               className={`p-2 text-center font-medium text-sm border-b ${
-                dia === "Martes" ? "bg-blue-50 text-blue-600" : ""
+                dia === hoy ? 'bg-blue-50 text-blue-600' : ''
               }`}
             >
               {dia}
-              {dia === "Martes" && <div className="text-xs text-blue-600">Hoy</div>}
+              {dia === hoy && <div className="text-xs text-blue-600">Hoy</div>}
             </div>
 
             <div className="p-2 h-32">
