@@ -7,7 +7,6 @@ export interface User {
 
   rol?: string
 
-
 }
 
 export const fetchUsers = async (): Promise<User[]> => {

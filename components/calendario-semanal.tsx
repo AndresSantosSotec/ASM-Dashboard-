@@ -2,21 +2,11 @@
 
 import { useEffect, useState } from "react"
 
-import { startOfWeek, endOfWeek, isWithinInterval } from 'date-fns'
-import { fetchCurrentUser, type User } from '@/services/users'
-import { fetchCitas, type Cita } from '@/services/citas'
-import { fetchTareas, type Tarea } from '@/services/tareas'
+import { fetchWeekEvents } from '@/lib/calendar-events'
+import type { Cita } from '@/services/citas'
+import type { Tarea } from '@/services/tareas'
 
 
-interface Cita {
-  id: number
-  datecita: string
-  descricita: string
-
-  created_by?: number
-  user_id?: number
-
-}
 
 export default function CalendarioSemanal() {
   const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
@@ -24,37 +14,14 @@ export default function CalendarioSemanal() {
   const [citas, setCitas] = useState<Cita[]>([])
 
   const [tareas, setTareas] = useState<Tarea[]>([])
-  const [user, setUser] = useState<User | null>(null)
-
-  useEffect(() => {
+   useEffect(() => {
     const loadEvents = async () => {
       try {
-        const currentUser = await fetchCurrentUser()
-        setUser(currentUser)
 
-        const [citasData, tareasData] = await Promise.all([
-          fetchCitas(),
-          fetchTareas(),
-        ])
+        const { citas, tareas } = await fetchWeekEvents()
+        setCitas(citas)
+        setTareas(tareas)
 
-
-        const start = startOfWeek(new Date(), { weekStartsOn: 1 })
-        const end = endOfWeek(new Date(), { weekStartsOn: 1 })
-
-
-        const filterOwn = <T extends { created_by?: number; user_id?: number; [key: string]: any }>(arr: T[], getDate: (item: T) => string) =>
-          arr.filter(item => {
-            const d = new Date(getDate(item))
-            const inWeek = isWithinInterval(d, { start, end })
-            const owned =
-              currentUser?.rol === 'Administrador' ||
-              item.created_by === currentUser?.id ||
-              item.user_id === currentUser?.id
-            return inWeek && owned
-          })
-
-        setCitas(filterOwn(citasData, c => c.datecita))
-        setTareas(filterOwn(tareasData, t => t.fecha))
       } catch (err) {
         console.error('Error fetching calendar events', err)
       }
