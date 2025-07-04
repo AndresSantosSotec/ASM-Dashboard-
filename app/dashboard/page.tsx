@@ -18,7 +18,13 @@ import {
 import Link from "next/link"
 import { fetchCourses } from "@/services/courses"
 import { fetchEnrolledStudents } from "@/services/students"
-import { fetchUsers } from "@/services/users"
+
+import { fetchUsers, fetchCurrentUser } from "@/services/users"
+import {
+  fetchProspectos,
+  fetchProspectCountByStatus,
+} from '@/services/prospectos'
+
 
 export const metadata: Metadata = {
   title: "Dashboard | Blue Atlas",
@@ -96,17 +102,48 @@ export default function DashboardPage() {
   const [activeStudents, setActiveStudents] = useState<number>(0)
   const [activeCourses, setActiveCourses] = useState<number>(0)
 
+  const [myProspects, setMyProspects] = useState<number>(0)
+  const [leadStats, setLeadStats] = useState<Record<string, number>>({})
+
+
   useEffect(() => {
     const loadMetrics = async () => {
       try {
-        const [users, students, courses] = await Promise.all([
+
+        const currentUser = await fetchCurrentUser()
+        const [users, students, courses, prospects] = await Promise.all([
           fetchUsers(),
           fetchEnrolledStudents(),
           fetchCourses(),
+          fetchProspectos(),
         ])
+
         setTotalUsers(users.length)
         setActiveStudents(students.length)
         setActiveCourses(courses.length)
+
+        if (currentUser) {
+          const mine =
+            currentUser.rol === 'Administrador'
+              ? prospects.length
+              : prospects.filter(
+                  p => p.created_by === currentUser.id,
+                ).length
+          setMyProspects(mine)
+
+          const statuses = [
+            'Interesado',
+            'No le interesa',
+            'En seguimiento',
+            'No volver a contactar',
+          ]
+          const counts: Record<string, number> = {}
+          for (const s of statuses) {
+            counts[s] = await fetchProspectCountByStatus(s)
+          }
+          setLeadStats(counts)
+        }
+
       } catch (err) {
         console.error('Error fetching dashboard metrics', err)
       }
@@ -127,7 +164,7 @@ export default function DashboardPage() {
           <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {/* Tarjetas de estadísticas */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -157,6 +194,18 @@ export default function DashboardPage() {
               <CardContent>
                 <div className="text-2xl font-bold">{activeCourses}</div>
                 <p className="text-xs text-muted-foreground">Cursos activos</p>
+
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Mis Prospectos</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{myProspects}</div>
+                <p className="text-xs text-muted-foreground">Prospectos asignados</p>
+
               </CardContent>
             </Card>
           </div>
@@ -179,6 +228,21 @@ export default function DashboardPage() {
               </Link>
             ))}
           </div>
+
+          {Object.keys(leadStats).length > 0 && (
+            <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+              {Object.entries(leadStats).map(([label, count]) => (
+                <Card key={label}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">{label}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{count}</div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
         <TabsContent value="analytics" className="space-y-4">
           <Card>

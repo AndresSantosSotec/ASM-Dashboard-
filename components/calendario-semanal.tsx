@@ -3,10 +3,18 @@
 import { useEffect, useState } from "react"
 import { api } from "@/services/api"
 
+import { startOfWeek, endOfWeek, isWithinInterval } from 'date-fns'
+import { fetchCurrentUser, type User } from '@/services/users'
+
+
 interface Cita {
   id: number
   datecita: string
   descricita: string
+
+  created_by?: number
+  user_id?: number
+
 }
 
 export default function CalendarioSemanal() {
@@ -14,11 +22,33 @@ export default function CalendarioSemanal() {
 
   const [citas, setCitas] = useState<Cita[]>([])
 
+  const [user, setUser] = useState<User | null>(null)
+
+
   useEffect(() => {
     const fetchCitas = async () => {
       try {
+
+        const currentUser = await fetchCurrentUser()
+        setUser(currentUser)
+
         const res = await api.get('/citas')
-        const data = Array.isArray(res.data) ? res.data : res.data.data || []
+        let data = Array.isArray(res.data) ? res.data : res.data.data || []
+
+        const start = startOfWeek(new Date(), { weekStartsOn: 1 })
+        const end = endOfWeek(new Date(), { weekStartsOn: 1 })
+
+        data = data.filter((c: Cita) => {
+          const d = new Date(c.datecita)
+          const inWeek = isWithinInterval(d, { start, end })
+          const owned =
+            currentUser?.rol === 'Administrador' ||
+            c.created_by === currentUser?.id ||
+            c.user_id === currentUser?.id
+          return inWeek && owned
+        })
+
+
         setCitas(data)
       } catch (err) {
         console.error('Error fetching citas', err)
