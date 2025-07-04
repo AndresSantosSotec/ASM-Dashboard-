@@ -8,12 +8,9 @@ import {
   Users,
   GraduationCap,
   BookOpen,
-  Building,
   CreditCard,
-  BarChart,
   Calendar,
   FileText,
-  Settings,
 } from "lucide-react"
 import Link from "next/link"
 import { fetchCourses } from "@/services/courses"
@@ -37,7 +34,7 @@ export default function DashboardPage() {
       title: "Usuarios",
       description: "Gestión de usuarios, roles y permisos",
       icon: <Users className="h-6 w-6" />,
-      href: "/usuarios",
+      href: "/seguridad/usuarios",
       color: "bg-purple-500",
     },
     {
@@ -55,25 +52,11 @@ export default function DashboardPage() {
       color: "bg-blue-500",
     },
     {
-      title: "Administrativo",
-      description: "Gestión de recursos y procesos administrativos",
-      icon: <Building className="h-6 w-6" />,
-      href: "/administrativo",
-      color: "bg-yellow-500",
-    },
-    {
       title: "Finanzas",
       description: "Gestión de pagos, facturas y reportes financieros",
       icon: <CreditCard className="h-6 w-6" />,
       href: "/finanzas",
       color: "bg-red-500",
-    },
-    {
-      title: "Reportes",
-      description: "Generación y visualización de reportes",
-      icon: <BarChart className="h-6 w-6" />,
-      href: "/reportes",
-      color: "bg-indigo-500",
     },
     {
       title: "Calendario",
@@ -89,22 +72,13 @@ export default function DashboardPage() {
       href: "/documentos",
       color: "bg-teal-500",
     },
-    {
-      title: "Configuración",
-      description: "Configuración general del sistema",
-      icon: <Settings className="h-6 w-6" />,
-      href: "/configuracion",
-      color: "bg-gray-500",
-    },
   ]
 
   const [totalUsers, setTotalUsers] = useState<number>(0)
   const [activeStudents, setActiveStudents] = useState<number>(0)
   const [activeCourses, setActiveCourses] = useState<number>(0)
-
-  const [myProspects, setMyProspects] = useState<number>(0)
+  const [myStudents, setMyStudents] = useState<number>(0)
   const [leadStats, setLeadStats] = useState<Record<string, number>>({})
-
 
   useEffect(() => {
     const loadMetrics = async () => {
@@ -129,8 +103,8 @@ export default function DashboardPage() {
               : prospects.filter(
                   p => p.created_by === currentUser.id,
                 ).length
-          setMyProspects(mine)
 
+          setMyStudents(mine)
           const statuses = [
             'Interesado',
             'No le interesa',
@@ -198,13 +172,13 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Mis Prospectos</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Mis Estudiantes</CardTitle>
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{myProspects}</div>
-                <p className="text-xs text-muted-foreground">Prospectos asignados</p>
+                <div className="text-2xl font-bold">{myStudents}</div>
+                <p className="text-xs text-muted-foreground">Estudiantes asignados</p>
 
               </CardContent>
             </Card>

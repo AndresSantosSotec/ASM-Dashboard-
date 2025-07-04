@@ -1,10 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { api } from "@/services/api"
 
 import { startOfWeek, endOfWeek, isWithinInterval } from 'date-fns'
 import { fetchCurrentUser, type User } from '@/services/users'
+import { fetchCitas, type Cita } from '@/services/citas'
+import { fetchTareas, type Tarea } from '@/services/tareas'
 
 
 interface Cita {
@@ -22,51 +23,68 @@ export default function CalendarioSemanal() {
 
   const [citas, setCitas] = useState<Cita[]>([])
 
+  const [tareas, setTareas] = useState<Tarea[]>([])
   const [user, setUser] = useState<User | null>(null)
 
-
   useEffect(() => {
-    const fetchCitas = async () => {
+    const loadEvents = async () => {
       try {
-
         const currentUser = await fetchCurrentUser()
         setUser(currentUser)
 
-        const res = await api.get('/citas')
-        let data = Array.isArray(res.data) ? res.data : res.data.data || []
+        const [citasData, tareasData] = await Promise.all([
+          fetchCitas(),
+          fetchTareas(),
+        ])
+
 
         const start = startOfWeek(new Date(), { weekStartsOn: 1 })
         const end = endOfWeek(new Date(), { weekStartsOn: 1 })
 
-        data = data.filter((c: Cita) => {
-          const d = new Date(c.datecita)
-          const inWeek = isWithinInterval(d, { start, end })
-          const owned =
-            currentUser?.rol === 'Administrador' ||
-            c.created_by === currentUser?.id ||
-            c.user_id === currentUser?.id
-          return inWeek && owned
-        })
 
+        const filterOwn = <T extends { created_by?: number; user_id?: number; [key: string]: any }>(arr: T[], getDate: (item: T) => string) =>
+          arr.filter(item => {
+            const d = new Date(getDate(item))
+            const inWeek = isWithinInterval(d, { start, end })
+            const owned =
+              currentUser?.rol === 'Administrador' ||
+              item.created_by === currentUser?.id ||
+              item.user_id === currentUser?.id
+            return inWeek && owned
+          })
 
-        setCitas(data)
+        setCitas(filterOwn(citasData, c => c.datecita))
+        setTareas(filterOwn(tareasData, t => t.fecha))
       } catch (err) {
-        console.error('Error fetching citas', err)
+        console.error('Error fetching calendar events', err)
       }
     }
-    fetchCitas()
+    loadEvents()
   }, [])
 
-  const eventos = citas.map(c => {
-    const d = new Date(c.datecita)
-    const diaIdx = d.getDay() === 0 ? 6 : d.getDay() - 1
-    return {
-      dia: dias[diaIdx],
-      hora: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      titulo: c.descricita,
-      color: 'bg-blue-100 border-blue-300',
-    }
-  })
+  const eventos = [
+    ...citas.map(c => {
+      const d = new Date(c.datecita)
+      const diaIdx = d.getDay() === 0 ? 6 : d.getDay() - 1
+      return {
+        dia: dias[diaIdx],
+        hora: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        titulo: c.descricita,
+        color: 'bg-blue-100 border-blue-300',
+      }
+    }),
+    ...tareas.map(t => {
+      const d = new Date(t.fecha)
+      const diaIdx = d.getDay() === 0 ? 6 : d.getDay() - 1
+      return {
+        dia: dias[diaIdx],
+        hora: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        titulo: t.titulo,
+        color: 'bg-purple-100 border-purple-300',
+      }
+    }),
+  ]
+
 
   const hoy = dias[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1]
 
