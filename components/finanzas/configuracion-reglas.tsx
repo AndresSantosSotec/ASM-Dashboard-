@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -14,6 +14,8 @@ import { AlertCircle, Save, Plus, Trash2, Settings } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
+import { getPaymentRules, updatePaymentRules } from "@/services/finance"
+import { toast } from "@/hooks/use-toast"
 
 // Datos de ejemplo para la configuración de reglas
 const rulesData = {
@@ -169,6 +171,18 @@ export function ConfiguracionReglas() {
   const [editingNotification, setEditingNotification] = useState<any | null>(null)
   const [showNotificationForm, setShowNotificationForm] = useState(false)
 
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await getPaymentRules()
+        if (data) setGeneralRules(data)
+      } catch (e) {
+        toast({ title: 'Error', description: 'No se pudieron cargar las reglas' })
+      }
+    }
+    load()
+  }, [])
+
   // Función para manejar cambios en las reglas generales
   const handleGeneralRuleChange = (key: string, value: any) => {
     setGeneralRules({
@@ -191,7 +205,16 @@ export function ConfiguracionReglas() {
           <p className="text-muted-foreground">Administre las reglas de pagos, notificaciones y bloqueos</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button>
+          <Button
+            onClick={async () => {
+              try {
+                await updatePaymentRules(generalRules)
+                toast({ title: 'Cambios guardados' })
+              } catch (e) {
+                toast({ title: 'Error', description: 'No se pudieron guardar los cambios' })
+              }
+            }}
+          >
             <Save className="mr-2 h-4 w-4" /> Guardar Cambios
           </Button>
         </div>
@@ -309,7 +332,16 @@ export function ConfiguracionReglas() {
               </Alert>
             </CardContent>
             <CardFooter className="flex justify-end">
-              <Button>
+              <Button
+                onClick={async () => {
+                  try {
+                    await updatePaymentRules(generalRules)
+                    toast({ title: 'Configuración guardada' })
+                  } catch (e) {
+                    toast({ title: 'Error', description: 'No se pudo guardar la configuración' })
+                  }
+                }}
+              >
                 <Save className="mr-2 h-4 w-4" /> Guardar Configuración
               </Button>
             </CardFooter>
