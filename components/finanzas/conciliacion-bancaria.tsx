@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -37,6 +37,8 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import { Separator } from "@/components/ui/separator"
+import { getReconciliation, uploadReconciliation } from "@/services/finance"
+import { toast } from "@/hooks/use-toast"
 
 // Datos de ejemplo para la conciliación bancaria
 const conciliacionData = {
@@ -148,6 +150,8 @@ export function ConciliacionBancaria() {
     from: new Date(new Date().setDate(new Date().getDate() - 7)),
     to: new Date(),
   })
+  const [pendingReceipts, setPendingReceipts] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [uploadForm, setUploadForm] = useState({
     studentId: "",
     bank: "",
@@ -157,6 +161,21 @@ export function ConciliacionBancaria() {
     authNumber: "",
   })
   const [selectedReceipts, setSelectedReceipts] = useState<string[]>([])
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true)
+      try {
+        const data = await getReconciliation()
+        setPendingReceipts(Array.isArray(data) ? data : data.pendingReceipts)
+      } catch (e) {
+        toast({ title: 'Error', description: 'No se pudieron cargar los recibos' })
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
 
   // Función para abrir el diálogo de detalles de recibo
   const openReceiptDetailsDialog = (receipt: any) => {
@@ -189,33 +208,49 @@ export function ConciliacionBancaria() {
   // Función para seleccionar todos los recibos
   const handleSelectAllReceipts = (checked: boolean) => {
     if (checked) {
-      setSelectedReceipts(conciliacionData.pendingReceipts.map((receipt) => receipt.id))
+      setSelectedReceipts(pendingReceipts.map((receipt) => receipt.id))
     } else {
       setSelectedReceipts([])
     }
   }
 
   // Función para realizar la conciliación
-  const handleReconciliation = () => {
-    // Aquí iría la lógica real de conciliación
-    setShowReconcileDialog(false)
-    setSelectedReceipts([])
-    alert("Conciliación completada correctamente")
+  const handleReconciliation = async () => {
+    try {
+      await reconcileReceipts(selectedReceipts)
+      toast({ title: 'Conciliación completada' })
+      setShowReconcileDialog(false)
+      setSelectedReceipts([])
+    } catch (e) {
+      toast({ title: 'Error', description: 'No se pudo conciliar' })
+    }
   }
 
   // Función para subir un recibo
-  const handleUploadReceipt = () => {
-    // Aquí iría la lógica real de carga de recibo
-    setShowUploadDialog(false)
-    setUploadForm({
-      studentId: "",
-      bank: "",
-      receiptNumber: "",
-      amount: "",
-      date: "",
-      authNumber: "",
-    })
-    alert("Recibo cargado correctamente")
+  const handleUploadReceipt = async () => {
+    const formData = new FormData()
+    formData.append('student_id', uploadForm.studentId)
+    formData.append('bank', uploadForm.bank)
+    formData.append('receipt_number', uploadForm.receiptNumber)
+    formData.append('amount', uploadForm.amount)
+    formData.append('date', uploadForm.date)
+    formData.append('auth_number', uploadForm.authNumber)
+
+    try {
+      await uploadReconciliation(formData)
+      toast({ title: 'Recibo cargado correctamente' })
+      setShowUploadDialog(false)
+      setUploadForm({
+        studentId: '',
+        bank: '',
+        receiptNumber: '',
+        amount: '',
+        date: '',
+        authNumber: '',
+      })
+    } catch (e) {
+      toast({ title: 'Error', description: 'No se pudo cargar el recibo' })
+    }
   }
 
   return (
@@ -284,8 +319,8 @@ export function ConciliacionBancaria() {
                       <Checkbox
                         id="select-all"
                         checked={
-                          selectedReceipts.length === conciliacionData.pendingReceipts.length &&
-                          conciliacionData.pendingReceipts.length > 0
+                          selectedReceipts.length === pendingReceipts.length &&
+                          pendingReceipts.length > 0
                         }
                         onCheckedChange={handleSelectAllReceipts}
                       />
@@ -301,7 +336,14 @@ export function ConciliacionBancaria() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {conciliacionData.pendingReceipts.map((receipt) => (
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-4">
+                        Cargando...
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    pendingReceipts.map((receipt) => (
                     <TableRow key={receipt.id}>
                       <TableCell>
                         <Checkbox
@@ -328,13 +370,14 @@ export function ConciliacionBancaria() {
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
             <CardFooter className="flex justify-between">
               <div className="text-sm text-muted-foreground">
-                Mostrando {conciliacionData.pendingReceipts.length} recibos pendientes
+                Mostrando {pendingReceipts.length} recibos pendientes
               </div>
               <div className="flex gap-2">
                 <Button variant="outline">
@@ -519,9 +562,9 @@ export function ConciliacionBancaria() {
                   <span className="text-sm text-muted-foreground">Monto total:</span>
                   <span className="text-sm font-medium">
                     Q
-                    {conciliacionData.pendingReceipts
+                    {pendingReceipts
                       .filter((receipt) => selectedReceipts.includes(receipt.id))
-                      .reduce((sum, receipt) => sum + receipt.amount, 0)
+                      .reduce((sum, receipt) => sum + Number(receipt.amount), 0)
                       .toLocaleString()}
                   </span>
                 </div>
