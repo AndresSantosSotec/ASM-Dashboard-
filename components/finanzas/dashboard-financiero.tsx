@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
@@ -9,19 +9,11 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { fetchDashboardSummary, type DashboardSummary } from "@/services/finance"
+import { toast } from "@/hooks/use-toast"
 
 // Datos de ejemplo para el dashboard financiero
-const dashboardData = {
-  kpis: {
-    ingresosMensuales: 175000,
-    ingresosMesAnterior: 165000,
-    tasaMorosidad: 12.5,
-    tasaMorosidadAnterior: 14.2,
-    recaudacionPendiente: 45000,
-    recaudacionPendienteAnterior: 52000,
-    estudiantesActivos: 350,
-    estudiantesActivosAnterior: 340,
-  },
+const staticData = {
   morosidadPorPrograma: [
     { programa: "Desarrollo Web", porcentaje: 8.2 },
     { programa: "Diseño UX/UI", porcentaje: 10.5 },
@@ -50,6 +42,18 @@ export function DashboardFinanciero() {
     from: new Date(new Date().setDate(1)), // Primer día del mes actual
     to: new Date(),
   })
+  const [summary, setSummary] = useState<DashboardSummary | null>(null)
+
+  useEffect(() => {
+    fetchDashboardSummary()
+      .then(setSummary)
+      .catch(() =>
+        toast({
+          title: 'Error',
+          description: 'No se pudo cargar el resumen financiero',
+        }),
+      )
+  }, [])
 
   // Función para calcular el cambio porcentual
   const calcularCambio = (actual: number, anterior: number) => {
@@ -77,22 +81,18 @@ export function DashboardFinanciero() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Ingresos Mensuales</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Q {dashboardData.kpis.ingresosMensuales.toLocaleString()}</div>
+            <div className="text-2xl font-bold">Q {(summary?.ingresosMensuales ?? 0).toLocaleString()}</div>
             <div className="flex items-center mt-1">
-              {calcularCambio(dashboardData.kpis.ingresosMensuales, dashboardData.kpis.ingresosMesAnterior) > 0 ? (
+              {calcularCambio(summary?.ingresosMensuales ?? 0, summary?.ingresosMesAnterior ?? 0) > 0 ? (
                 <Badge className="bg-green-500 text-xs">
                   <ArrowUpRight className="h-3 w-3 mr-1" />
-                  {Math.abs(
-                    calcularCambio(dashboardData.kpis.ingresosMensuales, dashboardData.kpis.ingresosMesAnterior),
-                  ).toFixed(1)}
+                  {Math.abs(calcularCambio(summary?.ingresosMensuales ?? 0, summary?.ingresosMesAnterior ?? 0)).toFixed(1)}
                   %
                 </Badge>
               ) : (
                 <Badge variant="destructive" className="text-xs">
                   <ArrowDownRight className="h-3 w-3 mr-1" />
-                  {Math.abs(
-                    calcularCambio(dashboardData.kpis.ingresosMensuales, dashboardData.kpis.ingresosMesAnterior),
-                  ).toFixed(1)}
+                  {Math.abs(calcularCambio(summary?.ingresosMensuales ?? 0, summary?.ingresosMesAnterior ?? 0)).toFixed(1)}
                   %
                 </Badge>
               )}
@@ -106,22 +106,18 @@ export function DashboardFinanciero() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Tasa de Morosidad</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{dashboardData.kpis.tasaMorosidad}%</div>
+            <div className="text-2xl font-bold">{summary?.tasaMorosidad ?? 0}%</div>
             <div className="flex items-center mt-1">
-              {calcularCambio(dashboardData.kpis.tasaMorosidad, dashboardData.kpis.tasaMorosidadAnterior) < 0 ? (
+              {calcularCambio(summary?.tasaMorosidad ?? 0, summary?.tasaMorosidadAnterior ?? 0) < 0 ? (
                 <Badge className="bg-green-500 text-xs">
                   <ArrowDownRight className="h-3 w-3 mr-1" />
-                  {Math.abs(
-                    calcularCambio(dashboardData.kpis.tasaMorosidad, dashboardData.kpis.tasaMorosidadAnterior),
-                  ).toFixed(1)}
+                  {Math.abs(calcularCambio(summary?.tasaMorosidad ?? 0, summary?.tasaMorosidadAnterior ?? 0)).toFixed(1)}
                   %
                 </Badge>
               ) : (
                 <Badge variant="destructive" className="text-xs">
                   <ArrowUpRight className="h-3 w-3 mr-1" />
-                  {Math.abs(
-                    calcularCambio(dashboardData.kpis.tasaMorosidad, dashboardData.kpis.tasaMorosidadAnterior),
-                  ).toFixed(1)}
+                  {Math.abs(calcularCambio(summary?.tasaMorosidad ?? 0, summary?.tasaMorosidadAnterior ?? 0)).toFixed(1)}
                   %
                 </Badge>
               )}
@@ -135,18 +131,18 @@ export function DashboardFinanciero() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Recaudación Pendiente</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Q {dashboardData.kpis.recaudacionPendiente.toLocaleString()}</div>
+            <div className="text-2xl font-bold">Q {(summary?.recaudacionPendiente ?? 0).toLocaleString()}</div>
             <div className="flex items-center mt-1">
               {calcularCambio(
-                dashboardData.kpis.recaudacionPendiente,
-                dashboardData.kpis.recaudacionPendienteAnterior,
+                summary?.recaudacionPendiente ?? 0,
+                summary?.recaudacionPendienteAnterior ?? 0,
               ) < 0 ? (
                 <Badge className="bg-green-500 text-xs">
                   <ArrowDownRight className="h-3 w-3 mr-1" />
                   {Math.abs(
                     calcularCambio(
-                      dashboardData.kpis.recaudacionPendiente,
-                      dashboardData.kpis.recaudacionPendienteAnterior,
+                      summary?.recaudacionPendiente ?? 0,
+                      summary?.recaudacionPendienteAnterior ?? 0,
                     ),
                   ).toFixed(1)}
                   %
@@ -156,8 +152,8 @@ export function DashboardFinanciero() {
                   <ArrowUpRight className="h-3 w-3 mr-1" />
                   {Math.abs(
                     calcularCambio(
-                      dashboardData.kpis.recaudacionPendiente,
-                      dashboardData.kpis.recaudacionPendienteAnterior,
+                      summary?.recaudacionPendiente ?? 0,
+                      summary?.recaudacionPendienteAnterior ?? 0,
                     ),
                   ).toFixed(1)}
                   %
@@ -173,16 +169,15 @@ export function DashboardFinanciero() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Estudiantes Activos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{dashboardData.kpis.estudiantesActivos}</div>
+            <div className="text-2xl font-bold">{summary?.estudiantesActivos ?? 0}</div>
             <div className="flex items-center mt-1">
-              {calcularCambio(dashboardData.kpis.estudiantesActivos, dashboardData.kpis.estudiantesActivosAnterior) >
-              0 ? (
+              {calcularCambio(summary?.estudiantesActivos ?? 0, summary?.estudiantesActivosAnterior ?? 0) > 0 ? (
                 <Badge className="bg-green-500 text-xs">
                   <ArrowUpRight className="h-3 w-3 mr-1" />
                   {Math.abs(
                     calcularCambio(
-                      dashboardData.kpis.estudiantesActivos,
-                      dashboardData.kpis.estudiantesActivosAnterior,
+                      summary?.estudiantesActivos ?? 0,
+                      summary?.estudiantesActivosAnterior ?? 0,
                     ),
                   ).toFixed(1)}
                   %
@@ -192,8 +187,8 @@ export function DashboardFinanciero() {
                   <ArrowDownRight className="h-3 w-3 mr-1" />
                   {Math.abs(
                     calcularCambio(
-                      dashboardData.kpis.estudiantesActivos,
-                      dashboardData.kpis.estudiantesActivosAnterior,
+                      summary?.estudiantesActivos ?? 0,
+                      summary?.estudiantesActivosAnterior ?? 0,
                     ),
                   ).toFixed(1)}
                   %
@@ -229,7 +224,7 @@ export function DashboardFinanciero() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {dashboardData.morosidadPorPrograma.map((item) => (
+              {staticData.morosidadPorPrograma.map((item) => (
                 <div key={item.programa} className="space-y-1">
                   <div className="flex justify-between text-sm">
                     <span>{item.programa}</span>
@@ -260,7 +255,7 @@ export function DashboardFinanciero() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dashboardData.pagosRecientes.map((pago) => (
+                {staticData.pagosRecientes.map((pago) => (
                   <TableRow key={pago.id}>
                     <TableCell className="font-medium">{pago.estudiante}</TableCell>
                     <TableCell>{pago.concepto}</TableCell>
@@ -294,7 +289,7 @@ export function DashboardFinanciero() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dashboardData.alertasMorosidad.map((alerta) => (
+                {staticData.alertasMorosidad.map((alerta) => (
                   <TableRow key={alerta.id}>
                     <TableCell className="font-medium">{alerta.estudiante}</TableCell>
                     <TableCell>{alerta.programa}</TableCell>
