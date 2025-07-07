@@ -84,6 +84,7 @@ export function ConfiguracionReglas() {
     },
   })
 
+
   const [showRulesDialog, setShowRulesDialog] = useState(false)
 
   const refreshRules = async () => {
@@ -91,7 +92,7 @@ export function ConfiguracionReglas() {
       const data = await getPaymentRules()
       if (data) {
         const rule = Array.isArray(data) ? data[0] : data
-        setGeneralRules((prev) => ({ ...prev, ...rule }))
+        setGeneralRules((prev: any) => ({ ...prev, ...rule }))
         setNotificationRules(rule.notificationRules || [])
         setBlockingRules(rule.blockingRules || [])
         setPaymentGateways(rule.paymentGateways || [])
@@ -175,7 +176,9 @@ export function ConfiguracionReglas() {
 
   const handleCreateBlockingRule = async () => {
     try {
+
       await persistRules({
+
         ...generalRules,
         notificationRules,
         blockingRules: [...blockingRules, blockingForm],
@@ -202,6 +205,7 @@ export function ConfiguracionReglas() {
 
   const handleCreateGateway = async () => {
     try {
+
       await persistRules({
         ...generalRules,
         notificationRules,
@@ -227,7 +231,9 @@ export function ConfiguracionReglas() {
 
   const handleCreateCategory = async () => {
     try {
+
       await persistRules({
+
         ...generalRules,
         notificationRules,
         blockingRules,
@@ -701,7 +707,7 @@ export function ConfiguracionReglas() {
                         <TableCell>{rule.daysAfterDue}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
-                            {rule.services.map((service, index) => {
+                            {rule.services.map((service: string, index: number) => {
                               return (
                                 <Badge key={index} variant="outline">
                                   {service === "plataforma"
