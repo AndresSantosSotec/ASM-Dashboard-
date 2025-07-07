@@ -1257,7 +1257,6 @@ export function ConfiguracionReglas() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   )
 }
