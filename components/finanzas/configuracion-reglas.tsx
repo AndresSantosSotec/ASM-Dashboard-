@@ -17,157 +17,14 @@ import { Badge } from "@/components/ui/badge"
 import { getPaymentRules, updatePaymentRules } from "@/services/finance"
 import { toast } from "@/hooks/use-toast"
 
-// Datos de ejemplo para la configuración de reglas
-const rulesData = {
-  generalRules: {
-    dueDateDay: 5,
-    lateFeeAmount: 50,
-    blockAfterMonths: 2,
-    sendAutomaticReminders: true,
-    allowPartialPayments: false,
-    requireReceiptUpload: true,
-    autoUnblockAfterPayment: true,
-  },
-  notificationRules: [
-    {
-      id: "not-1",
-      name: "Recordatorio previo",
-      type: "email",
-      triggerDays: -3,
-      message: "Recordatorio: Su pago vence en 3 días. Por favor, realice su pago a tiempo para evitar recargos.",
-      active: true,
-    },
-    {
-      id: "not-2",
-      name: "Día de vencimiento",
-      type: "sms",
-      triggerDays: 0,
-      message: "Hoy vence su pago mensual. Realice su pago para evitar recargos por mora.",
-      active: true,
-    },
-    {
-      id: "not-3",
-      name: "Primer recordatorio",
-      type: "email",
-      triggerDays: 1,
-      message:
-        "Su pago está vencido por 1 día. Por favor, realice su pago lo antes posible para evitar recargos adicionales.",
-      active: true,
-    },
-    {
-      id: "not-4",
-      name: "Aviso de recargo",
-      type: "sms",
-      triggerDays: 5,
-      message: "Su pago está vencido por 5 días. Se ha aplicado un recargo de Q50 a su cuenta.",
-      active: true,
-    },
-    {
-      id: "not-5",
-      name: "Aviso de bloqueo",
-      type: "email",
-      triggerDays: 45,
-      message:
-        "Su cuenta será bloqueada en 15 días si no realiza el pago pendiente. Por favor, regularice su situación.",
-      active: true,
-    },
-  ],
-  blockingRules: [
-    {
-      id: "block-1",
-      name: "Bloqueo por mora",
-      description: "Bloqueo automático después de 2 meses sin pago",
-      daysAfterDue: 60,
-      services: ["plataforma", "evaluaciones", "materiales"],
-      active: true,
-    },
-    {
-      id: "block-2",
-      name: "Bloqueo parcial",
-      description: "Bloqueo de evaluaciones después de 1 mes sin pago",
-      daysAfterDue: 30,
-      services: ["evaluaciones"],
-      active: true,
-    },
-  ],
-  paymentGateways: [
-    {
-      id: "pg-1",
-      name: "Pagalo",
-      description: "Pasarela de pago Pagalo",
-      active: true,
-      fee: 4.5,
-      apiKey: "********",
-      merchantId: "MERCHANT123",
-    },
-    {
-      id: "pg-2",
-      name: "VisaNet",
-      description: "Pasarela de pago VisaNet",
-      active: true,
-      fee: 3.8,
-      apiKey: "********",
-      merchantId: "VISANET456",
-    },
-    {
-      id: "pg-3",
-      name: "Stripe",
-      description: "Pasarela de pago Stripe",
-      active: false,
-      fee: 2.9,
-      apiKey: "",
-      merchantId: "",
-    },
-    {
-      id: "pg-4",
-      name: "NeoNet",
-      description: "Pasarela de pago NeoNet",
-      active: false,
-      fee: 3.5,
-      apiKey: "",
-      merchantId: "",
-    },
-  ],
-  exceptionCategories: [
-    {
-      id: "exc-1",
-      name: "Becados",
-      description: "Alumnos con beca completa o parcial",
-      rules: {
-        skipLateFee: true,
-        extendedDueDate: 15,
-        allowPartialPayments: true,
-        skipBlocking: false,
-      },
-    },
-    {
-      id: "exc-2",
-      name: "Convenios Empresariales",
-      description: "Alumnos con convenio a través de empresas",
-      rules: {
-        skipLateFee: false,
-        extendedDueDate: 10,
-        allowPartialPayments: false,
-        skipBlocking: true,
-      },
-    },
-    {
-      id: "exc-3",
-      name: "Casos Especiales",
-      description: "Alumnos con situaciones particulares aprobadas",
-      rules: {
-        skipLateFee: true,
-        extendedDueDate: 20,
-        allowPartialPayments: true,
-        skipBlocking: true,
-      },
-    },
-  ],
-}
 
 export function ConfiguracionReglas() {
   const [activeTab, setActiveTab] = useState("general")
-  const [generalRules, setGeneralRules] = useState(rulesData.generalRules)
+  const [generalRules, setGeneralRules] = useState<any>({})
+  const [notificationRules, setNotificationRules] = useState<any[]>([])
+  const [blockingRules, setBlockingRules] = useState<any[]>([])
+  const [paymentGateways, setPaymentGateways] = useState<any[]>([])
+  const [exceptionCategories, setExceptionCategories] = useState<any[]>([])
   const [editingNotification, setEditingNotification] = useState<any | null>(null)
   const [showNotificationForm, setShowNotificationForm] = useState(false)
 
@@ -397,7 +254,14 @@ export function ConfiguracionReglas() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rulesData.notificationRules.map((notification) => (
+                  {notificationRules.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center">
+                        Sin datos
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    notificationRules.map((notification) => (
                     <TableRow key={notification.id}>
                       <TableCell>
                         <Checkbox id={`select-${notification.id}`} />
@@ -433,7 +297,7 @@ export function ConfiguracionReglas() {
             </CardContent>
             <CardFooter className="flex justify-between">
               <div className="text-sm text-muted-foreground">
-                Mostrando {rulesData.notificationRules.length} notificaciones configuradas
+                Mostrando {notificationRules.length} notificaciones configuradas
               </div>
               <Button variant="outline">
                 <Trash2 className="mr-2 h-4 w-4" /> Eliminar Seleccionadas
@@ -542,15 +406,22 @@ export function ConfiguracionReglas() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rulesData.blockingRules.map((rule) => (
-                    <TableRow key={rule.id}>
-                      <TableCell className="font-medium">{rule.name}</TableCell>
-                      <TableCell>{rule.description}</TableCell>
-                      <TableCell>{rule.daysAfterDue}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {rule.services.map((service, index) => (
-                            <Badge key={index} variant="outline">
+                  {blockingRules.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center">
+                        Sin datos
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    blockingRules.map((rule) => (
+                      <TableRow key={rule.id}>
+                        <TableCell className="font-medium">{rule.name}</TableCell>
+                        <TableCell>{rule.description}</TableCell>
+                        <TableCell>{rule.daysAfterDue}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {rule.services.map((service, index) => (
+                              <Badge key={index} variant="outline">
                               {service === "plataforma"
                                 ? "Plataforma"
                                 : service === "evaluaciones"
@@ -605,7 +476,14 @@ export function ConfiguracionReglas() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rulesData.paymentGateways.map((gateway) => (
+                  {paymentGateways.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center">
+                        Sin datos
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paymentGateways.map((gateway) => (
                     <TableRow key={gateway.id}>
                       <TableCell className="font-medium">{gateway.name}</TableCell>
                       <TableCell>{gateway.description}</TableCell>
@@ -655,7 +533,14 @@ export function ConfiguracionReglas() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rulesData.exceptionCategories.map((category) => (
+                  {exceptionCategories.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center">
+                        Sin datos
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    exceptionCategories.map((category) => (
                     <TableRow key={category.id}>
                       <TableCell className="font-medium">{category.name}</TableCell>
                       <TableCell>{category.description}</TableCell>

@@ -41,6 +41,12 @@ export const getPayments = async (params?: any) => {
   return res.data
 }
 
+export const fetchRecentPayments = async (limit = 5) => {
+  const res = await api.get('/payments', { params: { per_page: limit } })
+  const data = Array.isArray(res.data) ? res.data : res.data.data
+  return Array.isArray(data) ? data.slice(0, limit) : []
+}
+
 export const createPayment = async (data: any) => {
   const res = await api.post('/payments', data)
   return res.data
