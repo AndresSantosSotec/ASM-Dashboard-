@@ -41,6 +41,12 @@ export const getPayments = async (params?: any) => {
   return res.data
 }
 
+export const fetchRecentPayments = async (limit = 5) => {
+  const res = await api.get('/payments', { params: { per_page: limit } })
+  const data = Array.isArray(res.data) ? res.data : res.data.data
+  return Array.isArray(data) ? data.slice(0, limit) : []
+}
+
 export const createPayment = async (data: any) => {
   const res = await api.post('/payments', data)
   return res.data
@@ -51,8 +57,11 @@ export const getPaymentRules = async () => {
   return res.data
 }
 
-export const updatePaymentRules = async (data: any) => {
-  const res = await api.put('/payment-rules', data)
+export const updatePaymentRules = async (
+  id: string | number,
+  data: any,
+) => {
+  const res = await api.put(`/payment-rules/${id}`, data)
   return res.data
 }
 
@@ -151,4 +160,35 @@ export const exportFinancialReport = async (
   })
   return res.data
 }
+
+export const getKardexPagos = async (params?: any) => {
+  const res = await api.get('/kardex-pagos', { params })
+  return res.data
+}
+
+export const createKardexPago = async (data: any) => {
+  const res = await api.post('/kardex-pagos', data)
+  return res.data
+}
+
+export const getCuotasByProspecto = async (
+  prospectoId: string | number,
+  params?: any,
+) => {
+  const res = await api.get(`/prospectos/${prospectoId}/cuotas`, {
+    params,
+  })
+  return res.data
+}
+
+export const getCuotasByPrograma = async (
+  programaId: string | number,
+  params?: any,
+) => {
+  const res = await api.get(`/estudiante-programa/${programaId}/cuotas`, {
+    params,
+  })
+  return res.data
+}
+
 
