@@ -10,13 +10,22 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
-import { AlertCircle, Save, Plus, Trash2, Settings } from "lucide-react"
+import { AlertCircle, Save, Plus, Trash2, Settings, Eye } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import {
   getPaymentRules,
   updatePaymentRules,
+  createPaymentRule,
   createNotificationRule,
   updateNotificationRule,
   deleteNotificationRule,
@@ -44,6 +53,39 @@ export function ConfiguracionReglas() {
     message: '',
   })
 
+  const [showBlockingDialog, setShowBlockingDialog] = useState(false)
+  const [blockingForm, setBlockingForm] = useState({
+    name: '',
+    description: '',
+    daysAfterDue: 1,
+    services: [] as string[],
+    active: true,
+  })
+
+  const [showGatewayDialog, setShowGatewayDialog] = useState(false)
+  const [gatewayForm, setGatewayForm] = useState({
+    name: '',
+    description: '',
+    fee: 0,
+    apiKey: '',
+    merchantId: '',
+    active: true,
+  })
+
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false)
+  const [categoryForm, setCategoryForm] = useState({
+    name: '',
+    description: '',
+    rules: {
+      skipLateFee: false,
+      extendedDueDate: 1,
+      allowPartialPayments: false,
+      skipBlocking: false,
+    },
+  })
+
+  const [showRulesDialog, setShowRulesDialog] = useState(false)
+
   const refreshRules = async () => {
     try {
       const data = await getPaymentRules()
@@ -57,6 +99,17 @@ export function ConfiguracionReglas() {
       }
     } catch (e) {
       toast({ title: 'Error', description: 'No se pudieron cargar las reglas' })
+    }
+  }
+
+  const persistRules = async (data: any) => {
+    if (generalRules.id) {
+      await updatePaymentRules(generalRules.id, data)
+    } else {
+      const created = await createPaymentRule(data)
+      if (created && created.id) {
+        setGeneralRules((prev: any) => ({ ...prev, id: created.id }))
+      }
     }
   }
 
@@ -120,6 +173,85 @@ export function ConfiguracionReglas() {
     }
   }
 
+  const handleCreateBlockingRule = async () => {
+    try {
+      await persistRules({
+        ...generalRules,
+        notificationRules,
+        blockingRules: [...blockingRules, blockingForm],
+        paymentGateways,
+        exceptionCategories,
+      })
+      toast({ title: 'Regla de bloqueo creada' })
+      setShowBlockingDialog(false)
+      setBlockingForm({
+        name: '',
+        description: '',
+        daysAfterDue: 1,
+        services: [],
+        active: true,
+      })
+      await refreshRules()
+    } catch (e) {
+      toast({
+        title: 'Error',
+        description: 'No se pudo crear la regla de bloqueo',
+      })
+    }
+  }
+
+  const handleCreateGateway = async () => {
+    try {
+      await persistRules({
+        ...generalRules,
+        notificationRules,
+        blockingRules,
+        paymentGateways: [...paymentGateways, gatewayForm],
+        exceptionCategories,
+      })
+      toast({ title: 'Pasarela creada' })
+      setShowGatewayDialog(false)
+      setGatewayForm({
+        name: '',
+        description: '',
+        fee: 0,
+        apiKey: '',
+        merchantId: '',
+        active: true,
+      })
+      await refreshRules()
+    } catch (e) {
+      toast({ title: 'Error', description: 'No se pudo crear la pasarela' })
+    }
+  }
+
+  const handleCreateCategory = async () => {
+    try {
+      await persistRules({
+        ...generalRules,
+        notificationRules,
+        blockingRules,
+        paymentGateways,
+        exceptionCategories: [...exceptionCategories, categoryForm],
+      })
+      toast({ title: 'Categoría creada' })
+      setShowCategoryDialog(false)
+      setCategoryForm({
+        name: '',
+        description: '',
+        rules: {
+          skipLateFee: false,
+          extendedDueDate: 1,
+          allowPartialPayments: false,
+          skipBlocking: false,
+        },
+      })
+      await refreshRules()
+    } catch (e) {
+      toast({ title: 'Error', description: 'No se pudo crear la categoría' })
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between gap-4">
@@ -129,9 +261,15 @@ export function ConfiguracionReglas() {
         </div>
         <div className="flex items-center gap-2">
           <Button
+            onClick={() => setShowRulesDialog(true)}
+            variant="outline"
+          >
+            <Eye className="mr-2 h-4 w-4" /> Ver Reglas
+          </Button>
+          <Button
             onClick={async () => {
               try {
-                await updatePaymentRules(generalRules.id ?? 1, {
+                await persistRules({
                   ...generalRules,
                   notificationRules,
                   blockingRules,
@@ -285,7 +423,7 @@ export function ConfiguracionReglas() {
               <Button
                 onClick={async () => {
                   try {
-                await updatePaymentRules(generalRules.id ?? 1, {
+                await persistRules({
                       ...generalRules,
                       notificationRules,
                       blockingRules,
@@ -596,7 +734,7 @@ export function ConfiguracionReglas() {
               </Table>
             </CardContent>
             <CardFooter>
-              <Button className="ml-auto">
+              <Button className="ml-auto" onClick={() => setShowBlockingDialog(true)}>
                 <Plus className="mr-2 h-4 w-4" /> Nueva Regla de Bloqueo
               </Button>
             </CardFooter>
@@ -657,7 +795,7 @@ export function ConfiguracionReglas() {
               </Table>
             </CardContent>
             <CardFooter>
-              <Button className="ml-auto">
+              <Button className="ml-auto" onClick={() => setShowGatewayDialog(true)}>
                 <Plus className="mr-2 h-4 w-4" /> Agregar Pasarela
               </Button>
             </CardFooter>
@@ -737,13 +875,382 @@ export function ConfiguracionReglas() {
               </Table>
             </CardContent>
             <CardFooter>
-              <Button className="ml-auto">
+              <Button className="ml-auto" onClick={() => setShowCategoryDialog(true)}>
                 <Plus className="mr-2 h-4 w-4" /> Nueva Categoría
               </Button>
             </CardFooter>
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={showBlockingDialog} onOpenChange={setShowBlockingDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nueva Regla de Bloqueo</DialogTitle>
+            <DialogDescription>Configure una regla de bloqueo</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="block-name">Nombre</Label>
+              <Input
+                id="block-name"
+                value={blockingForm.name}
+                onChange={(e) =>
+                  setBlockingForm({ ...blockingForm, name: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="block-description">Descripción</Label>
+              <Input
+                id="block-description"
+                value={blockingForm.description}
+                onChange={(e) =>
+                  setBlockingForm({
+                    ...blockingForm,
+                    description: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="block-days">Días Después de Vencimiento</Label>
+              <Input
+                id="block-days"
+                type="number"
+                value={blockingForm.daysAfterDue}
+                onChange={(e) =>
+                  setBlockingForm({
+                    ...blockingForm,
+                    daysAfterDue: Number(e.target.value),
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Servicios Afectados</Label>
+              <div className="flex gap-4">
+                {["plataforma", "evaluaciones", "materiales"].map((svc) => (
+                  <label key={svc} className="flex items-center gap-1">
+                    <Checkbox
+                      checked={blockingForm.services.includes(svc)}
+                      onCheckedChange={(checked) => {
+                        setBlockingForm((prev) => {
+                          const services = prev.services.includes(svc)
+                            ? prev.services.filter((s) => s !== svc)
+                            : [...prev.services, svc]
+                          return { ...prev, services }
+                        })
+                      }}
+                    />
+                    {svc.charAt(0).toUpperCase() + svc.slice(1)}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="block-active">Activa</Label>
+              <Switch
+                id="block-active"
+                checked={blockingForm.active}
+                onCheckedChange={(checked) =>
+                  setBlockingForm({ ...blockingForm, active: checked })
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBlockingDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateBlockingRule}>
+              <Save className="mr-2 h-4 w-4" /> Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showGatewayDialog} onOpenChange={setShowGatewayDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nueva Pasarela</DialogTitle>
+            <DialogDescription>
+              Ingrese los datos de la pasarela de pago
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="gateway-name">Nombre</Label>
+              <Input
+                id="gateway-name"
+                value={gatewayForm.name}
+                onChange={(e) =>
+                  setGatewayForm({ ...gatewayForm, name: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="gateway-description">Descripción</Label>
+              <Input
+                id="gateway-description"
+                value={gatewayForm.description}
+                onChange={(e) =>
+                  setGatewayForm({
+                    ...gatewayForm,
+                    description: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="gateway-fee">Comisión (%)</Label>
+              <Input
+                id="gateway-fee"
+                type="number"
+                value={gatewayForm.fee}
+                onChange={(e) =>
+                  setGatewayForm({
+                    ...gatewayForm,
+                    fee: Number(e.target.value),
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="gateway-apiKey">API Key</Label>
+              <Input
+                id="gateway-apiKey"
+                value={gatewayForm.apiKey}
+                onChange={(e) =>
+                  setGatewayForm({ ...gatewayForm, apiKey: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="gateway-merchant">Merchant ID</Label>
+              <Input
+                id="gateway-merchant"
+                value={gatewayForm.merchantId}
+                onChange={(e) =>
+                  setGatewayForm({
+                    ...gatewayForm,
+                    merchantId: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="gateway-active">Activa</Label>
+              <Switch
+                id="gateway-active"
+                checked={gatewayForm.active}
+                onCheckedChange={(checked) =>
+                  setGatewayForm({ ...gatewayForm, active: checked })
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowGatewayDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateGateway}>
+              <Save className="mr-2 h-4 w-4" /> Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nueva Categoría</DialogTitle>
+            <DialogDescription>
+              Configure la categoría de excepción
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="cat-name">Nombre</Label>
+              <Input
+                id="cat-name"
+                value={categoryForm.name}
+                onChange={(e) =>
+                  setCategoryForm({ ...categoryForm, name: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cat-description">Descripción</Label>
+              <Input
+                id="cat-description"
+                value={categoryForm.description}
+                onChange={(e) =>
+                  setCategoryForm({
+                    ...categoryForm,
+                    description: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cat-due">Día de Vencimiento</Label>
+              <Input
+                id="cat-due"
+                type="number"
+                value={categoryForm.rules.extendedDueDate}
+                onChange={(e) =>
+                  setCategoryForm({
+                    ...categoryForm,
+                    rules: {
+                      ...categoryForm.rules,
+                      extendedDueDate: Number(e.target.value),
+                    },
+                  })
+                }
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Exención de Mora</Label>
+              <Switch
+                checked={categoryForm.rules.skipLateFee}
+                onCheckedChange={(checked) =>
+                  setCategoryForm({
+                    ...categoryForm,
+                    rules: { ...categoryForm.rules, skipLateFee: checked },
+                  })
+                }
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Pagos Parciales</Label>
+              <Switch
+                checked={categoryForm.rules.allowPartialPayments}
+                onCheckedChange={(checked) =>
+                  setCategoryForm({
+                    ...categoryForm,
+                    rules: {
+                      ...categoryForm.rules,
+                      allowPartialPayments: checked,
+                    },
+                  })
+                }
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Exención de Bloqueo</Label>
+              <Switch
+                checked={categoryForm.rules.skipBlocking}
+                onCheckedChange={(checked) =>
+                  setCategoryForm({
+                    ...categoryForm,
+                    rules: { ...categoryForm.rules, skipBlocking: checked },
+                  })
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCategoryDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateCategory}>
+              <Save className="mr-2 h-4 w-4" /> Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showRulesDialog} onOpenChange={setShowRulesDialog}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Reglas Configuradas</DialogTitle>
+            <DialogDescription>
+              Visualice el resumen de todas las reglas actuales
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4 text-sm">
+            <div>
+              <h4 className="font-semibold mb-2">Generales</h4>
+              <ul className="space-y-1">
+                <li>Día de vencimiento: {generalRules.dueDateDay ?? '-'}</li>
+                <li>Mora: Q{generalRules.lateFeeAmount ?? '-'}</li>
+                <li>Bloquear tras {generalRules.blockAfterMonths ?? '-'} meses</li>
+                <li>
+                  Recordatorios automáticos:{' '}
+                  {generalRules.sendAutomaticReminders ? 'Sí' : 'No'}
+                </li>
+                <li>
+                  Pagos parciales:{' '}
+                  {generalRules.allowPartialPayments ? 'Permitidos' : 'No'}
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-2">Notificaciones</h4>
+              {notificationRules.length === 0 ? (
+                <p className="text-muted-foreground">Sin notificaciones</p>
+              ) : (
+                <ul className="space-y-1">
+                  {notificationRules.map((n) => (
+                    <li key={n.id}>
+                      {n.name} - {n.triggerDays} días -{' '}
+                      {n.active ? 'Activo' : 'Inactivo'}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <h4 className="font-semibold mb-2">Bloqueos</h4>
+              {blockingRules.length === 0 ? (
+                <p className="text-muted-foreground">Sin reglas de bloqueo</p>
+              ) : (
+                <ul className="space-y-1">
+                  {blockingRules.map((b) => (
+                    <li key={b.id}>
+                      {b.name} - {b.daysAfterDue} días -{' '}
+                      {b.active ? 'Activo' : 'Inactivo'}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <h4 className="font-semibold mb-2">Pasarelas</h4>
+              {paymentGateways.length === 0 ? (
+                <p className="text-muted-foreground">Sin pasarelas</p>
+              ) : (
+                <ul className="space-y-1">
+                  {paymentGateways.map((g) => (
+                    <li key={g.id}>
+                      {g.name} - Comisión {g.fee}% -{' '}
+                      {g.active ? 'Activa' : 'Inactiva'}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <h4 className="font-semibold mb-2">Excepciones</h4>
+              {exceptionCategories.length === 0 ? (
+                <p className="text-muted-foreground">Sin categorías</p>
+              ) : (
+                <ul className="space-y-1">
+                  {exceptionCategories.map((c) => (
+                    <li key={c.id}>{c.name}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRulesDialog(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
