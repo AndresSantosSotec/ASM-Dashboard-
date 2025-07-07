@@ -258,40 +258,44 @@ export function ConfiguracionReglas() {
                     <TableRow>
                       <TableCell colSpan={6} className="text-center">
                         Sin datos
+
                       </TableCell>
                     </TableRow>
                   ) : (
-                    notificationRules.map((notification) => (
-                    <TableRow key={notification.id}>
-                      <TableCell>
-                        <Checkbox id={`select-${notification.id}`} />
-                      </TableCell>
-                      <TableCell className="font-medium">{notification.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {notification.type === "email" ? "Email" : notification.type === "sms" ? "SMS" : "WhatsApp"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {notification.triggerDays === 0
-                          ? "Día de vencimiento"
-                          : notification.triggerDays < 0
-                            ? `${Math.abs(notification.triggerDays)} días antes`
-                            : `${notification.triggerDays} días después`}
-                      </TableCell>
-                      <TableCell className="max-w-[300px] truncate">{notification.message}</TableCell>
-                      <TableCell>
-                        <Badge variant={notification.active ? "default" : "outline"}>
-                          {notification.active ? "Activo" : "Inactivo"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => openNotificationForm(notification)}>
-                          <Settings className="h-4 w-4 mr-1" /> Editar
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                    notificationRules.map((notification) => {
+                      return (
+                        <TableRow key={notification.id}>
+                          <TableCell>
+                            <Checkbox id={`select-${notification.id}`} />
+                          </TableCell>
+                          <TableCell className="font-medium">{notification.name}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {notification.type === "email" ? "Email" : notification.type === "sms" ? "SMS" : "WhatsApp"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {notification.triggerDays === 0
+                              ? "Día de vencimiento"
+                              : notification.triggerDays < 0
+                                ? `${Math.abs(notification.triggerDays)} días antes`
+                                : `${notification.triggerDays} días después`}
+                          </TableCell>
+                          <TableCell className="max-w-[300px] truncate">{notification.message}</TableCell>
+                          <TableCell>
+                            <Badge variant={notification.active ? "default" : "outline"}>
+                              {notification.active ? "Activo" : "Inactivo"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="sm" onClick={() => openNotificationForm(notification)}>
+                              <Settings className="h-4 w-4 mr-1" /> Editar
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -413,25 +417,31 @@ export function ConfiguracionReglas() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    blockingRules.map((rule) => (
-                      <TableRow key={rule.id}>
+
+                    blockingRules.map((rule) => {
+                      return (
+                        <TableRow key={rule.id}>
+
                         <TableCell className="font-medium">{rule.name}</TableCell>
                         <TableCell>{rule.description}</TableCell>
                         <TableCell>{rule.daysAfterDue}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
-                            {rule.services.map((service, index) => (
-                              <Badge key={index} variant="outline">
-                              {service === "plataforma"
-                                ? "Plataforma"
-                                : service === "evaluaciones"
-                                  ? "Evaluaciones"
-                                  : service === "materiales"
-                                    ? "Materiales"
-                                    : service}
-                            </Badge>
-                          ))}
-                        </div>
+                            {rule.services.map((service, index) => {
+                              return (
+                                <Badge key={index} variant="outline">
+                                  {service === "plataforma"
+                                    ? "Plataforma"
+                                    : service === "evaluaciones"
+                                      ? "Evaluaciones"
+                                      : service === "materiales"
+                                        ? "Materiales"
+                                        : service}
+                                </Badge>
+                              )
+                            })}
+                          </div>
+
                       </TableCell>
                       <TableCell>
                         <Badge variant={rule.active ? "default" : "outline"}>
@@ -443,9 +453,10 @@ export function ConfiguracionReglas() {
                           <Settings className="h-4 w-4 mr-1" /> Editar
                         </Button>
                       </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
+                        </TableRow>
+                      )
+                      }))}
+                  </TableBody>
               </Table>
             </CardContent>
             <CardFooter>
@@ -483,8 +494,11 @@ export function ConfiguracionReglas() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    paymentGateways.map((gateway) => (
-                    <TableRow key={gateway.id}>
+
+                    paymentGateways.map((gateway) => {
+                      return (
+                        <TableRow key={gateway.id}>
+
                       <TableCell className="font-medium">{gateway.name}</TableCell>
                       <TableCell>{gateway.description}</TableCell>
                       <TableCell>{gateway.fee}%</TableCell>
@@ -500,8 +514,9 @@ export function ConfiguracionReglas() {
                           <Settings className="h-4 w-4 mr-1" /> Configurar
                         </Button>
                       </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableRow>
+                      )
+                      }))}
                 </TableBody>
               </Table>
             </CardContent>
@@ -540,8 +555,10 @@ export function ConfiguracionReglas() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    exceptionCategories.map((category) => (
-                    <TableRow key={category.id}>
+                    exceptionCategories.map((category) => {
+                      return (
+                        <TableRow key={category.id}>
+
                       <TableCell className="font-medium">{category.name}</TableCell>
                       <TableCell>{category.description}</TableCell>
                       <TableCell>
@@ -576,9 +593,10 @@ export function ConfiguracionReglas() {
                         <Button variant="ghost" size="sm">
                           <Settings className="h-4 w-4 mr-1" /> Editar
                         </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                      </TableRow>
+                      )
+                      }))}
                 </TableBody>
               </Table>
             </CardContent>
