@@ -17,159 +17,23 @@ import { Badge } from "@/components/ui/badge"
 import { getPaymentRules, updatePaymentRules } from "@/services/finance"
 import { toast } from "@/hooks/use-toast"
 
-// Datos de ejemplo para la configuración de reglas
-const rulesData = {
-  generalRules: {
-    dueDateDay: 5,
-    lateFeeAmount: 50,
-    blockAfterMonths: 2,
-    sendAutomaticReminders: true,
-    allowPartialPayments: false,
-    requireReceiptUpload: true,
-    autoUnblockAfterPayment: true,
-  },
-  notificationRules: [
-    {
-      id: "not-1",
-      name: "Recordatorio previo",
-      type: "email",
-      triggerDays: -3,
-      message: "Recordatorio: Su pago vence en 3 días. Por favor, realice su pago a tiempo para evitar recargos.",
-      active: true,
-    },
-    {
-      id: "not-2",
-      name: "Día de vencimiento",
-      type: "sms",
-      triggerDays: 0,
-      message: "Hoy vence su pago mensual. Realice su pago para evitar recargos por mora.",
-      active: true,
-    },
-    {
-      id: "not-3",
-      name: "Primer recordatorio",
-      type: "email",
-      triggerDays: 1,
-      message:
-        "Su pago está vencido por 1 día. Por favor, realice su pago lo antes posible para evitar recargos adicionales.",
-      active: true,
-    },
-    {
-      id: "not-4",
-      name: "Aviso de recargo",
-      type: "sms",
-      triggerDays: 5,
-      message: "Su pago está vencido por 5 días. Se ha aplicado un recargo de Q50 a su cuenta.",
-      active: true,
-    },
-    {
-      id: "not-5",
-      name: "Aviso de bloqueo",
-      type: "email",
-      triggerDays: 45,
-      message:
-        "Su cuenta será bloqueada en 15 días si no realiza el pago pendiente. Por favor, regularice su situación.",
-      active: true,
-    },
-  ],
-  blockingRules: [
-    {
-      id: "block-1",
-      name: "Bloqueo por mora",
-      description: "Bloqueo automático después de 2 meses sin pago",
-      daysAfterDue: 60,
-      services: ["plataforma", "evaluaciones", "materiales"],
-      active: true,
-    },
-    {
-      id: "block-2",
-      name: "Bloqueo parcial",
-      description: "Bloqueo de evaluaciones después de 1 mes sin pago",
-      daysAfterDue: 30,
-      services: ["evaluaciones"],
-      active: true,
-    },
-  ],
-  paymentGateways: [
-    {
-      id: "pg-1",
-      name: "Pagalo",
-      description: "Pasarela de pago Pagalo",
-      active: true,
-      fee: 4.5,
-      apiKey: "********",
-      merchantId: "MERCHANT123",
-    },
-    {
-      id: "pg-2",
-      name: "VisaNet",
-      description: "Pasarela de pago VisaNet",
-      active: true,
-      fee: 3.8,
-      apiKey: "********",
-      merchantId: "VISANET456",
-    },
-    {
-      id: "pg-3",
-      name: "Stripe",
-      description: "Pasarela de pago Stripe",
-      active: false,
-      fee: 2.9,
-      apiKey: "",
-      merchantId: "",
-    },
-    {
-      id: "pg-4",
-      name: "NeoNet",
-      description: "Pasarela de pago NeoNet",
-      active: false,
-      fee: 3.5,
-      apiKey: "",
-      merchantId: "",
-    },
-  ],
-  exceptionCategories: [
-    {
-      id: "exc-1",
-      name: "Becados",
-      description: "Alumnos con beca completa o parcial",
-      rules: {
-        skipLateFee: true,
-        extendedDueDate: 15,
-        allowPartialPayments: true,
-        skipBlocking: false,
-      },
-    },
-    {
-      id: "exc-2",
-      name: "Convenios Empresariales",
-      description: "Alumnos con convenio a través de empresas",
-      rules: {
-        skipLateFee: false,
-        extendedDueDate: 10,
-        allowPartialPayments: false,
-        skipBlocking: true,
-      },
-    },
-    {
-      id: "exc-3",
-      name: "Casos Especiales",
-      description: "Alumnos con situaciones particulares aprobadas",
-      rules: {
-        skipLateFee: true,
-        extendedDueDate: 20,
-        allowPartialPayments: true,
-        skipBlocking: true,
-      },
-    },
-  ],
-}
 
 export function ConfiguracionReglas() {
   const [activeTab, setActiveTab] = useState("general")
-  const [generalRules, setGeneralRules] = useState(rulesData.generalRules)
+  const [generalRules, setGeneralRules] = useState<any>({})
+  const [notificationRules, setNotificationRules] = useState<any[]>([])
+  const [blockingRules, setBlockingRules] = useState<any[]>([])
+  const [paymentGateways, setPaymentGateways] = useState<any[]>([])
+  const [exceptionCategories, setExceptionCategories] = useState<any[]>([])
   const [editingNotification, setEditingNotification] = useState<any | null>(null)
   const [showNotificationForm, setShowNotificationForm] = useState(false)
+  const [notificationForm, setNotificationForm] = useState({
+    name: '',
+    type: 'email',
+    triggerDays: 0,
+    active: true,
+    message: '',
+  })
 
   useEffect(() => {
     const load = async () => {
@@ -178,6 +42,10 @@ export function ConfiguracionReglas() {
         if (data) {
           const rule = Array.isArray(data) ? data[0] : data
           setGeneralRules((prev) => ({ ...prev, ...rule }))
+          setNotificationRules(rule.notificationRules || [])
+          setBlockingRules(rule.blockingRules || [])
+          setPaymentGateways(rule.paymentGateways || [])
+          setExceptionCategories(rule.exceptionCategories || [])
         }
       } catch (e) {
         toast({ title: 'Error', description: 'No se pudieron cargar las reglas' })
@@ -197,6 +65,17 @@ export function ConfiguracionReglas() {
   // Función para abrir el formulario de notificación
   const openNotificationForm = (notification: any = null) => {
     setEditingNotification(notification)
+    if (notification) {
+      setNotificationForm({
+        name: notification.name,
+        type: notification.type,
+        triggerDays: notification.triggerDays,
+        active: notification.active,
+        message: notification.message,
+      })
+    } else {
+      setNotificationForm({ name: '', type: 'email', triggerDays: 0, active: true, message: '' })
+    }
     setShowNotificationForm(true)
   }
 
@@ -211,7 +90,13 @@ export function ConfiguracionReglas() {
           <Button
             onClick={async () => {
               try {
-                await updatePaymentRules(generalRules)
+                await updatePaymentRules(generalRules.id ?? 1, {
+                  ...generalRules,
+                  notificationRules,
+                  blockingRules,
+                  paymentGateways,
+                  exceptionCategories,
+                })
                 toast({ title: 'Cambios guardados' })
               } catch (e) {
                 toast({ title: 'Error', description: 'No se pudieron guardar los cambios' })
@@ -359,7 +244,13 @@ export function ConfiguracionReglas() {
               <Button
                 onClick={async () => {
                   try {
-                    await updatePaymentRules(generalRules)
+                await updatePaymentRules(generalRules.id ?? 1, {
+                      ...generalRules,
+                      notificationRules,
+                      blockingRules,
+                      paymentGateways,
+                      exceptionCategories,
+                    })
                     toast({ title: 'Configuración guardada' })
                   } catch (e) {
                     toast({ title: 'Error', description: 'No se pudo guardar la configuración' })
@@ -397,43 +288,53 @@ export function ConfiguracionReglas() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rulesData.notificationRules.map((notification) => (
-                    <TableRow key={notification.id}>
-                      <TableCell>
-                        <Checkbox id={`select-${notification.id}`} />
-                      </TableCell>
-                      <TableCell className="font-medium">{notification.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {notification.type === "email" ? "Email" : notification.type === "sms" ? "SMS" : "WhatsApp"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {notification.triggerDays === 0
-                          ? "Día de vencimiento"
-                          : notification.triggerDays < 0
-                            ? `${Math.abs(notification.triggerDays)} días antes`
-                            : `${notification.triggerDays} días después`}
-                      </TableCell>
-                      <TableCell className="max-w-[300px] truncate">{notification.message}</TableCell>
-                      <TableCell>
-                        <Badge variant={notification.active ? "default" : "outline"}>
-                          {notification.active ? "Activo" : "Inactivo"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => openNotificationForm(notification)}>
-                          <Settings className="h-4 w-4 mr-1" /> Editar
-                        </Button>
+                  {notificationRules.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center">
+                        Sin datos
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    notificationRules.map((notification) => {
+                      return (
+                        <TableRow key={notification.id}>
+                          <TableCell>
+                            <Checkbox id={`select-${notification.id}`} />
+                          </TableCell>
+                          <TableCell className="font-medium">{notification.name}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {notification.type === "email" ? "Email" : notification.type === "sms" ? "SMS" : "WhatsApp"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {notification.triggerDays === 0
+                              ? "Día de vencimiento"
+                              : notification.triggerDays < 0
+                                ? `${Math.abs(notification.triggerDays)} días antes`
+                                : `${notification.triggerDays} días después`}
+                          </TableCell>
+                          <TableCell className="max-w-[300px] truncate">{notification.message}</TableCell>
+                          <TableCell>
+                            <Badge variant={notification.active ? "default" : "outline"}>
+                              {notification.active ? "Activo" : "Inactivo"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="sm" onClick={() => openNotificationForm(notification)}>
+                              <Settings className="h-4 w-4 mr-1" /> Editar
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
             <CardFooter className="flex justify-between">
               <div className="text-sm text-muted-foreground">
-                Mostrando {rulesData.notificationRules.length} notificaciones configuradas
+                Mostrando {notificationRules.length} notificaciones configuradas
               </div>
               <Button variant="outline">
                 <Trash2 className="mr-2 h-4 w-4" /> Eliminar Seleccionadas
@@ -457,13 +358,21 @@ export function ConfiguracionReglas() {
                     <Label htmlFor="notification-name">Nombre</Label>
                     <Input
                       id="notification-name"
-                      defaultValue={editingNotification?.name || ""}
+                      value={notificationForm.name}
+                      onChange={(e) =>
+                        setNotificationForm({ ...notificationForm, name: e.target.value })
+                      }
                       placeholder="Ej: Recordatorio de pago"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="notification-type">Tipo</Label>
-                    <Select defaultValue={editingNotification?.type || "email"}>
+                    <Select
+                      value={notificationForm.type}
+                      onValueChange={(val) =>
+                        setNotificationForm({ ...notificationForm, type: val })
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccione el tipo" />
                       </SelectTrigger>
@@ -481,7 +390,13 @@ export function ConfiguracionReglas() {
                     <Input
                       id="notification-days"
                       type="number"
-                      defaultValue={editingNotification?.triggerDays || 0}
+                      value={notificationForm.triggerDays}
+                      onChange={(e) =>
+                        setNotificationForm({
+                          ...notificationForm,
+                          triggerDays: Number(e.target.value),
+                        })
+                      }
                       placeholder="-3 (antes), 0 (día de), 5 (después)"
                     />
                     <p className="text-xs text-muted-foreground">
@@ -490,7 +405,15 @@ export function ConfiguracionReglas() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="notification-active">Estado</Label>
-                    <Select defaultValue={editingNotification?.active ? "active" : "inactive"}>
+                    <Select
+                      value={notificationForm.active ? 'active' : 'inactive'}
+                      onValueChange={(val) =>
+                        setNotificationForm({
+                          ...notificationForm,
+                          active: val === 'active',
+                        })
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccione el estado" />
                       </SelectTrigger>
@@ -505,7 +428,10 @@ export function ConfiguracionReglas() {
                   <Label htmlFor="notification-message">Mensaje</Label>
                   <Input
                     id="notification-message"
-                    defaultValue={editingNotification?.message || ""}
+                    value={notificationForm.message}
+                    onChange={(e) =>
+                      setNotificationForm({ ...notificationForm, message: e.target.value })
+                    }
                     placeholder="Ingrese el mensaje de la notificación"
                   />
                   <p className="text-xs text-muted-foreground">
@@ -517,7 +443,9 @@ export function ConfiguracionReglas() {
                 <Button variant="outline" onClick={() => setShowNotificationForm(false)}>
                   Cancelar
                 </Button>
-                <Button>{editingNotification ? "Actualizar" : "Crear"} Notificación</Button>
+                <Button onClick={() => { if (editingNotification) { setNotificationRules(notificationRules.map((n) => n.id === editingNotification.id ? { ...notificationForm, id: n.id } : n)); } else { setNotificationRules([...notificationRules, { ...notificationForm, id: Date.now() }]); } setShowNotificationForm(false); }}>
+                  {editingNotification ? "Actualizar" : "Crear"} Notificación
+                </Button>
               </CardFooter>
             </Card>
           )}
@@ -542,25 +470,35 @@ export function ConfiguracionReglas() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rulesData.blockingRules.map((rule) => (
-                    <TableRow key={rule.id}>
-                      <TableCell className="font-medium">{rule.name}</TableCell>
-                      <TableCell>{rule.description}</TableCell>
-                      <TableCell>{rule.daysAfterDue}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {rule.services.map((service, index) => (
-                            <Badge key={index} variant="outline">
-                              {service === "plataforma"
-                                ? "Plataforma"
-                                : service === "evaluaciones"
-                                  ? "Evaluaciones"
-                                  : service === "materiales"
-                                    ? "Materiales"
-                                    : service}
-                            </Badge>
-                          ))}
-                        </div>
+                  {blockingRules.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center">
+                        Sin datos
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    blockingRules.map((rule) => {
+                      return (
+                        <TableRow key={rule.id}>
+                        <TableCell className="font-medium">{rule.name}</TableCell>
+                        <TableCell>{rule.description}</TableCell>
+                        <TableCell>{rule.daysAfterDue}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {rule.services.map((service, index) => {
+                              return (
+                                <Badge key={index} variant="outline">
+                                  {service === "plataforma"
+                                    ? "Plataforma"
+                                    : service === "evaluaciones"
+                                      ? "Evaluaciones"
+                                      : service === "materiales"
+                                        ? "Materiales"
+                                        : service}
+                                </Badge>
+                              )
+                            })}
+                          </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant={rule.active ? "default" : "outline"}>
@@ -572,9 +510,10 @@ export function ConfiguracionReglas() {
                           <Settings className="h-4 w-4 mr-1" /> Editar
                         </Button>
                       </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
+                        </TableRow>
+                      )
+                      }))}
+                  </TableBody>
               </Table>
             </CardContent>
             <CardFooter>
@@ -605,8 +544,16 @@ export function ConfiguracionReglas() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rulesData.paymentGateways.map((gateway) => (
-                    <TableRow key={gateway.id}>
+                  {paymentGateways.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center">
+                        Sin datos
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paymentGateways.map((gateway) => {
+                      return (
+                        <TableRow key={gateway.id}>
                       <TableCell className="font-medium">{gateway.name}</TableCell>
                       <TableCell>{gateway.description}</TableCell>
                       <TableCell>{gateway.fee}%</TableCell>
@@ -622,8 +569,9 @@ export function ConfiguracionReglas() {
                           <Settings className="h-4 w-4 mr-1" /> Configurar
                         </Button>
                       </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableRow>
+                      )
+                      }))}
                 </TableBody>
               </Table>
             </CardContent>
@@ -655,8 +603,16 @@ export function ConfiguracionReglas() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rulesData.exceptionCategories.map((category) => (
-                    <TableRow key={category.id}>
+                  {exceptionCategories.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center">
+                        Sin datos
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    exceptionCategories.map((category) => {
+                      return (
+                        <TableRow key={category.id}>
                       <TableCell className="font-medium">{category.name}</TableCell>
                       <TableCell>{category.description}</TableCell>
                       <TableCell>
@@ -691,9 +647,10 @@ export function ConfiguracionReglas() {
                         <Button variant="ghost" size="sm">
                           <Settings className="h-4 w-4 mr-1" /> Editar
                         </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                      </TableRow>
+                      )
+                      }))}
                 </TableBody>
               </Table>
             </CardContent>
@@ -708,4 +665,3 @@ export function ConfiguracionReglas() {
     </div>
   )
 }
-
