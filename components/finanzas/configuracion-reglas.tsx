@@ -258,6 +258,7 @@ export function ConfiguracionReglas() {
                     <TableRow>
                       <TableCell colSpan={6} className="text-center">
                         Sin datos
+
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -416,9 +417,11 @@ export function ConfiguracionReglas() {
                       </TableCell>
                     </TableRow>
                   ) : (
+
                     blockingRules.map((rule) => {
                       return (
                         <TableRow key={rule.id}>
+
                         <TableCell className="font-medium">{rule.name}</TableCell>
                         <TableCell>{rule.description}</TableCell>
                         <TableCell>{rule.daysAfterDue}</TableCell>
@@ -438,6 +441,7 @@ export function ConfiguracionReglas() {
                               )
                             })}
                           </div>
+
                       </TableCell>
                       <TableCell>
                         <Badge variant={rule.active ? "default" : "outline"}>
@@ -490,9 +494,11 @@ export function ConfiguracionReglas() {
                       </TableCell>
                     </TableRow>
                   ) : (
+
                     paymentGateways.map((gateway) => {
                       return (
                         <TableRow key={gateway.id}>
+
                       <TableCell className="font-medium">{gateway.name}</TableCell>
                       <TableCell>{gateway.description}</TableCell>
                       <TableCell>{gateway.fee}%</TableCell>
@@ -552,6 +558,7 @@ export function ConfiguracionReglas() {
                     exceptionCategories.map((category) => {
                       return (
                         <TableRow key={category.id}>
+
                       <TableCell className="font-medium">{category.name}</TableCell>
                       <TableCell>{category.description}</TableCell>
                       <TableCell>
