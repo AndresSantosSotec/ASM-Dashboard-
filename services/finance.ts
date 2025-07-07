@@ -57,8 +57,11 @@ export const getPaymentRules = async () => {
   return res.data
 }
 
-export const updatePaymentRules = async (data: any) => {
-  const res = await api.put('/payment-rules', data)
+export const updatePaymentRules = async (
+  id: string | number,
+  data: any,
+) => {
+  const res = await api.put(`/payment-rules/${id}`, data)
   return res.data
 }
 
@@ -157,4 +160,15 @@ export const exportFinancialReport = async (
   })
   return res.data
 }
+
+export const getKardexPagos = async (params?: any) => {
+  const res = await api.get('/kardex-pagos', { params })
+  return res.data
+}
+
+export const createKardexPago = async (data: any) => {
+  const res = await api.post('/kardex-pagos', data)
+  return res.data
+}
+
 

@@ -13,6 +13,8 @@ import {
   fetchDashboardSummary,
   type DashboardSummary,
   fetchRecentPayments,
+  getKardexPagos,
+
 } from "@/services/finance"
 import { toast } from "@/hooks/use-toast"
 
@@ -30,10 +32,13 @@ export function DashboardFinanciero() {
   const [alertasMorosidad, setAlertasMorosidad] = useState<any[]>(emptyArray)
 
   useEffect(() => {
-    Promise.all([fetchDashboardSummary(), fetchRecentPayments()])
-      .then(([sum, payments]) => {
+    Promise.all([fetchDashboardSummary(), fetchRecentPayments(), getKardexPagos()])
+      .then(([sum, payments, kardex]) => {
         setSummary(sum)
         setRecentPayments(payments)
+        if (Array.isArray(kardex)) {
+          setAlertasMorosidad(kardex.slice(0, 5))
+        }
       })
       .catch(() =>
         toast({

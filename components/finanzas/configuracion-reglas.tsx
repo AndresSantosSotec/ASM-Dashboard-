@@ -27,6 +27,13 @@ export function ConfiguracionReglas() {
   const [exceptionCategories, setExceptionCategories] = useState<any[]>([])
   const [editingNotification, setEditingNotification] = useState<any | null>(null)
   const [showNotificationForm, setShowNotificationForm] = useState(false)
+  const [notificationForm, setNotificationForm] = useState({
+    name: '',
+    type: 'email',
+    triggerDays: 0,
+    active: true,
+    message: '',
+  })
 
   useEffect(() => {
     const load = async () => {
@@ -35,6 +42,10 @@ export function ConfiguracionReglas() {
         if (data) {
           const rule = Array.isArray(data) ? data[0] : data
           setGeneralRules((prev) => ({ ...prev, ...rule }))
+          setNotificationRules(rule.notificationRules || [])
+          setBlockingRules(rule.blockingRules || [])
+          setPaymentGateways(rule.paymentGateways || [])
+          setExceptionCategories(rule.exceptionCategories || [])
         }
       } catch (e) {
         toast({ title: 'Error', description: 'No se pudieron cargar las reglas' })
@@ -54,6 +65,17 @@ export function ConfiguracionReglas() {
   // Función para abrir el formulario de notificación
   const openNotificationForm = (notification: any = null) => {
     setEditingNotification(notification)
+    if (notification) {
+      setNotificationForm({
+        name: notification.name,
+        type: notification.type,
+        triggerDays: notification.triggerDays,
+        active: notification.active,
+        message: notification.message,
+      })
+    } else {
+      setNotificationForm({ name: '', type: 'email', triggerDays: 0, active: true, message: '' })
+    }
     setShowNotificationForm(true)
   }
 
@@ -68,7 +90,13 @@ export function ConfiguracionReglas() {
           <Button
             onClick={async () => {
               try {
-                await updatePaymentRules(generalRules)
+                await updatePaymentRules(generalRules.id ?? 1, {
+                  ...generalRules,
+                  notificationRules,
+                  blockingRules,
+                  paymentGateways,
+                  exceptionCategories,
+                })
                 toast({ title: 'Cambios guardados' })
               } catch (e) {
                 toast({ title: 'Error', description: 'No se pudieron guardar los cambios' })
@@ -216,7 +244,13 @@ export function ConfiguracionReglas() {
               <Button
                 onClick={async () => {
                   try {
-                    await updatePaymentRules(generalRules)
+                await updatePaymentRules(generalRules.id ?? 1, {
+                      ...generalRules,
+                      notificationRules,
+                      blockingRules,
+                      paymentGateways,
+                      exceptionCategories,
+                    })
                     toast({ title: 'Configuración guardada' })
                   } catch (e) {
                     toast({ title: 'Error', description: 'No se pudo guardar la configuración' })
@@ -258,7 +292,6 @@ export function ConfiguracionReglas() {
                     <TableRow>
                       <TableCell colSpan={6} className="text-center">
                         Sin datos
-
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -325,13 +358,21 @@ export function ConfiguracionReglas() {
                     <Label htmlFor="notification-name">Nombre</Label>
                     <Input
                       id="notification-name"
-                      defaultValue={editingNotification?.name || ""}
+                      value={notificationForm.name}
+                      onChange={(e) =>
+                        setNotificationForm({ ...notificationForm, name: e.target.value })
+                      }
                       placeholder="Ej: Recordatorio de pago"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="notification-type">Tipo</Label>
-                    <Select defaultValue={editingNotification?.type || "email"}>
+                    <Select
+                      value={notificationForm.type}
+                      onValueChange={(val) =>
+                        setNotificationForm({ ...notificationForm, type: val })
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccione el tipo" />
                       </SelectTrigger>
@@ -349,7 +390,13 @@ export function ConfiguracionReglas() {
                     <Input
                       id="notification-days"
                       type="number"
-                      defaultValue={editingNotification?.triggerDays || 0}
+                      value={notificationForm.triggerDays}
+                      onChange={(e) =>
+                        setNotificationForm({
+                          ...notificationForm,
+                          triggerDays: Number(e.target.value),
+                        })
+                      }
                       placeholder="-3 (antes), 0 (día de), 5 (después)"
                     />
                     <p className="text-xs text-muted-foreground">
@@ -358,7 +405,15 @@ export function ConfiguracionReglas() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="notification-active">Estado</Label>
-                    <Select defaultValue={editingNotification?.active ? "active" : "inactive"}>
+                    <Select
+                      value={notificationForm.active ? 'active' : 'inactive'}
+                      onValueChange={(val) =>
+                        setNotificationForm({
+                          ...notificationForm,
+                          active: val === 'active',
+                        })
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccione el estado" />
                       </SelectTrigger>
@@ -373,7 +428,10 @@ export function ConfiguracionReglas() {
                   <Label htmlFor="notification-message">Mensaje</Label>
                   <Input
                     id="notification-message"
-                    defaultValue={editingNotification?.message || ""}
+                    value={notificationForm.message}
+                    onChange={(e) =>
+                      setNotificationForm({ ...notificationForm, message: e.target.value })
+                    }
                     placeholder="Ingrese el mensaje de la notificación"
                   />
                   <p className="text-xs text-muted-foreground">
@@ -385,7 +443,9 @@ export function ConfiguracionReglas() {
                 <Button variant="outline" onClick={() => setShowNotificationForm(false)}>
                   Cancelar
                 </Button>
-                <Button>{editingNotification ? "Actualizar" : "Crear"} Notificación</Button>
+                <Button onClick={() => { if (editingNotification) { setNotificationRules(notificationRules.map((n) => n.id === editingNotification.id ? { ...notificationForm, id: n.id } : n)); } else { setNotificationRules([...notificationRules, { ...notificationForm, id: Date.now() }]); } setShowNotificationForm(false); }}>
+                  {editingNotification ? "Actualizar" : "Crear"} Notificación
+                </Button>
               </CardFooter>
             </Card>
           )}
@@ -611,4 +671,3 @@ export function ConfiguracionReglas() {
     </div>
   )
 }
-
