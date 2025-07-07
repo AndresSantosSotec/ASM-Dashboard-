@@ -56,8 +56,8 @@ export const updatePaymentRules = async (data: any) => {
   return res.data
 }
 
-export const getReconciliation = async (params?: any) => {
-  const res = await api.get('/reconciliation', { params })
+export const getPendingReconciliation = async () => {
+  const res = await api.get('/reconciliation/pending')
   return res.data
 }
 
@@ -68,8 +68,87 @@ export const uploadReconciliation = async (data: FormData) => {
   return res.data
 }
 
-export const reconcileReceipts = async (ids: string[]) => {
-  const res = await api.post('/reconciliation', { ids })
+export const processReconciliation = async () => {
+  const res = await api.post('/reconciliation/process')
+  return res.data
+}
+
+export const getPaymentPlans = async (params?: any) => {
+  const res = await api.get('/payment-plans', { params })
+  return res.data
+}
+
+export const createPaymentPlan = async (data: any) => {
+  const res = await api.post('/payment-plans', data)
+  return res.data
+}
+
+export const updatePaymentPlan = async (id: string | number, data: any) => {
+  const res = await api.put(`/payment-plans/${id}`, data)
+  return res.data
+}
+
+export const deletePaymentPlan = async (id: string | number) => {
+  const res = await api.delete(`/payment-plans/${id}`)
+  return res.data
+}
+
+export const getInstallments = async (planId: string | number) => {
+  const res = await api.get(`/payment-plans/${planId}/installments`)
+  return res.data
+}
+
+export const createInstallment = async (
+  planId: string | number,
+  data: any,
+) => {
+  const res = await api.post(`/payment-plans/${planId}/installments`, data)
+  return res.data
+}
+
+export const updateInstallment = async (
+  installmentId: string | number,
+  data: any,
+) => {
+  const res = await api.put(`/payment-plans/installments/${installmentId}`, data)
+  return res.data
+}
+
+export const deleteInstallment = async (installmentId: string | number) => {
+  const res = await api.delete(
+    `/payment-plans/installments/${installmentId}`,
+  )
+  return res.data
+}
+
+export const getCollectionLogs = async (params?: any) => {
+  const res = await api.get('/collection-logs', { params })
+  return res.data
+}
+
+export const createCollectionLog = async (data: any) => {
+  const res = await api.post('/collection-logs', data)
+  return res.data
+}
+
+export const updateCollectionLog = async (id: string | number, data: any) => {
+  const res = await api.put(`/collection-logs/${id}`, data)
+  return res.data
+}
+
+export const deleteCollectionLog = async (id: string | number) => {
+  const res = await api.delete(`/collection-logs/${id}`)
+  return res.data
+}
+
+export const exportFinancialReport = async (
+  format: 'pdf' | 'excel',
+  queue?: boolean,
+) => {
+  const res = await api.get('/reports/export', {
+    params: { format, ...(queue ? { queue: 1 } : {}) },
+    responseType: queue ? 'json' : 'blob',
+  })
   return res.data
 }
 

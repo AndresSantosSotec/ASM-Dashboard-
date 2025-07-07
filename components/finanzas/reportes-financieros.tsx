@@ -21,7 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Progress } from "@/components/ui/progress"
+import { exportFinancialReport } from "@/services/finance"
 
 // Datos de ejemplo para los reportes financieros
 const reportesData = {
@@ -159,7 +159,6 @@ const GeneradorEstadosCuenta = () => {
   const [selectedStudents, setSelectedStudents] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
-  const [generationProgress, setGenerationProgress] = useState(0)
   const [showPreview, setShowPreview] = useState(false)
   const [previewStudent, setPreviewStudent] = useState<any | null>(null)
 
@@ -190,27 +189,23 @@ const GeneradorEstadosCuenta = () => {
   )
 
   // Función para generar estados de cuenta
-  const generateAccountStatements = () => {
+  const [format, setFormat] = useState<'pdf' | 'excel'>('pdf')
+  const generateAccountStatements = async () => {
     if (selectedStudents.length === 0) {
-      alert("Por favor seleccione al menos un estudiante")
+      alert('Por favor seleccione al menos un estudiante')
       return
     }
 
     setIsGenerating(true)
-    setGenerationProgress(0)
-
-    // Simulación de generación de reportes
-    const interval = setInterval(() => {
-      setGenerationProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          setIsGenerating(false)
-          alert(`Se han generado ${selectedStudents.length} estados de cuenta correctamente`)
-          return 0
-        }
-        return prev + 5
-      })
-    }, 100)
+    try {
+      const blob = await exportFinancialReport(format)
+      const url = URL.createObjectURL(blob)
+      window.open(url)
+    } catch (e) {
+      alert('No se pudo generar el reporte')
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   // Función para mostrar vista previa
@@ -306,26 +301,19 @@ const GeneradorEstadosCuenta = () => {
           </Table>
 
           {isGenerating && (
-            <div className="mt-4 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Generando estados de cuenta...</span>
-                <span>{generationProgress}%</span>
-              </div>
-              <Progress value={generationProgress} className="h-2" />
-            </div>
+            <div className="mt-4 text-sm">Generando reporte...</div>
           )}
         </CardContent>
         <CardFooter className="flex justify-between">
           <div className="text-sm text-muted-foreground">{selectedStudents.length} estudiantes seleccionados</div>
           <div className="flex gap-2">
-            <Select defaultValue="pdf">
+            <Select value={format} onValueChange={(v) => setFormat(v as 'pdf' | 'excel')}>
               <SelectTrigger className="w-[130px]">
                 <SelectValue placeholder="Formato" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="pdf">PDF</SelectItem>
                 <SelectItem value="excel">Excel</SelectItem>
-                <SelectItem value="csv">CSV</SelectItem>
               </SelectContent>
             </Select>
             <Button onClick={generateAccountStatements} disabled={isGenerating || selectedStudents.length === 0}>
@@ -480,7 +468,13 @@ const GeneradorEstadosCuenta = () => {
             <Button variant="outline" onClick={() => setShowPreview(false)}>
               Cerrar
             </Button>
-            <Button>
+            <Button
+              onClick={async () => {
+                const blob = await exportFinancialReport('pdf')
+                const url = URL.createObjectURL(blob)
+                window.open(url)
+              }}
+            >
               <Download className="mr-2 h-4 w-4" /> Descargar PDF
             </Button>
           </DialogFooter>
@@ -498,7 +492,6 @@ const GeneradorLibrosContables = () => {
   })
   const [selectedBooks, setSelectedBooks] = useState<string[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
-  const [generationProgress, setGenerationProgress] = useState(0)
   const [showPreview, setShowPreview] = useState(false)
   const [previewBook, setPreviewBook] = useState<any | null>(null)
 
@@ -521,27 +514,22 @@ const GeneradorLibrosContables = () => {
   }
 
   // Función para generar libros contables
-  const generateAccountingBooks = () => {
+  const generateAccountingBooks = async () => {
     if (selectedBooks.length === 0) {
-      alert("Por favor seleccione al menos un libro contable")
+      alert('Por favor seleccione al menos un libro contable')
       return
     }
 
     setIsGenerating(true)
-    setGenerationProgress(0)
-
-    // Simulación de generación de libros
-    const interval = setInterval(() => {
-      setGenerationProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          setIsGenerating(false)
-          alert(`Se han generado ${selectedBooks.length} libros contables correctamente`)
-          return 0
-        }
-        return prev + 5
-      })
-    }, 100)
+    try {
+      const blob = await exportFinancialReport(format)
+      const url = URL.createObjectURL(blob)
+      window.open(url)
+    } catch (e) {
+      alert('No se pudo generar el reporte')
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   // Función para mostrar vista previa
@@ -617,26 +605,19 @@ const GeneradorLibrosContables = () => {
           </Table>
 
           {isGenerating && (
-            <div className="mt-4 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Generando libros contables...</span>
-                <span>{generationProgress}%</span>
-              </div>
-              <Progress value={generationProgress} className="h-2" />
-            </div>
+            <div className="mt-4 text-sm">Generando reporte...</div>
           )}
         </CardContent>
         <CardFooter className="flex justify-between">
           <div className="text-sm text-muted-foreground">{selectedBooks.length} libros seleccionados</div>
           <div className="flex gap-2">
-            <Select defaultValue="pdf">
+            <Select value={format} onValueChange={(v) => setFormat(v as 'pdf' | 'excel')}>
               <SelectTrigger className="w-[130px]">
                 <SelectValue placeholder="Formato" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="pdf">PDF</SelectItem>
                 <SelectItem value="excel">Excel</SelectItem>
-                <SelectItem value="csv">CSV</SelectItem>
               </SelectContent>
             </Select>
             <Button onClick={generateAccountingBooks} disabled={isGenerating || selectedBooks.length === 0}>
@@ -973,7 +954,13 @@ const GeneradorLibrosContables = () => {
             <Button variant="outline" onClick={() => setShowPreview(false)}>
               Cerrar
             </Button>
-            <Button>
+            <Button
+              onClick={async () => {
+                const blob = await exportFinancialReport('pdf')
+                const url = URL.createObjectURL(blob)
+                window.open(url)
+              }}
+            >
               <Download className="mr-2 h-4 w-4" /> Descargar PDF
             </Button>
           </DialogFooter>
