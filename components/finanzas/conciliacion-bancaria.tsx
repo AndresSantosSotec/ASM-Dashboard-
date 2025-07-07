@@ -37,7 +37,11 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import { Separator } from "@/components/ui/separator"
-import { getReconciliation, uploadReconciliation } from "@/services/finance"
+import {
+  getPendingReconciliation,
+  uploadReconciliation,
+  processReconciliation,
+} from "@/services/finance"
 import { toast } from "@/hooks/use-toast"
 
 // Datos de ejemplo para la conciliación bancaria
@@ -166,7 +170,7 @@ export function ConciliacionBancaria() {
     const load = async () => {
       setLoading(true)
       try {
-        const data = await getReconciliation()
+        const data = await getPendingReconciliation()
         setPendingReceipts(Array.isArray(data) ? data : data.pendingReceipts)
       } catch (e) {
         toast({ title: 'Error', description: 'No se pudieron cargar los recibos' })
@@ -217,7 +221,7 @@ export function ConciliacionBancaria() {
   // Función para realizar la conciliación
   const handleReconciliation = async () => {
     try {
-      await reconcileReceipts(selectedReceipts)
+      await processReconciliation()
       toast({ title: 'Conciliación completada' })
       setShowReconcileDialog(false)
       setSelectedReceipts([])

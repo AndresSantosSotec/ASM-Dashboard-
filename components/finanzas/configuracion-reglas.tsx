@@ -175,7 +175,10 @@ export function ConfiguracionReglas() {
     const load = async () => {
       try {
         const data = await getPaymentRules()
-        if (data) setGeneralRules(data)
+        if (data) {
+          const rule = Array.isArray(data) ? data[0] : data
+          setGeneralRules((prev) => ({ ...prev, ...rule }))
+        }
       } catch (e) {
         toast({ title: 'Error', description: 'No se pudieron cargar las reglas' })
       }
@@ -245,7 +248,7 @@ export function ConfiguracionReglas() {
                       type="number"
                       min="1"
                       max="28"
-                      value={generalRules.dueDateDay}
+                      value={generalRules.dueDateDay ?? ""}
                       onChange={(e) => handleGeneralRuleChange("dueDateDay", Number.parseInt(e.target.value))}
                     />
                     <p className="text-xs text-muted-foreground">Día del mes en que vencen los pagos mensuales</p>
@@ -257,7 +260,7 @@ export function ConfiguracionReglas() {
                       id="lateFeeAmount"
                       type="number"
                       min="0"
-                      value={generalRules.lateFeeAmount}
+                      value={generalRules.lateFeeAmount ?? ""}
                       onChange={(e) => handleGeneralRuleChange("lateFeeAmount", Number.parseInt(e.target.value))}
                     />
                     <p className="text-xs text-muted-foreground">
@@ -272,7 +275,7 @@ export function ConfiguracionReglas() {
                       type="number"
                       min="1"
                       max="12"
-                      value={generalRules.blockAfterMonths}
+                      value={generalRules.blockAfterMonths ?? ""}
                       onChange={(e) => handleGeneralRuleChange("blockAfterMonths", Number.parseInt(e.target.value))}
                     />
                     <p className="text-xs text-muted-foreground">
