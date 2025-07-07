@@ -171,6 +171,7 @@ export const createKardexPago = async (data: any) => {
   return res.data
 }
 
+
 export const getCuotasByProspecto = async (
   prospectoId: string | number,
   params?: any,
