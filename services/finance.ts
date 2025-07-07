@@ -247,4 +247,9 @@ export const fetchFinancialReports = async (params?: any) => {
   return res.data
 }
 
+export const createPaymentRule = async (data: any) => {
+  const res = await api.post('/payment-rules', data)
+  return res.data
+}
+
 
