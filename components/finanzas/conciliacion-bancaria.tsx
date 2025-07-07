@@ -37,107 +37,14 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import { Separator } from "@/components/ui/separator"
-import { getReconciliation, uploadReconciliation } from "@/services/finance"
+import {
+  getPendingReconciliation,
+  uploadReconciliation,
+  processReconciliation,
+} from "@/services/finance"
 import { toast } from "@/hooks/use-toast"
 
-// Datos de ejemplo para la conciliación bancaria
-const conciliacionData = {
-  pendingReceipts: [
-    {
-      id: "rec-001",
-      studentId: "2023-0042",
-      studentName: "Carlos Méndez",
-      bank: "Banco Industrial",
-      receiptNumber: "BI-123456",
-      amount: 750,
-      date: "2025-03-10",
-      authNumber: "AUTH-987654",
-      status: "pendiente",
-      uploadDate: "2025-03-10",
-      program: "Desarrollo Web Full Stack",
-    },
-    {
-      id: "rec-002",
-      studentId: "2023-0078",
-      studentName: "Ana Lucía Gómez",
-      bank: "Banrural",
-      receiptNumber: "BR-654321",
-      amount: 750,
-      date: "2025-03-09",
-      authNumber: "AUTH-123456",
-      status: "pendiente",
-      uploadDate: "2025-03-09",
-      program: "Diseño UX/UI",
-    },
-    {
-      id: "rec-003",
-      studentId: "2023-0091",
-      studentName: "Juan Pablo Herrera",
-      bank: "Banco G&T",
-      receiptNumber: "GT-789456",
-      amount: 750,
-      date: "2025-03-08",
-      authNumber: "AUTH-456789",
-      status: "pendiente",
-      uploadDate: "2025-03-08",
-      program: "Medicina",
-    },
-  ],
-  reconciliationHistory: [
-    {
-      id: "recon-001",
-      date: "2025-03-09",
-      totalReceipts: 15,
-      totalAmount: 11250,
-      status: "completada",
-      processedBy: "María López",
-      receipts: [
-        {
-          id: "rec-004",
-          studentId: "2023-0056",
-          studentName: "María Fernanda López",
-          bank: "Banco Industrial",
-          receiptNumber: "BI-789123",
-          amount: 750,
-          date: "2025-03-05",
-          authNumber: "AUTH-321654",
-          status: "conciliado",
-          uploadDate: "2025-03-05",
-          program: "Psicología",
-        },
-        {
-          id: "rec-005",
-          studentId: "2023-0112",
-          studentName: "Lucía Ramírez",
-          bank: "Banrural",
-          receiptNumber: "BR-456789",
-          amount: 750,
-          date: "2025-03-05",
-          authNumber: "AUTH-987321",
-          status: "conciliado",
-          uploadDate: "2025-03-05",
-          program: "Administración de Empresas",
-        },
-      ],
-    },
-    {
-      id: "recon-002",
-      date: "2025-03-08",
-      totalReceipts: 12,
-      totalAmount: 9000,
-      status: "completada",
-      processedBy: "Juan Pérez",
-      receipts: [],
-    },
-  ],
-  banks: [
-    { id: "bank-001", name: "Banco Industrial" },
-    { id: "bank-002", name: "Banrural" },
-    { id: "bank-003", name: "Banco G&T" },
-    { id: "bank-004", name: "BAC Credomatic" },
-    { id: "bank-005", name: "Banco Promerica" },
-  ],
-}
+// Datos cargados desde la API de conciliación
 
 export function ConciliacionBancaria() {
   const [activeTab, setActiveTab] = useState("pending-receipts")
@@ -151,6 +58,8 @@ export function ConciliacionBancaria() {
     to: new Date(),
   })
   const [pendingReceipts, setPendingReceipts] = useState<any[]>([])
+  const [reconciliationHistory, setReconciliationHistory] = useState<any[]>([])
+  const [banks, setBanks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [uploadForm, setUploadForm] = useState({
     studentId: "",
@@ -166,8 +75,14 @@ export function ConciliacionBancaria() {
     const load = async () => {
       setLoading(true)
       try {
-        const data = await getReconciliation()
-        setPendingReceipts(Array.isArray(data) ? data : data.pendingReceipts)
+        const data = await getPendingReconciliation()
+        if (Array.isArray(data)) {
+          setPendingReceipts(data)
+        } else if (data) {
+          setPendingReceipts(data.pendingReceipts || [])
+          setReconciliationHistory(data.reconciliationHistory || [])
+          setBanks(data.banks || [])
+        }
       } catch (e) {
         toast({ title: 'Error', description: 'No se pudieron cargar los recibos' })
       } finally {
@@ -217,7 +132,7 @@ export function ConciliacionBancaria() {
   // Función para realizar la conciliación
   const handleReconciliation = async () => {
     try {
-      await reconcileReceipts(selectedReceipts)
+      await processReconciliation()
       toast({ title: 'Conciliación completada' })
       setShowReconcileDialog(false)
       setSelectedReceipts([])
@@ -301,7 +216,7 @@ export function ConciliacionBancaria() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos los bancos</SelectItem>
-                      {conciliacionData.banks.map((bank) => (
+                      {banks.map((bank) => (
                         <SelectItem key={bank.id} value={bank.id}>
                           {bank.name}
                         </SelectItem>
@@ -415,7 +330,7 @@ export function ConciliacionBancaria() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {conciliacionData.reconciliationHistory.map((reconciliation) => (
+                  {reconciliationHistory.map((reconciliation) => (
                     <TableRow key={reconciliation.id}>
                       <TableCell>
                         <div className="flex items-center gap-1">
@@ -475,7 +390,7 @@ export function ConciliacionBancaria() {
                   <SelectValue placeholder="Seleccione el banco" />
                 </SelectTrigger>
                 <SelectContent>
-                  {conciliacionData.banks.map((bank) => (
+                  {banks.map((bank) => (
                     <SelectItem key={bank.id} value={bank.id}>
                       {bank.name}
                     </SelectItem>

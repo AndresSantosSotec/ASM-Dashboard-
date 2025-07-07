@@ -175,7 +175,10 @@ export function ConfiguracionReglas() {
     const load = async () => {
       try {
         const data = await getPaymentRules()
-        if (data) setGeneralRules(data)
+        if (data) {
+          const rule = Array.isArray(data) ? data[0] : data
+          setGeneralRules((prev) => ({ ...prev, ...rule }))
+        }
       } catch (e) {
         toast({ title: 'Error', description: 'No se pudieron cargar las reglas' })
       }
@@ -245,8 +248,13 @@ export function ConfiguracionReglas() {
                       type="number"
                       min="1"
                       max="28"
-                      value={generalRules.dueDateDay}
-                      onChange={(e) => handleGeneralRuleChange("dueDateDay", Number.parseInt(e.target.value))}
+                      value={generalRules.dueDateDay ?? ""}
+                      onChange={(e) =>
+                        handleGeneralRuleChange(
+                          "dueDateDay",
+                          e.target.value === "" ? undefined : Number(e.target.value),
+                        )
+                      }
                     />
                     <p className="text-xs text-muted-foreground">Día del mes en que vencen los pagos mensuales</p>
                   </div>
@@ -257,8 +265,13 @@ export function ConfiguracionReglas() {
                       id="lateFeeAmount"
                       type="number"
                       min="0"
-                      value={generalRules.lateFeeAmount}
-                      onChange={(e) => handleGeneralRuleChange("lateFeeAmount", Number.parseInt(e.target.value))}
+                      value={generalRules.lateFeeAmount ?? ""}
+                      onChange={(e) =>
+                        handleGeneralRuleChange(
+                          "lateFeeAmount",
+                          e.target.value === "" ? undefined : Number(e.target.value),
+                        )
+                      }
                     />
                     <p className="text-xs text-muted-foreground">
                       Cantidad que se cargará automáticamente por pagos atrasados
@@ -272,8 +285,13 @@ export function ConfiguracionReglas() {
                       type="number"
                       min="1"
                       max="12"
-                      value={generalRules.blockAfterMonths}
-                      onChange={(e) => handleGeneralRuleChange("blockAfterMonths", Number.parseInt(e.target.value))}
+                      value={generalRules.blockAfterMonths ?? ""}
+                      onChange={(e) =>
+                        handleGeneralRuleChange(
+                          "blockAfterMonths",
+                          e.target.value === "" ? undefined : Number(e.target.value),
+                        )
+                      }
                     />
                     <p className="text-xs text-muted-foreground">
                       Número de meses sin pago antes de bloquear la plataforma
