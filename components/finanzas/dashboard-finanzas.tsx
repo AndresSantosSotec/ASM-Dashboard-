@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -10,73 +10,9 @@ import { BarChart, DollarSign, Users, AlertTriangle, Calendar, ArrowUpRight, Dow
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { fetchDashboardSummary, fetchRecentPayments, type DashboardSummary } from "@/services/finance"
+import { toast } from "@/hooks/use-toast"
 
-// Datos de ejemplo para las gráficas y tablas
-const financialData = {
-  totalIncome: 125000,
-  pendingPayments: 45000,
-  totalStudents: 350,
-  studentsOnTime: 280,
-  studentsLate: 70,
-  collectionRate: 73.5,
-  promiseRate: 65.2,
-  buckets: {
-    b1: 32, // 0-5 días
-    b2: 18, // 6-10 días
-    b3: 12, // 11-30 días
-    b4: 8, // +30 días
-  },
-  recentTransactions: [
-    {
-      id: "TRX-001",
-      student: "Carlos Méndez",
-      amount: 1400,
-      date: "2025-03-10",
-      method: "Tarjeta",
-      status: "completado",
-    },
-    {
-      id: "TRX-002",
-      student: "Ana Lucía Gómez",
-      amount: 1400,
-      date: "2025-03-09",
-      method: "Depósito",
-      status: "pendiente",
-    },
-    {
-      id: "TRX-003",
-      student: "Roberto Juárez",
-      amount: 2000,
-      date: "2025-03-09",
-      method: "Transferencia",
-      status: "completado",
-    },
-    {
-      id: "TRX-004",
-      student: "María Fernanda López",
-      amount: 1400,
-      date: "2025-03-08",
-      method: "Tarjeta",
-      status: "completado",
-    },
-    {
-      id: "TRX-005",
-      student: "Juan Pablo Herrera",
-      amount: 1400,
-      date: "2025-03-07",
-      method: "Depósito",
-      status: "rechazado",
-    },
-  ],
-  monthlyIncome: [
-    { month: "Ene", amount: 110000 },
-    { month: "Feb", amount: 115000 },
-    { month: "Mar", amount: 125000 },
-    { month: "Abr", amount: 0 }, // Proyección
-    { month: "May", amount: 0 }, // Proyección
-    { month: "Jun", amount: 0 }, // Proyección
-  ],
-}
 
 export function DashboardFinanzas() {
   const [dateRange, setDateRange] = useState({
@@ -85,6 +21,19 @@ export function DashboardFinanzas() {
   })
 
   const [activeTab, setActiveTab] = useState("overview")
+  const [summary, setSummary] = useState<DashboardSummary | null>(null)
+  const [recentTransactions, setRecentTransactions] = useState<any[]>([])
+
+  useEffect(() => {
+    Promise.all([fetchDashboardSummary(), fetchRecentPayments()])
+      .then(([sum, payments]) => {
+        setSummary(sum)
+        setRecentTransactions(payments)
+      })
+      .catch(() =>
+        toast({ title: "Error", description: "No se pudieron cargar los datos" })
+      )
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -121,7 +70,7 @@ export function DashboardFinanzas() {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">Q{financialData.totalIncome.toLocaleString()}</div>
+                <div className="text-2xl font-bold">Q{(summary?.ingresosMensuales ?? 0).toLocaleString()}</div>
                 <p className="text-xs text-muted-foreground">+12% respecto al mes anterior</p>
               </CardContent>
             </Card>
@@ -131,11 +80,11 @@ export function DashboardFinanzas() {
                 <AlertTriangle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">Q{financialData.pendingPayments.toLocaleString()}</div>
+                <div className="text-2xl font-bold">Q{(summary?.recaudacionPendiente ?? 0).toLocaleString()}</div>
                 <p className="text-xs text-muted-foreground">
-                  {Math.round(
-                    (financialData.pendingPayments / (financialData.totalIncome + financialData.pendingPayments)) * 100,
-                  )}
+                  {summary && summary.ingresosMensuales + summary.recaudacionPendiente > 0
+                    ? Math.round((summary.recaudacionPendiente / (summary.ingresosMensuales + summary.recaudacionPendiente)) * 100)
+                    : 0}
                   % del total facturado
                 </p>
               </CardContent>
@@ -146,18 +95,11 @@ export function DashboardFinanzas() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {financialData.studentsOnTime} / {financialData.totalStudents}
-                </div>
+                <div className="text-2xl font-bold">{summary?.estudiantesActivos ?? 0}</div>
                 <div className="mt-2">
-                  <Progress
-                    value={Math.round((financialData.studentsOnTime / financialData.totalStudents) * 100)}
-                    className="h-2"
-                  />
+                  <Progress value={100} className="h-2" />
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {Math.round((financialData.studentsOnTime / financialData.totalStudents) * 100)}% de alumnos sin mora
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">Estudiantes activos</p>
               </CardContent>
             </Card>
             <Card>
@@ -166,12 +108,12 @@ export function DashboardFinanzas() {
                 <BarChart className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{financialData.collectionRate}%</div>
+                <div className="text-2xl font-bold">{summary?.tasaMorosidad ?? 0}%</div>
                 <div className="flex items-center gap-1 mt-1">
-                  <span className="text-xs text-green-600">+2.5%</span>
+                  <span className="text-xs text-green-600">+0%</span>
                   <ArrowUpRight className="h-3 w-3 text-green-600" />
                 </div>
-                <p className="text-xs text-muted-foreground">KPR (Promesa de pago): {financialData.promiseRate}%</p>
+                <p className="text-xs text-muted-foreground">KPR (Promesa de pago): 0%</p>
               </CardContent>
             </Card>
           </div>
@@ -185,21 +127,8 @@ export function DashboardFinanzas() {
                 <CardDescription>Comparativa de ingresos por mes</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-[300px] flex items-end gap-2">
-                  {financialData.monthlyIncome.map((month) => (
-                    <div key={month.month} className="relative flex flex-col items-center">
-                      <div
-                        className={`w-12 rounded-t-md ${month.amount > 0 ? "bg-blue-500" : "bg-gray-200"}`}
-                        style={{
-                          height: `${month.amount > 0 ? (month.amount / 125000) * 250 : 100}px`,
-                        }}
-                      ></div>
-                      <div className="absolute -top-6 text-xs font-medium">
-                        {month.amount > 0 ? `Q${(month.amount / 1000).toFixed(0)}K` : ""}
-                      </div>
-                      <div className="mt-2 text-xs">{month.month}</div>
-                    </div>
-                  ))}
+                <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
+                  Sin datos
                 </div>
               </CardContent>
             </Card>
@@ -211,67 +140,8 @@ export function DashboardFinanzas() {
                 <CardDescription>Distribución de alumnos por días de atraso</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="bg-blue-50">
-                          B1
-                        </Badge>
-                        <span className="text-sm">0-5 días</span>
-                      </div>
-                      <span className="text-sm font-medium">{financialData.buckets.b1} alumnos</span>
-                    </div>
-                    <Progress
-                      value={(financialData.buckets.b1 / financialData.studentsLate) * 100}
-                      className="h-2 bg-blue-100"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="bg-yellow-50">
-                          B2
-                        </Badge>
-                        <span className="text-sm">6-10 días</span>
-                      </div>
-                      <span className="text-sm font-medium">{financialData.buckets.b2} alumnos</span>
-                    </div>
-                    <Progress
-                      value={(financialData.buckets.b2 / financialData.studentsLate) * 100}
-                      className="h-2 bg-yellow-100"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="bg-orange-50">
-                          B3
-                        </Badge>
-                        <span className="text-sm">11-30 días</span>
-                      </div>
-                      <span className="text-sm font-medium">{financialData.buckets.b3} alumnos</span>
-                    </div>
-                    <Progress
-                      value={(financialData.buckets.b3 / financialData.studentsLate) * 100}
-                      className="h-2 bg-orange-100"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="bg-red-50">
-                          B4
-                        </Badge>
-                        <span className="text-sm">+30 días</span>
-                      </div>
-                      <span className="text-sm font-medium">{financialData.buckets.b4} alumnos</span>
-                    </div>
-                    <Progress
-                      value={(financialData.buckets.b4 / financialData.studentsLate) * 100}
-                      className="h-2 bg-red-100"
-                    />
-                  </div>
+                <div className="h-[150px] flex items-center justify-center text-sm text-muted-foreground">
+                  Sin datos
                 </div>
               </CardContent>
               <CardFooter>
@@ -301,32 +171,42 @@ export function DashboardFinanzas() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {financialData.recentTransactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell className="font-medium">{transaction.id}</TableCell>
-                      <TableCell>{transaction.student}</TableCell>
-                      <TableCell>Q{transaction.amount.toLocaleString()}</TableCell>
-                      <TableCell>{new Date(transaction.date).toLocaleDateString()}</TableCell>
-                      <TableCell>{transaction.method}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            transaction.status === "completado"
-                              ? "default"
-                              : transaction.status === "pendiente"
-                                ? "outline"
-                                : "destructive"
-                          }
-                        >
-                          {transaction.status === "completado"
-                            ? "Completado"
-                            : transaction.status === "pendiente"
-                              ? "Pendiente"
-                              : "Rechazado"}
-                        </Badge>
+                  {recentTransactions.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center">
+                        Sin datos
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    recentTransactions.map((transaction) => (
+                      <TableRow key={transaction.id}>
+                        <TableCell className="font-medium">{transaction.id}</TableCell>
+                        <TableCell>
+                          {transaction.estudiante ?? transaction.prospecto?.nombre_completo}
+                        </TableCell>
+                        <TableCell>Q{Number(transaction.monto || transaction.amount).toLocaleString()}</TableCell>
+                        <TableCell>{new Date(transaction.fecha || transaction.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell>{transaction.metodo || transaction.method}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              transaction.status === "completado"
+                                ? "default"
+                                : transaction.status === "pendiente"
+                                  ? "outline"
+                                  : "destructive"
+                            }
+                          >
+                            {transaction.status === "completado"
+                              ? "Completado"
+                              : transaction.status === "pendiente"
+                                ? "Pendiente"
+                                : "Rechazado"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
