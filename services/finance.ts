@@ -172,3 +172,24 @@ export const createKardexPago = async (data: any) => {
 }
 
 
+export const getCuotasByProspecto = async (
+  prospectoId: string | number,
+  params?: any,
+) => {
+  const res = await api.get(`/prospectos/${prospectoId}/cuotas`, {
+    params,
+  })
+  return res.data
+}
+
+export const getCuotasByPrograma = async (
+  programaId: string | number,
+  params?: any,
+) => {
+  const res = await api.get(`/estudiante-programa/${programaId}/cuotas`, {
+    params,
+  })
+  return res.data
+}
+
+
