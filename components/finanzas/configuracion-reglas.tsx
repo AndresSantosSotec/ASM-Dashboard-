@@ -1143,3 +1143,5 @@ export function ConfiguracionReglas() {
     </div>
   )
 }
+
+
