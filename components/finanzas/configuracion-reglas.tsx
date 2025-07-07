@@ -49,7 +49,7 @@ export function ConfiguracionReglas() {
       const data = await getPaymentRules()
       if (data) {
         const rule = Array.isArray(data) ? data[0] : data
-        setGeneralRules((prev) => ({ ...prev, ...rule }))
+        setGeneralRules((prev: any) => ({ ...prev, ...rule }))
         setNotificationRules(rule.notificationRules || [])
         setBlockingRules(rule.blockingRules || [])
         setPaymentGateways(rule.paymentGateways || [])
@@ -563,7 +563,7 @@ export function ConfiguracionReglas() {
                         <TableCell>{rule.daysAfterDue}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
-                            {rule.services.map((service, index) => {
+                            {rule.services.map((service: string, index: number) => {
                               return (
                                 <Badge key={index} variant="outline">
                                   {service === "plataforma"
