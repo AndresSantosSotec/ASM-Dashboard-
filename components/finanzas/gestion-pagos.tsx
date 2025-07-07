@@ -34,7 +34,16 @@ import {
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
-import { getInvoices, getPayments, createPayment, createInvoice, updateInvoice } from "@/services/finance"
+import {
+  getInvoices,
+  getPayments,
+  createPayment,
+  
+  getPaymentPlans,
+  createPaymentPlan,
+  getCollectionLogs,
+  createCollectionLog,
+} from "@/services/finance"
 import { toast } from "@/hooks/use-toast"
 
 
@@ -55,16 +64,24 @@ export function GestionPagos() {
   })
   const [invoices, setInvoices] = useState<any[]>([])
   const [payments, setPayments] = useState<any[]>([])
+  const [paymentPlans, setPaymentPlans] = useState<any[]>([])
+  const [collectionLogs, setCollectionLogs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
       try {
-        const inv = await getInvoices({})
-        const pay = await getPayments({})
+        const [inv, pay, plans, logs] = await Promise.all([
+          getInvoices({}),
+          getPayments({}),
+          getPaymentPlans({}),
+          getCollectionLogs({}),
+        ])
         setInvoices(inv)
         setPayments(pay)
+        setPaymentPlans(plans)
+        setCollectionLogs(Array.isArray(logs.data) ? logs.data : logs)
       } catch (e) {
         toast({
           title: 'Error',
@@ -358,7 +375,7 @@ export function GestionPagos() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    payments.map((plan) => (
+                    paymentPlans.map((plan) => (
                     <TableRow key={plan.id}>
                       <TableCell className="font-medium">{plan.id}</TableCell>
                       <TableCell>
@@ -696,7 +713,7 @@ export function GestionPagos() {
               <Button
                 onClick={async () => {
                   try {
-                    await createInvoice({ student_id: selectedStudent?.id })
+                    await createPaymentPlan({ prospecto_id: selectedStudent?.id })
                     toast({ title: 'Plan de pago creado' })
                     setShowPaymentPlanDialog(false)
                   } catch (e) {
