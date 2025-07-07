@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -31,77 +31,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-
-// Datos de ejemplo para el estado de cuenta
-const accountData = {
-  student: {
-    name: "Carlos Méndez",
-    id: "2023-0042",
-    program: "Ingeniería en Sistemas",
-    status: "Activo",
-  },
-  balance: {
-    currentDebt: 1400,
-    totalDebt: 2800,
-    nextDueDate: "2025-04-05",
-    daysUntilDue: 25,
-    latePayments: 1,
-    isBlocked: false,
-    warningLevel: 1, // 0: normal, 1: advertencia, 2: crítico
-  },
-  pendingPayments: [
-    {
-      id: "PAY-2025-03",
-      concept: "Cuota Mensual - Marzo 2025",
-      amount: 1400,
-      dueDate: "2025-03-05",
-      status: "vencido",
-      lateFee: 50,
-      daysLate: 15,
-    },
-    {
-      id: "PAY-2025-04",
-      concept: "Cuota Mensual - Abril 2025",
-      amount: 1400,
-      dueDate: "2025-04-05",
-      status: "pendiente",
-      lateFee: 0,
-      daysLate: 0,
-    },
-  ],
-  paymentHistory: [
-    {
-      id: "TRX-2025-02",
-      concept: "Cuota Mensual - Febrero 2025",
-      amount: 1400,
-      dueDate: "2025-02-05",
-      paymentDate: "2025-02-03",
-      method: "Tarjeta de Crédito",
-      reference: "TRX-78945612",
-      status: "completado",
-    },
-    {
-      id: "TRX-2025-01",
-      concept: "Cuota Mensual - Enero 2025",
-      amount: 1400,
-      dueDate: "2025-01-05",
-      paymentDate: "2025-01-04",
-      method: "Depósito Bancario",
-      reference: "DEP-12345678",
-      status: "completado",
-    },
-    {
-      id: "TRX-2024-12",
-      concept: "Cuota Mensual - Diciembre 2024",
-      amount: 1400,
-      dueDate: "2024-12-05",
-      paymentDate: "2024-12-02",
-      method: "Transferencia",
-      reference: "TRF-98765432",
-      status: "completado",
-    },
-  ],
-}
+import { fetchStudentAccountSummary } from "@/services/finance"
 
 export function EstadoCuentaEstudiante() {
   const [activeTab, setActiveTab] = useState("pending")
@@ -109,6 +39,22 @@ export function EstadoCuentaEstudiante() {
   const [showReceiptUpload, setShowReceiptUpload] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<any | null>(null)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [accountData, setAccountData] = useState<any | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const data = await fetchStudentAccountSummary()
+        setAccountData(data)
+      } catch (e) {
+        console.error('Error fetching account summary', e)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [])
 
   // Función para iniciar el pago con tarjeta
   const startCardPayment = (payment: any) => {
@@ -173,6 +119,14 @@ export function EstadoCuentaEstudiante() {
     return accountData.pendingPayments.reduce((total, payment) => {
       return total + payment.amount + payment.lateFee
     }, 0)
+  }
+
+  if (loading || !accountData) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <p>Cargando estado de cuenta...</p>
+      </div>
+    )
   }
 
   return (

@@ -192,4 +192,24 @@ export const getCuotasByPrograma = async (
   return res.data
 }
 
+export const fetchCollectionData = async (params?: any) => {
+  const res = await api.get('/finance/collections', { params })
+  return res.data
+}
+
+export const fetchStudentAccountSummary = async (
+  studentId?: string | number,
+) => {
+  const url = studentId
+    ? `/students/${studentId}/account-summary`
+    : '/students/account-summary'
+  const res = await api.get(url)
+  return res.data
+}
+
+export const fetchFinancialReports = async (params?: any) => {
+  const res = await api.get('/financial-reports', { params })
+  return res.data
+}
+
 
