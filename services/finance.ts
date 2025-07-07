@@ -65,6 +65,36 @@ export const updatePaymentRules = async (
   return res.data
 }
 
+export const createNotificationRule = async (
+  ruleId: string | number,
+  data: any,
+) => {
+  const res = await api.post(`/payment-rules/${ruleId}/notifications`, data)
+  return res.data
+}
+
+export const updateNotificationRule = async (
+  ruleId: string | number,
+  notificationId: string | number,
+  data: any,
+) => {
+  const res = await api.put(
+    `/payment-rules/${ruleId}/notifications/${notificationId}`,
+    data,
+  )
+  return res.data
+}
+
+export const deleteNotificationRule = async (
+  ruleId: string | number,
+  notificationId: string | number,
+) => {
+  const res = await api.delete(
+    `/payment-rules/${ruleId}/notifications/${notificationId}`,
+  )
+  return res.data
+}
+
 export const getPendingReconciliation = async () => {
   const res = await api.get('/reconciliation/pending')
   return res.data

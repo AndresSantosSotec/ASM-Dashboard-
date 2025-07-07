@@ -14,7 +14,13 @@ import { AlertCircle, Save, Plus, Trash2, Settings } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import { getPaymentRules, updatePaymentRules } from "@/services/finance"
+import {
+  getPaymentRules,
+  updatePaymentRules,
+  createNotificationRule,
+  updateNotificationRule,
+  deleteNotificationRule,
+} from "@/services/finance"
 import { toast } from "@/hooks/use-toast"
 
 
@@ -25,6 +31,9 @@ export function ConfiguracionReglas() {
   const [blockingRules, setBlockingRules] = useState<any[]>([])
   const [paymentGateways, setPaymentGateways] = useState<any[]>([])
   const [exceptionCategories, setExceptionCategories] = useState<any[]>([])
+  const [selectedNotifications, setSelectedNotifications] = useState<
+    Set<number>
+  >(new Set())
   const [editingNotification, setEditingNotification] = useState<any | null>(null)
   const [showNotificationForm, setShowNotificationForm] = useState(false)
   const [notificationForm, setNotificationForm] = useState({
@@ -35,23 +44,24 @@ export function ConfiguracionReglas() {
     message: '',
   })
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await getPaymentRules()
-        if (data) {
-          const rule = Array.isArray(data) ? data[0] : data
-          setGeneralRules((prev) => ({ ...prev, ...rule }))
-          setNotificationRules(rule.notificationRules || [])
-          setBlockingRules(rule.blockingRules || [])
-          setPaymentGateways(rule.paymentGateways || [])
-          setExceptionCategories(rule.exceptionCategories || [])
-        }
-      } catch (e) {
-        toast({ title: 'Error', description: 'No se pudieron cargar las reglas' })
+  const refreshRules = async () => {
+    try {
+      const data = await getPaymentRules()
+      if (data) {
+        const rule = Array.isArray(data) ? data[0] : data
+        setGeneralRules((prev) => ({ ...prev, ...rule }))
+        setNotificationRules(rule.notificationRules || [])
+        setBlockingRules(rule.blockingRules || [])
+        setPaymentGateways(rule.paymentGateways || [])
+        setExceptionCategories(rule.exceptionCategories || [])
       }
+    } catch (e) {
+      toast({ title: 'Error', description: 'No se pudieron cargar las reglas' })
     }
-    load()
+  }
+
+  useEffect(() => {
+    refreshRules()
   }, [])
 
   // Función para manejar cambios en las reglas generales
@@ -77,6 +87,37 @@ export function ConfiguracionReglas() {
       setNotificationForm({ name: '', type: 'email', triggerDays: 0, active: true, message: '' })
     }
     setShowNotificationForm(true)
+  }
+
+  const toggleNotificationSelection = (id: number, checked: boolean) => {
+    setSelectedNotifications((prev) => {
+      const newSet = new Set(prev)
+      if (checked) {
+        newSet.add(id)
+      } else {
+        newSet.delete(id)
+      }
+      return newSet
+    })
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedNotifications.size === 0) return
+    try {
+      await Promise.all(
+        Array.from(selectedNotifications).map((id) =>
+          deleteNotificationRule(generalRules.id ?? 1, id),
+        ),
+      )
+      setSelectedNotifications(new Set())
+      toast({ title: 'Notificaciones eliminadas' })
+      await refreshRules()
+    } catch (e) {
+      toast({
+        title: 'Error',
+        description: 'No se pudieron eliminar las notificaciones',
+      })
+    }
   }
 
   return (
@@ -299,7 +340,16 @@ export function ConfiguracionReglas() {
                       return (
                         <TableRow key={notification.id}>
                           <TableCell>
-                            <Checkbox id={`select-${notification.id}`} />
+                            <Checkbox
+                              id={`select-${notification.id}`}
+                              checked={selectedNotifications.has(notification.id)}
+                              onCheckedChange={(checked) =>
+                                toggleNotificationSelection(
+                                  notification.id,
+                                  !!checked,
+                                )
+                              }
+                            />
                           </TableCell>
                           <TableCell className="font-medium">{notification.name}</TableCell>
                           <TableCell>
@@ -336,7 +386,7 @@ export function ConfiguracionReglas() {
               <div className="text-sm text-muted-foreground">
                 Mostrando {notificationRules.length} notificaciones configuradas
               </div>
-              <Button variant="outline">
+              <Button variant="outline" onClick={handleDeleteSelected}>
                 <Trash2 className="mr-2 h-4 w-4" /> Eliminar Seleccionadas
               </Button>
             </CardFooter>
@@ -443,8 +493,34 @@ export function ConfiguracionReglas() {
                 <Button variant="outline" onClick={() => setShowNotificationForm(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={() => { if (editingNotification) { setNotificationRules(notificationRules.map((n) => n.id === editingNotification.id ? { ...notificationForm, id: n.id } : n)); } else { setNotificationRules([...notificationRules, { ...notificationForm, id: Date.now() }]); } setShowNotificationForm(false); }}>
-                  {editingNotification ? "Actualizar" : "Crear"} Notificación
+                <Button
+                  onClick={async () => {
+                    try {
+                      if (editingNotification) {
+                        await updateNotificationRule(
+                          generalRules.id ?? 1,
+                          editingNotification.id,
+                          notificationForm,
+                        )
+                        toast({ title: 'Notificación actualizada' })
+                      } else {
+                        await createNotificationRule(
+                          generalRules.id ?? 1,
+                          notificationForm,
+                        )
+                        toast({ title: 'Notificación creada' })
+                      }
+                      setShowNotificationForm(false)
+                      await refreshRules()
+                    } catch (e) {
+                      toast({
+                        title: 'Error',
+                        description: 'No se pudo guardar la notificación',
+                      })
+                    }
+                  }}
+                >
+                  {editingNotification ? 'Actualizar' : 'Crear'} Notificación
                 </Button>
               </CardFooter>
             </Card>
