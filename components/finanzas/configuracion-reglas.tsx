@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
-import { AlertCircle, Save, Plus, Trash2, Settings } from "lucide-react"
+import { AlertCircle, Save, Plus, Trash2, Settings, Eye } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Dialog,
@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge"
 import {
   getPaymentRules,
   updatePaymentRules,
+  createPaymentRule,
   createNotificationRule,
   updateNotificationRule,
   deleteNotificationRule,
@@ -83,6 +84,9 @@ export function ConfiguracionReglas() {
     },
   })
 
+
+  const [showRulesDialog, setShowRulesDialog] = useState(false)
+
   const refreshRules = async () => {
     try {
       const data = await getPaymentRules()
@@ -96,6 +100,17 @@ export function ConfiguracionReglas() {
       }
     } catch (e) {
       toast({ title: 'Error', description: 'No se pudieron cargar las reglas' })
+    }
+  }
+
+  const persistRules = async (data: any) => {
+    if (generalRules.id) {
+      await updatePaymentRules(generalRules.id, data)
+    } else {
+      const created = await createPaymentRule(data)
+      if (created && created.id) {
+        setGeneralRules((prev: any) => ({ ...prev, id: created.id }))
+      }
     }
   }
 
@@ -161,7 +176,9 @@ export function ConfiguracionReglas() {
 
   const handleCreateBlockingRule = async () => {
     try {
-      await updatePaymentRules(generalRules.id ?? 1, {
+
+      await persistRules({
+
         ...generalRules,
         notificationRules,
         blockingRules: [...blockingRules, blockingForm],
@@ -188,7 +205,8 @@ export function ConfiguracionReglas() {
 
   const handleCreateGateway = async () => {
     try {
-      await updatePaymentRules(generalRules.id ?? 1, {
+
+      await persistRules({
         ...generalRules,
         notificationRules,
         blockingRules,
@@ -213,7 +231,9 @@ export function ConfiguracionReglas() {
 
   const handleCreateCategory = async () => {
     try {
-      await updatePaymentRules(generalRules.id ?? 1, {
+
+      await persistRules({
+
         ...generalRules,
         notificationRules,
         blockingRules,
@@ -247,9 +267,15 @@ export function ConfiguracionReglas() {
         </div>
         <div className="flex items-center gap-2">
           <Button
+            onClick={() => setShowRulesDialog(true)}
+            variant="outline"
+          >
+            <Eye className="mr-2 h-4 w-4" /> Ver Reglas
+          </Button>
+          <Button
             onClick={async () => {
               try {
-                await updatePaymentRules(generalRules.id ?? 1, {
+                await persistRules({
                   ...generalRules,
                   notificationRules,
                   blockingRules,
@@ -403,7 +429,7 @@ export function ConfiguracionReglas() {
               <Button
                 onClick={async () => {
                   try {
-                await updatePaymentRules(generalRules.id ?? 1, {
+                await persistRules({
                       ...generalRules,
                       notificationRules,
                       blockingRules,
@@ -1140,6 +1166,98 @@ export function ConfiguracionReglas() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={showRulesDialog} onOpenChange={setShowRulesDialog}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Reglas Configuradas</DialogTitle>
+            <DialogDescription>
+              Visualice el resumen de todas las reglas actuales
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4 text-sm">
+            <div>
+              <h4 className="font-semibold mb-2">Generales</h4>
+              <ul className="space-y-1">
+                <li>Día de vencimiento: {generalRules.dueDateDay ?? '-'}</li>
+                <li>Mora: Q{generalRules.lateFeeAmount ?? '-'}</li>
+                <li>Bloquear tras {generalRules.blockAfterMonths ?? '-'} meses</li>
+                <li>
+                  Recordatorios automáticos:{' '}
+                  {generalRules.sendAutomaticReminders ? 'Sí' : 'No'}
+                </li>
+                <li>
+                  Pagos parciales:{' '}
+                  {generalRules.allowPartialPayments ? 'Permitidos' : 'No'}
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-2">Notificaciones</h4>
+              {notificationRules.length === 0 ? (
+                <p className="text-muted-foreground">Sin notificaciones</p>
+              ) : (
+                <ul className="space-y-1">
+                  {notificationRules.map((n) => (
+                    <li key={n.id}>
+                      {n.name} - {n.triggerDays} días -{' '}
+                      {n.active ? 'Activo' : 'Inactivo'}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <h4 className="font-semibold mb-2">Bloqueos</h4>
+              {blockingRules.length === 0 ? (
+                <p className="text-muted-foreground">Sin reglas de bloqueo</p>
+              ) : (
+                <ul className="space-y-1">
+                  {blockingRules.map((b) => (
+                    <li key={b.id}>
+                      {b.name} - {b.daysAfterDue} días -{' '}
+                      {b.active ? 'Activo' : 'Inactivo'}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <h4 className="font-semibold mb-2">Pasarelas</h4>
+              {paymentGateways.length === 0 ? (
+                <p className="text-muted-foreground">Sin pasarelas</p>
+              ) : (
+                <ul className="space-y-1">
+                  {paymentGateways.map((g) => (
+                    <li key={g.id}>
+                      {g.name} - Comisión {g.fee}% -{' '}
+                      {g.active ? 'Activa' : 'Inactiva'}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <h4 className="font-semibold mb-2">Excepciones</h4>
+              {exceptionCategories.length === 0 ? (
+                <p className="text-muted-foreground">Sin categorías</p>
+              ) : (
+                <ul className="space-y-1">
+                  {exceptionCategories.map((c) => (
+                    <li key={c.id}>{c.name}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRulesDialog(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   )
 }
