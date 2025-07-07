@@ -9,33 +9,16 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { fetchDashboardSummary, type DashboardSummary } from "@/services/finance"
+import {
+  fetchDashboardSummary,
+  type DashboardSummary,
+  fetchRecentPayments,
+  getKardexPagos,
+} from "@/services/finance"
 import { toast } from "@/hooks/use-toast"
 
-// Datos de ejemplo para el dashboard financiero
-const staticData = {
-  morosidadPorPrograma: [
-    { programa: "Desarrollo Web", porcentaje: 8.2 },
-    { programa: "Diseño UX/UI", porcentaje: 10.5 },
-    { programa: "Medicina", porcentaje: 15.3 },
-    { programa: "Psicología", porcentaje: 12.8 },
-    { programa: "Administración", porcentaje: 9.7 },
-  ],
-  pagosRecientes: [
-    { id: "pago-001", estudiante: "Juan Pérez", monto: 750, fecha: "10/03/2025", concepto: "Mensualidad Marzo" },
-    { id: "pago-002", estudiante: "María López", monto: 750, fecha: "09/03/2025", concepto: "Mensualidad Marzo" },
-    { id: "pago-003", estudiante: "Carlos Rodríguez", monto: 750, fecha: "08/03/2025", concepto: "Mensualidad Marzo" },
-    { id: "pago-004", estudiante: "Ana Martínez", monto: 750, fecha: "07/03/2025", concepto: "Mensualidad Marzo" },
-    { id: "pago-005", estudiante: "Roberto Gómez", monto: 750, fecha: "06/03/2025", concepto: "Mensualidad Marzo" },
-  ],
-  alertasMorosidad: [
-    { id: "alerta-001", estudiante: "Pedro Díaz", diasVencidos: 45, montoVencido: 1500, programa: "Medicina" },
-    { id: "alerta-002", estudiante: "Sofía Hernández", diasVencidos: 38, montoVencido: 1500, programa: "Psicología" },
-    { id: "alerta-003", estudiante: "Luis Torres", diasVencidos: 30, montoVencido: 750, programa: "Desarrollo Web" },
-    { id: "alerta-004", estudiante: "Carmen Jiménez", diasVencidos: 25, montoVencido: 750, programa: "Diseño UX/UI" },
-    { id: "alerta-005", estudiante: "Javier Morales", diasVencidos: 20, montoVencido: 750, programa: "Administración" },
-  ],
-}
+// Datos obtenidos de la API. Se inicializan vacíos para evitar mostrar datos de ejemplo
+const emptyArray: any[] = []
 
 export function DashboardFinanciero() {
   const [dateRange, setDateRange] = useState({
@@ -43,16 +26,24 @@ export function DashboardFinanciero() {
     to: new Date(),
   })
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
+  const [recentPayments, setRecentPayments] = useState<any[]>([])
+  const [morosidadPorPrograma, setMorosidadPorPrograma] = useState<any[]>(emptyArray)
+  const [alertasMorosidad, setAlertasMorosidad] = useState<any[]>(emptyArray)
 
   useEffect(() => {
-    fetchDashboardSummary()
-      .then(setSummary)
+    Promise.all([fetchDashboardSummary(), fetchRecentPayments(), getKardexPagos()])
+      .then(([sum, payments, kardex]) => {
+        setSummary(sum)
+        setRecentPayments(payments)
+        if (Array.isArray(kardex)) {
+          setAlertasMorosidad(kardex.slice(0, 5))
+        }
+      })
       .catch(() =>
         toast({
           title: 'Error',
           description: 'No se pudo cargar el resumen financiero',
-        }),
-      )
+        }))
   }, [])
 
   // Función para calcular el cambio porcentual
@@ -224,15 +215,19 @@ export function DashboardFinanciero() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {staticData.morosidadPorPrograma.map((item) => (
-                <div key={item.programa} className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span>{item.programa}</span>
-                    <span className="font-medium">{item.porcentaje}%</span>
+              {morosidadPorPrograma.length === 0 ? (
+                <div className="text-muted-foreground text-sm">Sin datos</div>
+              ) : (
+                morosidadPorPrograma.map((item) => (
+                  <div key={item.programa} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span>{item.programa}</span>
+                      <span className="font-medium">{item.porcentaje}%</span>
+                    </div>
+                    <Progress value={item.porcentaje} max={20} className="h-2" />
                   </div>
-                  <Progress value={item.porcentaje} max={20} className="h-2" />
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
@@ -255,14 +250,26 @@ export function DashboardFinanciero() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {staticData.pagosRecientes.map((pago) => (
-                  <TableRow key={pago.id}>
-                    <TableCell className="font-medium">{pago.estudiante}</TableCell>
-                    <TableCell>{pago.concepto}</TableCell>
-                    <TableCell>{pago.fecha}</TableCell>
-                    <TableCell className="text-right">Q{pago.monto.toLocaleString()}</TableCell>
+                {recentPayments.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center">
+                      Sin datos
+                    </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  recentPayments.map((pago) => (
+                    <TableRow key={pago.id}>
+                      <TableCell className="font-medium">{pago.estudiante ?? pago.prospecto?.nombre_completo}</TableCell>
+                      <TableCell>{pago.concepto || pago.concept}</TableCell>
+                      <TableCell>
+                        {new Date(pago.fecha || pago.created_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        Q{Number(pago.monto || pago.amount).toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -289,18 +296,29 @@ export function DashboardFinanciero() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {staticData.alertasMorosidad.map((alerta) => (
-                  <TableRow key={alerta.id}>
-                    <TableCell className="font-medium">{alerta.estudiante}</TableCell>
-                    <TableCell>{alerta.programa}</TableCell>
-                    <TableCell>
-                      <Badge variant={alerta.diasVencidos > 30 ? "destructive" : "outline"} className="text-xs">
-                        {alerta.diasVencidos} días
-                      </Badge>
+                {alertasMorosidad.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center">
+                      Sin datos
                     </TableCell>
-                    <TableCell className="text-right text-red-500">Q{alerta.montoVencido.toLocaleString()}</TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  alertasMorosidad.map((alerta) => (
+                    <TableRow key={alerta.id}>
+                      <TableCell className="font-medium">{alerta.estudiante}</TableCell>
+                      <TableCell>{alerta.programa}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={alerta.diasVencidos > 30 ? "destructive" : "outline"}
+                          className="text-xs"
+                        >
+                          {alerta.diasVencidos} días
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right text-red-500">Q{alerta.montoVencido.toLocaleString()}</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
