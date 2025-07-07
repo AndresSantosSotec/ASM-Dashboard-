@@ -83,6 +83,7 @@ export function ConciliacionBancaria() {
           setReconciliationHistory(data.reconciliationHistory || [])
           setBanks(data.banks || [])
         }
+
       } catch (e) {
         toast({ title: 'Error', description: 'No se pudieron cargar los recibos' })
       } finally {

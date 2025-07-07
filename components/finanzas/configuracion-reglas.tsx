@@ -249,12 +249,14 @@ export function ConfiguracionReglas() {
                       min="1"
                       max="28"
                       value={generalRules.dueDateDay ?? ""}
+
                       onChange={(e) =>
                         handleGeneralRuleChange(
                           "dueDateDay",
                           e.target.value === "" ? undefined : Number(e.target.value),
                         )
                       }
+
                     />
                     <p className="text-xs text-muted-foreground">Día del mes en que vencen los pagos mensuales</p>
                   </div>
@@ -266,12 +268,14 @@ export function ConfiguracionReglas() {
                       type="number"
                       min="0"
                       value={generalRules.lateFeeAmount ?? ""}
+
                       onChange={(e) =>
                         handleGeneralRuleChange(
                           "lateFeeAmount",
                           e.target.value === "" ? undefined : Number(e.target.value),
                         )
                       }
+
                     />
                     <p className="text-xs text-muted-foreground">
                       Cantidad que se cargará automáticamente por pagos atrasados
@@ -286,12 +290,14 @@ export function ConfiguracionReglas() {
                       min="1"
                       max="12"
                       value={generalRules.blockAfterMonths ?? ""}
+
                       onChange={(e) =>
                         handleGeneralRuleChange(
                           "blockAfterMonths",
                           e.target.value === "" ? undefined : Number(e.target.value),
                         )
                       }
+
                     />
                     <p className="text-xs text-muted-foreground">
                       Número de meses sin pago antes de bloquear la plataforma
