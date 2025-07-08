@@ -57,10 +57,7 @@ export const getPaymentRules = async () => {
   return res.data
 }
 
-export const createPaymentRule = async (data: any) => {
-  const res = await api.post('/payment-rules', data)
-  return res.data
-}
+
 
 export const updatePaymentRules = async (
   id: string | number,

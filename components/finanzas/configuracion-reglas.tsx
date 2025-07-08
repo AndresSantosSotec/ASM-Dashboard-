@@ -104,10 +104,11 @@ export function ConfiguracionReglas() {
   }
 
   const persistRules = async (data: any) => {
+    const apiData = mapToApiFields(data)
     if (generalRules.id) {
-      await updatePaymentRules(generalRules.id, data)
+      await updatePaymentRules(generalRules.id, apiData)
     } else {
-      const created = await createPaymentRule(data)
+      const created = await createPaymentRule(apiData)
       if (created && created.id) {
         setGeneralRules((prev: any) => ({ ...prev, id: created.id }))
       }
@@ -255,6 +256,23 @@ export function ConfiguracionReglas() {
       await refreshRules()
     } catch (e) {
       toast({ title: 'Error', description: 'No se pudo crear la categoría' })
+    }
+  }
+
+  // Mapea los nombres del frontend a los del backend
+  function mapToApiFields(data: any) {
+    return {
+      due_day: data.dueDateDay,
+      late_fee_amount: data.lateFeeAmount,
+      block_after_months: data.blockAfterMonths,
+      send_automatic_reminders: data.sendAutomaticReminders,
+      // Puedes agregar aquí otros campos si tu backend los espera
+      gateway_config: data.paymentGateways ?? [],
+      // Si tienes más campos, agrégalos aquí
+      // Además, puedes incluir notificationRules, blockingRules, exceptionCategories si tu backend los acepta
+      notification_rules: data.notificationRules ?? [],
+      blocking_rules: data.blockingRules ?? [],
+      exception_categories: data.exceptionCategories ?? [],
     }
   }
 
