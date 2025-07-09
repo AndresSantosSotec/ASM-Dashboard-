@@ -26,7 +26,9 @@ export default function CourseAssignmentDashboard() {
   useEffect(() => {
     ;(async () => {
       try {
+
         const st = await fetchEnrolledStudentsWithCourses()
+
         const programIds = Array.from(
           new Set(st.map((s) => s.programId).filter((id) => id > 0)),
         )
