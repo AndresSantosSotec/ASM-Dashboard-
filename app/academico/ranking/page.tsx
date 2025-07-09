@@ -77,10 +77,22 @@ export default function RankingAcademico() {
   }, [])
 
   // Obtener programas únicos para el filtro
-  const uniquePrograms = Array.from(new Set(students.map((s) => s.program)))
+  const uniquePrograms = Array.from(
+    new Set(
+      students
+        .map((s) => s.program)
+        .filter((program) => program !== undefined && program !== null && program !== "")
+    )
+  )
 
   // Obtener semestres únicos para el filtro
-  const uniqueSemesters = Array.from(new Set(students.map((s) => s.semester))).sort((a, b) => a - b)
+  const uniqueSemesters = Array.from(
+    new Set(
+      students
+        .map((s) => s.semester)
+        .filter((semester) => semester !== undefined && semester !== null)
+    )
+  ).sort((a, b) => Number(a) - Number(b))
 
   // Filtrar estudiantes
   const filteredStudents = students.filter((student) => {
