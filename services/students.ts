@@ -75,6 +75,34 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
   return students
 }
 
+export const fetchEnrolledStudentsWithCourses = async (): Promise<Student[]> => {
+  const res = await api.get('/prospectos/inscritos-with-courses', {
+    params: { per_page: 9999 },
+  })
+  const data = Array.isArray(res.data.data) ? res.data.data : res.data
+
+  return data.map((p: any) => {
+    const prog =
+      Array.isArray(p.programas) && p.programas.length > 0 ? p.programas[0] : null
+
+    return {
+      id: String(p.id),
+      name: p.nombre_completo ?? '',
+      carnet: String(p.id),
+      programId: prog?.id ?? 0,
+      program: prog?.nombre_del_programa ?? '',
+      specialty: prog?.abreviatura ?? '',
+      assignedCourses: Array.isArray(p.courses)
+        ? p.courses.map((c: any) => String(c.id))
+        : [],
+      assignedCourseNames: Array.isArray(p.courses)
+        ? p.courses.map((c: any) => c.name)
+        : [],
+      completedCourses: [],
+    }
+  })
+}
+
 export const fetchStudentCourseLists = async (
   studentId: string,
 ): Promise<{ assigned: Course[]; completed: Course[] }> => {
