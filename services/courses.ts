@@ -63,20 +63,8 @@ export const fetchCourses = async (programId?: number) => {
   return data.map(mapCourseFromApi)
 }
 
-const programCoursesCache = new Map<number, Course[]>()
-
 export const fetchProgramCourses = async (programId: number) => {
-  if (programCoursesCache.has(programId)) {
-    return programCoursesCache.get(programId)!
-  }
-
-  const courses = await fetchCourses(programId)
-  programCoursesCache.set(programId, courses)
-  return courses
-}
-
-export const clearProgramCoursesCache = () => {
-  programCoursesCache.clear()
+  return fetchCourses(programId)
 }
 
 export const fetchStudentCourses = async (studentId: string): Promise<Course[]> => {
