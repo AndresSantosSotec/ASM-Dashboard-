@@ -9,7 +9,6 @@ import {
   assignCourses,
   unassignCourses,
 } from "@/services/students";
-import { fetchStudentCourses } from "@/services/courses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -26,6 +25,7 @@ import {
 
 interface StudentAssignmentViewProps {
   student: Student;
+  programCourses: Course[];
   onCoursesChange?: (assignedIds: string[], names: string[]) => void;
 }
 
@@ -145,7 +145,7 @@ const DropZone = ({ status, onDrop, title, count, icon, children }: DropZoneProp
   );
 };
 
-export function StudentAssignmentView({ student, onCoursesChange }: StudentAssignmentViewProps) {
+export function StudentAssignmentView({ student, programCourses, onCoursesChange }: StudentAssignmentViewProps) {
   const [assigned, setAssigned] = useState<Course[]>([]);
   const [completed, setCompleted] = useState<Course[]>([]);
   const [allCourses, setAllCourses] = useState<Course[]>([]);
@@ -155,22 +155,23 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
   const [pendingAssign, setPendingAssign] = useState<string[]>([]);
   const [pendingUnassign, setPendingUnassign] = useState<string[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    setIsLoading(true);
     (async () => {
       try {
-        const [lists, courses] = await Promise.all([
-          fetchStudentCourseLists(student.id),
-          fetchStudentCourses(student.id),
-        ]);
+        const lists = await fetchStudentCourseLists(student.id);
         setAssigned(lists.assigned);
         setCompleted(lists.completed);
-        setAllCourses(courses);
+        setAllCourses(programCourses);
       } catch (err) {
         console.error(err);
+      } finally {
+        setIsLoading(false);
       }
     })();
-  }, [student.id, student.programId]);
+  }, [student.id, programCourses]);
 
   useEffect(() => {
     const avail = allCourses.filter(
@@ -247,6 +248,14 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
     },
     [searchTerm],
   );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
