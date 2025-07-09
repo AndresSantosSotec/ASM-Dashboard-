@@ -83,14 +83,19 @@ export default function RankingAcademico() {
   const uniqueSemesters = Array.from(new Set(students.map((s) => s.semester))).sort((a, b) => a - b)
 
   // Filtrar estudiantes
-  const filteredStudents = students.filter(student => {
-    const matchesSearch = 
-      student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.program.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesProgram = programFilter === "all" || student.program === programFilter
-    const matchesSemester = semesterFilter === "all" || student.semester.toString() === semesterFilter
-    
+  const filteredStudents = students.filter((student) => {
+    const name = student.name ?? ""
+    const program = student.program ?? ""
+
+    const matchesSearch =
+      name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      program.toLowerCase().includes(searchTerm.toLowerCase())
+
+    const matchesProgram =
+      programFilter === "all" || program === programFilter
+    const matchesSemester =
+      semesterFilter === "all" || String(student.semester ?? "") === semesterFilter
+
     return matchesSearch && matchesProgram && matchesSemester
   })
 
