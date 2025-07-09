@@ -82,9 +82,14 @@ export default function RankingAcademico() {
 
   // Filtrar estudiantes
   const filteredStudents = students.filter(student => {
-    const matchesSearch = 
-      student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.program.toLowerCase().includes(searchTerm.toLowerCase())
+    const search = searchTerm.toLowerCase()
+    const nameMatch = student.name
+      ? student.name.toLowerCase().includes(search)
+      : false
+    const programMatch = student.program
+      ? student.program.toLowerCase().includes(search)
+      : false
+    const matchesSearch = nameMatch || programMatch
     
     const matchesProgram = programFilter === "all" || student.program === programFilter
     const matchesSemester = semesterFilter === "all" || student.semester.toString() === semesterFilter
