@@ -10,7 +10,7 @@ import { ArrowLeft } from "lucide-react"
 import type { Student } from "@/services/students"
 import type { Course } from "@/services/courses"
 import {
-  fetchEnrolledStudentsWithCourses,
+  fetchEnrolledStudents,
   assignCourses,
   unassignCourses,
 } from "@/services/students"
@@ -26,9 +26,7 @@ export default function CourseAssignmentDashboard() {
   useEffect(() => {
     ;(async () => {
       try {
-
-        const st = await fetchEnrolledStudentsWithCourses()
-
+        const st = await fetchEnrolledStudents()
         const programIds = Array.from(
           new Set(st.map((s) => s.programId).filter((id) => id > 0)),
         )
@@ -147,9 +145,6 @@ export default function CourseAssignmentDashboard() {
             </div>
             <StudentAssignmentView
               student={selectedStudent}
-              programCourses={courses.filter((c) =>
-                c.programIds.includes(selectedStudent.programId)
-              )}
               onCoursesChange={(ids, names) =>
                 handleCoursesChange(selectedStudent.id, ids, names)
               }
