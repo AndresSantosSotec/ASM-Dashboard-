@@ -52,7 +52,7 @@ export function StudentCard({ student, isSelected, onSelect, onViewAssignment }:
           </div>
         </div>
         
-        {student.assignedCourseNames.length > 0 && (
+        {student.assignedCourseNames.length > 0 ? (
           <div className="mt-2 text-xs text-gray-700 space-y-1">
             {student.assignedCourseNames.map((name) => (
               <div key={name} className="truncate">
@@ -60,6 +60,8 @@ export function StudentCard({ student, isSelected, onSelect, onViewAssignment }:
               </div>
             ))}
           </div>
+        ) : (
+          <p className="mt-2 text-xs text-gray-500 italic">Sin cursos asignados</p>
         )}
 
         <Button onClick={() => onViewAssignment(student.id)} className="w-full mt-4">
@@ -68,5 +70,4 @@ export function StudentCard({ student, isSelected, onSelect, onViewAssignment }:
         </Button>
       </CardContent>
     </Card>
-  )
-}
+  )}

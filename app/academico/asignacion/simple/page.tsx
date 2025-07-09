@@ -10,47 +10,76 @@ import { ArrowLeft } from "lucide-react"
 import type { Student } from "@/services/students"
 import type { Course } from "@/services/courses"
 import {
-  fetchEnrolledStudents,
+  fetchEnrolledStudentsWithCourses,
   assignCourses,
   unassignCourses,
 } from "@/services/students"
-import { fetchCourses } from "@/services/courses"
+import { fetchProgramCourses } from "@/services/courses"
 
 export default function CourseAssignmentDashboard() {
   const [students, setStudents] = useState<Student[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
   const [currentView, setCurrentView] = useState<"main" | "assignment">("main")
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     ;(async () => {
       try {
-        const [st, cr] = await Promise.all([fetchEnrolledStudents(), fetchCourses()])
+        const st = await fetchEnrolledStudentsWithCourses()
+        const programIds = Array.from(
+          new Set(st.map((s) => s.programId).filter((id) => id > 0)),
+        )
+        const coursesLists = await Promise.all(
+          programIds.map((id) => fetchProgramCourses(id)),
+        )
+        const cr = Array.from(
+          new Map(coursesLists.flat().map((c) => [c.id, c])).values(),
+        )
         setStudents(st)
         setCourses(cr)
       } catch (err) {
         console.error(err)
+      } finally {
+        setIsLoading(false)
       }
     })()
   }, [])
 
 
-  const handleBulkAssignment = async (studentIds: string[], courseIds: string[], isAssigned: boolean) => {
+  const handleBulkAssignment = async (
+    studentIds: string[],
+    courseIds: string[],
+    isAssigned: boolean,
+  ) => {
     setStudents((prev) =>
       prev.map((student) => {
         if (studentIds.includes(student.id)) {
           let updated = [...student.assignedCourses]
+          let updatedNames = [...student.assignedCourseNames]
           courseIds.forEach((courseId) => {
+            const course = courses.find((c) => c.id === Number(courseId))
+            const courseName = course?.name ?? ''
             if (isAssigned) {
-              if (!updated.includes(courseId)) updated.push(courseId)
+              if (!updated.includes(courseId)) {
+                updated.push(courseId)
+                if (courseName && !updatedNames.includes(courseName)) {
+                  updatedNames.push(courseName)
+                }
+              }
             } else {
               updated = updated.filter((id) => id !== courseId)
+              updatedNames = updatedNames.filter((n) => n !== courseName)
             }
           })
-          return { ...student, assignedCourses: updated }
+          return {
+            ...student,
+            assignedCourses: updated,
+            assignedCourseNames: updatedNames,
+          }
         }
         return student
-      })
+      }),
     )
 
     try {
@@ -93,6 +122,14 @@ export default function CourseAssignmentDashboard() {
   }
 
   const selectedStudent = selectedStudentId ? students.find((s) => s.id === selectedStudentId) : null
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    )
+  }
 
   if (currentView === "assignment" && selectedStudent) {
     return (

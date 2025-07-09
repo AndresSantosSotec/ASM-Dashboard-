@@ -155,6 +155,7 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
   const [pendingAssign, setPendingAssign] = useState<string[]>([]);
   const [pendingUnassign, setPendingUnassign] = useState<string[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -168,6 +169,8 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
         setAllCourses(courses);
       } catch (err) {
         console.error(err);
+      } finally {
+        setIsLoading(false);
       }
     })();
   }, [student.id, student.programId]);
@@ -247,6 +250,14 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
     },
     [searchTerm],
   );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
