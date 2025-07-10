@@ -63,12 +63,15 @@ export function StudentsView({ students, courses, onViewAssignment, onBulkAssign
     new Set(
       selectedStudents
         .map((id) => students.find((s) => s.id === id)?.programId)
-        .filter((id): id is number => id !== undefined)
+        .filter((id): id is number => id !== undefined && id > 0)
     )
   )
-  const bulkCourses = courses.filter((c) =>
-    c.programIds.some((pid) => selectedProgramIds.includes(pid))
-  )
+  const bulkCourses =
+    selectedProgramIds.length === 0
+      ? courses
+      : courses.filter((c) =>
+          c.programIds.some((pid) => selectedProgramIds.includes(pid))
+        )
 
   return (
     <div className="space-y-6">
