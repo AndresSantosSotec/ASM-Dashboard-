@@ -217,11 +217,14 @@ export function BulkAssignmentPanel({
                           </Badge>
                         </div>
                         <p className="text-xs text-gray-500">{course.code}</p>
+
                         {course.programas && (
                           <p className="text-xs text-gray-500">
                             {course.programas.map((p) => p.nombre_del_programa).join(', ')}
                           </p>
                         )}
+
+        
                       </div>
                     </div>
                   ))

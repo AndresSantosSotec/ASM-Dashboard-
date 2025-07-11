@@ -130,7 +130,8 @@ export const fetchFacilitators = async () => {
 export const getAvailableCoursesForStudents = async (
   prospectoIds: string[]
 ): Promise<Course[]> => {
-  const res = await api.get('/available-for-students', {
+
+  const res = await api.get('/courses/available-for-students', {
     params: { prospecto_ids: prospectoIds.map(Number) },
   })
   const data = Array.isArray(res.data) ? res.data : res.data.data
