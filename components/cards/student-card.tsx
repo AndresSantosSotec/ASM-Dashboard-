@@ -1,6 +1,9 @@
 "use client"
 
 import type { Student } from "@/services/students"
+import { useEffect, useState } from "react"
+import { fetchProspectoWithPrograms } from "@/services/prospectoService"
+import type { Program } from "@/services/programs"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,6 +18,16 @@ interface StudentCardProps {
 }
 
 export function StudentCard({ student, isSelected, onSelect, onViewAssignment }: StudentCardProps) {
+  const [programs, setPrograms] = useState<Program[]>(student.programs)
+
+  useEffect(() => {
+    if (programs.length === 0) {
+      fetchProspectoWithPrograms(Number(student.id))
+        .then(res => setPrograms(res.programas.map(ep => ep.programa)))
+        .catch(console.error)
+    }
+  }, [student.id, programs.length])
+
   return (
     <Card className={`hover:shadow-md transition-shadow ${isSelected ? "ring-2 ring-blue-500" : ""}`}>
       <CardContent className="p-4">
@@ -30,11 +43,11 @@ export function StudentCard({ student, isSelected, onSelect, onViewAssignment }:
         <div className="space-y-2 text-sm text-gray-600 mb-4">
           <div>
             <span className="font-medium">Programa:</span>{" "}
-            {student.programs.map(p => p.nombre_del_programa).join(', ')}
+            {programs.map(p => p.nombre_del_programa).join(', ')}
           </div>
           <div>
             <span className="font-medium">Especialidad:</span>{" "}
-            {student.programs.map(p => p.abreviatura).join(', ')}
+            {programs.map(p => p.abreviatura).join(', ')}
           </div>
           <div className="flex justify-between">
             <div className="flex items-center space-x-1">
