@@ -127,11 +127,12 @@ export const fetchFacilitators = async () => {
 
 
 /** Llama a GET /available-for-students?prospecto_ids[]=1&prospecto_ids[]=2 */
-export const fetchAvailableForStudents = async (
-  studentIds: string[]
+export const getAvailableCoursesForStudents = async (
+  prospectoIds: string[]
 ): Promise<Course[]> => {
   const res = await api.get('/available-for-students', {
-    params: { prospecto_ids: studentIds.map(Number) }
-  });
-  return Array.isArray(res.data) ? res.data : res.data.data;
-};
+    params: { prospecto_ids: prospectoIds.map(Number) },
+  })
+  const data = Array.isArray(res.data) ? res.data : res.data.data
+  return data.map(mapCourseFromApi)
+}
