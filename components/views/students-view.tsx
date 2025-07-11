@@ -35,7 +35,7 @@ export function StudentsView({ students, courses, onViewAssignment, onBulkAssign
     const matchesSpecialty = filterSpecialty === "all" || student.specialty === filterSpecialty
     return matchesSearch && matchesProgram && matchesSpecialty
   })
-
+  
   const handleStudentSelect = (studentId: string, isSelected: boolean) => {
     if (isSelected) {
       setSelectedStudents((prev) => [...prev, studentId])
