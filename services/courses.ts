@@ -131,7 +131,7 @@ export const getAvailableCoursesForStudents = async (
   prospectoIds: string[]
 ): Promise<Course[]> => {
 
-  const res = await api.get('/available-for-students', {
+  const res = await api.get('/courses/available-for-students', {
 
     params: { prospecto_ids: prospectoIds.map(Number) },
   })
