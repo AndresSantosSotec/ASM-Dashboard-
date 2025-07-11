@@ -9,11 +9,13 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { X, Users, BookOpen, Plus, Minus, Search, Filter } from "lucide-react"
+import { X, Users, BookOpen, Plus, Minus, Search, Filter, Loader2 } from "lucide-react"
 
 interface BulkAssignmentPanelProps {
   selectedStudents: Student[]
   courses: Course[]
+  isLoading: boolean
+  error: string | null
   onBulkAssignment: (studentIds: string[], courseIds: string[], isAssigned: boolean) => void
   onClose: () => void
 }
@@ -21,6 +23,8 @@ interface BulkAssignmentPanelProps {
 export function BulkAssignmentPanel({
   selectedStudents,
   courses,
+  isLoading,
+  error,
   onBulkAssignment,
   onClose,
 }: BulkAssignmentPanelProps) {
@@ -162,33 +166,42 @@ export function BulkAssignmentPanel({
             Cursos Disponibles ({selectedCourses.length} seleccionados de {filteredCourses.length})
           </h4>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-            {filteredCourses.length > 0 ? (
-              filteredCourses.map((course) => (
-                <div key={course.id} className="flex items-center space-x-2 p-2 border rounded">
-                  <Checkbox
-                    checked={selectedCourses.includes(course.id)}
-                    onCheckedChange={(checked) =>
-                      handleCourseSelect(course.id, checked as boolean)
-                    }
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-sm">{course.name}</span>
-                      <Badge className={`${getTypeColor(course.area)} text-white text-xs`}>
-                        {getTypeLabel(course.area)}
-                      </Badge>
+          {isLoading ? (
+            <div className="flex justify-center py-6">
+              <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
+            </div>
+          ) : (
+            <>
+              {error && <p className="text-sm text-red-500 mb-2">{error}</p>}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
+                {filteredCourses.length > 0 ? (
+                  filteredCourses.map((course) => (
+                    <div key={course.id} className="flex items-center space-x-2 p-2 border rounded">
+                      <Checkbox
+                        checked={selectedCourses.includes(course.id)}
+                        onCheckedChange={(checked) =>
+                          handleCourseSelect(course.id, checked as boolean)
+                        }
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm">{course.name}</span>
+                          <Badge className={`${getTypeColor(course.area)} text-white text-xs`}>
+                            {getTypeLabel(course.area)}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-gray-500">{course.code}</p>
+                      </div>
                     </div>
-                    <p className="text-xs text-gray-500">{course.code}</p>
+                  ))
+                ) : (
+                  <div className="col-span-2 text-center py-4 text-sm text-gray-500">
+                    No se encontraron cursos con los filtros actuales
                   </div>
-                </div>
-              ))
-            ) : (
-              <div className="col-span-2 text-center py-4 text-sm text-gray-500">
-                No se encontraron cursos con los filtros actuales
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </div>
 
         <div className="flex space-x-2 pt-4">

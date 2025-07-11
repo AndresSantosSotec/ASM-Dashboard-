@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import type { Student } from "@/services/students"
 import type { Course } from "@/services/courses"
+import { getAvailableCoursesForStudents } from "@/services/courses"
 import { StudentCard } from "@/components/cards/student-card"
 import { BulkAssignmentPanel } from "@/components/bulk-assignment-panel"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,6 +26,9 @@ export function StudentsView({ students, courses, onViewAssignment, onBulkAssign
   const [filterSpecialty, setFilterSpecialty] = useState<string>("all")
   const [selectedStudents, setSelectedStudents] = useState<string[]>([])
   const [showBulkPanel, setShowBulkPanel] = useState(false)
+  const [bulkCourses, setBulkCourses] = useState<Course[]>([])
+  const [isLoadingBulk, setIsLoadingBulk] = useState(false)
+  const [bulkError, setBulkError] = useState<string | null>(null)
 
   const programs = Array.from(new Set(students.map((s) => s.program).filter(Boolean)))
   const specialties = Array.from(new Set(students.map((s) => s.specialty).filter(Boolean)))
@@ -59,21 +63,15 @@ export function StudentsView({ students, courses, onViewAssignment, onBulkAssign
     setSelectedStudents([])
   }
 
-  const selectedProgramIds = Array.from(
-    new Set(
-      selectedStudents
-        .map((id) => students.find((s) => s.id === id)?.programId)
-        .filter((id): id is number => id !== undefined && id > 0)
-    )
-  )
-  const bulkCourses =
-    selectedProgramIds.length === 0
-      ? courses
-      : courses.filter((c) =>
-
-          selectedProgramIds.every((pid) => c.programIds.includes(pid))
-
-        )
+  useEffect(() => {
+    if (!showBulkPanel) return
+    setIsLoadingBulk(true)
+    setBulkError(null)
+    getAvailableCoursesForStudents(selectedStudents)
+      .then((cursos) => setBulkCourses(cursos))
+      .catch(() => setBulkError('Error cargando cursos'))
+      .finally(() => setIsLoadingBulk(false))
+  }, [showBulkPanel, selectedStudents])
 
   return (
     <div className="space-y-6">
@@ -83,12 +81,14 @@ export function StudentsView({ students, courses, onViewAssignment, onBulkAssign
           <h2 className="text-2xl font-bold">Estudiantes ({filteredStudents.length})</h2>
           {selectedStudents.length > 0 && <Badge variant="secondary">{selectedStudents.length} seleccionados</Badge>}
         </div>
-        {selectedStudents.length > 0 && (
-          <Button onClick={() => setShowBulkPanel(true)} variant="outline">
-            <Settings className="h-4 w-4 mr-2" />
-            Asignación Masiva
-          </Button>
-        )}
+        <Button
+          onClick={() => setShowBulkPanel(true)}
+          variant="outline"
+          disabled={selectedStudents.length === 0}
+        >
+          <Settings className="h-4 w-4 mr-2" />
+          Asignación Masiva
+        </Button>
       </div>
 
       <Card>
@@ -154,6 +154,8 @@ export function StudentsView({ students, courses, onViewAssignment, onBulkAssign
         <BulkAssignmentPanel
           selectedStudents={selectedStudents.map((id) => students.find((s) => s.id === id)!)}
           courses={bulkCourses}
+          isLoading={isLoadingBulk}
+          error={bulkError}
           onBulkAssignment={onBulkAssignment}
           onClose={() => setShowBulkPanel(false)}
         />
