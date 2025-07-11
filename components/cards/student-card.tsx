@@ -29,10 +29,12 @@ export function StudentCard({ student, isSelected, onSelect, onViewAssignment }:
 
         <div className="space-y-2 text-sm text-gray-600 mb-4">
           <div>
-            <span className="font-medium">Programa:</span> {student.program}
+            <span className="font-medium">Programa:</span>{" "}
+            {student.programs.map(p => p.nombre_del_programa).join(', ')}
           </div>
           <div>
-            <span className="font-medium">Especialidad:</span> {student.specialty}
+            <span className="font-medium">Especialidad:</span>{" "}
+            {student.programs.map(p => p.abreviatura).join(', ')}
           </div>
           <div className="flex justify-between">
             <div className="flex items-center space-x-1">

@@ -9,9 +9,24 @@ export interface Student {
   programId: number
   program: string
   specialty: string
+  /** Todos los programas en los que está inscrito */
+  programs: Program[]
   assignedCourses: string[]
   assignedCourseNames: string[]
   completedCourses: string[]
+}
+
+/**
+ * Obtiene todos los programas académicos para un estudiante
+ */
+export const fetchStudentPrograms = async (
+  studentId: string,
+): Promise<Program[]> => {
+  const res = await api.get('/estudiante-programa', {
+    params: { prospecto_id: studentId },
+  })
+  const data = Array.isArray(res.data) ? res.data : res.data.data
+  return Array.isArray(data) ? data : []
 }
 
 export const fetchStudentProgram = async (
@@ -39,28 +54,28 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
 
   const students = await Promise.all(
     data.map(async (p: any) => {
-      // Intentamos leer el programa desde p.programas
-      let prog =
-        Array.isArray(p.programas) && p.programas.length > 0
-          ? p.programas[0]
-          : null
-
-      // Si no hay, lo pedimos al endpoint
-      if (!prog) {
+      // Tratamos de obtener todos los programas desde p.programas
+      let progs: Program[] = []
+      if (Array.isArray(p.programas) && p.programas.length > 0) {
+        progs = p.programas
+      } else {
         try {
-          prog = await fetchStudentProgram(String(p.id))
+          progs = await fetchStudentPrograms(String(p.id))
         } catch (err) {
-          console.error('Error fetching student program', err)
+          console.error('Error fetching student programs', err)
         }
       }
+
+      const first = progs[0]
 
       return {
         id: String(p.id),
         name: p.nombre_completo ?? '',
         carnet: String(p.id),
-        programId: prog?.id ?? 0,
-        program: prog?.nombre_del_programa ?? '',
-        specialty: prog?.abreviatura ?? '',
+        programId: first?.id ?? 0,
+        program: first?.nombre_del_programa ?? '',
+        specialty: first?.abreviatura ?? '',
+        programs: progs,
         assignedCourses: Array.isArray(p.courses)
           ? p.courses.map((c: any) => String(c.id))
           : [],
