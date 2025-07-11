@@ -7,7 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { X, Users, BookOpen, Plus, Minus } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { X, Users, BookOpen, Plus, Minus, Search, Filter } from "lucide-react"
 
 interface BulkAssignmentPanelProps {
   selectedStudents: Student[]
@@ -23,12 +25,29 @@ export function BulkAssignmentPanel({
   onClose,
 }: BulkAssignmentPanelProps) {
   const [selectedCourses, setSelectedCourses] = useState<string[]>([])
+  const [searchTerm, setSearchTerm] = useState("")
+  const [filterArea, setFilterArea] = useState<string>("all")
+
+  const filteredCourses = courses.filter((course) => {
+    const matchesSearch = course.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         course.code.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesArea = filterArea === "all" || course.area === filterArea
+    return matchesSearch && matchesArea
+  })
 
   const handleCourseSelect = (courseId: string, isSelected: boolean) => {
     if (isSelected) {
       setSelectedCourses((prev) => [...prev, courseId])
     } else {
       setSelectedCourses((prev) => prev.filter((id) => id !== courseId))
+    }
+  }
+
+  const handleSelectAll = () => {
+    if (selectedCourses.length === filteredCourses.length) {
+      setSelectedCourses([])
+    } else {
+      setSelectedCourses(filteredCourses.map((c) => c.id))
     }
   }
 
@@ -109,31 +128,66 @@ export function BulkAssignmentPanel({
           </div>
         </div>
 
-        <div>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Buscar curso..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            <Select value={filterArea} onValueChange={setFilterArea}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filtrar por área" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las áreas</SelectItem>
+                <SelectItem value="common">Común</SelectItem>
+                <SelectItem value="specialty">Especialidad</SelectItem>
+                <SelectItem value="closure">Cierre</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button variant="outline" onClick={handleSelectAll} className="flex-1 bg-transparent">
+              {selectedCourses.length === filteredCourses.length ? "Deseleccionar" : "Seleccionar"} Todo
+            </Button>
+          </div>
+
           <h4 className="font-medium mb-2 flex items-center">
             <BookOpen className="h-4 w-4 mr-2" />
-            Seleccionar Cursos ({selectedCourses.length} seleccionados)
+            Cursos Disponibles ({selectedCourses.length} seleccionados de {filteredCourses.length})
           </h4>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-            {courses.map((course) => (
-              <div key={course.id} className="flex items-center space-x-2 p-2 border rounded">
-                <Checkbox
-                  checked={selectedCourses.includes(course.id)}
-                  onCheckedChange={(checked) =>
-                    handleCourseSelect(course.id, checked as boolean)
-                  }
-                />
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-sm">{course.name}</span>
-                    <Badge className={`${getTypeColor(course.area)} text-white text-xs`}>
-                      {getTypeLabel(course.area)}
-                    </Badge>
+            {filteredCourses.length > 0 ? (
+              filteredCourses.map((course) => (
+                <div key={course.id} className="flex items-center space-x-2 p-2 border rounded">
+                  <Checkbox
+                    checked={selectedCourses.includes(course.id)}
+                    onCheckedChange={(checked) =>
+                      handleCourseSelect(course.id, checked as boolean)
+                    }
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm">{course.name}</span>
+                      <Badge className={`${getTypeColor(course.area)} text-white text-xs`}>
+                        {getTypeLabel(course.area)}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-gray-500">{course.code}</p>
                   </div>
-                  <p className="text-xs text-gray-500">{course.code}</p>
                 </div>
+              ))
+            ) : (
+              <div className="col-span-2 text-center py-4 text-sm text-gray-500">
+                No se encontraron cursos con los filtros actuales
               </div>
-            ))}
+            )}
           </div>
         </div>
 

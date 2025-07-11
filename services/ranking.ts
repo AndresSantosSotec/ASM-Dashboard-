@@ -72,3 +72,4 @@ export const downloadRankingReport = async (params: RankingParams) => {
   const res = await api.get('/ranking/report', { params, responseType: 'blob' })
   return res.data as Blob
 }
+
