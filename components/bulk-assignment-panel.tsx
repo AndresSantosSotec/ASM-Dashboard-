@@ -102,6 +102,8 @@ export function BulkAssignmentPanel({
             {selectedStudents.map((student) => (
               <Badge key={student.id} variant="secondary">
                 {student.name}
+                {" "}
+                {student.program ? `(${student.program})` : ""}
               </Badge>
             ))}
           </div>

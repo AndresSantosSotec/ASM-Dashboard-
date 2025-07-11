@@ -70,7 +70,9 @@ export function StudentsView({ students, courses, onViewAssignment, onBulkAssign
     selectedProgramIds.length === 0
       ? courses
       : courses.filter((c) =>
-          c.programIds.some((pid) => selectedProgramIds.includes(pid))
+
+          selectedProgramIds.every((pid) => c.programIds.includes(pid))
+
         )
 
   return (
