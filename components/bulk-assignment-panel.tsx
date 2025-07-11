@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import type { Student } from "@/services/students"
 import type { Course } from "@/services/courses"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,12 +31,24 @@ export function BulkAssignmentPanel({
   const [selectedCourses, setSelectedCourses] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [filterArea, setFilterArea] = useState<string>("all")
+  const [filterProgram, setFilterProgram] = useState<string>("all")
+
+  const programOptions = useMemo(() => {
+    const names = courses.flatMap((c) =>
+      Array.isArray(c.programas) ? c.programas.map((p) => p.nombre_del_programa) : []
+    )
+    return Array.from(new Set(names))
+  }, [courses])
 
   const filteredCourses = courses.filter((course) => {
-    const matchesSearch = course.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         course.code.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSearch =
+      course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      course.code.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesArea = filterArea === "all" || course.area === filterArea
-    return matchesSearch && matchesArea
+    const matchesProgram =
+      filterProgram === "all" ||
+      course.programas?.some((p) => p.nombre_del_programa === filterProgram)
+    return matchesSearch && matchesArea && matchesProgram
   })
 
   const handleCourseSelect = (courseId: string, isSelected: boolean) => {
@@ -133,7 +145,7 @@ export function BulkAssignmentPanel({
         </div>
 
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
@@ -153,6 +165,20 @@ export function BulkAssignmentPanel({
                 <SelectItem value="common">Común</SelectItem>
                 <SelectItem value="specialty">Especialidad</SelectItem>
                 <SelectItem value="closure">Cierre</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={filterProgram} onValueChange={setFilterProgram}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filtrar por programa" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los programas</SelectItem>
+                {programOptions.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
@@ -191,6 +217,14 @@ export function BulkAssignmentPanel({
                           </Badge>
                         </div>
                         <p className="text-xs text-gray-500">{course.code}</p>
+
+                        {course.programas && (
+                          <p className="text-xs text-gray-500">
+                            {course.programas.map((p) => p.nombre_del_programa).join(', ')}
+                          </p>
+                        )}
+
+        
                       </div>
                     </div>
                   ))
