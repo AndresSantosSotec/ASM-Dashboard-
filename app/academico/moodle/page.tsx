@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -9,6 +10,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+
 import {
   Card,
   CardContent,
@@ -18,28 +20,35 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
+
 import { BookOpen } from "lucide-react"
 import Link from "next/link"
 import { format, startOfMonth, addMonths, isSameMonth } from "date-fns"
 import { es } from "date-fns/locale"
 import { fetchMoodleCourses, MOODLE_BASE_URL } from "@/services/moodle"
 
+
 interface MoodleCourse {
   id: number
   fullname: string
+
   timecreated: number
+
 }
 
 export default function MoodleCoursesPage() {
   const [courses, setCourses] = useState<MoodleCourse[]>([])
+e
   const [search, setSearch] = useState("")
   const { toast } = useToast()
+
 
   useEffect(() => {
     const load = async () => {
       try {
         const data = await fetchMoodleCourses()
         const mapped = Array.isArray(data)
+
           ? data.map((c: any) => ({
               id: c.id,
               fullname: c.fullname,
@@ -48,6 +57,7 @@ export default function MoodleCoursesPage() {
           : []
         mapped.sort((a, b) => b.timecreated - a.timecreated)
         setCourses(mapped)
+
         toast({
           title: "Cursos obtenidos",
           description: `Se cargaron ${mapped.length} cursos desde Moodle`,
@@ -59,6 +69,7 @@ export default function MoodleCoursesPage() {
           description: "No se pudieron cargar los cursos de Moodle",
           variant: "destructive",
         })
+
       }
     }
     load()
@@ -103,6 +114,7 @@ export default function MoodleCoursesPage() {
       </Breadcrumb>
 
       <Card>
+
         <CardHeader className="flex flex-col gap-4">
           <div className="flex flex-row items-center gap-2">
             <BookOpen className="h-6 w-6" />
@@ -119,6 +131,7 @@ export default function MoodleCoursesPage() {
             type="search"
           />
         </CardHeader>
+
         <CardContent className="space-y-6">
           {groups.map(group => (
             <div key={group.date.toISOString()} className="space-y-2">
@@ -145,6 +158,7 @@ export default function MoodleCoursesPage() {
               </div>
             </div>
           ))}
+
         </CardContent>
       </Card>
     </div>

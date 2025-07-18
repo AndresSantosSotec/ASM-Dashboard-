@@ -12,7 +12,7 @@ export interface Prospecto {
   id: number
   nombre_completo: string
   status: string
-  // …otros campos básicos
+
 }
 
 /** Prospecto con programas cargados */
