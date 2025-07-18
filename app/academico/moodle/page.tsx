@@ -40,7 +40,8 @@ interface MoodleCourse {
 export default function MoodleCoursesPage() {
   const [courses, setCourses] = useState<MoodleCourse[]>([])
   const [search, setSearch] = useState<string>("")
-  const [selectedYear, setSelectedYear] = useState<string>("")
+  const [selectedYear, setSelectedYear] = useState<string>("all")
+    
   const { toast } = useToast()
 
   useEffect(() => {
@@ -49,10 +50,10 @@ export default function MoodleCoursesPage() {
         const data = await fetchMoodleCourses()
         const mapped = Array.isArray(data)
           ? data.map((c: any) => ({
-              id: c.id,
-              fullname: c.fullname,
-              timecreated: c.timecreated ?? 0,
-            }))
+            id: c.id,
+            fullname: c.fullname,
+            timecreated: c.timecreated ?? 0,
+          }))
           : []
         mapped.sort((a, b) => b.timecreated - a.timecreated)
         setCourses(mapped)
@@ -91,7 +92,7 @@ export default function MoodleCoursesPage() {
       const byYear =
         !selectedYear ||
         new Date(c.timecreated * 1000).getFullYear().toString() ===
-          selectedYear
+        selectedYear
       const byText = c.fullname
         .toLowerCase()
         .includes(search.toLowerCase())
