@@ -13,9 +13,12 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -31,6 +34,21 @@ import { format, startOfMonth, addMonths, isSameMonth } from "date-fns"
 import { es } from "date-fns/locale"
 import { fetchMoodleCourses, MOODLE_BASE_URL } from "@/services/moodle"
 
+const MONTH_NAMES = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+]
+
 interface MoodleCourse {
   id: number
   fullname: string
@@ -40,7 +58,12 @@ interface MoodleCourse {
 export default function MoodleCoursesPage() {
   const [courses, setCourses] = useState<MoodleCourse[]>([])
   const [search, setSearch] = useState<string>("")
-  const [selectedYear, setSelectedYear] = useState<string>("")
+  const [selectedYear, setSelectedYear] = useState<string>("all")
+  const [selectedMonth, setSelectedMonth] = useState<string>("all")
+  const [selectedCourses, setSelectedCourses] = useState<Set<number>>(new Set())
+  const [showMode, setShowMode] = useState<"all" | "selected">("all")
+  const [page, setPage] = useState(1)
+  const perPage = 3
   const { toast } = useToast()
 
   useEffect(() => {
@@ -85,17 +108,39 @@ export default function MoodleCoursesPage() {
       .map(String)
   }, [courses])
 
-  // Agrupa y filtra por search + selectedYear
+  const months = useMemo(() => {
+    const setMonths = new Set<number>()
+    courses.forEach(c => {
+      if (
+        selectedYear !== "all" &&
+        new Date(c.timecreated * 1000).getFullYear().toString() !== selectedYear
+      ) {
+        return
+      }
+      setMonths.add(new Date(c.timecreated * 1000).getMonth())
+    })
+    return Array.from(setMonths)
+      .sort((a, b) => a - b)
+      .map(m => String(m + 1))
+  }, [courses, selectedYear])
+
+  // Agrupa y filtra por search, año, mes y selección
   const groups = useMemo(() => {
     const filtered = courses.filter(c => {
       const byYear =
-        !selectedYear ||
+        selectedYear === "all" ||
         new Date(c.timecreated * 1000).getFullYear().toString() ===
           selectedYear
+      const byMonth =
+        selectedMonth === "all" ||
+        (new Date(c.timecreated * 1000).getMonth() + 1).toString() ===
+          selectedMonth
+      const bySelected =
+        showMode === "all" || selectedCourses.has(c.id)
       const byText = c.fullname
         .toLowerCase()
         .includes(search.toLowerCase())
-      return byYear && byText
+      return byYear && byMonth && byText && bySelected
     })
 
     const map = new Map<string, { date: Date; courses: MoodleCourse[] }>()
@@ -118,7 +163,14 @@ export default function MoodleCoursesPage() {
     const nextIdx = arr.findIndex(g => isSameMonth(g.date, next))
     if (nextIdx >= 0) ordered.push(...arr.splice(nextIdx, 1))
     return ordered.concat(arr)
-  }, [courses, search, selectedYear])
+  }, [courses, search, selectedYear, selectedMonth, showMode, selectedCourses])
+
+  const totalPages = Math.max(1, Math.ceil(groups.length / perPage))
+  const pagedGroups = groups.slice((page - 1) * perPage, page * perPage)
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [totalPages])
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -157,7 +209,7 @@ export default function MoodleCoursesPage() {
                 <SelectValue placeholder="Año" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 {years.map(y => (
                   <SelectItem key={y} value={y}>
                     {y}
@@ -165,11 +217,39 @@ export default function MoodleCoursesPage() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="Mes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {months.map(m => (
+                  <SelectItem key={m} value={m}>
+                    {MONTH_NAMES[Number(m) - 1]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={showMode}
+              onValueChange={v => setShowMode(v as "all" | "selected")}
+            >
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Mostrar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="selected">Seleccionados</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" disabled>
+              Sincronizar seleccionados
+            </Button>
           </div>
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {groups.map(group => (
+          {pagedGroups.map(group => (
             <div key={group.date.toISOString()} className="space-y-2">
               <h3 className="text-lg font-semibold">
                 {format(group.date, "MMMM yyyy", { locale: es })}
@@ -177,24 +257,65 @@ export default function MoodleCoursesPage() {
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {group.courses.map(course => (
                   <Card key={course.id} className="border-muted">
-                    <CardHeader>
-                      <CardTitle className="text-sm font-medium">
-                        <Link
-                          href={`${MOODLE_BASE_URL}/course/view.php?id=${course.id}`}
-                          target="_blank"
-                          className="hover:underline"
-                        >
-                          {course.fullname}
-                        </Link>
-                      </CardTitle>
-                      <CardDescription>ID: {course.id}</CardDescription>
+                    <CardHeader className="flex flex-row items-start justify-between">
+                      <div>
+                        <CardTitle className="text-sm font-medium">
+                          <Link
+                            href={`${MOODLE_BASE_URL}/course/view.php?id=${course.id}`}
+                            target="_blank"
+                            className="hover:underline"
+                          >
+                            {course.fullname}
+                          </Link>
+                        </CardTitle>
+                        <CardDescription>ID: {course.id}</CardDescription>
+                      </div>
+                      <Checkbox
+                        checked={selectedCourses.has(course.id)}
+                        onCheckedChange={checked =>
+                          setSelectedCourses(prev => {
+                            const next = new Set(prev)
+                            if (checked) next.add(course.id)
+                            else next.delete(course.id)
+                            return next
+                          })
+                        }
+                      />
                     </CardHeader>
+                    <CardFooter>
+                      <Button variant="outline" size="sm" disabled>
+                        Sincronizar curso
+                      </Button>
+                    </CardFooter>
                   </Card>
                 ))}
               </div>
             </div>
           ))}
         </CardContent>
+        <div className="flex justify-between items-center text-sm px-6 pb-6">
+          <div>
+            Página {page} de {totalPages}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === 1}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === totalPages}
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
       </Card>
     </div>
   )
