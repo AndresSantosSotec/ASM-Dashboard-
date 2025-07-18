@@ -41,7 +41,7 @@ export default function MoodleCoursesPage() {
   const [courses, setCourses] = useState<MoodleCourse[]>([])
   const [search, setSearch] = useState<string>("")
   const [selectedYear, setSelectedYear] = useState<string>("all")
-    
+
   const { toast } = useToast()
 
   useEffect(() => {
@@ -90,7 +90,7 @@ export default function MoodleCoursesPage() {
   const groups = useMemo(() => {
     const filtered = courses.filter(c => {
       const byYear =
-        !selectedYear ||
+        selectedYear === "all" ||
         new Date(c.timecreated * 1000).getFullYear().toString() ===
         selectedYear
       const byText = c.fullname
@@ -158,8 +158,7 @@ export default function MoodleCoursesPage() {
                 <SelectValue placeholder="Año" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
-                {years.map(y => (
+                <SelectItem value="all">Todos</SelectItem>                {years.map(y => (
                   <SelectItem key={y} value={y}>
                     {y}
                   </SelectItem>
