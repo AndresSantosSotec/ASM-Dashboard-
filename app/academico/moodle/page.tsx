@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -21,16 +22,23 @@ import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 
 import { BookOpen } from "lucide-react"
-import { fetchMoodleCourses } from "@/services/moodle"
+import Link from "next/link"
+import { format, startOfMonth, addMonths, isSameMonth } from "date-fns"
+import { es } from "date-fns/locale"
+import { fetchMoodleCourses, MOODLE_BASE_URL } from "@/services/moodle"
+
 
 interface MoodleCourse {
   id: number
   fullname: string
+
+  timecreated: number
+
 }
 
 export default function MoodleCoursesPage() {
   const [courses, setCourses] = useState<MoodleCourse[]>([])
-
+e
   const [search, setSearch] = useState("")
   const { toast } = useToast()
 
@@ -40,8 +48,14 @@ export default function MoodleCoursesPage() {
       try {
         const data = await fetchMoodleCourses()
         const mapped = Array.isArray(data)
-          ? data.map((c: any) => ({ id: c.id, fullname: c.fullname }))
+
+          ? data.map((c: any) => ({
+              id: c.id,
+              fullname: c.fullname,
+              timecreated: c.timecreated ?? 0,
+            }))
           : []
+        mapped.sort((a, b) => b.timecreated - a.timecreated)
         setCourses(mapped)
 
         toast({
@@ -59,7 +73,31 @@ export default function MoodleCoursesPage() {
       }
     }
     load()
-  }, [])
+    }, [])
+
+  const groups = useMemo(() => {
+    const filtered = courses.filter(c =>
+      c.fullname.toLowerCase().includes(search.toLowerCase()),
+    )
+    const map = new Map<string, { date: Date; courses: MoodleCourse[] }>()
+    for (const c of filtered) {
+      const date = startOfMonth(new Date(c.timecreated * 1000))
+      const key = format(date, 'yyyy-MM')
+      if (!map.has(key)) map.set(key, { date, courses: [] })
+      map.get(key)!.courses.push(c)
+    }
+    const arr = Array.from(map.values()).sort(
+      (a, b) => b.date.getTime() - a.date.getTime(),
+    )
+    const current = startOfMonth(new Date())
+    const next = startOfMonth(addMonths(current, 1))
+    const ordered: typeof arr = []
+    const currentIdx = arr.findIndex(g => isSameMonth(g.date, current))
+    if (currentIdx >= 0) ordered.push(...arr.splice(currentIdx, 1))
+    const nextIdx = arr.findIndex(g => isSameMonth(g.date, next))
+    if (nextIdx >= 0) ordered.push(...arr.splice(nextIdx, 1))
+    return ordered.concat(arr)
+  }, [courses, search])
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -93,23 +131,34 @@ export default function MoodleCoursesPage() {
             type="search"
           />
         </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {courses
-              .filter(c =>
-                c.fullname.toLowerCase().includes(search.toLowerCase()),
-              )
-              .map(course => (
-                <Card key={course.id} className="border-muted">
-                  <CardHeader>
-                    <CardTitle className="text-sm font-medium">
-                      {course.fullname}
-                    </CardTitle>
-                    <CardDescription>ID: {course.id}</CardDescription>
-                  </CardHeader>
-                </Card>
-              ))}
-          </div>
+
+        <CardContent className="space-y-6">
+          {groups.map(group => (
+            <div key={group.date.toISOString()} className="space-y-2">
+              <h3 className="text-lg font-semibold">
+                {format(group.date, 'MMMM yyyy', { locale: es })}
+              </h3>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {group.courses.map(course => (
+                  <Card key={course.id} className="border-muted">
+                    <CardHeader>
+                      <CardTitle className="text-sm font-medium">
+                        <Link
+                          href={`${MOODLE_BASE_URL}/course/view.php?id=${course.id}`}
+                          target="_blank"
+                          className="hover:underline"
+                        >
+                          {course.fullname}
+                        </Link>
+                      </CardTitle>
+                      <CardDescription>ID: {course.id}</CardDescription>
+                    </CardHeader>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ))}
+
         </CardContent>
       </Card>
     </div>
