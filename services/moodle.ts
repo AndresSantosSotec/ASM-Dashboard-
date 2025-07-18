@@ -25,19 +25,34 @@ export const fetchMoodleCourses = async () => {
   }
   try {
     const res = await moodleApi.get('', { params })
-    return Array.isArray(res.data) ? res.data : res.data.courses || []
+
+    // ← Aquí ves toda la respuesta cruda de Moodle
+    console.log('📚 Moodle API response:', res.data)
+
+    return Array.isArray(res.data)
+      ? res.data
+      : res.data.courses || []
   } catch (err) {
+    console.error('❌ Error en moodleApi, intentando IP fallback:', err)
     if (moodleApiIp) {
       try {
-        const res = await moodleApiIp.get('', { params })
-        return Array.isArray(res.data) ? res.data : res.data.courses || []
+        const resIp = await moodleApiIp.get('', { params })
+
+        // ← Y aquí la respuesta desde la IP alternativa
+        console.log('📚 Moodle IP API response:', resIp.data)
+
+        return Array.isArray(resIp.data)
+          ? resIp.data
+          : resIp.data.courses || []
       } catch (errIp) {
+        console.error('❌ Error en moodleApiIp:', errIp)
         throw errIp
       }
     }
     throw err
   }
 }
+
 
 export default moodleApi
 
