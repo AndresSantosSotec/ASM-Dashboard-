@@ -39,7 +39,7 @@ interface MoodleCourse {
 
 export default function MoodleCoursesPage() {
   const [courses, setCourses] = useState<MoodleCourse[]>([])
-  const [search, setSearch] = useState("")
+  const [search, setSearch] = useState<string>("")
   const [selectedYear, setSelectedYear] = useState<string>("")
   const { toast } = useToast()
 
@@ -56,6 +56,7 @@ export default function MoodleCoursesPage() {
           : []
         mapped.sort((a, b) => b.timecreated - a.timecreated)
         setCourses(mapped)
+
         toast({
           title: "Cursos obtenidos",
           description: `Se cargaron ${mapped.length} cursos desde Moodle`,
@@ -69,40 +70,51 @@ export default function MoodleCoursesPage() {
         })
       }
     }
-    load()
-    }, [])
 
+    load()
+  }, [toast])
+
+  // Extrae los distintos años disponibles
   const years = useMemo(() => {
-    const arr = Array.from(
-      new Set(courses.map(c => new Date(c.timecreated * 1000).getFullYear())),
+    const setYears = new Set<number>()
+    courses.forEach(c =>
+      setYears.add(new Date(c.timecreated * 1000).getFullYear())
     )
-    return arr.sort((a, b) => b - a).map(String)
+    return Array.from(setYears)
+      .sort((a, b) => b - a)
+      .map(String)
   }, [courses])
 
+  // Agrupa y filtra por search + selectedYear
   const groups = useMemo(() => {
     const filtered = courses.filter(c => {
-      if (
-        selectedYear &&
-        new Date(c.timecreated * 1000).getFullYear().toString() !== selectedYear
-      )
-        return false
-      return c.fullname.toLowerCase().includes(search.toLowerCase())
+      const byYear =
+        !selectedYear ||
+        new Date(c.timecreated * 1000).getFullYear().toString() ===
+          selectedYear
+      const byText = c.fullname
+        .toLowerCase()
+        .includes(search.toLowerCase())
+      return byYear && byText
     })
+
     const map = new Map<string, { date: Date; courses: MoodleCourse[] }>()
     for (const c of filtered) {
       const date = startOfMonth(new Date(c.timecreated * 1000))
-      const key = format(date, 'yyyy-MM')
+      const key = format(date, "yyyy-MM")
       if (!map.has(key)) map.set(key, { date, courses: [] })
       map.get(key)!.courses.push(c)
     }
+
     const arr = Array.from(map.values()).sort(
-      (a, b) => b.date.getTime() - a.date.getTime(),
+      (a, b) => b.date.getTime() - a.date.getTime()
     )
+    // Opcional: sacar primero el mes actual y el siguiente
     const current = startOfMonth(new Date())
     const next = startOfMonth(addMonths(current, 1))
     const ordered: typeof arr = []
-    const currentIdx = arr.findIndex(g => isSameMonth(g.date, current))
-    if (currentIdx >= 0) ordered.push(...arr.splice(currentIdx, 1))
+    const currIdx = arr.findIndex(g => isSameMonth(g.date, current))
+    if (currIdx >= 0) ordered.push(...arr.splice(currIdx, 1))
     const nextIdx = arr.findIndex(g => isSameMonth(g.date, next))
     if (nextIdx >= 0) ordered.push(...arr.splice(nextIdx, 1))
     return ordered.concat(arr)
@@ -124,13 +136,14 @@ export default function MoodleCoursesPage() {
 
       <Card>
         <CardHeader className="flex flex-col gap-4">
-          <div className="flex flex-row items-center gap-2">
+          <div className="flex items-center gap-2">
             <BookOpen className="h-6 w-6" />
             <div>
               <CardTitle>Cursos desde Moodle</CardTitle>
               <CardDescription>Información obtenida vía API</CardDescription>
             </div>
           </div>
+
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Input
               placeholder="Buscar cursos..."
@@ -144,9 +157,7 @@ export default function MoodleCoursesPage() {
                 <SelectValue placeholder="Año" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem key="" value="">
-                  Todos
-                </SelectItem>
+                <SelectItem value="">Todos</SelectItem>
                 {years.map(y => (
                   <SelectItem key={y} value={y}>
                     {y}
@@ -156,11 +167,12 @@ export default function MoodleCoursesPage() {
             </Select>
           </div>
         </CardHeader>
+
         <CardContent className="space-y-6">
           {groups.map(group => (
             <div key={group.date.toISOString()} className="space-y-2">
               <h3 className="text-lg font-semibold">
-                {format(group.date, 'MMMM yyyy', { locale: es })}
+                {format(group.date, "MMMM yyyy", { locale: es })}
               </h3>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {group.courses.map(course => (
