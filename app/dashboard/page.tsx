@@ -44,6 +44,13 @@ export default function DashboardPage() {
       color: "bg-green-500",
     },
     {
+      title: "Cursos Moodle",
+      description: "Consulta de cursos desde Moodle",
+      icon: <BookOpen className="h-6 w-6" />,
+      href: "/academico/moodle",
+      color: "bg-yellow-500",
+    },
+    {
       title: "Docentes",
       description: "Gestión de cursos, material didáctico y comunicación con alumnos",
       icon: <GraduationCap className="h-6 w-6" />,
