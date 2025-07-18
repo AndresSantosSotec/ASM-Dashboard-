@@ -1,32 +1,43 @@
-import axios from 'axios'
 
-const MOODLE_BASE_URL = process.env.NEXT_PUBLIC_MOODLE_URL || 'https://campusamerican.com'
+import axios, { AxiosError } from 'axios'
+
+const MOODLE_BASE_URL =
+  process.env.NEXT_PUBLIC_MOODLE_URL || 'https://campusamerican.com'
+const MOODLE_IP_URL = process.env.NEXT_PUBLIC_MOODLE_IP_URL || ''
+
 const MOODLE_TOKEN = process.env.NEXT_PUBLIC_MOODLE_TOKEN || ''
 const MOODLE_FORMAT = process.env.NEXT_PUBLIC_MOODLE_FORMAT || 'json'
 
 const moodleApi = axios.create({
-  baseURL: MOODLE_BASE_URL,
+
+  baseURL: `${MOODLE_BASE_URL}/webservice/rest/server.php`,
 })
 
-export interface MoodleCourse {
-  id: number
-  fullname: string
-  shortname: string
-  idnumber?: string
-  summary?: string
-}
+const moodleApiIp = MOODLE_IP_URL
+  ? axios.create({ baseURL: `${MOODLE_IP_URL}/webservice/rest/server.php` })
+  : null
 
-export const fetchMoodleCourses = async (): Promise<MoodleCourse[]> => {
-  const params = new URLSearchParams({
+export const fetchMoodleCourses = async () => {
+  const params = {
     wstoken: MOODLE_TOKEN,
     wsfunction: 'core_course_get_courses',
     moodlewsrestformat: MOODLE_FORMAT,
-  })
-
-  const res = await moodleApi.get(`/webservice/rest/server.php?${params.toString()}`)
-  const data = res.data
-
-  if (Array.isArray(data)) return data as MoodleCourse[]
-  if (Array.isArray(data.courses)) return data.courses as MoodleCourse[]
-  return []
+  }
+  try {
+    const res = await moodleApi.get('', { params })
+    return Array.isArray(res.data) ? res.data : res.data.courses || []
+  } catch (err) {
+    if (moodleApiIp) {
+      try {
+        const res = await moodleApiIp.get('', { params })
+        return Array.isArray(res.data) ? res.data : res.data.courses || []
+      } catch (errIp) {
+        throw errIp
+      }
+    }
+    throw err
+  }
 }
+
+export default moodleApi
+
