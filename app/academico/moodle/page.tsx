@@ -59,11 +59,13 @@ export default function MoodleCoursesPage() {
   const [courses, setCourses] = useState<MoodleCourse[]>([])
   const [search, setSearch] = useState<string>("")
   const [selectedYear, setSelectedYear] = useState<string>("all")
+
   const [selectedMonth, setSelectedMonth] = useState<string>("all")
   const [selectedCourses, setSelectedCourses] = useState<Set<number>>(new Set())
   const [showMode, setShowMode] = useState<"all" | "selected">("all")
   const [page, setPage] = useState(1)
   const perPage = 3
+
   const { toast } = useToast()
 
   useEffect(() => {
@@ -72,10 +74,10 @@ export default function MoodleCoursesPage() {
         const data = await fetchMoodleCourses()
         const mapped = Array.isArray(data)
           ? data.map((c: any) => ({
-              id: c.id,
-              fullname: c.fullname,
-              timecreated: c.timecreated ?? 0,
-            }))
+            id: c.id,
+            fullname: c.fullname,
+            timecreated: c.timecreated ?? 0,
+          }))
           : []
         mapped.sort((a, b) => b.timecreated - a.timecreated)
         setCourses(mapped)
@@ -130,6 +132,7 @@ export default function MoodleCoursesPage() {
       const byYear =
         selectedYear === "all" ||
         new Date(c.timecreated * 1000).getFullYear().toString() ===
+
           selectedYear
       const byMonth =
         selectedMonth === "all" ||
@@ -137,6 +140,7 @@ export default function MoodleCoursesPage() {
           selectedMonth
       const bySelected =
         showMode === "all" || selectedCourses.has(c.id)
+
       const byText = c.fullname
         .toLowerCase()
         .includes(search.toLowerCase())
@@ -209,8 +213,10 @@ export default function MoodleCoursesPage() {
                 <SelectValue placeholder="Año" />
               </SelectTrigger>
               <SelectContent>
+
                 <SelectItem value="all">Todos</SelectItem>
                 {years.map(y => (
+
                   <SelectItem key={y} value={y}>
                     {y}
                   </SelectItem>
