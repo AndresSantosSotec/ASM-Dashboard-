@@ -17,7 +17,7 @@ const moodleApiIp = MOODLE_IP_URL
   ? axios.create({ baseURL: `${MOODLE_IP_URL}/webservice/rest/server.php` })
   : null;
 
-export const fetchMoodleCourses = async () => {
+export const fetchMoodleCourses = async (): Promise<any[]> => {
   const params = {
     wstoken: MOODLE_TOKEN,
     wsfunction: 'core_course_get_courses',
@@ -26,16 +26,13 @@ export const fetchMoodleCourses = async () => {
 
   try {
     const res = await moodleApi.get('', { params });
-    return Array.isArray(res.data)
-      ? res.data
-      : res.data.courses || [];
+    return Array.isArray(res.data) ? res.data : res.data.courses || [];
   } catch (err) {
+    // Si falla en la URL principal, intento con la IP
     if (moodleApiIp) {
       try {
         const res = await moodleApiIp.get('', { params });
-        return Array.isArray(res.data)
-          ? res.data
-          : res.data.courses || [];
+        return Array.isArray(res.data) ? res.data : res.data.courses || [];
       } catch (errIp) {
         throw errIp;
       }
