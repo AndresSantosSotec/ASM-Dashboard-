@@ -108,6 +108,19 @@ export default function RankingAcademico() {
     const matchesSemester =
       semesterFilter === "all" || String(student.semester ?? "") === semesterFilter
 
+  const filteredStudents = students.filter(student => {
+    const search = searchTerm.toLowerCase()
+    const nameMatch = student.name
+      ? student.name.toLowerCase().includes(search)
+      : false
+    const programMatch = student.program
+      ? student.program.toLowerCase().includes(search)
+      : false
+    const matchesSearch = nameMatch || programMatch
+    
+    const matchesProgram = programFilter === "all" || student.program === programFilter
+    const matchesSemester = semesterFilter === "all" || student.semester.toString() === semesterFilter
+    
     return matchesSearch && matchesProgram && matchesSemester
   })
 

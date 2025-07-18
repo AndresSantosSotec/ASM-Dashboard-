@@ -9,6 +9,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+
 import {
   Card,
   CardContent,
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
+
 import { BookOpen } from "lucide-react"
 import { fetchMoodleCourses } from "@/services/moodle"
 
@@ -28,8 +30,10 @@ interface MoodleCourse {
 
 export default function MoodleCoursesPage() {
   const [courses, setCourses] = useState<MoodleCourse[]>([])
+
   const [search, setSearch] = useState("")
   const { toast } = useToast()
+
 
   useEffect(() => {
     const load = async () => {
@@ -39,6 +43,7 @@ export default function MoodleCoursesPage() {
           ? data.map((c: any) => ({ id: c.id, fullname: c.fullname }))
           : []
         setCourses(mapped)
+
         toast({
           title: "Cursos obtenidos",
           description: `Se cargaron ${mapped.length} cursos desde Moodle`,
@@ -50,6 +55,7 @@ export default function MoodleCoursesPage() {
           description: "No se pudieron cargar los cursos de Moodle",
           variant: "destructive",
         })
+
       }
     }
     load()
@@ -70,6 +76,7 @@ export default function MoodleCoursesPage() {
       </Breadcrumb>
 
       <Card>
+
         <CardHeader className="flex flex-col gap-4">
           <div className="flex flex-row items-center gap-2">
             <BookOpen className="h-6 w-6" />

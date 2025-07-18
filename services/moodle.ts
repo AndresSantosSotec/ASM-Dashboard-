@@ -1,12 +1,15 @@
+
 import axios, { AxiosError } from 'axios'
 
 const MOODLE_BASE_URL =
   process.env.NEXT_PUBLIC_MOODLE_URL || 'https://campusamerican.com'
 const MOODLE_IP_URL = process.env.NEXT_PUBLIC_MOODLE_IP_URL || ''
+
 const MOODLE_TOKEN = process.env.NEXT_PUBLIC_MOODLE_TOKEN || ''
 const MOODLE_FORMAT = process.env.NEXT_PUBLIC_MOODLE_FORMAT || 'json'
 
 const moodleApi = axios.create({
+
   baseURL: `${MOODLE_BASE_URL}/webservice/rest/server.php`,
 })
 
@@ -37,3 +40,4 @@ export const fetchMoodleCourses = async () => {
 }
 
 export default moodleApi
+
