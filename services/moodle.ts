@@ -1,4 +1,5 @@
 import axios, { AxiosError } from 'axios';
+import api from './api';
 
 export const MOODLE_BASE_URL =
   process.env.NEXT_PUBLIC_MOODLE_URL || 'https://campusamerican.com';
@@ -16,6 +17,24 @@ const moodleApi = axios.create({
 const moodleApiIp = MOODLE_IP_URL
   ? axios.create({ baseURL: `${MOODLE_IP_URL}/webservice/rest/server.php` })
   : null;
+
+export interface MoodleCourse {
+  id: number
+  fullname: string
+  shortname: string
+  summary?: string
+  categoryid?: number
+  numsections?: number
+}
+
+export const mapMoodleCourse = (course: any): MoodleCourse => ({
+  id: course.id,
+  fullname: course.fullname,
+  shortname: course.shortname,
+  summary: course.summary ?? '',
+  categoryid: course.categoryid,
+  numsections: course.numsections,
+})
 
 export const fetchMoodleCourses = async (): Promise<any[]> => {
   const params = {
@@ -39,6 +58,11 @@ export const fetchMoodleCourses = async (): Promise<any[]> => {
     }
     throw err;
   }
+};
+
+export const pushMoodleCourses = async (courses: any[]): Promise<void> => {
+  const payload = courses.map(mapMoodleCourse);
+  await api.post('/moodle/courses', payload);
 };
 
 export default moodleApi;
