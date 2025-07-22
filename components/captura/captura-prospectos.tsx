@@ -218,7 +218,7 @@ export default function CapturaProspectos() {
     <Tabs defaultValue="individual" className="space-y-4">
       <TabsList>
         <TabsTrigger value="individual">Captura Individual</TabsTrigger>
-        <TabsTrigger value="masiva">Carga Masiva</TabsTrigger>
+        <TabsTrigger value="masiva">Importar Estudiantes</TabsTrigger>
       </TabsList>
 
       <TabsContent value="individual">
