@@ -367,6 +367,14 @@ export default function Sidebar({ open, className }: SidebarProps) {
                   <span>Gestión de Estudiante</span>
                 </Link>
                 <Link
+                  href="/academico/migrar-estudiantes"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/migrar-estudiantes" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"}
+                    transition-colors duration-200`}
+                >
+                  <Database size={16} className="mr-2" />
+                  <span>Migrar Estudiantes</span>
+                </Link>
+                <Link
                   href="/academico/cursos"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/cursos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
