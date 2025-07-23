@@ -88,13 +88,22 @@ const mockNotifications: Notification[] = [
 ]
 
 // Función para generar una contraseña aleatoria
+// Expresión regular para validar que la contraseña tenga al menos 8 caracteres
+const PASSWORD_REGEX = /^.{8,}$/;
+
 function generatePassword(student: { name: string; lastName: string; idNumber: string | number }) {
   const idStr = String(student.idNumber);
   const nameInitial = student.name.charAt(0).toLowerCase();
   const lastNameInitial = student.lastName.charAt(0).toLowerCase();
-  const idSuffix = idStr.slice(-4);
+  // Siempre tomamos 4 dígitos para evitar contraseñas muy cortas
+  const idSuffix = idStr.length >= 4 ? idStr.slice(-4) : idStr.padStart(4, "0");
   const randomDigits = Math.floor(100 + Math.random() * 900); // 3 dígitos
-  return `${nameInitial}${lastNameInitial}${idSuffix}${randomDigits}`;
+  let password = `${nameInitial}${lastNameInitial}${idSuffix}${randomDigits}`;
+  // Si por alguna razón no cumple con el mínimo, agregamos dígitos extra
+  while (!PASSWORD_REGEX.test(password)) {
+    password += Math.floor(Math.random() * 10);
+  }
+  return password;
 }
 
 function getStatusBadgeInfo(
@@ -162,6 +171,8 @@ export default function GestionUsuarios() {
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [pageSize, setPageSize] = useState<string>("5")
   const [currentPage, setCurrentPage] = useState<number>(1)
+  const [isCredentialsDialogOpen, setIsCredentialsDialogOpen] = useState(false)
+  const [credentials, setCredentials] = useState<{ username: string; email: string; password: string } | null>(null)
 
   // Formulario de estudiante
   const [formData, setFormData] = useState<Omit<Student, "id" | "status" | "username" | "institutionalEmail" | "password">>({
@@ -370,7 +381,7 @@ export default function GestionUsuarios() {
   const handlePrevPage = () =>
     currentPage > 1 && setCurrentPage((p) => p - 1)
 
-  // Generar credenciales y guardar usuario en la tabla users vía API
+  // Generar credenciales y mostrarlas para su edición
   const handleGenerateCredentials = async () => {
     if (!selectedStudent) return
 
@@ -397,34 +408,48 @@ export default function GestionUsuarios() {
 
       const password = generatePassword(selectedStudent)
 
-      // Payload para la API
-      const payload = {
+      setCredentials({
         username,
         email: institutionalEmail,
         password,
+      })
+      setIsCredentialsDialogOpen(true)
+    } catch (err) {
+      // El error ya fue mostrado por Swal
+    } finally {
+      setIsGeneratingCredentials(false)
+    }
+  }
+
+  const handleConfirmCredentials = async () => {
+    if (!selectedStudent || !credentials) return
+
+    setIsGeneratingCredentials(true)
+
+    try {
+      const payload = {
+        username: credentials.username,
+        email: credentials.email,
+        password: credentials.password,
         first_name: selectedStudent.name,
         last_name: selectedStudent.lastName,
         is_active: true,
         email_verified: true,
         mfa_enabled: false,
-        rol: 3, // ID de rol estudiante
+        rol: 3,
       }
 
-      // Llama a la utilidad para crear el usuario en la tabla users
       await crearUsuarioEnBD(payload)
-
-      // Actualizar estado del prospecto en backend
       await updateProspectStatus(selectedStudent.id, "Inscrito")
 
-      // Actualiza el estado local (frontend)
       setStudents((prev) =>
         prev.map((s) =>
           s.id === selectedStudent.id
             ? {
               ...s,
-              username,
-              institutionalEmail,
-              password,
+              username: credentials.username,
+              institutionalEmail: credentials.email,
+              password: credentials.password,
               status: "Inscrito",
             }
             : s,
@@ -435,9 +460,9 @@ export default function GestionUsuarios() {
         prev
           ? {
             ...prev,
-            username,
-            institutionalEmail,
-            password,
+            username: credentials.username,
+            institutionalEmail: credentials.email,
+            password: credentials.password,
             status: "Inscrito",
           }
           : null,
@@ -445,8 +470,9 @@ export default function GestionUsuarios() {
 
       toast({
         title: "Credenciales generadas",
-        description: `Usuario: ${username}\nCorreo: ${institutionalEmail}\nContraseña: ${password}\nEstado actualizado a Inscrito`,
+        description: `Usuario: ${credentials.username}\nCorreo: ${credentials.email}\nContraseña: ${credentials.password}\nEstado actualizado a Inscrito`,
       })
+      setIsCredentialsDialogOpen(false)
     } catch (err) {
       // El error ya fue mostrado por Swal
     } finally {
@@ -709,15 +735,36 @@ export default function GestionUsuarios() {
                       <>
                         <div>
                           <Label>Usuario</Label>
-                          <div className="font-medium">{selectedStudent.username}</div>
+                          <Input
+                            value={selectedStudent.username}
+                            onChange={(e) =>
+                              setSelectedStudent((prev) =>
+                                prev ? { ...prev, username: e.target.value } : prev,
+                              )
+                            }
+                          />
                         </div>
                         <div>
                           <Label>Correo institucional</Label>
-                          <div className="font-medium">{selectedStudent.institutionalEmail}</div>
+                          <Input
+                            value={selectedStudent.institutionalEmail || ""}
+                            onChange={(e) =>
+                              setSelectedStudent((prev) =>
+                                prev ? { ...prev, institutionalEmail: e.target.value } : prev,
+                              )
+                            }
+                          />
                         </div>
                         <div>
                           <Label>Contraseña</Label>
-                          <div className="font-medium">{selectedStudent.password}</div>
+                          <Input
+                            value={selectedStudent.password || ""}
+                            onChange={(e) =>
+                              setSelectedStudent((prev) =>
+                                prev ? { ...prev, password: e.target.value } : prev,
+                              )
+                            }
+                          />
                         </div>
                       </>
                     )}
@@ -819,6 +866,68 @@ export default function GestionUsuarios() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Diálogo para confirmar y editar credenciales */}
+      <Dialog open={isCredentialsDialogOpen} onOpenChange={setIsCredentialsDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Credenciales generadas</DialogTitle>
+            <DialogDescription>
+              Revise y edite las credenciales antes de guardarlas.
+            </DialogDescription>
+          </DialogHeader>
+          {credentials && (
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Usuario</Label>
+                <Input
+                  value={credentials.username}
+                  onChange={(e) =>
+                    setCredentials((prev) =>
+                      prev ? { ...prev, username: e.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Correo institucional</Label>
+                <Input
+                  value={credentials.email}
+                  onChange={(e) =>
+                    setCredentials((prev) =>
+                      prev ? { ...prev, email: e.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Contraseña</Label>
+                <Input
+                  value={credentials.password}
+                  onChange={(e) =>
+                    setCredentials((prev) =>
+                      prev ? { ...prev, password: e.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCredentialsDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleConfirmCredentials} disabled={isGeneratingCredentials}>
+              {isGeneratingCredentials ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                'Guardar'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Formulario de creación/edición */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
