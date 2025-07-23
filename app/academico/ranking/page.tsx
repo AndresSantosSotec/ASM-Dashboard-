@@ -94,21 +94,8 @@ export default function RankingAcademico() {
     )
   ).sort((a, b) => Number(a) - Number(b))
 
-  // Filtrar estudiantes
-  const filteredStudents = students.filter((student) => {
-    const name = student.name ?? ""
-    const program = student.program ?? ""
-
-    const matchesSearch =
-      name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      program.toLowerCase().includes(searchTerm.toLowerCase())
-
-    const matchesProgram =
-      programFilter === "all" || program === programFilter
-    const matchesSemester =
-      semesterFilter === "all" || String(student.semester ?? "") === semesterFilter
-
-  const filteredStudents = students.filter(student => {
+// Filtrar estudiantes
+const filteredStudents = students.filter(student => {
     const search = searchTerm.toLowerCase()
     const nameMatch = student.name
       ? student.name.toLowerCase().includes(search)
