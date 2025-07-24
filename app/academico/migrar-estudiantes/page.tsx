@@ -3,7 +3,7 @@
 import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Loader2 } from "lucide-react"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
@@ -11,6 +11,7 @@ import Swal from "sweetalert2"
 
 export default function MigrarEstudiantes() {
   const [file, setFile] = useState<File | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
 
@@ -39,6 +40,7 @@ export default function MigrarEstudiantes() {
     const token = localStorage.getItem("token")
 
     try {
+      setIsLoading(true)
       const res = await fetch(`${API_BASE_URL}/api/estudiantes/import`, {
         method: "POST",
         headers: {
@@ -93,15 +95,18 @@ export default function MigrarEstudiantes() {
       </div>
 
       <div className="bg-white p-6 rounded-lg shadow-sm space-y-4">
-        <label className="block text-sm font-medium">
-          Archivo CSV o Excel
-        </label>
-        <Input
-          type="file"
-          accept=".csv,.xlsx,.xls"
-          onChange={handleFileChange}
-        />
-        <Button onClick={handleImport}>Importar Estudiantes</Button>
+        <label className="block text-sm font-medium">Archivo CSV o Excel</label>
+        <Input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileChange} />
+        <Button onClick={handleImport} disabled={isLoading}>
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Importando...
+            </>
+          ) : (
+            "Importar Estudiantes"
+          )}
+        </Button>
       </div>
     </div>
   )
