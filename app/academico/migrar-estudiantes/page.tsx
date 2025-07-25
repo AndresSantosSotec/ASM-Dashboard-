@@ -12,6 +12,7 @@ import Swal from "sweetalert2"
 export default function MigrarEstudiantes() {
   const [file, setFile] = useState<File | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [skipErrors, setSkipErrors] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
 
@@ -22,11 +23,7 @@ export default function MigrarEstudiantes() {
 
   const handleImport = async () => {
     if (!file) {
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "Selecciona un archivo para importar"
-      })
+      Swal.fire({ icon: "error", title: "Error", text: "Selecciona un archivo para importar" })
       toast({
         title: "Error",
         description: "Selecciona un archivo para importar",
@@ -47,6 +44,7 @@ export default function MigrarEstudiantes() {
 
     const formData = new FormData()
     formData.append("file", file)
+    formData.append("skip_errors", skipErrors ? "1" : "0")
 
     try {
       setIsLoading(true)
@@ -59,31 +57,33 @@ export default function MigrarEstudiantes() {
         body: formData,
       })
 
-      // Manejo específico de 404
-      if (res.status === 404) {
-        throw new Error(
-          "Ruta de importación no encontrada. Verifica la URL y tu autenticación."
-        )
-      }
-
-      // Cualquier otro error HTTP
-      if (!res.ok) {
-        let msg = `HTTP error ${res.status}`
-        try {
-          const errJson = await res.json()
-          if (errJson.message) msg = errJson.message
-        } catch {
-          // Si la respuesta no es JSON, ignoramos
-        }
-        throw new Error(msg)
-      }
-
-      // Éxito: parseamos JSON seguro
       const data = await res.json()
-      Swal.fire({
-        icon: "success",
-        title: "Importación completada",
-      })
+
+      if (!res.ok) {
+        let errorMsg = data.message || `HTTP error ${res.status}`
+        let sampleErrors = data.sample_errors || []
+
+        Swal.fire({
+          icon: "error",
+          title: "Error en la importación",
+          html: errorMsg + (sampleErrors.length > 0
+            ? "<hr class='my-2' /><pre style='text-align: left; font-size: 12px;'>" +
+              sampleErrors.map((e: any) =>
+                `Fila ${e.row} - Campo: ${e.attribute ?? '-'} - ${Array.isArray(e.errors) ? e.errors.join(", ") : e.error}`
+              ).join("\n") +
+              "</pre>"
+            : "")
+        })
+
+        toast({
+          title: "Error",
+          description: "No se pudieron importar los datos",
+          variant: "destructive"
+        })
+        return
+      }
+
+      Swal.fire({ icon: "success", title: "Importación completada" })
       toast({
         title: "Éxito",
         description: data.message || "Estudiantes importados correctamente",
@@ -98,9 +98,7 @@ export default function MigrarEstudiantes() {
       })
       toast({
         title: "Error",
-        description: error.message.startsWith("Ruta")
-          ? error.message
-          : "No se pudieron importar los datos",
+        description: "No se pudieron importar los datos",
         variant: "destructive",
       })
     } finally {
@@ -121,6 +119,17 @@ export default function MigrarEstudiantes() {
       <div className="bg-white p-6 rounded-lg shadow-sm space-y-4">
         <label className="block text-sm font-medium">Archivo CSV o Excel</label>
         <Input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileChange} />
+
+        <label className="inline-flex items-center space-x-2">
+          <input
+            type="checkbox"
+            checked={skipErrors}
+            onChange={(e) => setSkipErrors(e.target.checked)}
+            className="border rounded"
+          />
+          <span>Omitir errores y continuar con los registros válidos</span>
+        </label>
+
         <Button onClick={handleImport} disabled={isLoading}>
           {isLoading ? (
             <>
