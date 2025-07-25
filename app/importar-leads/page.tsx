@@ -10,6 +10,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
+import { Progress } from "@/components/ui/progress"
 import {
   Select,
   SelectContent,
@@ -41,6 +42,7 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
   const [showStructure, setShowStructure] = useState(false)
   const [columns, setColumns] = useState<Column[]>([])
   const [editingColumn, setEditingColumn] = useState<Column | null>(null)
+  const [progress, setProgress] = useState<number>(0)
   const { toast } = useToast()
   const router = useRouter()
 
@@ -216,17 +218,27 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
       hasFile: formData.has("file"),
     });
 
-    fetch(`${API_BASE_URL}/api/import`, {
-      method: "POST",
-      body: formData,
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(async (res) => {
-        console.log("[Import] respuesta fetch:", res);
-        if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_BASE_URL}/api/import`);
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const percent = Math.round((e.loaded / e.total) * 100);
+        console.log("[Import] progreso:", percent);
+        setProgress(percent);
+      }
+    };
+
+    xhr.onload = () => {
+      console.log("[Import] respuesta xhr:", xhr.status);
+      if (xhr.status < 200 || xhr.status >= 300) {
+        handleError(new Error(`HTTP error: ${xhr.status}`));
+        return;
+      }
+
+      try {
+        const data = JSON.parse(xhr.responseText);
         console.log("[Import] JSON recibido:", data);
 
         // Si el backend detectó duplicados y aún no confirmamos
@@ -269,20 +281,30 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
         });
         if (onImportSuccess) onImportSuccess();
         router.refresh();
-      })
-      .catch((error) => {
-        console.error("[Import] Error en fetch:", error);
-        Swal.fire({
-          icon: "error",
-          title: "Error en la importación",
-          text: "Detalle: " + error.message,
-        });
-        toast({
-          title: "Error",
-          description: "No se pudieron importar los datos",
-          variant: "destructive",
-        });
+      } catch (error: any) {
+        handleError(error);
+      }
+    };
+
+    xhr.onerror = () => {
+      handleError(new Error("Network error"));
+    };
+
+    function handleError(error: Error) {
+      console.error("[Import] Error en xhr:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Error en la importación",
+        text: "Detalle: " + error.message,
       });
+      toast({
+        title: "Error",
+        description: "No se pudieron importar los datos",
+        variant: "destructive",
+      });
+    }
+
+    xhr.send(formData);
   };
 
   // Función para "guardar" la configuración de columnas (opcional)
@@ -321,11 +343,16 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
               <Input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileChange} />
             </div>
             {/* Botones de acción */}
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap gap-4 items-center">
               <Button variant="outline" onClick={() => setShowStructure(!showStructure)}>
                 {showStructure ? "Ocultar Estructura" : "Mostrar Estructura"}
               </Button>
               <Button onClick={() => handleImport()}>Importar Leads</Button>
+              {progress > 0 && (
+                <div className="flex-1">
+                  <Progress value={progress} />
+                </div>
+              )}
             </div>
           </div>
         </div>
