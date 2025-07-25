@@ -3,15 +3,19 @@
 import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Progress } from "@/components/ui/progress"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
 import Swal from "sweetalert2"
+import api from "@/services/api"
+import * as XLSX from "xlsx"
 
 export default function MigrarEstudiantes() {
   const [file, setFile] = useState<File | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [progress, setProgress] = useState(0)
   const [skipErrors, setSkipErrors] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
@@ -19,6 +23,18 @@ export default function MigrarEstudiantes() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0]
     if (selected) setFile(selected)
+  }
+
+  const logFileContent = async (file: File) => {
+    try {
+      const buffer = await file.arrayBuffer()
+      const workbook = XLSX.read(buffer, { type: "array" })
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 })
+      rows.forEach((row, idx) => console.log(`[Migrar] Fila ${idx + 1}:`, row))
+    } catch (err) {
+      console.error("[Migrar] Error al leer archivo", err)
+    }
   }
 
   const handleImport = async () => {
@@ -48,13 +64,17 @@ export default function MigrarEstudiantes() {
 
     try {
       setIsLoading(true)
+      setProgress(0)
+      await logFileContent(file)
 
-      const res = await fetch(`${API_BASE_URL}/api/estudiantes/import`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const res = await api.post(`${API_BASE_URL}/api/estudiantes/import`, formData, {
+        headers: { Authorization: `Bearer ${token}` },
+        onUploadProgress: (e) => {
+          if (e.total) {
+            const pct = Math.round((e.loaded * 100) / e.total)
+            setProgress(pct)
+          }
         },
-        body: formData,
       })
 
       const data = await res.json()
@@ -140,6 +160,12 @@ export default function MigrarEstudiantes() {
             "Importar Estudiantes"
           )}
         </Button>
+        {isLoading && (
+          <div className="space-y-1">
+            <Progress value={progress} />
+            <div className="text-sm text-muted-foreground">{progress}%</div>
+          </div>
+        )}
       </div>
     </div>
   )
