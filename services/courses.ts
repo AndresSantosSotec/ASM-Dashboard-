@@ -1,5 +1,4 @@
 import api from './api'
-import { fetchAllPages } from './pagination'
 
 export interface CourseInput {
   name: string
@@ -57,10 +56,10 @@ const mapCourseToApi = (data: Partial<CourseInput> & { status?: Course['status']
 }
 
 export const fetchCourses = async (programId?: number) => {
-  const data = await fetchAllPages<any>(
-    '/courses',
-    programId ? { program_id: programId } : {},
-  )
+  const res = await api.get('/courses', {
+    params: programId ? { program_id: programId } : undefined,
+  })
+  const data = Array.isArray(res.data) ? res.data : res.data.data
   return data.map(mapCourseFromApi)
 }
 
