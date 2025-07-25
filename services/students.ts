@@ -1,5 +1,4 @@
 import api from './api'
-import { fetchAllPages } from './pagination'
 import type { Program } from './programs'
 import type { Course } from './courses'
 
@@ -48,7 +47,10 @@ export const fetchStudentProgram = async (
 }
 
 export const fetchEnrolledStudents = async (): Promise<Student[]> => {
-  const data = await fetchAllPages<any>('/prospectos/status/Inscrito')
+  const res = await api.get('/prospectos/status/Inscrito', {
+    params: { per_page: 9999 },
+  })
+  const data = Array.isArray(res.data.data) ? res.data.data : res.data
 
   const students = await Promise.all(
     data.map(async (p: any) => {
