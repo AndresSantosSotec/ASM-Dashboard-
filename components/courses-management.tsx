@@ -171,6 +171,20 @@ export function CoursesManagement() {
   }
 
   const handleSave = async () => {
+    if (
+      !form.name.trim() ||
+      !form.code.trim() ||
+      !form.schedule.trim() ||
+      !form.duration.trim()
+    ) {
+      toast({
+        title: "Datos incompletos",
+        description: "Complete todos los campos obligatorios",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       if (formMode === "create") {
         const newCourse = await createCourse(form)
@@ -182,10 +196,25 @@ export function CoursesManagement() {
         toast({ title: "Curso actualizado", description: `Se actualizó ${updated.name}.` })
       }
       setIsOpen(false)
-    } catch (e) {
+    } catch (e: any) {
       console.error(e)
-      setError("No se pudo guardar el curso")
-      toast({ title: "Error", description: "No se pudo guardar el curso", variant: "destructive" })
+      if (e.response?.status === 422 && e.response.data) {
+        const messages = Object.values(e.response.data)
+          .flat()
+          .join("\n")
+        toast({
+          title: "Error de validación",
+          description: messages,
+          variant: "destructive",
+        })
+      } else {
+        setError("No se pudo guardar el curso")
+        toast({
+          title: "Error",
+          description: "No se pudo guardar el curso",
+          variant: "destructive",
+        })
+      }
     }
   }
 
