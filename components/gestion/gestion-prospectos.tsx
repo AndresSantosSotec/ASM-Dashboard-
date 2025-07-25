@@ -59,11 +59,25 @@ export default function GestionProspectos() {
 
   // Datos únicos para filtros dinámicos
   const departamentos = useMemo(
-    () => Array.from(new Set(prospectos.map((p) => p.departamento))),
+    () =>
+      Array.from(
+        new Set(
+          prospectos
+            .map((p) => p.departamento)
+            .filter((d) => d && d.trim() !== "")
+        )
+      ),
     [prospectos]
   )
   const puestos = useMemo(
-    () => Array.from(new Set(prospectos.map((p) => p.puesto))),
+    () =>
+      Array.from(
+        new Set(
+          prospectos
+            .map((p) => p.puesto)
+            .filter((p) => p && p.trim() !== "")
+        )
+      ),
     [prospectos]
   )
 

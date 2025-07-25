@@ -3,15 +3,18 @@
 import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Progress } from "@/components/ui/progress"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
 import Swal from "sweetalert2"
+import api from "@/services/api"
 
 export default function MigrarEstudiantes() {
   const [file, setFile] = useState<File | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [progress, setProgress] = useState(0)
   const [skipErrors, setSkipErrors] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
@@ -48,18 +51,24 @@ export default function MigrarEstudiantes() {
 
     try {
       setIsLoading(true)
+      setProgress(0)
 
-      const res = await fetch(`${API_BASE_URL}/api/estudiantes/import`, {
-        method: "POST",
+      const res = await api.post("/estudiantes/import", formData, {
         headers: {
+          "Content-Type": "multipart/form-data",
           Authorization: `Bearer ${token}`,
         },
-        body: formData,
+        onUploadProgress: (e) => {
+          if (e.total) {
+            const pct = Math.round((e.loaded * 100) / e.total)
+            setProgress(pct)
+          }
+        },
       })
 
-      const data = await res.json()
+      const data = res.data
 
-      if (!res.ok) {
+      if (res.status < 200 || res.status >= 300) {
         let errorMsg = data.message || `HTTP error ${res.status}`
         let sampleErrors = data.sample_errors || []
 
@@ -140,6 +149,12 @@ export default function MigrarEstudiantes() {
             "Importar Estudiantes"
           )}
         </Button>
+        {isLoading && (
+          <div className="space-y-1">
+            <Progress value={progress} />
+            <div className="text-sm text-muted-foreground">{progress}%</div>
+          </div>
+        )}
       </div>
     </div>
   )
