@@ -16,6 +16,7 @@ import {
   ClipboardList,
   Activity,
   UserCheck,
+  Ban,
   Plus,
   FileSignature,
   BarChart,
@@ -206,9 +207,13 @@ export default function Sidebar({ open, className }: SidebarProps) {
               </button>
               {expandedSections.academico && (
                 <div className="pl-10 text-sm">
-                  <Link href="/academico/programas" className={linkClass("/academico/programas")}>
+                  <Link href="/academico/programas" className={linkClass("/academico/programas")}> 
                     <BookOpen size={16} className="mr-2" />
                     Programas Académicos
+                  </Link>
+                  <Link href="/academico/inactivar-estudiantes" className={linkClass("/academico/inactivar-estudiantes")}> 
+                    <Ban size={16} className="mr-2" />
+                    Inactivar Estudiantes
                   </Link>
                 </div>
               )}
