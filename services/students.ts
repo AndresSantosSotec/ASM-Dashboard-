@@ -32,45 +32,54 @@ export const fetchStudentProgram = async (
 }
 
 export const fetchEnrolledStudents = async (): Promise<Student[]> => {
-  const res = await api.get('/prospectos/status/Inscrito', {
-    params: { per_page: 9999 },
-  })
-  const data = Array.isArray(res.data.data) ? res.data.data : res.data
+  const perPage = 200
+  let page = 1
+  const students: Student[] = []
 
-  const students = await Promise.all(
-    data.map(async (p: any) => {
-      // Intentamos leer el programa desde p.programas
-      let prog =
-        Array.isArray(p.programas) && p.programas.length > 0
-          ? p.programas[0]
-          : null
+  while (true) {
+    const res = await api.get('/prospectos/status/Inscrito', {
+      params: { per_page: perPage, page },
+    })
+    const data = Array.isArray(res.data.data) ? res.data.data : res.data
 
-      // Si no hay, lo pedimos al endpoint
-      if (!prog) {
-        try {
-          prog = await fetchStudentProgram(String(p.id))
-        } catch (err) {
-          console.error('Error fetching student program', err)
+    const pageStudents = await Promise.all(
+      data.map(async (p: any) => {
+        let prog =
+          Array.isArray(p.programas) && p.programas.length > 0
+            ? p.programas[0]
+            : null
+
+        if (!prog) {
+          try {
+            prog = await fetchStudentProgram(String(p.id))
+          } catch (err) {
+            console.error('Error fetching student program', err)
+          }
         }
-      }
 
-      return {
-        id: String(p.id),
-        name: p.nombre_completo ?? '',
-        carnet: String(p.id),
-        programId: prog?.id ?? 0,
-        program: prog?.nombre_del_programa ?? '',
-        specialty: prog?.abreviatura ?? '',
-        assignedCourses: Array.isArray(p.courses)
-          ? p.courses.map((c: any) => String(c.id))
-          : [],
-        assignedCourseNames: Array.isArray(p.courses)
-          ? p.courses.map((c: any) => c.name)
-          : [],
-        completedCourses: [],
-      }
-    }),
-  )
+        return {
+          id: String(p.id),
+          name: p.nombre_completo ?? '',
+          carnet: String(p.id),
+          programId: prog?.id ?? 0,
+          program: prog?.nombre_del_programa ?? '',
+          specialty: prog?.abreviatura ?? '',
+          assignedCourses: Array.isArray(p.courses)
+            ? p.courses.map((c: any) => String(c.id))
+            : [],
+          assignedCourseNames: Array.isArray(p.courses)
+            ? p.courses.map((c: any) => c.name)
+            : [],
+          completedCourses: [],
+        }
+      }),
+    )
+
+    students.push(...pageStudents)
+
+    if (data.length < perPage) break
+    page++
+  }
 
   return students
 }
@@ -134,4 +143,25 @@ export const unassignCourses = async (
     prospecto_ids: studentIds.map(Number),
     course_ids: courseIds.map(Number),
   })
+}
+
+export const updateStudentStatus = async (
+  studentId: string,
+  status: string,
+) => {
+  await api.put(`/prospectos/${studentId}/status`, { status })
+}
+
+export const bulkUpdateStudentStatus = async (
+  studentIds: string[],
+  status: string,
+) => {
+  await api.put('/prospectos/bulk-update-status', {
+    prospecto_ids: studentIds.map(Number),
+    status,
+  })
+}
+
+export const inactivateStudents = async (studentIds: string[]) => {
+  await bulkUpdateStudentStatus(studentIds, 'Inactivo')
 }

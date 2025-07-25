@@ -4,6 +4,7 @@ import React, { useEffect, useState, type ReactNode } from "react"
 import {
   BarChart2, Calendar, ChevronDown, ChevronRight, FileText, Home, Mail, Settings, Shield, Users, DollarSign,
   BookOpen, ClipboardList, Activity, Copy, UserCheck, Plus, FileSignature, BarChart, LayoutDashboard, GraduationCapIcon,
+  Ban,
   CreditCard, Bell, Award, Medal, PieChart, RefreshCw, Phone, FileCheck, Send, Key, LogIn, Database, Clock, LogOut
 } from "lucide-react"
 import Link from "next/link"
@@ -389,6 +390,10 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 >
                   <UserCheck size={16} className="mr-2" />
                   <span>Estatus Académico</span>
+                </Link>
+                <Link href="/academico/inactivar-estudiantes" className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/inactivar-estudiantes" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}>
+                  <Ban size={16} className="mr-2" />
+                  <span>Inactivar Estudiantes</span>
                 </Link>
                 {/* <Link
                   href="/academico/estado-sistema"
