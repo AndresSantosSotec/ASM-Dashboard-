@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import type { Student } from "@/services/students"
 import type { Course } from "@/services/courses"
 import { getAvailableCoursesForStudents } from "@/services/courses"
@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Users, Search, Filter, Settings } from "lucide-react"
+import AutoSizer from "react-virtualized-auto-sizer"
+import { FixedSizeList as List, ListChildComponentProps } from "react-window"
 
 interface StudentsViewProps {
   students: Student[]
@@ -72,6 +74,34 @@ export function StudentsView({ students, courses, onViewAssignment, onBulkAssign
       .catch(() => setBulkError('Error cargando cursos'))
       .finally(() => setIsLoadingBulk(false))
   }, [showBulkPanel, selectedStudents])
+
+  const Row = useCallback(({ index, style, data }: ListChildComponentProps) => {
+    const { items, columnCount, itemWidth } = data
+    const start = index * columnCount
+    const cells = []
+    for (let i = 0; i < columnCount; i++) {
+      const student = items[start + i]
+      if (student) {
+        cells.push(
+          <div key={student.id} style={{ width: itemWidth, paddingRight: 16 }}>
+            <StudentCard
+              student={student}
+              isSelected={selectedStudents.includes(student.id)}
+              onSelect={handleStudentSelect}
+              onViewAssignment={onViewAssignment}
+            />
+          </div>
+        )
+      } else {
+        cells.push(<div key={i} style={{ width: itemWidth }} />)
+      }
+    }
+    return (
+      <div style={{ ...style, display: 'flex' }}>
+        {cells}
+      </div>
+    )
+  }, [selectedStudents, handleStudentSelect, onViewAssignment])
 
   return (
     <div className="space-y-6">
@@ -161,16 +191,30 @@ export function StudentsView({ students, courses, onViewAssignment, onBulkAssign
         />
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredStudents.map((student) => (
-          <StudentCard
-            key={student.id}
-            student={student}
-            isSelected={selectedStudents.includes(student.id)}
-            onSelect={handleStudentSelect}
-            onViewAssignment={onViewAssignment}
-          />
-        ))}
+      <div style={{ height: "70vh" }}>
+        <AutoSizer>
+          {({ height, width }) => {
+            const columnCount = width >= 1024 ? 3 : width >= 768 ? 2 : 1
+            const itemWidth = width / columnCount
+            const rowCount = Math.ceil(filteredStudents.length / columnCount)
+            const itemHeight = 340
+            return (
+              <List
+                height={height}
+                itemCount={rowCount}
+                itemSize={itemHeight}
+                width={width}
+                itemData={{
+                  items: filteredStudents,
+                  columnCount,
+                  itemWidth,
+                }}
+              >
+                {Row}
+              </List>
+            )
+          }}
+        </AutoSizer>
       </div>
 
       {filteredStudents.length === 0 && (
