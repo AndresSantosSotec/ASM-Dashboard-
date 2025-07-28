@@ -4,37 +4,19 @@ import type { Student } from "@/services/students";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { User, Settings } from "lucide-react";
 
 interface StudentCardProps {
   student: Student;
-  isSelected: boolean;
-  onSelect: (studentId: string, isSelected: boolean) => void;
   onViewAssignment: (studentId: string) => void;
 }
 
-export function StudentCard({
-  student,
-  isSelected,
-  onSelect,
-  onViewAssignment,
-}: StudentCardProps) {
+export function StudentCard({ student, onViewAssignment }: StudentCardProps) {
   return (
-    <Card
-      className={`hover:shadow-md transition-shadow ${
-        isSelected ? "ring-2 ring-blue-500" : ""
-      }`}
-    >
+    <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center space-x-2">
-            <Checkbox
-              checked={isSelected}
-              onCheckedChange={(checked) =>
-                onSelect(student.id, checked as boolean)
-              }
-            />
             <User className="h-5 w-5 text-blue-600" />
             <h3 className="font-semibold text-lg">{student.name}</h3>
           </div>

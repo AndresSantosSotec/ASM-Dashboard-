@@ -178,8 +178,6 @@ export function StudentCards({
           <StudentCard
             key={student.id}
             student={student}
-            isSelected={false}
-            onSelect={() => { }}
             onViewAssignment={onViewAssignment}
           />
         ))}

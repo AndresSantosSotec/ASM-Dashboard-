@@ -166,8 +166,6 @@ export function StudentsView({ students, courses, onViewAssignment, onBulkAssign
           <StudentCard
             key={student.id}
             student={student}
-            isSelected={selectedStudents.includes(student.id)}
-            onSelect={handleStudentSelect}
             onViewAssignment={onViewAssignment}
           />
         ))}
