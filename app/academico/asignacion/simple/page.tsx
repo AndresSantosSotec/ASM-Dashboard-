@@ -14,7 +14,7 @@ import {
   assignCourses,
   unassignCourses,
 } from "@/services/students"
-import { fetchProgramCourses } from "@/services/courses"
+import { fetchCoursesForPrograms } from "@/services/courses"
 
 export default function CourseAssignmentDashboard() {
   const [students, setStudents] = useState<Student[]>([])
@@ -27,16 +27,14 @@ export default function CourseAssignmentDashboard() {
     ;(async () => {
       try {
         const st = await fetchEnrolledStudents()
+        const active = st.filter((s: any) =>
+          s.is_active !== false && s.activo !== false && s.active !== false,
+        )
         const programIds = Array.from(
-          new Set(st.map((s) => s.programId).filter((id) => id > 0)),
+          new Set(active.map((s) => s.programId).filter((id) => id > 0)),
         )
-        const coursesLists = await Promise.all(
-          programIds.map((id) => fetchProgramCourses(id)),
-        )
-        const cr = Array.from(
-          new Map(coursesLists.flat().map((c) => [c.id, c])).values(),
-        )
-        setStudents(st)
+        const cr = await fetchCoursesForPrograms(programIds)
+        setStudents(active)
         setCourses(cr)
       } catch (err) {
         console.error(err)
