@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import type { Student } from "@/services/students";
 import { StudentCard } from "@/components/cards/student-card";
 import { Input } from "@/components/ui/input";
+
 import {
   Select,
   SelectTrigger,
@@ -11,6 +12,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+
 import {
   Pagination,
   PaginationContent,
@@ -19,6 +21,7 @@ import {
   PaginationPrevious,
   PaginationNext,
 } from "@/components/ui/pagination";
+
 import { Search } from "lucide-react";
 
 interface StudentCardsProps {

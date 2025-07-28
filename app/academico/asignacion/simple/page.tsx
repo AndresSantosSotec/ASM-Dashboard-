@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+
 import { DndProvider } from "react-dnd"
 import { HTML5Backend } from "react-dnd-html5-backend"
 import type { Student } from "@/services/students"
@@ -13,6 +14,7 @@ import { ArrowLeft } from "lucide-react"
 export default function AssignmentPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
+
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -31,9 +33,11 @@ export default function AssignmentPage() {
     })()
   }, [])
 
+
   const selectedStudent = selectedStudentId
     ? students.find((s) => s.id === selectedStudentId)
     : null
+
 
   if (isLoading) {
     return (
