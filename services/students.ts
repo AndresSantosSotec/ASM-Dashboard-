@@ -9,6 +9,7 @@ export interface Student {
   programId: number
   program: string
   specialty: string
+  startDate?: string | null
   assignedCourses: string[]
   assignedCourseNames: string[]
   completedCourses: string[]
@@ -64,6 +65,7 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
           programId: prog?.id ?? 0,
           program: prog?.nombre_del_programa ?? '',
           specialty: prog?.abreviatura ?? '',
+          startDate: p.fecha_inicio_especifica ?? null,
           assignedCourses: Array.isArray(p.courses)
             ? p.courses.map((c: any) => String(c.id))
             : [],

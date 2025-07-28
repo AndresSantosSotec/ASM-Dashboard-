@@ -34,6 +34,11 @@ export function StudentCard({ student, isSelected, onSelect, onViewAssignment }:
           <div>
             <span className="font-medium">Especialidad:</span> {student.specialty}
           </div>
+          {student.startDate && (
+            <div>
+              <span className="font-medium">Inicio:</span> {student.startDate}
+            </div>
+          )}
           <div className="flex justify-between">
             <div className="flex items-center space-x-1">
               <BookOpen className="h-4 w-4" />
