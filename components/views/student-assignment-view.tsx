@@ -272,6 +272,12 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
               <span className="font-medium text-gray-600">Especialidad:</span>
               <p className="text-gray-900">{student.specialty}</p>
             </div>
+            {student.startDate && (
+              <div>
+                <span className="font-medium text-gray-600">Inicio:</span>
+                <p className="text-gray-900">{student.startDate}</p>
+              </div>
+            )}
             <div>
               <span className="font-medium text-gray-600">Cursos Asignados:</span>
               <p className="text-gray-900">{assigned.length}</p>
