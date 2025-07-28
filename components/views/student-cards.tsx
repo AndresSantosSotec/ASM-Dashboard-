@@ -53,7 +53,7 @@ export function StudentCards({ students, onViewAssignment }: StudentCardsProps) 
     })
   }, [students, search, programFilter])
 
-h
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
 
   const paginated = useMemo(() => {

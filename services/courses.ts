@@ -83,7 +83,7 @@ export const fetchCoursesForPrograms = async (
 
   for (let i = 0; i < ids.length; i += chunkSize) {
     const chunk = ids.slice(i, i + chunkSize)
-    const res = await api.get('/courses/by-programs', {
+    const res = await api.post('/courses/by-programs', {
       params: { program_ids: chunk },
     })
     const data = Array.isArray(res.data) ? res.data : res.data.data
