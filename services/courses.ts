@@ -74,13 +74,24 @@ export const fetchProgramCourses = async (programId: number) => {
 export const fetchCoursesForPrograms = async (
   programIds: number[],
 ): Promise<Course[]> => {
-  if (programIds.length === 0) return []
 
-  const res = await api.get('/courses/by-programs', {
-    params: { program_ids: programIds },
-  })
-  const data = Array.isArray(res.data) ? res.data : res.data.data
-  return data.map(mapCourseFromApi)
+  const ids = Array.from(new Set(programIds)).filter((id) => id > 0)
+  if (ids.length === 0) return []
+
+  const chunkSize = 100
+  const allCourses: Course[] = []
+
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize)
+    const res = await api.get('/courses/by-programs', {
+      params: { program_ids: chunk },
+    })
+    const data = Array.isArray(res.data) ? res.data : res.data.data
+    allCourses.push(...data.map(mapCourseFromApi))
+  }
+
+  return Array.from(new Map(allCourses.map((c) => [c.id, c])).values())
+
 }
 
 export const fetchStudentCourses = async (studentId: string): Promise<Course[]> => {
