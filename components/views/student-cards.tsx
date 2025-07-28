@@ -31,17 +31,30 @@ export function StudentCards({ students, onViewAssignment }: StudentCardsProps) 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
+  const [programFilter, setProgramFilter] = useState("")
+
+  const programOptions = useMemo(() => {
+    const set = new Set<string>()
+    students.forEach((s) => {
+      if (s.program) set.add(s.program)
+    })
+    return Array.from(set).sort()
+  }, [students])
+
+
   const filtered = useMemo(() => {
     const term = search.toLowerCase()
     return students.filter((s) => {
-      return (
+
+      const matchesTerm =
         s.name.toLowerCase().includes(term) ||
         s.carnet.includes(term) ||
         s.program.toLowerCase().includes(term)
-      )
+      const matchesProgram =
+        programFilter === "" || s.program === programFilter
+      return matchesTerm && matchesProgram
     })
-  }, [students, search])
-
+  }, [students, search, programFilter])
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
 
   const paginated = useMemo(() => {
@@ -60,28 +73,52 @@ export function StudentCards({ students, onViewAssignment }: StudentCardsProps) 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
-        <div className="relative w-64">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
-          <Input
-            placeholder="Buscar..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
+        <div className="flex flex-1 gap-2">
+          <div className="relative w-64">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+            <Input
+              placeholder="Buscar por nombre o carnet"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value)
+                setPage(1)
+              }}
+              className="pl-8"
+            />
+          </div>
+          <Select
+            value={programFilter}
+            onValueChange={(value) => {
+              setProgramFilter(value)
               setPage(1)
             }}
-            className="pl-8"
-          />
+          >
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Todos los programas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todos los programas</SelectItem>
+              {programOptions.map((p) => (
+                <SelectItem key={p} value={p}>
+                  {p}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={String(pageSize)} onValueChange={changePageSize}>
-          <SelectTrigger className="w-24">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="5">5</SelectItem>
-            <SelectItem value="10">10</SelectItem>
-            <SelectItem value="50">50</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Por página</span>
+          <Select value={String(pageSize)} onValueChange={changePageSize}>
+            <SelectTrigger className="w-20">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="5">5</SelectItem>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -139,6 +176,11 @@ export function StudentCards({ students, onViewAssignment }: StudentCardsProps) 
           </PaginationContent>
         </Pagination>
       )}
+
+      <div className="text-sm text-right text-gray-500">
+        Página {page} de {totalPages}
+      </div>
+
     </div>
   )
 }
