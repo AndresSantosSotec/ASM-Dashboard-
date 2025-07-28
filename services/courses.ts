@@ -74,6 +74,7 @@ export const fetchProgramCourses = async (programId: number) => {
 export const fetchCoursesForPrograms = async (
   programIds: number[],
 ): Promise<Course[]> => {
+
   const ids = Array.from(new Set(programIds)).filter((id) => id > 0)
   if (ids.length === 0) return []
 
@@ -90,6 +91,7 @@ export const fetchCoursesForPrograms = async (
   }
 
   return Array.from(new Map(allCourses.map((c) => [c.id, c])).values())
+
 }
 
 export const fetchStudentCourses = async (studentId: string): Promise<Course[]> => {
