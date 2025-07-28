@@ -1,16 +1,18 @@
-"use client"
+"use client";
 
-import { useState, useMemo } from "react"
-import type { Student } from "@/services/students"
-import { StudentCard } from "@/components/cards/student-card"
-import { Input } from "@/components/ui/input"
+import { useState, useMemo } from "react";
+import type { Student } from "@/services/students";
+import { StudentCard } from "@/components/cards/student-card";
+import { Input } from "@/components/ui/input";
+
 import {
   Select,
   SelectTrigger,
   SelectValue,
   SelectContent,
   SelectItem,
-} from "@/components/ui/select"
+} from "@/components/ui/select";
+
 import {
   Pagination,
   PaginationContent,
@@ -18,56 +20,77 @@ import {
   PaginationLink,
   PaginationPrevious,
   PaginationNext,
-} from "@/components/ui/pagination"
-import { Search } from "lucide-react"
+} from "@/components/ui/pagination";
+
+import { Search } from "lucide-react";
 
 interface StudentCardsProps {
-  students: Student[]
-  onViewAssignment: (studentId: string) => void
+  students: Student[];
+  onViewAssignment: (studentId: string) => void;
 }
 
-export function StudentCards({ students, onViewAssignment }: StudentCardsProps) {
-  const [search, setSearch] = useState("")
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
-  const [programFilter, setProgramFilter] = useState("todos")
+export function StudentCards({
+  students,
+  onViewAssignment,
+}: StudentCardsProps) {
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [programFilter, setProgramFilter] = useState("todos");
+
   const programOptions = useMemo(() => {
-    const set = new Set<string>()
+    const set = new Set<string>();
     students.forEach((s) => {
-      if (s.program) set.add(s.program)
-    })
-    return Array.from(set).sort()
-  }, [students])
+      if (s.program) set.add(s.program);
+    });
+    return Array.from(set).sort();
+  }, [students]);
 
   const filtered = useMemo(() => {
-    const term = search.toLowerCase()
+    const term = search.toLowerCase();
     return students.filter((s) => {
       const matchesTerm =
         s.name.toLowerCase().includes(term) ||
         s.carnet.includes(term) ||
-        s.program.toLowerCase().includes(term)
+        s.program.toLowerCase().includes(term);
       const matchesProgram =
+        programFilter === "todos" || s.program === programFilter;
+      return matchesTerm && matchesProgram;
+    });
+  }, [students, search, programFilter]);
 
-        programFilter === "todos" || s.program === programFilter
-      return matchesTerm && matchesProgram
-    })
-  }, [students, search, programFilter])
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
 
-h
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const getVisiblePages = (current: number, total: number) => {
+    const delta = 2;
+    const range: (number | string)[] = [];
+    const left = Math.max(2, current - delta);
+    const right = Math.min(total - 1, current + delta);
+    range.push(1);
+    if (left > 2) range.push("...");
+    for (let i = left; i <= right; i++) range.push(i);
+    if (right < total - 1) range.push("...");
+    if (total > 1) range.push(total);
+    return range;
+  };
+
+  const visiblePages = useMemo(
+    () => getVisiblePages(page, totalPages),
+    [page, totalPages],
+  );
 
   const paginated = useMemo(() => {
-    const start = (page - 1) * pageSize
-    return filtered.slice(start, start + pageSize)
-  }, [filtered, page, pageSize])
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
 
   const changePageSize = (value: string) => {
-    const size = Number(value)
+    const size = Number(value);
     if (!isNaN(size)) {
-      setPageSize(size)
-      setPage(1)
+      setPageSize(size);
+      setPage(1);
     }
-  }
+  };
 
   return (
     <div className="space-y-4">
@@ -79,8 +102,8 @@ h
               placeholder="Buscar por nombre o carnet"
               value={search}
               onChange={(e) => {
-                setSearch(e.target.value)
-                setPage(1)
+                setSearch(e.target.value);
+                setPage(1);
               }}
               className="pl-8"
             />
@@ -88,15 +111,14 @@ h
           <Select
             value={programFilter}
             onValueChange={(value) => {
-              setProgramFilter(value)
-              setPage(1)
+              setProgramFilter(value);
+              setPage(1);
             }}
           >
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Todos los programas" />
             </SelectTrigger>
             <SelectContent>
-
               <SelectItem value="todos">Todos los programas</SelectItem>
               {programOptions.map((p) => (
                 <SelectItem key={p} value={p}>
@@ -140,34 +162,43 @@ h
               <PaginationPrevious
                 href="#"
                 onClick={(e) => {
-                  e.preventDefault()
-                  setPage((p) => Math.max(1, p - 1))
+                  e.preventDefault();
+                  setPage((p) => Math.max(1, p - 1));
                 }}
                 className="cursor-pointer"
                 aria-disabled={page <= 1}
               />
             </PaginationItem>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <PaginationItem key={p}>
-                <PaginationLink
-                  href="#"
-                  isActive={p === page}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    setPage(p)
-                  }}
-                  className="cursor-pointer"
+            {visiblePages.map((p, idx) =>
+              typeof p === "number" ? (
+                <PaginationItem key={p}>
+                  <PaginationLink
+                    href="#"
+                    isActive={p === page}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPage(p);
+                    }}
+                    className="cursor-pointer"
+                  >
+                    {p}
+                  </PaginationLink>
+                </PaginationItem>
+              ) : (
+                <PaginationItem
+                  key={`ellipsis-${idx}`}
+                  className="hidden sm:block"
                 >
-                  {p}
-                </PaginationLink>
-              </PaginationItem>
-            ))}
+                  <span className="px-2">…</span>
+                </PaginationItem>
+              ),
+            )}
             <PaginationItem>
               <PaginationNext
                 href="#"
                 onClick={(e) => {
-                  e.preventDefault()
-                  setPage((p) => Math.min(totalPages, p + 1))
+                  e.preventDefault();
+                  setPage((p) => Math.min(totalPages, p + 1));
                 }}
                 className="cursor-pointer"
                 aria-disabled={page >= totalPages}
@@ -180,7 +211,7 @@ h
         Página {page} de {totalPages}
       </div>
     </div>
-  )
+  );
 }
 
-export default StudentCards
+export default StudentCards;

@@ -37,6 +37,8 @@ export default function AssignmentPage() {
   const selectedStudent = selectedStudentId
     ? students.find((s) => s.id === selectedStudentId)
     : null
+
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
