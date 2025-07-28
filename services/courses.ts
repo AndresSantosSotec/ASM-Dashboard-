@@ -67,6 +67,22 @@ export const fetchProgramCourses = async (programId: number) => {
   return fetchCourses(programId)
 }
 
+/**
+ * Fetches all courses for the given program IDs using a single request.
+ * This helps reduce the number of API calls when multiple programs are needed.
+ */
+export const fetchCoursesForPrograms = async (
+  programIds: number[],
+): Promise<Course[]> => {
+  if (programIds.length === 0) return []
+
+  const res = await api.get('/courses/by-programs', {
+    params: { program_ids: programIds },
+  })
+  const data = Array.isArray(res.data) ? res.data : res.data.data
+  return data.map(mapCourseFromApi)
+}
+
 export const fetchStudentCourses = async (studentId: string): Promise<Course[]> => {
   const res = await api.get(`/estudiante-programa/${studentId}/with-courses`)
   const data = Array.isArray(res.data) ? res.data : res.data.data
