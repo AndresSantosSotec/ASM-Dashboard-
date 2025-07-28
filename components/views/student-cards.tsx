@@ -30,9 +30,7 @@ export function StudentCards({ students, onViewAssignment }: StudentCardsProps) 
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
-
-  const [programFilter, setProgramFilter] = useState("")
-
+  const [programFilter, setProgramFilter] = useState("todos")
   const programOptions = useMemo(() => {
     const set = new Set<string>()
     students.forEach((s) => {
@@ -41,20 +39,21 @@ export function StudentCards({ students, onViewAssignment }: StudentCardsProps) 
     return Array.from(set).sort()
   }, [students])
 
-
   const filtered = useMemo(() => {
     const term = search.toLowerCase()
     return students.filter((s) => {
-
       const matchesTerm =
         s.name.toLowerCase().includes(term) ||
         s.carnet.includes(term) ||
         s.program.toLowerCase().includes(term)
       const matchesProgram =
-        programFilter === "" || s.program === programFilter
+
+        programFilter === "todos" || s.program === programFilter
       return matchesTerm && matchesProgram
     })
   }, [students, search, programFilter])
+
+h
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
 
   const paginated = useMemo(() => {
@@ -97,7 +96,8 @@ export function StudentCards({ students, onViewAssignment }: StudentCardsProps) 
               <SelectValue placeholder="Todos los programas" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todos los programas</SelectItem>
+
+              <SelectItem value="todos">Todos los programas</SelectItem>
               {programOptions.map((p) => (
                 <SelectItem key={p} value={p}>
                   {p}
@@ -176,11 +176,9 @@ export function StudentCards({ students, onViewAssignment }: StudentCardsProps) 
           </PaginationContent>
         </Pagination>
       )}
-
       <div className="text-sm text-right text-gray-500">
         Página {page} de {totalPages}
       </div>
-
     </div>
   )
 }
