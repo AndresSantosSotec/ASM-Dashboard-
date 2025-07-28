@@ -3,17 +3,17 @@ import type { Program } from './programs'
 import type { Course } from './courses'
 
 export interface Student {
-  id: string
-  name: string
-  carnet: string
-  programId: number
-  program: string
-  specialty: string
-  /** Todos los programas en los que está inscrito */
-  programs: Program[]
-  assignedCourses: string[]
-  assignedCourseNames: string[]
-  completedCourses: string[]
+  id: string;
+  name: string;
+  carnet: string;
+  programId: number;
+  program: string;
+  specialty: string;
+  startDate: string | null; // Fecha de inscripción (fecha_inicio_especifica)
+  programs: Program[];
+  assignedCourses: string[];
+  assignedCourseNames: string[];
+  completedCourses: string[];
 }
 
 /**
@@ -34,9 +34,7 @@ export const fetchStudentProgram = async (
 ): Promise<Program | null> => {
   try {
     const res = await api.get(`/estudiante-programa/${studentId}`)
-    const data = Array.isArray(res.data)
-      ? res.data
-      : res.data.data
+    const data = Array.isArray(res.data) ? res.data : res.data.data
     return data.length > 0 ? data[0] : null
   } catch (err: any) {
     if (err.response?.status === 404) {
@@ -54,7 +52,6 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
 
   const students = await Promise.all(
     data.map(async (p: any) => {
-      // Tratamos de obtener todos los programas desde p.programas
       let progs: Program[] = []
       if (Array.isArray(p.programas) && p.programas.length > 0) {
         progs = p.programas
@@ -75,6 +72,7 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
         programId: first?.id ?? 0,
         program: first?.nombre_del_programa ?? '',
         specialty: first?.abreviatura ?? '',
+        startDate: p.fecha_inicio_especifica ?? null, // Mapeo agregado aquí
         programs: progs,
         assignedCourses: Array.isArray(p.courses)
           ? p.courses.map((c: any) => String(c.id))

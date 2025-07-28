@@ -35,8 +35,10 @@ export function StudentCards({
 }: StudentCardsProps) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(15); // Valor inicial 15
   const [programFilter, setProgramFilter] = useState("todos");
+  const [dateStart, setDateStart] = useState("");
+  const [dateEnd, setDateEnd] = useState("");
 
   const programOptions = useMemo(() => {
     const set = new Set<string>();
@@ -53,11 +55,18 @@ export function StudentCards({
         s.name.toLowerCase().includes(term) ||
         s.carnet.includes(term) ||
         s.program.toLowerCase().includes(term);
+
       const matchesProgram =
         programFilter === "todos" || s.program === programFilter;
-      return matchesTerm && matchesProgram;
+
+      const matchesDate =
+        (!dateStart || new Date(s.startDate ?? '') >= new Date(dateStart)) &&
+        (!dateEnd || new Date(s.startDate ?? '') <= new Date(dateEnd));
+
+
+      return matchesTerm && matchesProgram && matchesDate;
     });
-  }, [students, search, programFilter]);
+  }, [students, search, programFilter, dateStart, dateEnd]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
 
@@ -95,7 +104,7 @@ export function StudentCards({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
-        <div className="flex flex-1 gap-2">
+        <div className="flex flex-wrap gap-2">
           <div className="relative w-64">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
             <Input
@@ -127,7 +136,27 @@ export function StudentCards({
               ))}
             </SelectContent>
           </Select>
+
+          <Input
+            type="date"
+            value={dateStart}
+            onChange={(e) => {
+              setDateStart(e.target.value);
+              setPage(1);
+            }}
+            className="w-36"
+          />
+          <Input
+            type="date"
+            value={dateEnd}
+            onChange={(e) => {
+              setDateEnd(e.target.value);
+              setPage(1);
+            }}
+            className="w-36"
+          />
         </div>
+
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Por página</span>
           <Select value={String(pageSize)} onValueChange={changePageSize}>
@@ -135,9 +164,10 @@ export function StudentCards({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="5">5</SelectItem>
-              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="15">15</SelectItem>
+              <SelectItem value="30">30</SelectItem>
               <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -149,7 +179,7 @@ export function StudentCards({
             key={student.id}
             student={student}
             isSelected={false}
-            onSelect={() => {}}
+            onSelect={() => { }}
             onViewAssignment={onViewAssignment}
           />
         ))}
