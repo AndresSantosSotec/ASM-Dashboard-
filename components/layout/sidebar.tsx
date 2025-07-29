@@ -264,8 +264,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/inscripcion/ficha"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/ficha"
-                      ? "bg-asm-medium-gold text-white"
-                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <FileText size={16} className="mr-2" />
@@ -274,8 +274,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/inscripcion/revision"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/revision"
-                      ? "bg-asm-medium-gold text-white"
-                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <FileText size={16} className="mr-2" />
@@ -284,8 +284,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/firma"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/firma" || pathname.startsWith("/firma/")
-                      ? "bg-asm-medium-gold text-white"
-                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <FileSignature size={16} className="mr-2" />
@@ -298,8 +298,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/documentos"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/documentos"
-                      ? "bg-asm-medium-gold text-white"
-                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <FileText size={16} className="mr-2" />
@@ -312,8 +312,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/inscripcion/admin/periodos"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/admin/periodos"
-                      ? "bg-asm-medium-gold text-white"
-                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <Calendar size={16} className="mr-2" />
@@ -322,8 +322,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/inscripcion/admin/flujos"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/admin/flujos"
-                      ? "bg-asm-medium-gold text-white"
-                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <Activity size={16} className="mr-2" />
@@ -375,6 +375,17 @@ export default function Sidebar({ open, className }: SidebarProps) {
                   <span>Migrar Estudiantes</span>
                 </Link>
                 <Link
+                  href="/academico/moodle"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/moodle"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <BookOpen size={16} className="mr-2" />
+                  <span>Moodle</span>
+                </Link>
+
+                <Link
                   href="/academico/cursos"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/cursos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
@@ -419,7 +430,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
           </div>
         )}
 
-                {/* Finanzas y Pagos (expandible) */}
+        {/* Finanzas y Pagos (expandible) */}
         {userRole === "Administrador" && (
           <div className="mb-1">
             <button

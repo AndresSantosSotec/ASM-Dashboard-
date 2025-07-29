@@ -181,40 +181,47 @@ export default function MoodleCoursesPage() {
     return ordered.concat(arr)
   }, [courses, search, selectedYear, selectedMonth, showMode, selectedCourses])
 
-  const handleSync = async () => {
-    const ids = Array.from(selectedCourses)
-    try {
-      await pushMoodleCourses(courses.filter(c => ids.includes(c.id)) as any)
-      toast({
-        title: 'Sincronización enviada',
-        description: `Se enviaron ${ids.length} cursos al backend`,
-      })
-    } catch (err) {
-      console.error('Error syncing courses', err)
-      toast({
-        title: 'Error al sincronizar',
-        description: 'No se pudieron enviar los cursos',
-        variant: 'destructive',
-      })
-    }
-  }
+const handleSync = async () => {
+  const ids = Array.from(selectedCourses)
+  // Preparamos el payload y lo imprimimos en consola
+  const payload = courses.filter(c => ids.includes(c.id))
+  console.log('🚀 Payload a sincronizar (bulk):', JSON.stringify(payload, null, 2))
 
-  const handleSyncSingle = async (course: MoodleCourse) => {
-    try {
-      await pushMoodleCourses([course] as any)
-      toast({
-        title: 'Sincronización enviada',
-        description: `Curso ${course.fullname} enviado al backend`,
-      })
-    } catch (err) {
-      console.error('Error syncing course', err)
-      toast({
-        title: 'Error al sincronizar',
-        description: 'No se pudo enviar el curso',
-        variant: 'destructive',
-      })
-    }
+  try {
+    await pushMoodleCourses(payload as any)
+    toast({
+      title: 'Sincronización enviada',
+      description: `Se enviaron ${ids.length} cursos al backend`,
+    })
+  } catch (err) {
+    console.error('Error syncing courses', err)
+    toast({
+      title: 'Error al sincronizar',
+      description: 'No se pudieron enviar los cursos',
+      variant: 'destructive',
+    })
   }
+}
+
+const handleSyncSingle = async (course: MoodleCourse) => {
+  // Imprimimos en consola el JSON del curso individual
+  console.log('🚀 Payload a sincronizar (single):', JSON.stringify([course], null, 2))
+
+  try {
+    await pushMoodleCourses([course] as any)
+    toast({
+      title: 'Sincronización enviada',
+      description: `Curso ${course.fullname} enviado al backend`,
+    })
+  } catch (err) {
+    console.error('Error syncing course', err)
+    toast({
+      title: 'Error al sincronizar',
+      description: 'No se pudo enviar el curso',
+      variant: 'destructive',
+    })
+  }
+}
 
   const totalPages = Math.max(1, Math.ceil(groups.length / perPage))
   const pagedGroups = groups.slice((page - 1) * perPage, page * perPage)

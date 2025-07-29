@@ -31,14 +31,14 @@ interface StudentAssignmentViewProps {
 
 interface CourseCardProps {
   course: Course;
-  status: "assigned" | "available" | "completed";
+  status: "assigned" | "available" | "completed" | "static";
 }
 
 const CourseCard = ({ course, status }: CourseCardProps) => {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: "course",
     item: { course, status },
-    canDrag: status !== "completed",
+    canDrag: status !== "completed" && status !== "static",
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
@@ -61,20 +61,28 @@ const CourseCard = ({ course, status }: CourseCardProps) => {
       ? "bg-yellow-50 border-yellow-200 hover:bg-yellow-100"
       : status === "available"
       ? "bg-blue-50 border-blue-200 hover:bg-blue-100"
-      : "bg-green-50 border-green-200";
+      : status === "completed"
+      ? "bg-green-50 border-green-200"
+      : "bg-gray-100 border-gray-300 cursor-not-allowed";
 
   const ref = useRef<HTMLDivElement>(null);
-  if (status !== "completed") drag(ref);
+  if (status !== "completed" && status !== "static") drag(ref);
 
   return (
     <Card
-      ref={status !== "completed" ? (ref as any) : undefined}
-      className={`border transition-all duration-200 ${status !== "completed" ? "cursor-move" : "cursor-not-allowed opacity-75"} ${isDragging ? "opacity-50" : ""} ${statusClasses}`}
+      ref={status !== "completed" && status !== "static" ? (ref as any) : undefined}
+      className={`border transition-all duration-200 ${
+        status !== "completed" && status !== "static" 
+          ? "cursor-move" 
+          : "cursor-not-allowed opacity-75"
+      } ${isDragging ? "opacity-50" : ""} ${statusClasses}`}
     >
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-2">
-            {status !== "completed" && <GripVertical className="h-4 w-4 text-gray-400" />}
+            {status !== "completed" && status !== "static" && (
+              <GripVertical className="h-4 w-4 text-gray-400" />
+            )}
             {status === "assigned" && <Check className="h-4 w-4 text-yellow-600" />}
             {status === "completed" && <Award className="h-4 w-4 text-green-600" />}
             <span className="font-medium">{course.name}</span>
@@ -105,8 +113,8 @@ interface DropZoneProps {
 const DropZone = ({ status, onDrop, title, count, icon, children }: DropZoneProps) => {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: "course",
-    drop: (item: { course: Course; status: "assigned" | "available" | "completed" }) => {
-      if (item.status !== status && item.status !== "completed") {
+    drop: (item: { course: Course; status: "assigned" | "available" | "completed" | "static" }) => {
+      if (item.status !== status && item.status !== "completed" && item.status !== "static") {
         onDrop(item.course, status);
       }
     },
@@ -151,7 +159,6 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
   const [allCourses, setAllCourses] = useState<Course[]>([]);
   const [available, setAvailable] = useState<Course[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [showMonth, setShowMonth] = useState(false);
   const [pendingAssign, setPendingAssign] = useState<string[]>([]);
   const [pendingUnassign, setPendingUnassign] = useState<string[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -303,9 +310,6 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
           className="max-w-xs mb-4"
         />
         <div className="flex items-center gap-2 ml-auto">
-          <Button onClick={() => setShowMonth((v) => !v)} variant="outline" className="mb-4">
-            {showMonth ? "Ocultar mes actual" : "Ver cursos del mes"}
-          </Button>
           {hasUnsavedChanges && (
             <Button onClick={handleSaveChanges} className="mb-4">
               Guardar Cambios
@@ -314,7 +318,7 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
         </div>
       </div>
 
-      <div className={`grid grid-cols-1 lg:grid-cols-${showMonth ? 4 : 3} gap-6`}>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <DropZone
           status="assigned"
           onDrop={handleCourseDrop}
@@ -334,31 +338,29 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
           )}
         </DropZone>
 
-        {showMonth && (
-          <DropZone
-            status="available"
-            onDrop={handleCourseDrop}
-            title="Mes Actual"
-            count={monthCourses.length}
-            icon={<Calendar className="h-5 w-5 mr-2" />}
-          >
-            {filterCourses(monthCourses).length === 0 ? (
-              <div className="text-center py-12">
-                <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">No hay cursos este mes</p>
-              </div>
-            ) : (
-              filterCourses(monthCourses).map((course) => (
-                <CourseCard key={course.id} course={course} status="available" />
-              ))
-            )}
-          </DropZone>
-        )}
+        <DropZone
+          status="available"
+          onDrop={handleCourseDrop}
+          title="Mes Actual"
+          count={monthCourses.length}
+          icon={<Calendar className="h-5 w-5 mr-2" />}
+        >
+          {filterCourses(monthCourses).length === 0 ? (
+            <div className="text-center py-12">
+              <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">No hay cursos este mes</p>
+            </div>
+          ) : (
+            filterCourses(monthCourses).map((course) => (
+              <CourseCard key={course.id} course={course} status="available" />
+            ))
+          )}
+        </DropZone>
 
         <DropZone
           status="available"
           onDrop={handleCourseDrop}
-          title="Cursos Disponibles"
+          title="Cursos Pensum/Pendientes"
           count={available.length}
           icon={<X className="h-5 w-5 mr-2" />}
         >
@@ -369,7 +371,7 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
             </div>
           ) : (
             filterCourses(available).map((course) => (
-              <CourseCard key={course.id} course={course} status="available" />
+              <CourseCard key={course.id} course={course} status="static" />
             ))
           )}
         </DropZone>

@@ -62,7 +62,7 @@ export const fetchMoodleCourses = async (): Promise<any[]> => {
 
 export const pushMoodleCourses = async (courses: any[]): Promise<void> => {
   const payload = courses.map(mapMoodleCourse);
-  await api.post('/moodle/courses', payload);
+  await api.post('/courses/bulk-sync-moodle', payload);
 };
 
 export default moodleApi;
