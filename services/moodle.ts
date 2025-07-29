@@ -25,6 +25,22 @@ export interface MoodleCourse {
   summary?: string
   categoryid?: number
   numsections?: number
+  // When fetched from Moodle the creation time is provided as a Unix
+  // timestamp. It's optional here because not every call includes it.
+  timecreated?: number
+}
+
+// Payload shape expected by the backend when synchronising courses. The
+// `moodle_id` field is used as the primary identifier in the Laravel API and
+// an `origen` value of "moodle" indicates the source of the data.
+interface MoodleCoursePayload {
+  moodle_id: number
+  fullname: string
+  shortname: string
+  summary?: string
+  categoryid?: number
+  numsections?: number
+  origen: string
 }
 
 export const mapMoodleCourse = (course: any): MoodleCourse => ({
@@ -34,6 +50,22 @@ export const mapMoodleCourse = (course: any): MoodleCourse => ({
   summary: course.summary ?? '',
   categoryid: course.categoryid,
   numsections: course.numsections,
+  timecreated: course.timecreated,
+})
+
+/**
+ * Converts a Moodle course object into the structure expected by the backend
+ * when synchronising. Additional metadata like `moodle_id` and `origen` are
+ * added here.
+ */
+const mapMoodleCoursePayload = (course: MoodleCourse): MoodleCoursePayload => ({
+  moodle_id: course.id,
+  fullname: course.fullname,
+  shortname: course.shortname,
+  summary: course.summary ?? '',
+  categoryid: course.categoryid,
+  numsections: course.numsections,
+  origen: 'moodle',
 })
 
 export const fetchMoodleCourses = async (): Promise<any[]> => {
@@ -61,7 +93,11 @@ export const fetchMoodleCourses = async (): Promise<any[]> => {
 };
 
 export const pushMoodleCourses = async (courses: any[]): Promise<void> => {
-  const payload = courses.map(mapMoodleCourse);
+  const payload = courses.map(course =>
+    mapMoodleCoursePayload(mapMoodleCourse(course)),
+  );
+  // Log the payload so it can be inspected when syncing courses
+  console.log('Sync Moodle payload:', JSON.stringify(payload, null, 2));
   await api.post('/courses/bulk-sync-moodle', payload);
 };
 
