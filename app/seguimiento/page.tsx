@@ -30,6 +30,7 @@ interface Prospecto {
   nombre: string;
   email: string;
   telefono: string;
+  ultimoCambio: string;
   estado: "Contactado" | "Interesado" | "En proceso";
   asesor: string;
 }
@@ -135,14 +136,23 @@ export default function SeguimientoPage() {
         const res = await api.get("/prospectos");
         const json = res.data;
         console.log("Respuesta completa de prospectos:", json);
-        const prospectosTransformados: Prospecto[] = json.data.map((item: any) => ({
-          id: String(item.id),
-          nombre: item.nombre_completo,
-          email: item.correo_electronico,
-          telefono: item.telefono,
-          estado: item.status,
-          asesor: item.asesor || "Sin asignar",
-        }));
+        const prospectosTransformados: Prospecto[] = json.data
+          .map((item: any) => ({
+            id: String(item.id),
+            nombre: item.nombre_completo,
+            email: item.correo_electronico,
+            telefono: item.telefono,
+            estado: item.status,
+            asesor: item.asesor || "Sin asignar",
+            ultimoCambio: item.updated_at ?? "N/A",
+          }))
+          .sort((a, b) => {
+            const getTime = (d: string) => {
+              const t = new Date(d).getTime();
+              return isNaN(t) ? 0 : t;
+            };
+            return getTime(b.ultimoCambio) - getTime(a.ultimoCambio);
+          });
         setProspectos(prospectosTransformados);
       } catch (err: any) {
         console.error("Error en fetchProspectos:", JSON.stringify(err, null, 2));
