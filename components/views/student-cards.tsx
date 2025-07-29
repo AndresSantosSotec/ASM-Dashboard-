@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { Student } from "@/services/students";
 import { StudentCard } from "@/components/cards/student-card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,14 @@ import {
 } from "@/components/ui/select";
 
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+
+import {
   Pagination,
   PaginationContent,
   PaginationItem,
@@ -23,6 +31,11 @@ import {
 } from "@/components/ui/pagination";
 
 import { Search } from "lucide-react";
+import type { Course } from "@/services/courses";
+import { getAvailableCoursesForStudents } from "@/services/courses";
+import { bulkassingCourses, unassignCourses } from "@/services/students";
+import { BulkAssignmentPanel } from "@/components/bulk-assignment-panel";
+import { useToast } from "@/components/ui/use-toast";
 
 interface StudentCardsProps {
   students: Student[];
@@ -39,6 +52,12 @@ export function StudentCards({
   const [programFilter, setProgramFilter] = useState("todos");
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showBulkPanel, setShowBulkPanel] = useState(false);
+  const [bulkCourses, setBulkCourses] = useState<Course[]>([]);
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const programOptions = useMemo(() => {
     const set = new Set<string>();
@@ -92,6 +111,60 @@ export function StudentCards({
     const start = (page - 1) * pageSize;
     return filtered.slice(start, start + pageSize);
   }, [filtered, page, pageSize]);
+
+  const toggleSelectAll = (checked: boolean) => {
+    setSelectedIds(checked ? students.map((s) => s.id) : []);
+  };
+
+  const toggleSelectFiltered = (checked: boolean) => {
+    setSelectedIds((prev) => {
+      const filteredIds = filtered.map((s) => s.id);
+      if (checked) {
+        const union = new Set([...prev, ...filteredIds]);
+        return Array.from(union);
+      }
+      return prev.filter((id) => !filteredIds.includes(id));
+    });
+  };
+
+  const handleCardCheck = (id: string, checked: boolean) => {
+    setSelectedIds((prev) =>
+      checked ? [...prev, id] : prev.filter((pid) => pid !== id),
+    );
+  };
+
+  useEffect(() => {
+    if (!showBulkPanel) return;
+    setIsBulkLoading(true);
+    setBulkError(null);
+    getAvailableCoursesForStudents(selectedIds)
+      .then(setBulkCourses)
+      .catch(() => setBulkError("Error cargando cursos"))
+      .finally(() => setIsBulkLoading(false));
+  }, [showBulkPanel, selectedIds]);
+
+  const handleBulkAssignment = async (
+    studentIds: string[],
+    courseIds: string[],
+    assign: boolean,
+  ) => {
+    try {
+      if (assign) {
+        await bulkassingCourses(studentIds, courseIds);
+        toast({ title: "Asignación exitosa" });
+      } else {
+        await unassignCourses(studentIds, courseIds);
+        toast({ title: "Desasignación exitosa" });
+      }
+    } catch (e) {
+      console.error(e);
+      toast({
+        title: "Error",
+        description: "No se pudo completar la operación",
+        variant: "destructive",
+      });
+    }
+  };
 
   const changePageSize = (value: string) => {
     const size = Number(value);
@@ -158,6 +231,31 @@ export function StudentCards({
         </div>
 
         <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="h-8">Seleccionar</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuCheckboxItem
+                checked={selectedIds.length === students.length}
+                onCheckedChange={toggleSelectAll}
+              >
+                Seleccionar todos
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={
+                  filtered.length > 0 &&
+                  filtered.every((s) => selectedIds.includes(s.id))
+                }
+                onCheckedChange={toggleSelectFiltered}
+              >
+                Seleccionar filtrados
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {selectedIds.length > 0 && (
+            <span className="text-sm">{selectedIds.length} seleccionados</span>
+          )}
           <span className="text-sm text-muted-foreground">Por página</span>
           <Select value={String(pageSize)} onValueChange={changePageSize}>
             <SelectTrigger className="w-20">
@@ -173,15 +271,37 @@ export function StudentCards({
         </div>
       </div>
 
+      {selectedIds.length > 0 && (
+        <div className="flex items-center justify-between bg-blue-50 border p-2 rounded">
+          <span className="text-sm font-medium">{selectedIds.length} seleccionados</span>
+          <Button size="sm" onClick={() => setShowBulkPanel(true)}>
+            Asignación Masiva
+          </Button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {paginated.map((student) => (
           <StudentCard
             key={student.id}
             student={student}
             onViewAssignment={onViewAssignment}
+            selected={selectedIds.includes(student.id)}
+            onSelectChange={(checked) => handleCardCheck(student.id, !!checked)}
           />
         ))}
       </div>
+
+      {showBulkPanel && (
+        <BulkAssignmentPanel
+          selectedStudents={students.filter((s) => selectedIds.includes(s.id))}
+          courses={bulkCourses}
+          isLoading={isBulkLoading}
+          error={bulkError}
+          onBulkAssignment={handleBulkAssignment}
+          onClose={() => setShowBulkPanel(false)}
+        />
+      )}
 
       {totalPages > 1 && (
         <Pagination className="pt-4">
