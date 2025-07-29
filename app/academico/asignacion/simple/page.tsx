@@ -21,9 +21,17 @@ export default function AssignmentPage() {
     ;(async () => {
       try {
         const data = await fetchEnrolledStudents()
-        const active = data.filter(
-          (s: any) => s.is_active !== false && s.activo !== false && s.active !== false,
-        )
+        const active = data
+          .filter((s: any) => s.is_active !== false && s.activo !== false && s.active !== false)
+          .sort((a, b) => {
+            const getTime = (d: string | null | undefined) => {
+              const t = new Date(d ?? '').getTime()
+              return isNaN(t) ? 0 : t
+            }
+            const byDate = getTime(b.startDate) - getTime(a.startDate)
+            if (byDate !== 0) return byDate
+            return Number(b.id) - Number(a.id)
+          })
         setStudents(active)
       } catch (err) {
         console.error(err)
