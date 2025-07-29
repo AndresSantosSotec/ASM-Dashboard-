@@ -28,13 +28,15 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
-import { BookOpen } from "lucide-react"
+import { BookOpen, CheckCircle, Loader2 } from "lucide-react"
+import Swal from "sweetalert2"
 import Link from "next/link"
 import { format, startOfMonth, addMonths, isSameMonth } from "date-fns"
 import { es } from "date-fns/locale"
 import {
   fetchMoodleCourses,
   pushMoodleCourses,
+  fetchSyncedMoodleIds,
   MOODLE_BASE_URL,
 } from "@/services/moodle"
 
@@ -75,6 +77,9 @@ export default function MoodleCoursesPage() {
   const perPage = 3
 
   const { toast } = useToast()
+  const [syncingId, setSyncingId] = useState<number | null>(null)
+  const [bulkSyncing, setBulkSyncing] = useState(false)
+  const [syncedIds, setSyncedIds] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     const load = async () => {
@@ -93,6 +98,14 @@ export default function MoodleCoursesPage() {
           : []
         mapped.sort((a, b) => b.timecreated - a.timecreated)
         setCourses(mapped)
+
+        try {
+          const ids = mapped.map(c => c.id)
+          const synced = await fetchSyncedMoodleIds(ids)
+          setSyncedIds(new Set(synced))
+        } catch (e) {
+          console.error('Error checking synced courses', e)
+        }
 
         toast({
           title: "Cursos obtenidos",
@@ -183,43 +196,49 @@ export default function MoodleCoursesPage() {
 
 const handleSync = async () => {
   const ids = Array.from(selectedCourses)
-  // Preparamos el payload y lo imprimimos en consola
   const payload = courses.filter(c => ids.includes(c.id))
-  console.log('🚀 Payload a sincronizar (bulk):', JSON.stringify(payload, null, 2))
+  setBulkSyncing(true)
 
   try {
     await pushMoodleCourses(payload as any)
-    toast({
-      title: 'Sincronización enviada',
-      description: `Se enviaron ${ids.length} cursos al backend`,
+    Swal.fire({
+      icon: 'success',
+      title: 'Sincronizado',
+      text: `Se sincronizaron ${ids.length} cursos correctamente`,
     })
+    setSyncedIds(prev => new Set([...Array.from(prev), ...ids]))
+    setSelectedCourses(new Set())
   } catch (err) {
     console.error('Error syncing courses', err)
-    toast({
-      title: 'Error al sincronizar',
-      description: 'No se pudieron enviar los cursos',
-      variant: 'destructive',
+    Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: 'No se pudieron sincronizar los cursos',
     })
+  } finally {
+    setBulkSyncing(false)
   }
 }
 
 const handleSyncSingle = async (course: MoodleCourse) => {
-  // Imprimimos en consola el JSON del curso individual
-  console.log('🚀 Payload a sincronizar (single):', JSON.stringify([course], null, 2))
-
+  setSyncingId(course.id)
   try {
     await pushMoodleCourses([course] as any)
-    toast({
-      title: 'Sincronización enviada',
-      description: `Curso ${course.fullname} enviado al backend`,
+    Swal.fire({
+      icon: 'success',
+      title: 'Sincronizado',
+      text: `Curso ${course.fullname} sincronizado correctamente`,
     })
+    setSyncedIds(prev => new Set([...Array.from(prev), course.id]))
   } catch (err) {
     console.error('Error syncing course', err)
-    toast({
-      title: 'Error al sincronizar',
-      description: 'No se pudo enviar el curso',
-      variant: 'destructive',
+    Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: 'No se pudo sincronizar el curso',
     })
+  } finally {
+    setSyncingId(null)
   }
 }
 
@@ -305,9 +324,13 @@ const handleSyncSingle = async (course: MoodleCourse) => {
             <Button
               variant="outline"
               onClick={handleSync}
-              disabled={selectedCourses.size === 0}
+              disabled={selectedCourses.size === 0 || bulkSyncing}
             >
-              Sincronizar seleccionados
+              {bulkSyncing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                'Sincronizar seleccionados'
+              )}
             </Button>
           </div>
         </CardHeader>
@@ -346,13 +369,21 @@ const handleSyncSingle = async (course: MoodleCourse) => {
                         }
                       />
                     </CardHeader>
-                    <CardFooter>
+                    <CardFooter className="flex items-center gap-2">
+                      {syncedIds.has(course.id) && (
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleSyncSingle(course)}
+                        disabled={syncedIds.has(course.id) || syncingId === course.id}
                       >
-                        Sincronizar curso
+                        {syncingId === course.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          'Sincronizar curso'
+                        )}
                       </Button>
                     </CardFooter>
                   </Card>

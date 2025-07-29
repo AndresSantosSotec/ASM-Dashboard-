@@ -101,4 +101,19 @@ export const pushMoodleCourses = async (courses: any[]): Promise<void> => {
   await api.post('/courses/bulk-sync-moodle', payload);
 };
 
+/**
+ * Checks which of the provided Moodle course IDs already exist in the backend.
+ * Returns a list of Moodle IDs that are already synchronized.
+ */
+export const fetchSyncedMoodleIds = async (
+  ids: number[],
+): Promise<number[]> => {
+  if (ids.length === 0) return [];
+  const res = await api.get('/courses/check-moodle', {
+    params: { moodle_ids: ids },
+  });
+  const data = Array.isArray(res.data) ? res.data : res.data.data;
+  return data as number[];
+};
+
 export default moodleApi;
