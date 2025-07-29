@@ -53,11 +53,13 @@ export function StudentCards({
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
   const [showBulkPanel, setShowBulkPanel] = useState(false);
   const [bulkCourses, setBulkCourses] = useState<Course[]>([]);
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const { toast } = useToast();
+
 
   const programOptions = useMemo(() => {
     const set = new Set<string>();
@@ -133,6 +135,7 @@ export function StudentCards({
     );
   };
 
+
   useEffect(() => {
     if (!showBulkPanel) return;
     setIsBulkLoading(true);
@@ -165,6 +168,7 @@ export function StudentCards({
       });
     }
   };
+
 
   const changePageSize = (value: string) => {
     const size = Number(value);
