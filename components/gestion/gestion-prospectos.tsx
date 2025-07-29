@@ -110,6 +110,13 @@ export default function GestionProspectos() {
             ultimoCambio: item.updated_at ?? "N/A",
           }))
           .filter((p: any) => p.estado.toLowerCase() !== "preinscripción")
+          .sort((a: Prospecto, b: Prospecto) => {
+            const getTime = (d: string) => {
+              const t = new Date(d).getTime()
+              return isNaN(t) ? 0 : t
+            }
+            return getTime(b.ultimoCambio) - getTime(a.ultimoCambio)
+          })
         setProspectos(list)
       } catch (err: any) {
         setError(err.message || "Error inesperado")
