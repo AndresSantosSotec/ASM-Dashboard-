@@ -14,6 +14,14 @@ import {
 } from "@/components/ui/select";
 
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+
+import {
   Pagination,
   PaginationContent,
   PaginationItem,
@@ -39,6 +47,7 @@ export function StudentCards({
   const [programFilter, setProgramFilter] = useState("todos");
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const programOptions = useMemo(() => {
     const set = new Set<string>();
@@ -92,6 +101,27 @@ export function StudentCards({
     const start = (page - 1) * pageSize;
     return filtered.slice(start, start + pageSize);
   }, [filtered, page, pageSize]);
+
+  const toggleSelectAll = (checked: boolean) => {
+    setSelectedIds(checked ? students.map((s) => s.id) : []);
+  };
+
+  const toggleSelectFiltered = (checked: boolean) => {
+    setSelectedIds((prev) => {
+      const filteredIds = filtered.map((s) => s.id);
+      if (checked) {
+        const union = new Set([...prev, ...filteredIds]);
+        return Array.from(union);
+      }
+      return prev.filter((id) => !filteredIds.includes(id));
+    });
+  };
+
+  const handleCardCheck = (id: string, checked: boolean) => {
+    setSelectedIds((prev) =>
+      checked ? [...prev, id] : prev.filter((pid) => pid !== id),
+    );
+  };
 
   const changePageSize = (value: string) => {
     const size = Number(value);
@@ -158,6 +188,31 @@ export function StudentCards({
         </div>
 
         <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="h-8">Seleccionar</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuCheckboxItem
+                checked={selectedIds.length === students.length}
+                onCheckedChange={toggleSelectAll}
+              >
+                Seleccionar todos
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={
+                  filtered.length > 0 &&
+                  filtered.every((s) => selectedIds.includes(s.id))
+                }
+                onCheckedChange={toggleSelectFiltered}
+              >
+                Seleccionar filtrados
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {selectedIds.length > 0 && (
+            <span className="text-sm">{selectedIds.length} seleccionados</span>
+          )}
           <span className="text-sm text-muted-foreground">Por página</span>
           <Select value={String(pageSize)} onValueChange={changePageSize}>
             <SelectTrigger className="w-20">
@@ -179,6 +234,8 @@ export function StudentCards({
             key={student.id}
             student={student}
             onViewAssignment={onViewAssignment}
+            selected={selectedIds.includes(student.id)}
+            onSelectChange={(checked) => handleCardCheck(student.id, !!checked)}
           />
         ))}
       </div>
