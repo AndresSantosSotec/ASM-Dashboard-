@@ -22,7 +22,6 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Edit, Trash2, CheckCircle, UploadCloud, Loader2 } from "lucide-react"
-import Swal from "sweetalert2"
 import { useToast } from "@/components/ui/use-toast"
 import { format } from "date-fns"
 
@@ -59,7 +58,6 @@ export function CoursesManagement() {
 
   const [formMode, setFormMode] = useState<"create" | "edit">("create")
   const [isOpen, setIsOpen] = useState(false)
-  const [syncingId, setSyncingId] = useState<number | null>(null)
   const [active, setActive] = useState<Course | null>(null)
   const [facilitators, setFacilitators] = useState<Facilitator[]>([])
   const [programs, setPrograms] = useState<ProgramOption[]>([])
@@ -216,24 +214,13 @@ export function CoursesManagement() {
   }
 
   const handleSync = async (course: Course) => {
-    setSyncingId(course.id)
     try {
       const updated = await syncCourseToMoodle(course.id)
       setCourses(courses.map((c) => (c.id === updated.id ? updated : c)))
-      Swal.fire({
-        icon: "success",
-        title: "Sincronizado",
-        text: `Se sincronizó ${updated.name} correctamente`,
-      })
+      toast({ title: "Sincronizado", description: `Se sincronizó ${updated.name}.` })
     } catch (e) {
       console.error(e)
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "No se pudo sincronizar el curso",
-      })
-    } finally {
-      setSyncingId(null)
+      toast({ title: "Error", description: "No se pudo sincronizar", variant: "destructive" })
     }
   }
 
@@ -319,22 +306,17 @@ export function CoursesManagement() {
                 </TableCell>
                 <TableCell>{c.facilitator?.name ?? "-"}</TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-1">
-                    <Badge
-                      variant={
-                        c.status === "approved"
-                          ? "secondary"
-                          : c.status === "synced"
-                          ? "default"
-                          : "outline"
-                      }
-                    >
-                      {c.status}
-                    </Badge>
-                    {c.status === "synced" && (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                    )}
-                  </div>
+                  <Badge
+                    variant={
+                      c.status === "approved"
+                        ? "secondary"
+                        : c.status === "synced"
+                        ? "default"
+                        : "outline"
+                    }
+                  >
+                    {c.status}
+                  </Badge>
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-2">
@@ -352,17 +334,8 @@ export function CoursesManagement() {
                       </Button>
                     )}
                     {c.status === "approved" && (
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        onClick={() => handleSync(c)}
-                        disabled={syncingId === c.id}
-                      >
-                        {syncingId === c.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <UploadCloud className="h-4 w-4" />
-                        )}
+                      <Button size="icon" variant="outline" onClick={() => handleSync(c)}>
+                        <UploadCloud className="h-4 w-4" />
                       </Button>
                     )}
                   </div>
