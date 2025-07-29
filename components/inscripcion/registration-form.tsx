@@ -33,6 +33,7 @@ export default function RegistrationForm() {
   const [progress, setProgress] = useState(20)
   const [showModal, setShowModal] = useState(false)
   const [prospectoId, setProspectoId] = useState<number | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [datosPersonales, setDatosPersonales] = useState<DatosPersonales>({
     nombre: "", paisOrigen: "", paisResidencia: "", telefono: "",
@@ -74,6 +75,8 @@ export default function RegistrationForm() {
   }
 
   const handleFinalizarInscripcion = async () => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
     try {
       const response = await axios.post(
         `${API_BASE_URL}/api/inscripciones/finalizar`,
@@ -120,7 +123,7 @@ export default function RegistrationForm() {
           window.location.reload();
         }
       });
-  
+
     } catch (error: any) {
       console.error("Error al finalizar inscripción:", error.response?.data || error);
       Swal.fire({
@@ -128,17 +131,25 @@ export default function RegistrationForm() {
         text: error.response?.data?.message || "Ocurrió un error",
         icon: 'error',
       });
+    } finally {
+      setIsSubmitting(false)
     }
   };
   
   
 
   return (
-    <div className="container mx-auto max-w-6xl p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-primary mb-2">Ficha de Inscripción</h1>
-        <Progress value={progress} className="h-2 w-full" />
-      </div>
+    <div className="relative">
+      {isSubmitting && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/60">
+          <Loader2 className="mr-2 h-6 w-6 animate-spin" /> Procesando...
+        </div>
+      )}
+      <div className="container mx-auto max-w-6xl p-6">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-primary mb-2">Ficha de Inscripción</h1>
+          <Progress value={progress} className="h-2 w-full" />
+        </div>
 
       <Card className="border-2 border-muted shadow-md">
         <CardContent className="p-6">
@@ -195,6 +206,7 @@ export default function RegistrationForm() {
                 setDocumentos={setDocumentos}
                 goPrev={() => changeTab("financiero")}
                 onFinalizar={handleFinalizarInscripcion}
+                isFinalizing={isSubmitting}
                 prospectoId={prospectoId as number}
               />
             </TabsContent>
@@ -232,6 +244,7 @@ export default function RegistrationForm() {
           setShowModal(false)
         }}
       />
+      </div>
     </div>
   )
 }
