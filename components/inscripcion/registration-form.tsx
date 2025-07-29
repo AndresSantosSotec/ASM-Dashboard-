@@ -33,6 +33,7 @@ export default function RegistrationForm() {
   const [progress, setProgress] = useState(20)
   const [showModal, setShowModal] = useState(false)
   const [prospectoId, setProspectoId] = useState<number | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [datosPersonales, setDatosPersonales] = useState<DatosPersonales>({
     nombre: "", paisOrigen: "", paisResidencia: "", telefono: "",
@@ -74,6 +75,8 @@ export default function RegistrationForm() {
   }
 
   const handleFinalizarInscripcion = async () => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
     try {
       const response = await axios.post(
         `${API_BASE_URL}/api/inscripciones/finalizar`,
@@ -120,7 +123,7 @@ export default function RegistrationForm() {
           window.location.reload();
         }
       });
-  
+
     } catch (error: any) {
       console.error("Error al finalizar inscripción:", error.response?.data || error);
       Swal.fire({
@@ -128,6 +131,8 @@ export default function RegistrationForm() {
         text: error.response?.data?.message || "Ocurrió un error",
         icon: 'error',
       });
+    } finally {
+      setIsSubmitting(false)
     }
   };
   
@@ -195,6 +200,7 @@ export default function RegistrationForm() {
                 setDocumentos={setDocumentos}
                 goPrev={() => changeTab("financiero")}
                 onFinalizar={handleFinalizarInscripcion}
+                isFinalizing={isSubmitting}
                 prospectoId={prospectoId as number}
               />
             </TabsContent>

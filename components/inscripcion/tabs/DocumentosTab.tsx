@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef, useMemo, Dispatch, SetStateAction } from "react"
 import axios, { AxiosError } from "axios"
 import { API_BASE_URL } from "@/utils/apiConfig"
-import { ArrowLeft, ArrowRight, FileText, Info, Upload, X, CheckCircle } from "lucide-react"
+import { ArrowLeft, ArrowRight, FileText, Info, Upload, X, CheckCircle, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
@@ -35,6 +35,7 @@ type Props = {
   goPrev: () => void
   prospectoId: number
   onFinalizar?: () => Promise<void>
+  isFinalizing?: boolean
 }
 
 export default function DocumentosTab({
@@ -43,6 +44,7 @@ export default function DocumentosTab({
   goPrev,
   prospectoId,
   onFinalizar,
+  isFinalizing,
 }: Props) {
   const hiddenInput = useRef<HTMLInputElement>(null)
   const uploadTarget = useRef<string | null>(null)
@@ -207,11 +209,17 @@ export default function DocumentosTab({
 
         {onFinalizar ? (
           <Button
-            disabled={!isFormValid}
+            disabled={!isFormValid || isFinalizing}
             onClick={onFinalizar}
             className={isFormValid ? "bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto" : "w-full sm:w-auto"}
           >
-            Finalizar inscripción <ArrowRight className="ml-2 h-4 w-4" />
+            {isFinalizing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Finalizando...
+              </>
+            ) : (
+              <>Finalizar inscripción <ArrowRight className="ml-2 h-4 w-4" /></>
+            )}
           </Button>
         ) : (
           <Link href="/inscripcion/revision" className="w-full sm:w-auto">
