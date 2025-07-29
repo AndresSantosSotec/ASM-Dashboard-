@@ -70,15 +70,23 @@ export default function GestionProspectos() {
         }
         const json = await res.json()
         // Mapeamos los datos del backend a nuestro modelo de prospecto
-        const prospectosTransformados = json.data.map((item: any) => ({
-          id: String(item.id),
-          nombre: item.nombre_completo,
-          email: item.correo_electronico,
-          telefono: item.telefono,
-          departamento: item.empresa_donde_labora_actualmente ?? "Sin Departamento",
-          estado: item.status || "No contactado",
-          ultimoCambio: item.updated_at ?? "N/A",
-        }))
+        const prospectosTransformados = json.data
+          .map((item: any) => ({
+            id: String(item.id),
+            nombre: item.nombre_completo,
+            email: item.correo_electronico,
+            telefono: item.telefono,
+            departamento: item.empresa_donde_labora_actualmente ?? "Sin Departamento",
+            estado: item.status || "No contactado",
+            ultimoCambio: item.updated_at ?? "N/A",
+          }))
+          .sort((a: Prospecto, b: Prospecto) => {
+            const getTime = (d: string) => {
+              const t = new Date(d).getTime()
+              return isNaN(t) ? 0 : t
+            }
+            return getTime(b.ultimoCambio) - getTime(a.ultimoCambio)
+          })
         setProspectos(prospectosTransformados)
       } catch (err: any) {
         setError(err.message || "Error inesperado")

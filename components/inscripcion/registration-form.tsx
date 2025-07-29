@@ -139,11 +139,17 @@ export default function RegistrationForm() {
   
 
   return (
-    <div className="container mx-auto max-w-6xl p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-primary mb-2">Ficha de Inscripción</h1>
-        <Progress value={progress} className="h-2 w-full" />
-      </div>
+    <div className="relative">
+      {isSubmitting && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/60">
+          <Loader2 className="mr-2 h-6 w-6 animate-spin" /> Procesando...
+        </div>
+      )}
+      <div className="container mx-auto max-w-6xl p-6">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-primary mb-2">Ficha de Inscripción</h1>
+          <Progress value={progress} className="h-2 w-full" />
+        </div>
 
       <Card className="border-2 border-muted shadow-md">
         <CardContent className="p-6">
@@ -238,6 +244,7 @@ export default function RegistrationForm() {
           setShowModal(false)
         }}
       />
+      </div>
     </div>
   )
 }
