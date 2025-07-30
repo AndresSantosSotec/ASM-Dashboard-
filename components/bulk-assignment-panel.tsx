@@ -33,14 +33,29 @@ export function BulkAssignmentPanel({
   const [filterArea, setFilterArea] = useState<string>("all")
   const [filterProgram, setFilterProgram] = useState<string>("all")
 
+  const programIds = useMemo(
+    () => Array.from(new Set(selectedStudents.map((s) => s.programId).filter(Boolean))),
+    [selectedStudents]
+  )
+
+  const dedupedCourses = useMemo(() => {
+    const uniq = new Map<string | number, Course>()
+    courses.forEach((c) => uniq.set(c.id, c))
+    const list = Array.from(uniq.values())
+    if (programIds.length <= 1) return list
+    return list.filter((c) =>
+      programIds.every((pid) => c.programIds.includes(pid))
+    )
+  }, [courses, programIds])
+
   const programOptions = useMemo(() => {
-    const names = courses.flatMap((c) =>
+    const names = dedupedCourses.flatMap((c) =>
       Array.isArray(c.programas) ? c.programas.map((p) => p.nombre_del_programa) : []
     )
     return Array.from(new Set(names))
-  }, [courses])
+  }, [dedupedCourses])
 
-  const filteredCourses = courses.filter((course) => {
+  const filteredCourses = dedupedCourses.filter((course) => {
     const matchesSearch =
       course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       course.code.toLowerCase().includes(searchTerm.toLowerCase())
@@ -136,9 +151,7 @@ export function BulkAssignmentPanel({
           <div className="flex flex-wrap gap-2">
             {selectedStudents.map((student) => (
               <Badge key={student.id} variant="secondary">
-                {student.name}
-                {" "}
-                {student.program ? `(${student.program})` : ""}
+                {student.name} - {student.carnet} - {student.specialty}
               </Badge>
             ))}
           </div>
