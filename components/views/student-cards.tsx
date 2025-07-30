@@ -33,9 +33,10 @@ import {
 import { Search } from "lucide-react";
 import type { Course } from "@/services/courses";
 import { getAvailableCoursesForStudents } from "@/services/courses";
-import { bulkassingCourses, unassignCourses } from "@/services/students";
+import { bulkAssignCourses, unassignCourses } from "@/services/students";
 import { BulkAssignmentPanel } from "@/components/bulk-assignment-panel";
 import { useToast } from "@/components/ui/use-toast";
+import Swal from "sweetalert2";
 
 interface StudentCardsProps {
   students: Student[];
@@ -60,7 +61,6 @@ export function StudentCards({
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const { toast } = useToast();
-
 
   const programOptions = useMemo(() => {
     const set = new Set<string>();
@@ -94,16 +94,10 @@ export function StudentCards({
         specialtyFilter === "todos" || s.specialty === specialtyFilter;
 
       const matchesDate =
-        (!dateStart || new Date(s.startDate ?? '') >= new Date(dateStart)) &&
-        (!dateEnd || new Date(s.startDate ?? '') <= new Date(dateEnd));
+        (!dateStart || new Date(s.startDate ?? "") >= new Date(dateStart)) &&
+        (!dateEnd || new Date(s.startDate ?? "") <= new Date(dateEnd));
 
-
-      return (
-        matchesTerm &&
-        matchesProgram &&
-        matchesSpecialty &&
-        matchesDate
-      );
+      return matchesTerm && matchesProgram && matchesSpecialty && matchesDate;
     });
   }, [students, search, programFilter, specialtyFilter, dateStart, dateEnd]);
 
@@ -153,7 +147,6 @@ export function StudentCards({
     );
   };
 
-
   useEffect(() => {
     if (!showBulkPanel) return;
     setIsBulkLoading(true);
@@ -171,8 +164,25 @@ export function StudentCards({
   ) => {
     try {
       if (assign) {
-        await bulkassingCourses(studentIds, courseIds);
-        toast({ title: "Asignación exitosa" });
+        const selected = students.filter((s) => studentIds.includes(s.id));
+        const hasDup = selected.some((s) =>
+          s.assignedCourses.some((cid) => courseIds.includes(cid)),
+        );
+        if (hasDup) {
+          Swal.fire({
+            icon: "warning",
+            title: "Cursos ya asignados",
+            text: "Algún estudiante ya posee uno de los cursos seleccionados.",
+          });
+          return;
+        }
+
+        await bulkAssignCourses(studentIds, courseIds);
+        await Swal.fire({
+          icon: "success",
+          title: "Asignación exitosa",
+        });
+        location.reload();
       } else {
         await unassignCourses(studentIds, courseIds);
         toast({ title: "Desasignación exitosa" });
@@ -186,7 +196,6 @@ export function StudentCards({
       });
     }
   };
-
 
   const changePageSize = (value: string) => {
     const size = Number(value);
@@ -235,8 +244,8 @@ export function StudentCards({
           <Select
             value={specialtyFilter}
             onValueChange={(value) => {
-              setSpecialtyFilter(value)
-              setPage(1)
+              setSpecialtyFilter(value);
+              setPage(1);
             }}
           >
             <SelectTrigger className="w-40">
@@ -275,7 +284,9 @@ export function StudentCards({
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="h-8">Seleccionar</Button>
+              <Button variant="outline" className="h-8">
+                Seleccionar
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               <DropdownMenuCheckboxItem
@@ -315,11 +326,24 @@ export function StudentCards({
 
       {selectedIds.length > 0 && (
         <div className="flex items-center justify-between bg-blue-50 border p-2 rounded">
-          <span className="text-sm font-medium">{selectedIds.length} seleccionados</span>
+          <span className="text-sm font-medium">
+            {selectedIds.length} seleccionados
+          </span>
           <Button size="sm" onClick={() => setShowBulkPanel(true)}>
             Asignación Masiva
           </Button>
         </div>
+      )}
+
+      {showBulkPanel && (
+        <BulkAssignmentPanel
+          selectedStudents={students.filter((s) => selectedIds.includes(s.id))}
+          courses={bulkCourses}
+          isLoading={isBulkLoading}
+          error={bulkError}
+          onBulkAssignment={handleBulkAssignment}
+          onClose={() => setShowBulkPanel(false)}
+        />
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -333,17 +357,6 @@ export function StudentCards({
           />
         ))}
       </div>
-
-      {showBulkPanel && (
-        <BulkAssignmentPanel
-          selectedStudents={students.filter((s) => selectedIds.includes(s.id))}
-          courses={bulkCourses}
-          isLoading={isBulkLoading}
-          error={bulkError}
-          onBulkAssignment={handleBulkAssignment}
-          onClose={() => setShowBulkPanel(false)}
-        />
-      )}
 
       {totalPages > 1 && (
         <Pagination className="pt-4">

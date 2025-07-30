@@ -44,6 +44,10 @@ export function StudentCard({
             <span className="font-medium">Especialidad:</span>{" "}
             {student.specialty}
           </div>
+          <div>
+            <span className="font-medium">Cursos asignados:</span>{" "}
+            {student.assignedCourses.length}
+          </div>
         </div>
 
         <Button

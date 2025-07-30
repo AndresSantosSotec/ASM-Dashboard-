@@ -150,11 +150,11 @@ export const unassignCourses = async (
   })
 }
 
-export const bulkassingCourses = async (
+export const bulkAssignCourses = async (
   studentIds: string[],
   courseIds: string[],
 ) => {
-  await api.post('/courses/bulkassign', {
+  await api.post('/courses/bulk-assign', {
     prospecto_ids: studentIds.map(Number),
     course_ids: courseIds.map(Number),
   })
