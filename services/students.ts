@@ -52,7 +52,7 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
 
   const students = await Promise.all(
     data.map(async (p: any) => {
-      let progs: Program[] = []
+      let progs: any[] = []
       if (Array.isArray(p.programas) && p.programas.length > 0) {
         progs = p.programas
       } else {
@@ -64,16 +64,17 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
       }
 
       const first = progs[0]
+      const info = first?.programa ?? first
 
       return {
         id: String(p.id),
         name: p.nombre_completo ?? '',
         carnet: p.carnet ?? String(p.id),
-        programId: first?.id ?? 0,
-        program: first?.nombre_del_programa ?? '',
-        specialty: first?.abreviatura ?? '',
-        startDate: p.fecha_inicio_especifica ?? null, // Mapeo agregado aquí
-        programs: progs,
+        programId: info?.id ?? 0,
+        program: info?.nombre_del_programa ?? '',
+        specialty: info?.abreviatura ?? '',
+        startDate: p.fecha_inicio_especifica ?? first?.fecha_inicio ?? null,
+        programs: progs.map((pr: any) => pr.programa ?? pr),
         assignedCourses: Array.isArray(p.courses)
           ? p.courses.map((c: any) => String(c.id))
           : [],
