@@ -65,7 +65,6 @@ export function BulkAssignmentPanel({
     return Array.from(new Set(names))
   }, [dedupedCourses])
 
-
   const filtered = useMemo(() => {
     return dedupedCourses.filter((course) => {
       const matchesSearch =
