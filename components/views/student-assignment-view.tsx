@@ -10,9 +10,12 @@ import {
   unassignCourses,
 } from "@/services/students";
 import { fetchStudentCourses } from "@/services/courses";
+
+
 import fetchApprovedMoodleCourses, {
   MoodleQueryCourse,
 } from "@/services/moodleCourseQueries";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -239,6 +242,7 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
           fetchApprovedMoodleCourses(student.carnet),
         ]);
 
+
         console.log('[DEBUG] Cursos aprobados de Moodle:', moodle);
 
         const pensumNames = courses.map((c) => c.name);
@@ -249,6 +253,7 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
         setAssigned(lists.assigned);
         setCompleted(lists.completed);
         setMoodleCompleted(filteredMoodle);
+
         setAllCourses(courses);
       } catch (err) {
         console.error(err);
