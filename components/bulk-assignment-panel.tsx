@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Swal from "sweetalert2"
 import type { Student } from "@/services/students"
 import type { Course } from "@/services/courses"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,6 +27,19 @@ export function BulkAssignmentPanel({
 
   const handleCourseSelect = (courseId: string, isSelected: boolean) => {
     if (isSelected) {
+      const alreadyAssigned = selectedStudents.filter((s) =>
+        s.assignedCourses.includes(courseId),
+      )
+      if (alreadyAssigned.length > 0) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Curso ya asignado',
+          html:
+            'El curso ya está asignado a:<br/>' +
+            alreadyAssigned.map((s) => `• ${s.name}`).join('<br/>'),
+        })
+        return
+      }
       setSelectedCourses((prev) => [...prev, courseId])
     } else {
       setSelectedCourses((prev) => prev.filter((id) => id !== courseId))
@@ -113,25 +127,35 @@ export function BulkAssignmentPanel({
             Seleccionar Cursos ({selectedCourses.length} seleccionados)
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-            {courses.map((course) => (
-              <div key={course.id} className="flex items-center space-x-2 p-2 border rounded">
-                <Checkbox
-                  checked={selectedCourses.includes(course.id)}
-                  onCheckedChange={(checked) =>
-                    handleCourseSelect(course.id, checked as boolean)
-                  }
-                />
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-sm">{course.name}</span>
-                    <Badge className={`${getTypeColor(course.area)} text-white text-xs`}>
-                      {getTypeLabel(course.area)}
-                    </Badge>
+            {courses.map((course) => {
+              const assignedTo = selectedStudents.filter((s) =>
+                s.assignedCourses.includes(course.id),
+              )
+              return (
+                <div key={course.id} className="flex items-start space-x-2 p-2 border rounded">
+                  <Checkbox
+                    checked={selectedCourses.includes(course.id)}
+                    onCheckedChange={(checked) =>
+                      handleCourseSelect(course.id, checked as boolean)
+                    }
+                  />
+                  <div className="flex-1 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{course.name}</span>
+                      <Badge className={`${getTypeColor(course.area)} text-white text-xs`}>
+                        {getTypeLabel(course.area)}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-gray-500">{course.code}</p>
+                    {assignedTo.length > 0 && (
+                      <p className="text-xs text-red-500 mt-1">
+                        Asignado a {assignedTo.map((s) => s.name).join(', ')}
+                      </p>
+                    )}
                   </div>
-                  <p className="text-xs text-gray-500">{course.code}</p>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
