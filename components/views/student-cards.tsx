@@ -61,7 +61,6 @@ export function StudentCards({
   const [bulkError, setBulkError] = useState<string | null>(null);
   const { toast } = useToast();
 
-
   const programOptions = useMemo(() => {
     const set = new Set<string>();
     students.forEach((s) => {
@@ -94,16 +93,10 @@ export function StudentCards({
         specialtyFilter === "todos" || s.specialty === specialtyFilter;
 
       const matchesDate =
-        (!dateStart || new Date(s.startDate ?? '') >= new Date(dateStart)) &&
-        (!dateEnd || new Date(s.startDate ?? '') <= new Date(dateEnd));
+        (!dateStart || new Date(s.startDate ?? "") >= new Date(dateStart)) &&
+        (!dateEnd || new Date(s.startDate ?? "") <= new Date(dateEnd));
 
-
-      return (
-        matchesTerm &&
-        matchesProgram &&
-        matchesSpecialty &&
-        matchesDate
-      );
+      return matchesTerm && matchesProgram && matchesSpecialty && matchesDate;
     });
   }, [students, search, programFilter, specialtyFilter, dateStart, dateEnd]);
 
@@ -153,7 +146,6 @@ export function StudentCards({
     );
   };
 
-
   useEffect(() => {
     if (!showBulkPanel) return;
     setIsBulkLoading(true);
@@ -186,7 +178,6 @@ export function StudentCards({
       });
     }
   };
-
 
   const changePageSize = (value: string) => {
     const size = Number(value);
@@ -235,8 +226,8 @@ export function StudentCards({
           <Select
             value={specialtyFilter}
             onValueChange={(value) => {
-              setSpecialtyFilter(value)
-              setPage(1)
+              setSpecialtyFilter(value);
+              setPage(1);
             }}
           >
             <SelectTrigger className="w-40">
@@ -275,7 +266,9 @@ export function StudentCards({
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="h-8">Seleccionar</Button>
+              <Button variant="outline" className="h-8">
+                Seleccionar
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               <DropdownMenuCheckboxItem
@@ -315,11 +308,24 @@ export function StudentCards({
 
       {selectedIds.length > 0 && (
         <div className="flex items-center justify-between bg-blue-50 border p-2 rounded">
-          <span className="text-sm font-medium">{selectedIds.length} seleccionados</span>
+          <span className="text-sm font-medium">
+            {selectedIds.length} seleccionados
+          </span>
           <Button size="sm" onClick={() => setShowBulkPanel(true)}>
             Asignación Masiva
           </Button>
         </div>
+      )}
+
+      {showBulkPanel && (
+        <BulkAssignmentPanel
+          selectedStudents={students.filter((s) => selectedIds.includes(s.id))}
+          courses={bulkCourses}
+          isLoading={isBulkLoading}
+          error={bulkError}
+          onBulkAssignment={handleBulkAssignment}
+          onClose={() => setShowBulkPanel(false)}
+        />
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -333,17 +339,6 @@ export function StudentCards({
           />
         ))}
       </div>
-
-      {showBulkPanel && (
-        <BulkAssignmentPanel
-          selectedStudents={students.filter((s) => selectedIds.includes(s.id))}
-          courses={bulkCourses}
-          isLoading={isBulkLoading}
-          error={bulkError}
-          onBulkAssignment={handleBulkAssignment}
-          onClose={() => setShowBulkPanel(false)}
-        />
-      )}
 
       {totalPages > 1 && (
         <Pagination className="pt-4">
