@@ -50,6 +50,7 @@ export function StudentCards({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15); // Valor inicial 15
   const [programFilter, setProgramFilter] = useState("todos");
+  const [specialtyFilter, setSpecialtyFilter] = useState("todos");
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -69,25 +70,42 @@ export function StudentCards({
     return Array.from(set).sort();
   }, [students]);
 
+  const specialtyOptions = useMemo(() => {
+    const set = new Set<string>();
+    students.forEach((s) => {
+      if (s.specialty) set.add(s.specialty);
+    });
+    return Array.from(set).sort();
+  }, [students]);
+
   const filtered = useMemo(() => {
     const term = search.toLowerCase();
     return students.filter((s) => {
       const matchesTerm =
         s.name.toLowerCase().includes(term) ||
         s.carnet.includes(term) ||
-        s.program.toLowerCase().includes(term);
+        s.program.toLowerCase().includes(term) ||
+        s.specialty.toLowerCase().includes(term);
 
       const matchesProgram =
         programFilter === "todos" || s.program === programFilter;
+
+      const matchesSpecialty =
+        specialtyFilter === "todos" || s.specialty === specialtyFilter;
 
       const matchesDate =
         (!dateStart || new Date(s.startDate ?? '') >= new Date(dateStart)) &&
         (!dateEnd || new Date(s.startDate ?? '') <= new Date(dateEnd));
 
 
-      return matchesTerm && matchesProgram && matchesDate;
+      return (
+        matchesTerm &&
+        matchesProgram &&
+        matchesSpecialty &&
+        matchesDate
+      );
     });
-  }, [students, search, programFilter, dateStart, dateEnd]);
+  }, [students, search, programFilter, specialtyFilter, dateStart, dateEnd]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
 
@@ -185,7 +203,7 @@ export function StudentCards({
           <div className="relative w-64">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
             <Input
-              placeholder="Buscar por nombre o carnet"
+              placeholder="Buscar por nombre, carnet o abreviatura"
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -209,6 +227,26 @@ export function StudentCards({
               {programOptions.map((p) => (
                 <SelectItem key={p} value={p}>
                   {p}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={specialtyFilter}
+            onValueChange={(value) => {
+              setSpecialtyFilter(value)
+              setPage(1)
+            }}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Todas las especialidades" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todas las especialidades</SelectItem>
+              {specialtyOptions.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
                 </SelectItem>
               ))}
             </SelectContent>
