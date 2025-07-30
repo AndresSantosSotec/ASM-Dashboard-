@@ -184,8 +184,10 @@ export function BulkAssignmentPanel({
           <div className="flex flex-wrap gap-2">
             {selectedStudents.map((student) => (
               <Badge key={student.id} variant="secondary">
+
                 {student.name} - {student.carnet} - {student.specialty} (
                 {student.assignedCourses.length})
+
               </Badge>
             ))}
           </div>

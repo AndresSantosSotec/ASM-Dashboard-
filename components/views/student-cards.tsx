@@ -164,6 +164,7 @@ export function StudentCards({
   ) => {
     try {
       if (assign) {
+
         const selected = students.filter((s) => studentIds.includes(s.id));
         const hasDup = selected.some((s) =>
           s.assignedCourses.some((cid) => courseIds.includes(cid)),
@@ -183,6 +184,7 @@ export function StudentCards({
           title: "Asignación exitosa",
         });
         location.reload();
+
       } else {
         await unassignCourses(studentIds, courseIds);
         toast({ title: "Desasignación exitosa" });
