@@ -107,7 +107,9 @@ export const fetchStudentCourses = async (studentId: string): Promise<Course[]> 
       })
     }
   })
+
   unique.forEach((c: Course) => courses.push(c))
+
   return courses
 }
 
@@ -164,6 +166,7 @@ export const getAvailableCoursesForStudents = async (
   const res = await api.get<unknown[]>('/courses/available-for-students', {
     params: { prospecto_ids: prospectoIds.map(Number) },
   })
+
   const raw = Array.isArray(res.data) ? res.data : (res.data as any).data
   const mapped: Course[] = (raw as any[]).map((c: any) => mapCourseFromApi(c))
   return Array.from(new Map(mapped.map((c: Course) => [c.id, c])).values())
