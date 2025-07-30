@@ -68,7 +68,7 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
       return {
         id: String(p.id),
         name: p.nombre_completo ?? '',
-        carnet: String(p.id),
+        carnet: p.carnet ?? String(p.id),
         programId: first?.id ?? 0,
         program: first?.nombre_del_programa ?? '',
         specialty: first?.abreviatura ?? '',

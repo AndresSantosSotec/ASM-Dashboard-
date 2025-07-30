@@ -165,6 +165,10 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    console.log('[DEBUG] Datos del estudiante:', student);
+  }, [student]);
+
+  useEffect(() => {
     (async () => {
       try {
         const [lists, courses] = await Promise.all([
@@ -184,7 +188,10 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
 
   useEffect(() => {
     const avail = allCourses.filter(
-      (c) => !assigned.some((a) => a.id === c.id) && !completed.some((co) => co.id === c.id),
+      (c) =>
+        c.status !== 'synced' &&
+        !assigned.some((a) => a.id === c.id) &&
+        !completed.some((co) => co.id === c.id),
     );
     setAvailable(avail);
   }, [allCourses, assigned, completed]);
@@ -193,11 +200,16 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    return available.filter((c) => {
+    return allCourses.filter((c) => {
       const d = new Date(c.startDate);
-      return d >= start && d <= end;
+      return (
+        d >= start &&
+        d <= end &&
+        !assigned.some((a) => a.id === c.id) &&
+        !completed.some((co) => co.id === c.id)
+      );
     });
-  }, [available]);
+  }, [allCourses, assigned, completed]);
 
   useEffect(() => {
     setHasUnsavedChanges(pendingAssign.length > 0 || pendingUnassign.length > 0);
