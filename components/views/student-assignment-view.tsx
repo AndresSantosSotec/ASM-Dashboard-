@@ -196,11 +196,16 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    return available.filter((c) => {
+    return allCourses.filter((c) => {
       const d = new Date(c.startDate);
-      return d >= start && d <= end;
+      return (
+        d >= start &&
+        d <= end &&
+        !assigned.some((a) => a.id === c.id) &&
+        !completed.some((co) => co.id === c.id)
+      );
     });
-  }, [available]);
+  }, [allCourses, assigned, completed]);
 
   useEffect(() => {
     setHasUnsavedChanges(pendingAssign.length > 0 || pendingUnassign.length > 0);
