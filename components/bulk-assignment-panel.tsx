@@ -9,7 +9,17 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { X, Users, BookOpen, Plus, Minus, Search, Filter, Loader2 } from "lucide-react"
+import {
+  X,
+  Users,
+  BookOpen,
+  Plus,
+  Minus,
+  Search,
+  Filter,
+  Loader2,
+  Calendar,
+} from "lucide-react"
 
 interface BulkAssignmentPanelProps {
   selectedStudents: Student[]
@@ -33,23 +43,55 @@ export function BulkAssignmentPanel({
   const [filterArea, setFilterArea] = useState<string>("all")
   const [filterProgram, setFilterProgram] = useState<string>("all")
 
+  const programIds = useMemo(
+    () => Array.from(new Set(selectedStudents.map((s) => s.programId).filter(Boolean))),
+    [selectedStudents]
+  )
+
+  const dedupedCourses = useMemo(() => {
+    const uniq = new Map<string | number, Course>()
+    courses.forEach((c) => uniq.set(c.id, c))
+    const list = Array.from(uniq.values())
+    if (programIds.length <= 1) return list
+    return list.filter((c) =>
+      programIds.every((pid) => c.programIds.includes(pid))
+    )
+  }, [courses, programIds])
+
   const programOptions = useMemo(() => {
-    const names = courses.flatMap((c) =>
+    const names = dedupedCourses.flatMap((c) =>
       Array.isArray(c.programas) ? c.programas.map((p) => p.nombre_del_programa) : []
     )
     return Array.from(new Set(names))
-  }, [courses])
+  }, [dedupedCourses])
 
-  const filteredCourses = courses.filter((course) => {
-    const matchesSearch =
-      course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      course.code.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesArea = filterArea === "all" || course.area === filterArea
-    const matchesProgram =
-      filterProgram === "all" ||
-      course.programas?.some((p) => p.nombre_del_programa === filterProgram)
-    return matchesSearch && matchesArea && matchesProgram
-  })
+  const filtered = useMemo(() => {
+    return dedupedCourses.filter((course) => {
+      const matchesSearch =
+        course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        course.code.toLowerCase().includes(searchTerm.toLowerCase())
+      const matchesArea = filterArea === "all" || course.area === filterArea
+      const matchesProgram =
+        filterProgram === "all" ||
+        course.programas?.some((p) => p.nombre_del_programa === filterProgram)
+      return matchesSearch && matchesArea && matchesProgram
+    })
+  }, [dedupedCourses, searchTerm, filterArea, filterProgram])
+
+  const monthCourses = useMemo(() => {
+    const now = new Date()
+    const start = new Date(now.getFullYear(), now.getMonth(), 1)
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    return filtered.filter((c) => {
+      const d = new Date(c.startDate)
+      return d >= start && d <= end
+    })
+  }, [filtered])
+
+  const otherCourses = useMemo(() => {
+    const set = new Set(monthCourses.map((c) => c.id))
+    return filtered.filter((c) => !set.has(c.id))
+  }, [filtered, monthCourses])
 
   const handleCourseSelect = (courseId: string, isSelected: boolean) => {
     if (isSelected) {
@@ -59,11 +101,17 @@ export function BulkAssignmentPanel({
     }
   }
 
+  const allFiltered = useMemo(
+    () => [...monthCourses, ...otherCourses],
+    [monthCourses, otherCourses],
+  )
+  const totalOther = otherCourses.length
+
   const handleSelectAll = () => {
-    if (selectedCourses.length === filteredCourses.length) {
+    if (selectedCourses.length === allFiltered.length) {
       setSelectedCourses([])
     } else {
-      setSelectedCourses(filteredCourses.map((c) => c.id))
+      setSelectedCourses(allFiltered.map((c) => c.id))
     }
   }
 
@@ -136,9 +184,7 @@ export function BulkAssignmentPanel({
           <div className="flex flex-wrap gap-2">
             {selectedStudents.map((student) => (
               <Badge key={student.id} variant="secondary">
-                {student.name}
-                {" "}
-                {student.program ? `(${student.program})` : ""}
+                {student.name} - {student.carnet} - {student.specialty}
               </Badge>
             ))}
           </div>
@@ -183,13 +229,61 @@ export function BulkAssignmentPanel({
             </Select>
 
             <Button variant="outline" onClick={handleSelectAll} className="flex-1 bg-transparent">
-              {selectedCourses.length === filteredCourses.length ? "Deseleccionar" : "Seleccionar"} Todo
+              {selectedCourses.length === allFiltered.length ? "Deseleccionar" : "Seleccionar"} Todo
             </Button>
           </div>
 
           <h4 className="font-medium mb-2 flex items-center">
+            <Calendar className="h-4 w-4 mr-2" />
+            Mes Actual ({monthCourses.length})
+          </h4>
+          {isLoading ? (
+            <div className="flex justify-center py-6">
+              <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
+            </div>
+          ) : (
+            <>
+              {error && <p className="text-sm text-red-500 mb-2">{error}</p>}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto mb-4">
+                {monthCourses.length > 0 ? (
+                  monthCourses.map((course) => (
+                    <div key={course.id} className="flex items-center space-x-2 p-2 border rounded">
+                      <Checkbox
+                        checked={selectedCourses.includes(course.id)}
+                        onCheckedChange={(checked) =>
+                          handleCourseSelect(course.id, checked as boolean)
+                        }
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm">{course.name}</span>
+                          <Badge className={`${getTypeColor(course.area)} text-white text-xs`}>
+                            {getTypeLabel(course.area)}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-gray-500">{course.code}</p>
+
+                        {course.programas && (
+                          <p className="text-xs text-gray-500">
+                            {course.programas.map((p) => p.nombre_del_programa).join(', ')}
+                          </p>
+                        )}
+
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="col-span-2 text-center py-4 text-sm text-gray-500">
+                    No hay cursos este mes
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          <h4 className="font-medium mb-2 flex items-center">
             <BookOpen className="h-4 w-4 mr-2" />
-            Cursos Disponibles ({selectedCourses.length} seleccionados de {filteredCourses.length})
+            Otros Cursos ({selectedCourses.length} seleccionados de {totalOther})
           </h4>
           
           {isLoading ? (
@@ -200,8 +294,8 @@ export function BulkAssignmentPanel({
             <>
               {error && <p className="text-sm text-red-500 mb-2">{error}</p>}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-                {filteredCourses.length > 0 ? (
-                  filteredCourses.map((course) => (
+                {otherCourses.length > 0 ? (
+                  otherCourses.map((course) => (
                     <div key={course.id} className="flex items-center space-x-2 p-2 border rounded">
                       <Checkbox
                         checked={selectedCourses.includes(course.id)}
