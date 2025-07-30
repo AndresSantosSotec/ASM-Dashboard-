@@ -221,6 +221,7 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
   const [assigned, setAssigned] = useState<Course[]>([]);
   const [completed, setCompleted] = useState<Course[]>([]);
   const [moodleCompleted, setMoodleCompleted] = useState<MoodleQueryCourse[]>([]);
+  const [moodleCourses, setMoodleCourses] = useState<MoodleQueryCourse[]>([]);
   const [allCourses, setAllCourses] = useState<Course[]>([]);
   const [available, setAvailable] = useState<Course[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -245,9 +246,10 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
 
         console.log('[DEBUG] Cursos aprobados de Moodle:', moodle);
 
-        const pensumNames = courses.map((c) => c.name);
+        setMoodleCourses(moodle);
+
         const filteredMoodle = moodle.filter(
-          (m) => !pensumNames.some((p) => areNamesSimilar(m.coursename, p)),
+          (m) => !lists.completed.some((c) => areNamesSimilar(m.coursename, c.name)),
         );
 
         setAssigned(lists.assigned);
@@ -269,10 +271,10 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
         c.status !== 'synced' &&
         !assigned.some((a) => a.id === c.id) &&
         !completed.some((co) => co.id === c.id) &&
-        !moodleCompleted.some((m) => m.courseid === c.id),
+        !moodleCourses.some((m) => areNamesSimilar(m.coursename, c.name)),
     );
     setAvailable(avail);
-  }, [allCourses, assigned, completed, moodleCompleted]);
+  }, [allCourses, assigned, completed, moodleCourses]);
 
   const monthCourses = useMemo(() => {
     const now = new Date();
@@ -285,10 +287,10 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
         d <= end &&
         !assigned.some((a) => a.id === c.id) &&
         !completed.some((co) => co.id === c.id) &&
-        !moodleCompleted.some((m) => m.courseid === c.id)
+        !moodleCourses.some((m) => areNamesSimilar(m.coursename, c.name))
       );
     });
-  }, [allCourses, assigned, completed, moodleCompleted]);
+  }, [allCourses, assigned, completed, moodleCourses]);
 
   useEffect(() => {
     setHasUnsavedChanges(pendingAssign.length > 0 || pendingUnassign.length > 0);
