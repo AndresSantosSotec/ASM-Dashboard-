@@ -192,6 +192,29 @@ export default function MoodleCoursesPage() {
     return ordered.concat(arr)
   }, [courses, search, selectedYear, selectedMonth, showMode, selectedCourses])
 
+  const allVisibleIds = useMemo(
+    () => groups.flatMap(g => g.courses.map(c => c.id)),
+    [groups]
+  )
+  const allSelected =
+    allVisibleIds.length > 0 &&
+    allVisibleIds.every(id => selectedCourses.has(id))
+
+  const toggleSelectAll = (checked: boolean | string) => {
+    setSelectedCourses(
+      checked ? new Set(allVisibleIds) : new Set()
+    )
+  }
+
+  const toggleSelectMonth = (ids: number[], checked: boolean | string) => {
+    setSelectedCourses(prev => {
+      const next = new Set(prev)
+      if (checked) ids.forEach(id => next.add(id))
+      else ids.forEach(id => next.delete(id))
+      return next
+    })
+  }
+
 const handleSync = async () => {
   const ids = Array.from(selectedCourses)
   const payload = courses.filter(c => ids.includes(c.id))
@@ -323,6 +346,13 @@ const handleSyncSingle = async (course: MoodleCourse) => {
                 <SelectItem value="selected">Seleccionados</SelectItem>
               </SelectContent>
             </Select>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={toggleSelectAll}
+              />
+              <span className="text-sm">Todos</span>
+            </div>
             <Button
               variant="outline"
               onClick={handleSync}
@@ -340,9 +370,23 @@ const handleSyncSingle = async (course: MoodleCourse) => {
         <CardContent className="space-y-6">
           {pagedGroups.map(group => (
             <div key={group.date.toISOString()} className="space-y-2">
-              <h3 className="text-lg font-semibold">
-                {format(group.date, "MMMM yyyy", { locale: es })}
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">
+                  {format(group.date, "MMMM yyyy", { locale: es })}
+                </h3>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={group.courses.every(c => selectedCourses.has(c.id))}
+                    onCheckedChange={c =>
+                      toggleSelectMonth(
+                        group.courses.map(cc => cc.id),
+                        c
+                      )
+                    }
+                  />
+                  <span className="text-sm">Mes</span>
+                </div>
+              </div>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {group.courses.map(course => (
                   <Card key={course.id} className="border-muted">
