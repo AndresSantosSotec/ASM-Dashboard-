@@ -10,6 +10,7 @@ import {
   unassignCourses,
 } from "@/services/students";
 import { fetchStudentCourses } from "@/services/courses";
+import fetchApprovedMoodleCourses, { MoodleQueryCourse } from "@/services/moodleCourseQueries";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -171,12 +172,39 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
   useEffect(() => {
     (async () => {
       try {
-        const [lists, courses] = await Promise.all([
+        const [lists, courses, moodle] = await Promise.all([
           fetchStudentCourseLists(student.id),
           fetchStudentCourses(student.id),
+          fetchApprovedMoodleCourses(student.carnet),
         ]);
+
+        const pensumNames = courses.map((c) => c.name.toLowerCase());
+        const filteredMoodle = moodle.filter((m) => {
+          const name = m.coursename.toLowerCase();
+          return !pensumNames.some(
+            (p) => name.includes(p) || p.includes(name),
+          );
+        });
+
+        const mappedMoodle: Course[] = filteredMoodle.map((m) => ({
+          id: 1000000 + m.courseid,
+          name: m.coursename,
+          code: String(m.courseid),
+          area: 'common',
+          credits: 0,
+          startDate: m.fecha_inicio_curso,
+          endDate: m.fecha_fin_curso,
+          schedule: '',
+          duration: '',
+          programIds: [],
+          facilitatorId: null,
+          status: 'synced',
+          facilitator: null,
+          programas: [],
+        }));
+
         setAssigned(lists.assigned);
-        setCompleted(lists.completed);
+        setCompleted([...lists.completed, ...mappedMoodle]);
         setAllCourses(courses);
       } catch (err) {
         console.error(err);
@@ -184,7 +212,7 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
         setIsLoading(false);
       }
     })();
-  }, [student.id, student.programId]);
+  }, [student.id, student.programId, student.carnet]);
 
   useEffect(() => {
     const avail = allCourses.filter(
