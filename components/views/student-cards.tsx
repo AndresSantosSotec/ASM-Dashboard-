@@ -33,7 +33,7 @@ import {
 import { Search } from "lucide-react";
 import type { Course } from "@/services/courses";
 import { getAvailableCoursesForStudents } from "@/services/courses";
-import { bulkassingCourses, unassignCourses } from "@/services/students";
+import { bulkAssignCourses, unassignCourses } from "@/services/students";
 import { BulkAssignmentPanel } from "@/components/bulk-assignment-panel";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -163,7 +163,7 @@ export function StudentCards({
   ) => {
     try {
       if (assign) {
-        await bulkassingCourses(studentIds, courseIds);
+        await bulkAssignCourses(studentIds, courseIds);
         toast({ title: "Asignación exitosa" });
       } else {
         await unassignCourses(studentIds, courseIds);
