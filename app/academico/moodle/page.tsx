@@ -39,6 +39,7 @@ import {
   MOODLE_BASE_URL,
 } from "@/services/moodle"
 import { fetchCourses } from "@/services/courses"
+import type { Course } from "@/services/courses"
 
 const MONTH_NAMES = [
   "Enero",
@@ -102,7 +103,9 @@ export default function MoodleCoursesPage() {
         mapped.sort((a, b) => b.timecreated - a.timecreated)
         setCourses(mapped)
 
-        const names = localCourses.map(c => c.name.trim().toLowerCase())
+        const names = localCourses.map((c: Course) =>
+          c.name.trim().toLowerCase(),
+        )
         setExistingNames(new Set(names))
 
         toast({
@@ -376,11 +379,11 @@ const handleSyncSingle = async (course: MoodleCourse) => {
                 </h3>
                 <div className="flex items-center gap-2">
                   <Checkbox
-                    checked={group.courses.every(c => selectedCourses.has(c.id))}
-                    onCheckedChange={c =>
+                    checked={group.courses.every((c) => selectedCourses.has(c.id))}
+                    onCheckedChange={(c: boolean | string) =>
                       toggleSelectMonth(
-                        group.courses.map(cc => cc.id),
-                        c
+                        group.courses.map((cc) => cc.id),
+                        c,
                       )
                     }
                   />
@@ -405,8 +408,8 @@ const handleSyncSingle = async (course: MoodleCourse) => {
                       </div>
                       <Checkbox
                         checked={selectedCourses.has(course.id)}
-                        onCheckedChange={checked =>
-                          setSelectedCourses(prev => {
+                        onCheckedChange={(checked: boolean | string) =>
+                          setSelectedCourses((prev) => {
                             const next = new Set(prev)
                             if (checked) next.add(course.id)
                             else next.delete(course.id)

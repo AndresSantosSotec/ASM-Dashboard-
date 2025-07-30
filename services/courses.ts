@@ -90,7 +90,7 @@ export const fetchCoursesForPrograms = async (
     allCourses.push(...data.map(mapCourseFromApi))
   }
 
-  return Array.from(new Map(allCourses.map((c) => [c.id, c])).values())
+  return Array.from(new Map(allCourses.map((c: Course) => [c.id, c])).values())
 
 }
 
@@ -107,7 +107,9 @@ export const fetchStudentCourses = async (studentId: string): Promise<Course[]> 
       })
     }
   })
-  unique.forEach((c) => courses.push(c))
+
+  unique.forEach((c: Course) => courses.push(c))
+
   return courses
 }
 
@@ -161,10 +163,11 @@ export const getAvailableCoursesForStudents = async (
   prospectoIds: string[]
 ): Promise<Course[]> => {
 
-  const res = await api.get('/courses/available-for-students', {
+  const res = await api.get<unknown[]>('/courses/available-for-students', {
     params: { prospecto_ids: prospectoIds.map(Number) },
   })
-  const data = Array.isArray(res.data) ? res.data : res.data.data
-  const mapped = data.map(mapCourseFromApi)
-  return Array.from(new Map(mapped.map((c) => [c.id, c])).values())
+
+  const raw = Array.isArray(res.data) ? res.data : (res.data as any).data
+  const mapped: Course[] = (raw as any[]).map((c: any) => mapCourseFromApi(c))
+  return Array.from(new Map(mapped.map((c: Course) => [c.id, c])).values())
 }
