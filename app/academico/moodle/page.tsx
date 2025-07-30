@@ -28,7 +28,8 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
-import { BookOpen } from "lucide-react"
+import { BookOpen, CheckCircle, Loader2 } from "lucide-react"
+import Swal from "sweetalert2"
 import Link from "next/link"
 import { format, startOfMonth, addMonths, isSameMonth } from "date-fns"
 import { es } from "date-fns/locale"
@@ -37,6 +38,7 @@ import {
   pushMoodleCourses,
   MOODLE_BASE_URL,
 } from "@/services/moodle"
+import { fetchCourses } from "@/services/courses"
 
 const MONTH_NAMES = [
   "Enero",
@@ -75,13 +77,19 @@ export default function MoodleCoursesPage() {
   const perPage = 3
 
   const { toast } = useToast()
+  const [syncingId, setSyncingId] = useState<number | null>(null)
+  const [bulkSyncing, setBulkSyncing] = useState(false)
+  const [existingNames, setExistingNames] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await fetchMoodleCourses()
-        const mapped = Array.isArray(data)
-          ? data.map((c: any) => ({
+        const [moodleData, localCourses] = await Promise.all([
+          fetchMoodleCourses(),
+          fetchCourses(),
+        ])
+        const mapped = Array.isArray(moodleData)
+          ? moodleData.map((c: any) => ({
               id: c.id,
               fullname: c.fullname,
               shortname: c.shortname,
@@ -93,6 +101,9 @@ export default function MoodleCoursesPage() {
           : []
         mapped.sort((a, b) => b.timecreated - a.timecreated)
         setCourses(mapped)
+
+        const names = localCourses.map(c => c.name.trim().toLowerCase())
+        setExistingNames(new Set(names))
 
         toast({
           title: "Cursos obtenidos",
@@ -181,45 +192,78 @@ export default function MoodleCoursesPage() {
     return ordered.concat(arr)
   }, [courses, search, selectedYear, selectedMonth, showMode, selectedCourses])
 
+  const allVisibleIds = useMemo(
+    () => groups.flatMap(g => g.courses.map(c => c.id)),
+    [groups]
+  )
+  const allSelected =
+    allVisibleIds.length > 0 &&
+    allVisibleIds.every(id => selectedCourses.has(id))
+
+  const toggleSelectAll = (checked: boolean | string) => {
+    setSelectedCourses(
+      checked ? new Set(allVisibleIds) : new Set()
+    )
+  }
+
+  const toggleSelectMonth = (ids: number[], checked: boolean | string) => {
+    setSelectedCourses(prev => {
+      const next = new Set(prev)
+      if (checked) ids.forEach(id => next.add(id))
+      else ids.forEach(id => next.delete(id))
+      return next
+    })
+  }
+
 const handleSync = async () => {
   const ids = Array.from(selectedCourses)
-  // Preparamos el payload y lo imprimimos en consola
   const payload = courses.filter(c => ids.includes(c.id))
-  console.log('🚀 Payload a sincronizar (bulk):', JSON.stringify(payload, null, 2))
+  setBulkSyncing(true)
 
   try {
     await pushMoodleCourses(payload as any)
-    toast({
-      title: 'Sincronización enviada',
-      description: `Se enviaron ${ids.length} cursos al backend`,
+    Swal.fire({
+      icon: 'success',
+      title: 'Sincronizado',
+      text: `Se sincronizaron ${ids.length} cursos correctamente`,
     })
+    setExistingNames(prev => {
+      const next = new Set(prev)
+      payload.forEach(c => next.add(c.fullname.trim().toLowerCase()))
+      return next
+    })
+    setSelectedCourses(new Set())
   } catch (err) {
     console.error('Error syncing courses', err)
-    toast({
-      title: 'Error al sincronizar',
-      description: 'No se pudieron enviar los cursos',
-      variant: 'destructive',
+    Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: 'No se pudieron sincronizar los cursos',
     })
+  } finally {
+    setBulkSyncing(false)
   }
 }
 
 const handleSyncSingle = async (course: MoodleCourse) => {
-  // Imprimimos en consola el JSON del curso individual
-  console.log('🚀 Payload a sincronizar (single):', JSON.stringify([course], null, 2))
-
+  setSyncingId(course.id)
   try {
     await pushMoodleCourses([course] as any)
-    toast({
-      title: 'Sincronización enviada',
-      description: `Curso ${course.fullname} enviado al backend`,
+    Swal.fire({
+      icon: 'success',
+      title: 'Sincronizado',
+      text: `Curso ${course.fullname} sincronizado correctamente`,
     })
+    setExistingNames(prev => new Set(prev).add(course.fullname.trim().toLowerCase()))
   } catch (err) {
     console.error('Error syncing course', err)
-    toast({
-      title: 'Error al sincronizar',
-      description: 'No se pudo enviar el curso',
-      variant: 'destructive',
+    Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: 'No se pudo sincronizar el curso',
     })
+  } finally {
+    setSyncingId(null)
   }
 }
 
@@ -302,12 +346,23 @@ const handleSyncSingle = async (course: MoodleCourse) => {
                 <SelectItem value="selected">Seleccionados</SelectItem>
               </SelectContent>
             </Select>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={toggleSelectAll}
+              />
+              <span className="text-sm">Todos</span>
+            </div>
             <Button
               variant="outline"
               onClick={handleSync}
-              disabled={selectedCourses.size === 0}
+              disabled={selectedCourses.size === 0 || bulkSyncing}
             >
-              Sincronizar seleccionados
+              {bulkSyncing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                'Sincronizar seleccionados'
+              )}
             </Button>
           </div>
         </CardHeader>
@@ -315,9 +370,23 @@ const handleSyncSingle = async (course: MoodleCourse) => {
         <CardContent className="space-y-6">
           {pagedGroups.map(group => (
             <div key={group.date.toISOString()} className="space-y-2">
-              <h3 className="text-lg font-semibold">
-                {format(group.date, "MMMM yyyy", { locale: es })}
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">
+                  {format(group.date, "MMMM yyyy", { locale: es })}
+                </h3>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={group.courses.every(c => selectedCourses.has(c.id))}
+                    onCheckedChange={c =>
+                      toggleSelectMonth(
+                        group.courses.map(cc => cc.id),
+                        c
+                      )
+                    }
+                  />
+                  <span className="text-sm">Mes</span>
+                </div>
+              </div>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {group.courses.map(course => (
                   <Card key={course.id} className="border-muted">
@@ -346,13 +415,21 @@ const handleSyncSingle = async (course: MoodleCourse) => {
                         }
                       />
                     </CardHeader>
-                    <CardFooter>
+                    <CardFooter className="flex items-center gap-2">
+                      {existingNames.has(course.fullname.trim().toLowerCase()) && (
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleSyncSingle(course)}
+                        disabled={existingNames.has(course.fullname.trim().toLowerCase()) || syncingId === course.id}
                       >
-                        Sincronizar curso
+                        {syncingId === course.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          'Sincronizar curso'
+                        )}
                       </Button>
                     </CardFooter>
                   </Card>
