@@ -36,6 +36,7 @@ import { getAvailableCoursesForStudents } from "@/services/courses";
 import { bulkAssignCourses, unassignCourses } from "@/services/students";
 import { BulkAssignmentPanel } from "@/components/bulk-assignment-panel";
 import { useToast } from "@/components/ui/use-toast";
+import Swal from "sweetalert2";
 
 interface StudentCardsProps {
   students: Student[];
@@ -163,8 +164,27 @@ export function StudentCards({
   ) => {
     try {
       if (assign) {
+
+        const selected = students.filter((s) => studentIds.includes(s.id));
+        const hasDup = selected.some((s) =>
+          s.assignedCourses.some((cid) => courseIds.includes(cid)),
+        );
+        if (hasDup) {
+          Swal.fire({
+            icon: "warning",
+            title: "Cursos ya asignados",
+            text: "Algún estudiante ya posee uno de los cursos seleccionados.",
+          });
+          return;
+        }
+
         await bulkAssignCourses(studentIds, courseIds);
-        toast({ title: "Asignación exitosa" });
+        await Swal.fire({
+          icon: "success",
+          title: "Asignación exitosa",
+        });
+        location.reload();
+
       } else {
         await unassignCourses(studentIds, courseIds);
         toast({ title: "Desasignación exitosa" });
