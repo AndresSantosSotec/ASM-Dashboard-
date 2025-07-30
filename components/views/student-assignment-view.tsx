@@ -184,7 +184,10 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
 
   useEffect(() => {
     const avail = allCourses.filter(
-      (c) => !assigned.some((a) => a.id === c.id) && !completed.some((co) => co.id === c.id),
+      (c) =>
+        c.status !== 'synced' &&
+        !assigned.some((a) => a.id === c.id) &&
+        !completed.some((co) => co.id === c.id),
     );
     setAvailable(avail);
   }, [allCourses, assigned, completed]);
