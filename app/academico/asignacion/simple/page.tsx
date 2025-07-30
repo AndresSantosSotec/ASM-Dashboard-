@@ -33,6 +33,7 @@ export default function AssignmentPage() {
             return Number(b.id) - Number(a.id)
           })
         setStudents(active)
+        console.log('[DEBUG] Estudiantes activos:', active)
       } catch (err) {
         console.error(err)
       } finally {

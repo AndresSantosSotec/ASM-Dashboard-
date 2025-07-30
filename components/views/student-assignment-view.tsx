@@ -165,6 +165,10 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    console.log('[DEBUG] Datos del estudiante:', student);
+  }, [student]);
+
+  useEffect(() => {
     (async () => {
       try {
         const [lists, courses] = await Promise.all([
