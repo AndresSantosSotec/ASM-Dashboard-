@@ -10,7 +10,12 @@ import {
   unassignCourses,
 } from "@/services/students";
 import { fetchStudentCourses } from "@/services/courses";
-import fetchApprovedMoodleCourses, { MoodleQueryCourse } from "@/services/moodleCourseQueries";
+
+
+import fetchApprovedMoodleCourses, {
+  MoodleQueryCourse,
+} from "@/services/moodleCourseQueries";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -24,6 +29,39 @@ import {
   User,
   X,
 } from "lucide-react";
+
+const normalizeName = (str: string) =>
+  str
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-z0-9]/g, "");
+
+const levenshtein = (a: string, b: string) => {
+  const matrix: number[][] = Array.from({ length: b.length + 1 }, () => []);
+  for (let i = 0; i <= b.length; i++) matrix[i][0] = i;
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      const cost = a[j - 1] === b[i - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost,
+      );
+    }
+  }
+  return matrix[b.length][a.length];
+};
+
+const areNamesSimilar = (a: string, b: string) => {
+  const na = normalizeName(a);
+  const nb = normalizeName(b);
+  if (na.includes(nb) || nb.includes(na)) return true;
+  const distance = levenshtein(na, nb);
+  const ratio = distance / Math.max(na.length, nb.length);
+  return ratio <= 0.3;
+};
 
 interface StudentAssignmentViewProps {
   student: Student;
@@ -102,6 +140,31 @@ const CourseCard = ({ course, status }: CourseCardProps) => {
   );
 };
 
+interface MoodleCourseCardProps {
+  course: MoodleQueryCourse;
+}
+
+const MoodleCourseCard = ({ course }: MoodleCourseCardProps) => (
+  <Card className="border-green-200 bg-green-50">
+    <CardContent className="p-4 space-y-1">
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center space-x-2">
+          <Award className="h-4 w-4 text-green-600" />
+          <span className="font-medium">{course.coursename}</span>
+        </div>
+        <Badge className="bg-green-600 text-white text-xs">Moodle</Badge>
+      </div>
+      <p className="text-sm text-gray-600">Código: {course.courseid}</p>
+      <p className="text-sm text-gray-600">Inicio: {course.fecha_inicio_curso}</p>
+      <p className="text-sm text-gray-600">Fin: {course.fecha_fin_curso}</p>
+      <p className="text-sm text-gray-600">
+        Nota final: {course.finalgrade ?? 'N/A'}
+      </p>
+      <p className="text-xs text-gray-500">Datos extraídos de Moodle</p>
+    </CardContent>
+  </Card>
+);
+
 interface DropZoneProps {
   status: "assigned" | "available";
   onDrop: (course: Course, to: "assigned" | "available") => void;
@@ -157,6 +220,7 @@ const DropZone = ({ status, onDrop, title, count, icon, children }: DropZoneProp
 export function StudentAssignmentView({ student, onCoursesChange }: StudentAssignmentViewProps) {
   const [assigned, setAssigned] = useState<Course[]>([]);
   const [completed, setCompleted] = useState<Course[]>([]);
+  const [moodleCompleted, setMoodleCompleted] = useState<MoodleQueryCourse[]>([]);
   const [allCourses, setAllCourses] = useState<Course[]>([]);
   const [available, setAvailable] = useState<Course[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -178,33 +242,18 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
           fetchApprovedMoodleCourses(student.carnet),
         ]);
 
-        const pensumNames = courses.map((c) => c.name.toLowerCase());
-        const filteredMoodle = moodle.filter((m) => {
-          const name = m.coursename.toLowerCase();
-          return !pensumNames.some(
-            (p) => name.includes(p) || p.includes(name),
-          );
-        });
 
-        const mappedMoodle: Course[] = filteredMoodle.map((m) => ({
-          id: 1000000 + m.courseid,
-          name: m.coursename,
-          code: String(m.courseid),
-          area: 'common',
-          credits: 0,
-          startDate: m.fecha_inicio_curso,
-          endDate: m.fecha_fin_curso,
-          schedule: '',
-          duration: '',
-          programIds: [],
-          facilitatorId: null,
-          status: 'synced',
-          facilitator: null,
-          programas: [],
-        }));
+        console.log('[DEBUG] Cursos aprobados de Moodle:', moodle);
+
+        const pensumNames = courses.map((c) => c.name);
+        const filteredMoodle = moodle.filter(
+          (m) => !pensumNames.some((p) => areNamesSimilar(m.coursename, p)),
+        );
 
         setAssigned(lists.assigned);
-        setCompleted([...lists.completed, ...mappedMoodle]);
+        setCompleted(lists.completed);
+        setMoodleCompleted(filteredMoodle);
+
         setAllCourses(courses);
       } catch (err) {
         console.error(err);
@@ -219,10 +268,11 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
       (c) =>
         c.status !== 'synced' &&
         !assigned.some((a) => a.id === c.id) &&
-        !completed.some((co) => co.id === c.id),
+        !completed.some((co) => co.id === c.id) &&
+        !moodleCompleted.some((m) => m.courseid === c.id),
     );
     setAvailable(avail);
-  }, [allCourses, assigned, completed]);
+  }, [allCourses, assigned, completed, moodleCompleted]);
 
   const monthCourses = useMemo(() => {
     const now = new Date();
@@ -234,10 +284,11 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
         d >= start &&
         d <= end &&
         !assigned.some((a) => a.id === c.id) &&
-        !completed.some((co) => co.id === c.id)
+        !completed.some((co) => co.id === c.id) &&
+        !moodleCompleted.some((m) => m.courseid === c.id)
       );
     });
-  }, [allCourses, assigned, completed]);
+  }, [allCourses, assigned, completed, moodleCompleted]);
 
   useEffect(() => {
     setHasUnsavedChanges(pendingAssign.length > 0 || pendingUnassign.length > 0);
@@ -298,6 +349,19 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
     [searchTerm],
   );
 
+  const filterMoodleCourses = useCallback(
+    (list: MoodleQueryCourse[]) => {
+      const term = searchTerm.trim().toLowerCase();
+      if (!term) return list;
+      return list.filter(
+        (c) =>
+          c.coursename.toLowerCase().includes(term) ||
+          String(c.courseid).includes(term),
+      );
+    },
+    [searchTerm],
+  );
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -336,7 +400,7 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
             </div>
             <div>
               <span className="font-medium text-gray-600">Cursos Completados:</span>
-              <p className="text-gray-900">{completed.length}</p>
+              <p className="text-gray-900">{completed.length + moodleCompleted.length}</p>
             </div>
           </div>
         </CardContent>
@@ -423,20 +487,25 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
               Cursos Completados
             </h3>
             <Badge variant="outline" className="text-sm">
-              {completed.length} cursos
+              {completed.length + moodleCompleted.length} cursos
             </Badge>
           </div>
           <div className="min-h-[400px] p-6 rounded-lg border-2 border-solid border-green-200 bg-green-50">
             <div className="space-y-3">
-              {filterCourses(completed).length === 0 ? (
+              {filterCourses(completed).length === 0 && filterMoodleCourses(moodleCompleted).length === 0 ? (
                 <div className="text-center py-12">
                   <Award className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                   <p className="text-gray-500">No hay cursos completados</p>
                 </div>
               ) : (
-                filterCourses(completed).map((course) => (
-                  <CourseCard key={course.id} course={course} status="completed" />
-                ))
+                <>
+                  {filterCourses(completed).map((course) => (
+                    <CourseCard key={course.id} course={course} status="completed" />
+                  ))}
+                  {filterMoodleCourses(moodleCompleted).map((course) => (
+                    <MoodleCourseCard key={course.courseid} course={course} />
+                  ))}
+                </>
               )}
             </div>
           </div>
