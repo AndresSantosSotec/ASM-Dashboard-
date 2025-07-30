@@ -12,11 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   X,
   Users,
-  BookOpen,
   Plus,
   Minus,
   Search,
-  Filter,
   Loader2,
   Calendar,
 } from "lucide-react"
@@ -78,6 +76,7 @@ export function BulkAssignmentPanel({
     })
   }, [dedupedCourses, searchTerm, filterArea, filterProgram])
 
+  // Solo mostrar cursos del mes actual
   const monthCourses = useMemo(() => {
     const now = new Date()
     const start = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -88,11 +87,6 @@ export function BulkAssignmentPanel({
     })
   }, [filtered])
 
-  const otherCourses = useMemo(() => {
-    const set = new Set(monthCourses.map((c) => c.id))
-    return filtered.filter((c) => !set.has(c.id))
-  }, [filtered, monthCourses])
-
   const handleCourseSelect = (courseId: string, isSelected: boolean) => {
     if (isSelected) {
       setSelectedCourses((prev) => [...prev, courseId])
@@ -101,17 +95,11 @@ export function BulkAssignmentPanel({
     }
   }
 
-  const allFiltered = useMemo(
-    () => [...monthCourses, ...otherCourses],
-    [monthCourses, otherCourses],
-  )
-  const totalOther = otherCourses.length
-
   const handleSelectAll = () => {
-    if (selectedCourses.length === allFiltered.length) {
+    if (selectedCourses.length === monthCourses.length) {
       setSelectedCourses([])
     } else {
-      setSelectedCourses(allFiltered.map((c) => c.id))
+      setSelectedCourses(monthCourses.map((c) => c.id))
     }
   }
 
@@ -229,13 +217,13 @@ export function BulkAssignmentPanel({
             </Select>
 
             <Button variant="outline" onClick={handleSelectAll} className="flex-1 bg-transparent">
-              {selectedCourses.length === allFiltered.length ? "Deseleccionar" : "Seleccionar"} Todo
+              {selectedCourses.length === monthCourses.length ? "Deseleccionar" : "Seleccionar"} Todo
             </Button>
           </div>
 
           <h4 className="font-medium mb-2 flex items-center">
             <Calendar className="h-4 w-4 mr-2" />
-            Mes Actual ({monthCourses.length})
+            Cursos del Mes Actual ({monthCourses.length})
           </h4>
           {isLoading ? (
             <div className="flex justify-center py-6">
@@ -244,7 +232,7 @@ export function BulkAssignmentPanel({
           ) : (
             <>
               {error && <p className="text-sm text-red-500 mb-2">{error}</p>}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto">
                 {monthCourses.length > 0 ? (
                   monthCourses.map((course) => (
                     <div key={course.id} className="flex items-center space-x-2 p-2 border rounded">
@@ -268,63 +256,12 @@ export function BulkAssignmentPanel({
                             {course.programas.map((p) => p.nombre_del_programa).join(', ')}
                           </p>
                         )}
-
                       </div>
                     </div>
                   ))
                 ) : (
-                  <div className="col-span-2 text-center py-4 text-sm text-gray-500">
-                    No hay cursos este mes
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          <h4 className="font-medium mb-2 flex items-center">
-            <BookOpen className="h-4 w-4 mr-2" />
-            Otros Cursos ({selectedCourses.length} seleccionados de {totalOther})
-          </h4>
-          
-          {isLoading ? (
-            <div className="flex justify-center py-6">
-              <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
-            </div>
-          ) : (
-            <>
-              {error && <p className="text-sm text-red-500 mb-2">{error}</p>}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-                {otherCourses.length > 0 ? (
-                  otherCourses.map((course) => (
-                    <div key={course.id} className="flex items-center space-x-2 p-2 border rounded">
-                      <Checkbox
-                        checked={selectedCourses.includes(course.id)}
-                        onCheckedChange={(checked) =>
-                          handleCourseSelect(course.id, checked as boolean)
-                        }
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm">{course.name}</span>
-                          <Badge className={`${getTypeColor(course.area)} text-white text-xs`}>
-                            {getTypeLabel(course.area)}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-gray-500">{course.code}</p>
-
-                        {course.programas && (
-                          <p className="text-xs text-gray-500">
-                            {course.programas.map((p) => p.nombre_del_programa).join(', ')}
-                          </p>
-                        )}
-
-        
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="col-span-2 text-center py-4 text-sm text-gray-500">
-                    No se encontraron cursos con los filtros actuales
+                  <div className="col-span-2 text-center py-8 text-sm text-gray-500">
+                    No hay cursos disponibles este mes con los filtros actuales
                   </div>
                 )}
               </div>
@@ -339,7 +276,7 @@ export function BulkAssignmentPanel({
             className="flex-1"
           >
             <Plus className="h-4 w-4 mr-2" />
-            Asignar Cursos
+            Asignar Cursos ({selectedCourses.length})
           </Button>
           <Button
             onClick={handleBulkUnassign}
@@ -348,7 +285,7 @@ export function BulkAssignmentPanel({
             className="flex-1 bg-transparent"
           >
             <Minus className="h-4 w-4 mr-2" />
-            Desasignar Cursos
+            Desasignar Cursos ({selectedCourses.length})
           </Button>
         </div>
       </CardContent>
