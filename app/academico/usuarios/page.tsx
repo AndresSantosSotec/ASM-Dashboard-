@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useMemo } from "react"
-import { Search, Plus, Edit, Trash, Mail, MessageSquare, RefreshCw, Filter } from "lucide-react"
+import { Search, Plus, Edit, Trash, Mail, MessageSquare, RefreshCw, Filter, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -173,6 +173,7 @@ export default function GestionUsuarios() {
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [isCredentialsDialogOpen, setIsCredentialsDialogOpen] = useState(false)
   const [credentials, setCredentials] = useState<{ username: string; email: string; password: string } | null>(null)
+
 
   // Formulario de estudiante
   const [formData, setFormData] = useState<Omit<Student, "id" | "status" | "username" | "institutionalEmail" | "password">>({
@@ -586,9 +587,16 @@ export default function GestionUsuarios() {
             <CardTitle>Estudiantes</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
+            {loading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <span>Cargando estudiantes...</span>
+              </div>
+            ) : (
+              <>
+                <div className="rounded-md border">
+                  <Table>
+                  <TableHeader>
                   <TableRow>
                     <TableHead>Nombre</TableHead>
                     <TableHead>Programa</TableHead>
@@ -653,18 +661,18 @@ export default function GestionUsuarios() {
                     ))
                   )}
                 </TableBody>
-              </Table>
-            </div>
+                  </Table>
+                </div>
 
-            {pageSize !== "all" && (
-              <div className="flex items-center justify-end gap-2 p-2">
-                <Select
-                  value={pageSize}
-                  onValueChange={(v) => {
-                    setPageSize(v)
-                    setCurrentPage(1)
-                  }}
-                >
+                {pageSize !== "all" && (
+                  <div className="flex items-center justify-end gap-2 p-2">
+                  <Select
+                    value={pageSize}
+                    onValueChange={(v) => {
+                      setPageSize(v)
+                      setCurrentPage(1)
+                    }}
+                  >
                   <SelectTrigger className="w-[120px]">
                     <SelectValue placeholder="Paginación" />
                   </SelectTrigger>
@@ -687,8 +695,10 @@ export default function GestionUsuarios() {
                   disabled={currentPage === totalPages || totalPages === 0}
                 >
                   Siguiente
-                </Button>
-              </div>
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
