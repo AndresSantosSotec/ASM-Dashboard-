@@ -206,9 +206,13 @@ export default function Sidebar({ open, className }: SidebarProps) {
               </button>
               {expandedSections.academico && (
                 <div className="pl-10 text-sm">
-                  <Link href="/academico/programas" className={linkClass("/academico/programas")}>
+                  <Link href="/academico/programas" className={linkClass("/academico/programas")}> 
                     <BookOpen size={16} className="mr-2" />
                     Programas Académicos
+                  </Link>
+                  <Link href="/academico/migrar-estudiantes" className={linkClass("/academico/migrar-estudiantes")}> 
+                    <Database size={16} className="mr-2" />
+                    Migrar Estudiantes
                   </Link>
                 </div>
               )}

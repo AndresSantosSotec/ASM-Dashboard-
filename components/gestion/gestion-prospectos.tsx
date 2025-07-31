@@ -59,11 +59,25 @@ export default function GestionProspectos() {
 
   // Datos únicos para filtros dinámicos
   const departamentos = useMemo(
-    () => Array.from(new Set(prospectos.map((p) => p.departamento))),
+    () =>
+      Array.from(
+        new Set(
+          prospectos
+            .map((p) => p.departamento)
+            .filter((d) => d && d.trim() !== "")
+        )
+      ),
     [prospectos]
   )
   const puestos = useMemo(
-    () => Array.from(new Set(prospectos.map((p) => p.puesto))),
+    () =>
+      Array.from(
+        new Set(
+          prospectos
+            .map((p) => p.puesto)
+            .filter((p) => p && p.trim() !== "")
+        )
+      ),
     [prospectos]
   )
 
@@ -96,6 +110,13 @@ export default function GestionProspectos() {
             ultimoCambio: item.updated_at ?? "N/A",
           }))
           .filter((p: any) => p.estado.toLowerCase() !== "preinscripción")
+          .sort((a: Prospecto, b: Prospecto) => {
+            const getTime = (d: string) => {
+              const t = new Date(d).getTime()
+              return isNaN(t) ? 0 : t
+            }
+            return getTime(b.ultimoCambio) - getTime(a.ultimoCambio)
+          })
         setProspectos(list)
       } catch (err: any) {
         setError(err.message || "Error inesperado")

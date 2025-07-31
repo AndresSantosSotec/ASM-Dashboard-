@@ -1,5 +1,8 @@
 import Swal from "sweetalert2"
+
 import api from "@/services/api"
+
+
 
 export interface CrearUsuarioPayload {
   username: string
@@ -19,8 +22,10 @@ export async function crearUsuarioEnBD(
   try {
     console.log("[DEBUG] crearUsuarioEnBD → payload:", payload)
 
+
     const res = await api.post("/users", payload)
     const body = res.data
+
 
     // Mostrar alerta de éxito
     await Swal.fire({

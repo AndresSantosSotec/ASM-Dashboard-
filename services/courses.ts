@@ -3,12 +3,13 @@ import api from './api'
 export interface CourseInput {
   name: string
   code: string
-  area: 'common' | 'specialty'
+  area: 'common' | 'specialty' | 'closure'
   credits: number
   startDate: string
   endDate: string
   schedule: string
   duration: string
+  programIds: number[]
   facilitatorId?: number | null
 }
 
@@ -16,6 +17,7 @@ export interface Course extends CourseInput {
   id: number
   status: 'draft' | 'approved' | 'synced'
   facilitator?: { id: number; name: string } | null
+  programas: { id: number; nombre_del_programa: string }[]
 }
 
 const mapCourseFromApi = (course: any): Course => ({
@@ -28,9 +30,13 @@ const mapCourseFromApi = (course: any): Course => ({
   endDate: course.end_date,
   schedule: course.schedule,
   duration: course.duration,
+  programIds: Array.isArray(course.programas)
+    ? course.programas.map((p: any) => p.id)
+    : [],
   facilitatorId: course.facilitator_id ?? null,
   status: course.status,
   facilitator: course.facilitator ?? null,
+  programas: course.programas ?? [],
 })
 
 const mapCourseToApi = (data: Partial<CourseInput> & { status?: Course['status'] }) => {
@@ -43,15 +49,68 @@ const mapCourseToApi = (data: Partial<CourseInput> & { status?: Course['status']
   if (data.endDate !== undefined) payload.end_date = data.endDate
   if (data.schedule !== undefined) payload.schedule = data.schedule
   if (data.duration !== undefined) payload.duration = data.duration
+  if (data.programIds !== undefined) payload.program_ids = data.programIds
   if (data.facilitatorId !== undefined) payload.facilitator_id = data.facilitatorId
   if ((data as any).status !== undefined) payload.status = (data as any).status
   return payload
 }
 
-export const fetchCourses = async () => {
-  const res = await api.get('/courses')
+export const fetchCourses = async (programId?: number) => {
+  const res = await api.get('/courses', {
+    params: programId ? { program_id: programId } : undefined,
+  })
   const data = Array.isArray(res.data) ? res.data : res.data.data
   return data.map(mapCourseFromApi)
+}
+
+export const fetchProgramCourses = async (programId: number) => {
+  return fetchCourses(programId)
+}
+
+/**
+ * Fetches all courses for the given program IDs using a single request.
+ * This helps reduce the number of API calls when multiple programs are needed.
+ */
+export const fetchCoursesForPrograms = async (
+  programIds: number[],
+): Promise<Course[]> => {
+
+  const ids = Array.from(new Set(programIds)).filter((id) => id > 0)
+  if (ids.length === 0) return []
+
+  const chunkSize = 100
+  const allCourses: Course[] = []
+
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize)
+    const res = await api.post('/courses/by-programs', {
+      params: { program_ids: chunk },
+    })
+    const data = Array.isArray(res.data) ? res.data : res.data.data
+    allCourses.push(...data.map(mapCourseFromApi))
+  }
+
+  return Array.from(new Map(allCourses.map((c: Course) => [c.id, c])).values())
+
+}
+
+export const fetchStudentCourses = async (studentId: string): Promise<Course[]> => {
+  const res = await api.get(`/estudiante-programa/${studentId}/with-courses`)
+  const data = Array.isArray(res.data) ? res.data : res.data.data
+  const courses: Course[] = []
+  const unique = new Map<number, Course>()
+  data.forEach((ep: any) => {
+    if (ep.programa && Array.isArray(ep.programa.courses)) {
+      ep.programa.courses.forEach((c: any) => {
+        const mapped = mapCourseFromApi(c)
+        unique.set(mapped.id, mapped)
+      })
+    }
+  })
+
+  unique.forEach((c: Course) => courses.push(c))
+
+  return courses
 }
 
 export const createCourse = async (data: CourseInput) => {
@@ -98,3 +157,17 @@ export const fetchFacilitators = async () => {
   return res.data
 }
 
+
+/** Llama a GET /available-for-students?prospecto_ids[]=1&prospecto_ids[]=2 */
+export const getAvailableCoursesForStudents = async (
+  prospectoIds: string[]
+): Promise<Course[]> => {
+
+  const res = await api.get<unknown[]>('/courses/available-for-students', {
+    params: { prospecto_ids: prospectoIds.map(Number) },
+  })
+
+  const raw = Array.isArray(res.data) ? res.data : (res.data as any).data
+  const mapped: Course[] = (raw as any[]).map((c: any) => mapCourseFromApi(c))
+  return Array.from(new Map(mapped.map((c: Course) => [c.id, c])).values())
+}

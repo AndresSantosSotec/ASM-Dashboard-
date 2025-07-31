@@ -21,8 +21,9 @@ import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
 import { crearUsuarioEnBD } from "@/utils/crearUsuario" // Importa la utilidad nueva
+import api from "@/services/api"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL 
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 
 // Tipos
@@ -87,16 +88,27 @@ const mockNotifications: Notification[] = [
 ]
 
 // Función para generar una contraseña aleatoria
+// Expresión regular para validar que la contraseña tenga al menos 8 caracteres
+const PASSWORD_REGEX = /^.{8,}$/;
+
 function generatePassword(student: { name: string; lastName: string; idNumber: string | number }) {
   const idStr = String(student.idNumber);
   const nameInitial = student.name.charAt(0).toLowerCase();
   const lastNameInitial = student.lastName.charAt(0).toLowerCase();
-  const idSuffix = idStr.slice(-4);
+  // Siempre tomamos 4 dígitos para evitar contraseñas muy cortas
+  const idSuffix = idStr.length >= 4 ? idStr.slice(-4) : idStr.padStart(4, "0");
   const randomDigits = Math.floor(100 + Math.random() * 900); // 3 dígitos
-  return `${nameInitial}${lastNameInitial}${idSuffix}${randomDigits}`;
+  let password = `${nameInitial}${lastNameInitial}${idSuffix}${randomDigits}`;
+  // Si por alguna razón no cumple con el mínimo, agregamos dígitos extra
+  while (!PASSWORD_REGEX.test(password)) {
+    password += Math.floor(Math.random() * 10);
+  }
+  return password;
 }
 
-function getStatusBadgeInfo(status: string) {
+function getStatusBadgeInfo(
+  status: string
+): { variant: "success" | "default" | "destructive" | "outline" | "secondary"; label: string } {
   switch (status.toLowerCase()) {
     case "active":
       return { variant: "default", label: "Activo" };
@@ -108,6 +120,42 @@ function getStatusBadgeInfo(status: string) {
       return { variant: "default", label: "Inscrito" };
     default:
       return { variant: "secondary", label: status };
+  }
+}
+
+async function checkEmailExists(email: string): Promise<boolean> {
+  try {
+    const res = await api.get('/users', { params: { email } })
+    const data = Array.isArray(res.data)
+      ? res.data
+      : Array.isArray(res.data?.data)
+        ? res.data.data
+        : res.data
+    if (Array.isArray(data)) {
+      return data.some((u: any) => u.email === email)
+    }
+    return !!data
+  } catch (err) {
+    console.error('Error checking email', err)
+    return false
+  }
+}
+
+async function checkUsernameExists(username: string): Promise<boolean> {
+  try {
+    const res = await api.get('/users', { params: { username } })
+    const data = Array.isArray(res.data)
+      ? res.data
+      : Array.isArray(res.data?.data)
+        ? res.data.data
+        : res.data
+    if (Array.isArray(data)) {
+      return data.some((u: any) => u.username === username)
+    }
+    return !!data
+  } catch (err) {
+    console.error('Error checking username', err)
+    return false
   }
 }
 
@@ -123,7 +171,9 @@ export default function GestionUsuarios() {
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [pageSize, setPageSize] = useState<string>("5")
   const [currentPage, setCurrentPage] = useState<number>(1)
-  const [loading, setLoading] = useState(false)
+  const [isCredentialsDialogOpen, setIsCredentialsDialogOpen] = useState(false)
+  const [credentials, setCredentials] = useState<{ username: string; email: string; password: string } | null>(null)
+
 
   // Formulario de estudiante
   const [formData, setFormData] = useState<Omit<Student, "id" | "status" | "username" | "institutionalEmail" | "password">>({
@@ -137,69 +187,69 @@ export default function GestionUsuarios() {
   })
 
   // Cargar estudiantes desde la API
-useEffect(() => {
-  async function fetchStudents() {
-    setLoading(true)
-    try {
-      const token = localStorage.getItem("token") || "";
-      const statuses = ["Pendiente Aprobacion", "aprobada"];
+  useEffect(() => {
+    async function fetchStudents() {
+      try {
+        const token = localStorage.getItem("token") || "";
+        const statuses = ["Pendiente Aprobacion", "aprobada"];
 
-      const responses = await Promise.all(
-        statuses.map((st) =>
-          fetch(`${API_URL}/prospectos/status/${encodeURIComponent(st)}`, {
-            headers: {
-              Accept: "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-          }).then((res) => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return res.json();
-          })
-        )
-      );
+        const responses = await Promise.all(
+          statuses.map((st) =>
+            fetch(`${API_URL}/prospectos/status/${encodeURIComponent(st)}`, {
+              headers: {
+                Accept: "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+            }).then((res) => {
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              return res.json();
+            })
+          )
+        );
 
-      const combined = responses
-        .flatMap((r) => (Array.isArray(r.data) ? r.data : []))
-        .reduce<any[]>((acc, p) => {
-          if (!acc.find((x) => x.id === p.id)) acc.push(p);
-          return acc;
-        }, []);
+        const combined = responses
+          .flatMap((r) => (Array.isArray(r.data) ? r.data : []))
+          .reduce<any[]>((acc, p) => {
+            if (!acc.find((x) => x.id === p.id)) acc.push(p);
+            return acc;
+          }, []);
 
-      const mapped: Student[] = combined.map((raw: any) => ({
-        id: String(raw.id),
-        name: raw.nombre_completo?.split(" ")[0] || "",
-        lastName: raw.nombre_completo?.split(" ").slice(1).join(" ") || "",
-        email: raw.correo_electronico || "",
-        phone: raw.telefono || "",
-        program: raw.nombre_programa || "",
-        idNumber: raw.id || "",
-        birthDate: raw.fecha_nacimiento || "",
-        status: raw.status || "pending",
-        username: raw.username || undefined,
-        institutionalEmail: raw.institutional_email || undefined,
-        password: raw.password || undefined,
-      }));
+        const mapped: Student[] = combined.map((raw: any) => ({
+          id: String(raw.id),
+          name: raw.nombre_completo?.split(" ")[0] || "",
+          lastName: raw.nombre_completo?.split(" ").slice(1).join(" ") || "",
+          email: raw.correo_electronico || "",
+          phone: raw.telefono || "",
+          program: raw.nombre_programa || "",
+          idNumber: raw.id || "",
+          birthDate: raw.fecha_nacimiento || "",
+          status: raw.status || "pending",
+          username: raw.username || undefined,
+          institutionalEmail: raw.institutional_email || undefined,
+          password: raw.password || undefined,
+        }));
 
-      setStudents(mapped);
-      setFetchError(null);
+        setStudents(mapped);
+        setFetchError(null);
 
-    } catch (err) {
-      const error = err as Error;
-      console.error('[DEBUG] Error en fetchStudents:', error.message);
-      toast({
-        title: "Error",
-        description: `No se pudieron cargar los estudiantes: ${error.message}`,
-      });
-      setFetchError(
-        "No se pudieron cargar los estudiantes. Ver consola para más detalles."
-      );
-    } finally {
-      setLoading(false)
+      } catch (err) {
+        const error = err as Error;
+        console.error('[DEBUG] Error en fetchStudents:', error.message);
+        toast({
+          title: "Error",
+          description: `No se pudieron cargar los estudiantes: ${error.message}`,
+        });
+        setFetchError(
+          "No se pudieron cargar los estudiantes. Ver consola para más detalles."
+        );
+      }
     }
-  }
 
-  fetchStudents()
-}, [])
+    console.log('[DEBUG] Iniciando carga de estudiantes...');
+    fetchStudents();
+    const interval = setInterval(fetchStudents, 300000); // refresh cada 5 min
+    return () => clearInterval(interval);
+  }, []);
 
   // Filtrar estudiantes
   const filteredStudents = useMemo(() => {
@@ -332,50 +382,77 @@ useEffect(() => {
   const handlePrevPage = () =>
     currentPage > 1 && setCurrentPage((p) => p - 1)
 
-  // Generar credenciales y guardar usuario en la tabla users vía API
+  // Generar credenciales y mostrarlas para su edición
   const handleGenerateCredentials = async () => {
     if (!selectedStudent) return
 
     setIsGeneratingCredentials(true)
 
     try {
-      // Generar username, email y password automáticamente
-      const username = `${selectedStudent.name.toLowerCase()}.${selectedStudent.lastName.toLowerCase()}`
+      // Generar username base
+      const base = `${selectedStudent.name.toLowerCase().trim()}.${selectedStudent.lastName.toLowerCase().trim()}`
+
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
-      const institutionalEmail = `${username}@americanschool.edu.gt`
+        .replace(/\s+/g, "")
+
+      let username = base
+      let institutionalEmail = `${username}@americanschool.edu.gt`
+      let suffix = 1
+
+      // Verificar si el correo o el username ya existen y ajustar de ser necesario
+      while (await checkEmailExists(institutionalEmail) || await checkUsernameExists(username)) {
+        username = `${base}${suffix}`
+        institutionalEmail = `${username}@americanschool.edu.gt`
+        suffix++
+      }
+
       const password = generatePassword(selectedStudent)
 
-      // Payload para la API
-      const payload = {
+      setCredentials({
         username,
         email: institutionalEmail,
         password,
+      })
+      setIsCredentialsDialogOpen(true)
+    } catch (err) {
+      // El error ya fue mostrado por Swal
+    } finally {
+      setIsGeneratingCredentials(false)
+    }
+  }
+
+  const handleConfirmCredentials = async () => {
+    if (!selectedStudent || !credentials) return
+
+    setIsGeneratingCredentials(true)
+
+    try {
+      const payload = {
+        username: credentials.username,
+        email: credentials.email,
+        password: credentials.password,
         first_name: selectedStudent.name,
         last_name: selectedStudent.lastName,
         is_active: true,
         email_verified: true,
         mfa_enabled: false,
-        rol: 3, // ID de rol estudiante
+        rol: 3,
       }
 
-      // Llama a la utilidad para crear el usuario en la tabla users
       await crearUsuarioEnBD(payload)
-
-      // Actualizar estado del prospecto en backend
       await updateProspectStatus(selectedStudent.id, "Inscrito")
 
-      // Actualiza el estado local (frontend)
       setStudents((prev) =>
         prev.map((s) =>
           s.id === selectedStudent.id
             ? {
-                ...s,
-                username,
-                institutionalEmail,
-                password,
-                status: "Inscrito",
-              }
+              ...s,
+              username: credentials.username,
+              institutionalEmail: credentials.email,
+              password: credentials.password,
+              status: "Inscrito",
+            }
             : s,
         ),
       )
@@ -383,19 +460,20 @@ useEffect(() => {
       setSelectedStudent((prev) =>
         prev
           ? {
-              ...prev,
-              username,
-              institutionalEmail,
-              password,
-              status: "Inscrito",
-            }
+            ...prev,
+            username: credentials.username,
+            institutionalEmail: credentials.email,
+            password: credentials.password,
+            status: "Inscrito",
+          }
           : null,
       )
 
       toast({
         title: "Credenciales generadas",
-        description: `Usuario: ${username}\nCorreo: ${institutionalEmail}\nContraseña: ${password}\nEstado actualizado a Inscrito`,
+        description: `Usuario: ${credentials.username}\nCorreo: ${credentials.email}\nContraseña: ${credentials.password}\nEstado actualizado a Inscrito`,
       })
+      setIsCredentialsDialogOpen(false)
     } catch (err) {
       // El error ya fue mostrado por Swal
     } finally {
@@ -667,15 +745,36 @@ useEffect(() => {
                       <>
                         <div>
                           <Label>Usuario</Label>
-                          <div className="font-medium">{selectedStudent.username}</div>
+                          <Input
+                            value={selectedStudent.username}
+                            onChange={(e) =>
+                              setSelectedStudent((prev) =>
+                                prev ? { ...prev, username: e.target.value } : prev,
+                              )
+                            }
+                          />
                         </div>
                         <div>
                           <Label>Correo institucional</Label>
-                          <div className="font-medium">{selectedStudent.institutionalEmail}</div>
+                          <Input
+                            value={selectedStudent.institutionalEmail || ""}
+                            onChange={(e) =>
+                              setSelectedStudent((prev) =>
+                                prev ? { ...prev, institutionalEmail: e.target.value } : prev,
+                              )
+                            }
+                          />
                         </div>
                         <div>
                           <Label>Contraseña</Label>
-                          <div className="font-medium">{selectedStudent.password}</div>
+                          <Input
+                            value={selectedStudent.password || ""}
+                            onChange={(e) =>
+                              setSelectedStudent((prev) =>
+                                prev ? { ...prev, password: e.target.value } : prev,
+                              )
+                            }
+                          />
                         </div>
                       </>
                     )}
@@ -777,6 +876,68 @@ useEffect(() => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Diálogo para confirmar y editar credenciales */}
+      <Dialog open={isCredentialsDialogOpen} onOpenChange={setIsCredentialsDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Credenciales generadas</DialogTitle>
+            <DialogDescription>
+              Revise y edite las credenciales antes de guardarlas.
+            </DialogDescription>
+          </DialogHeader>
+          {credentials && (
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Usuario</Label>
+                <Input
+                  value={credentials.username}
+                  onChange={(e) =>
+                    setCredentials((prev) =>
+                      prev ? { ...prev, username: e.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Correo institucional</Label>
+                <Input
+                  value={credentials.email}
+                  onChange={(e) =>
+                    setCredentials((prev) =>
+                      prev ? { ...prev, email: e.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Contraseña</Label>
+                <Input
+                  value={credentials.password}
+                  onChange={(e) =>
+                    setCredentials((prev) =>
+                      prev ? { ...prev, password: e.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCredentialsDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleConfirmCredentials} disabled={isGeneratingCredentials}>
+              {isGeneratingCredentials ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                'Guardar'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Formulario de creación/edición */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
