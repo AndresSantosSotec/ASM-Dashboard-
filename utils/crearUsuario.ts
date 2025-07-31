@@ -22,17 +22,10 @@ export async function crearUsuarioEnBD(
   try {
     console.log("[DEBUG] crearUsuarioEnBD → payload:", payload)
 
-    const token = localStorage.getItem("token") || ""
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    })
 
-    const body = await res.json();
+    const res = await api.post("/users", payload)
+    const body = res.data
+
 
     // Mostrar alerta de éxito
     await Swal.fire({

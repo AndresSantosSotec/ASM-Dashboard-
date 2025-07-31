@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -21,137 +21,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Progress } from "@/components/ui/progress"
+import { exportFinancialReport, fetchFinancialReports } from "@/services/finance"
 
-// Datos de ejemplo para los reportes financieros
-const reportesData = {
-  estudiantes: [
-    {
-      id: "est-001",
-      nombre: "Juan Pérez",
-      carnet: "2023-0042",
-      programa: "Desarrollo Web Full Stack",
-      saldoPendiente: 1500,
-      ultimoPago: "15/02/2025",
-    },
-    {
-      id: "est-002",
-      nombre: "María López",
-      carnet: "2023-0078",
-      programa: "Diseño UX/UI",
-      saldoPendiente: 2500,
-      ultimoPago: "10/01/2025",
-    },
-    {
-      id: "est-003",
-      nombre: "Carlos Rodríguez",
-      carnet: "2023-0091",
-      programa: "Medicina",
-      saldoPendiente: 0,
-      ultimoPago: "05/03/2025",
-    },
-    {
-      id: "est-004",
-      nombre: "Ana Martínez",
-      carnet: "2023-0112",
-      programa: "Psicología",
-      saldoPendiente: 3000,
-      ultimoPago: "20/12/2024",
-    },
-    {
-      id: "est-005",
-      nombre: "Roberto Gómez",
-      carnet: "2023-0125",
-      programa: "Administración",
-      saldoPendiente: 750,
-      ultimoPago: "25/02/2025",
-    },
-  ],
-  librosContables: [
-    {
-      id: "libro-001",
-      nombre: "Libro Diario",
-      descripcion: "Registro cronológico de transacciones",
-      ultimaActualizacion: "01/03/2025",
-    },
-    {
-      id: "libro-002",
-      nombre: "Libro Mayor",
-      descripcion: "Resumen de cuentas y saldos",
-      ultimaActualizacion: "01/03/2025",
-    },
-    {
-      id: "libro-003",
-      nombre: "Balance General",
-      descripcion: "Estado financiero de activos y pasivos",
-      ultimaActualizacion: "29/02/2025",
-    },
-    {
-      id: "libro-004",
-      nombre: "Estado de Resultados",
-      descripcion: "Ingresos y gastos del período",
-      ultimaActualizacion: "29/02/2025",
-    },
-    {
-      id: "libro-005",
-      nombre: "Libro de Inventarios",
-      descripcion: "Registro de bienes y activos",
-      ultimaActualizacion: "15/02/2025",
-    },
-  ],
-  tiposReporte: [
-    { id: "rep-001", nombre: "Ingresos Mensuales", descripcion: "Reporte de ingresos por mes" },
-    { id: "rep-002", nombre: "Morosidad por Programa", descripcion: "Análisis de morosidad por programa académico" },
-    { id: "rep-003", nombre: "Proyección de Pagos", descripcion: "Proyección de pagos para los próximos 3 meses" },
-    { id: "rep-004", nombre: "Conciliaciones Bancarias", descripcion: "Resumen de conciliaciones bancarias" },
-    { id: "rep-005", nombre: "Becas y Descuentos", descripcion: "Impacto financiero de becas y descuentos" },
-  ],
-  transacciones: [
-    {
-      id: "trans-001",
-      fecha: "01/03/2025",
-      concepto: "Pago mensualidad",
-      estudiante: "Juan Pérez",
-      monto: 750,
-      tipo: "ingreso",
-    },
-    {
-      id: "trans-002",
-      fecha: "02/03/2025",
-      concepto: "Pago mensualidad",
-      estudiante: "María López",
-      monto: 750,
-      tipo: "ingreso",
-    },
-    {
-      id: "trans-003",
-      fecha: "02/03/2025",
-      concepto: "Pago matrícula",
-      estudiante: "Pedro Díaz",
-      monto: 1500,
-      tipo: "ingreso",
-    },
-    {
-      id: "trans-004",
-      fecha: "03/03/2025",
-      concepto: "Compra material didáctico",
-      estudiante: "",
-      monto: 5000,
-      tipo: "egreso",
-    },
-    {
-      id: "trans-005",
-      fecha: "05/03/2025",
-      concepto: "Pago mensualidad",
-      estudiante: "Carlos Rodríguez",
-      monto: 750,
-      tipo: "ingreso",
-    },
-  ],
-}
 
 // Componente para generar estados de cuenta
-const GeneradorEstadosCuenta = () => {
+const GeneradorEstadosCuenta = ({ data }: { data: any }) => {
   const [dateRange, setDateRange] = useState({
     from: new Date(new Date().setDate(new Date().getDate() - 30)),
     to: new Date(),
@@ -159,7 +33,6 @@ const GeneradorEstadosCuenta = () => {
   const [selectedStudents, setSelectedStudents] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
-  const [generationProgress, setGenerationProgress] = useState(0)
   const [showPreview, setShowPreview] = useState(false)
   const [previewStudent, setPreviewStudent] = useState<any | null>(null)
 
@@ -175,14 +48,14 @@ const GeneradorEstadosCuenta = () => {
   // Función para seleccionar todos los estudiantes
   const handleSelectAllStudents = (checked: boolean) => {
     if (checked) {
-      setSelectedStudents(reportesData.estudiantes.map((student) => student.id))
+      setSelectedStudents(data.estudiantes.map((student: any) => student.id))
     } else {
       setSelectedStudents([])
     }
   }
 
   // Función para filtrar estudiantes
-  const filteredStudents = reportesData.estudiantes.filter(
+  const filteredStudents = data.estudiantes.filter(
     (student) =>
       student.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
       student.carnet.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -190,27 +63,23 @@ const GeneradorEstadosCuenta = () => {
   )
 
   // Función para generar estados de cuenta
-  const generateAccountStatements = () => {
+  const [format, setFormat] = useState<'pdf' | 'excel'>('pdf')
+  const generateAccountStatements = async () => {
     if (selectedStudents.length === 0) {
-      alert("Por favor seleccione al menos un estudiante")
+      alert('Por favor seleccione al menos un estudiante')
       return
     }
 
     setIsGenerating(true)
-    setGenerationProgress(0)
-
-    // Simulación de generación de reportes
-    const interval = setInterval(() => {
-      setGenerationProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          setIsGenerating(false)
-          alert(`Se han generado ${selectedStudents.length} estados de cuenta correctamente`)
-          return 0
-        }
-        return prev + 5
-      })
-    }, 100)
+    try {
+      const blob = await exportFinancialReport(format)
+      const url = URL.createObjectURL(blob)
+      window.open(url)
+    } catch (e) {
+      alert('No se pudo generar el reporte')
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   // Función para mostrar vista previa
@@ -306,26 +175,19 @@ const GeneradorEstadosCuenta = () => {
           </Table>
 
           {isGenerating && (
-            <div className="mt-4 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Generando estados de cuenta...</span>
-                <span>{generationProgress}%</span>
-              </div>
-              <Progress value={generationProgress} className="h-2" />
-            </div>
+            <div className="mt-4 text-sm">Generando reporte...</div>
           )}
         </CardContent>
         <CardFooter className="flex justify-between">
           <div className="text-sm text-muted-foreground">{selectedStudents.length} estudiantes seleccionados</div>
           <div className="flex gap-2">
-            <Select defaultValue="pdf">
+            <Select value={format} onValueChange={(v) => setFormat(v as 'pdf' | 'excel')}>
               <SelectTrigger className="w-[130px]">
                 <SelectValue placeholder="Formato" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="pdf">PDF</SelectItem>
                 <SelectItem value="excel">Excel</SelectItem>
-                <SelectItem value="csv">CSV</SelectItem>
               </SelectContent>
             </Select>
             <Button onClick={generateAccountStatements} disabled={isGenerating || selectedStudents.length === 0}>
@@ -480,7 +342,13 @@ const GeneradorEstadosCuenta = () => {
             <Button variant="outline" onClick={() => setShowPreview(false)}>
               Cerrar
             </Button>
-            <Button>
+            <Button
+              onClick={async () => {
+                const blob = await exportFinancialReport('pdf')
+                const url = URL.createObjectURL(blob)
+                window.open(url)
+              }}
+            >
               <Download className="mr-2 h-4 w-4" /> Descargar PDF
             </Button>
           </DialogFooter>
@@ -491,14 +359,13 @@ const GeneradorEstadosCuenta = () => {
 }
 
 // Componente para generar libros contables
-const GeneradorLibrosContables = () => {
+const GeneradorLibrosContables = ({ data }: { data: any }) => {
   const [dateRange, setDateRange] = useState({
     from: new Date(new Date().setDate(1)), // Primer día del mes actual
     to: new Date(),
   })
   const [selectedBooks, setSelectedBooks] = useState<string[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
-  const [generationProgress, setGenerationProgress] = useState(0)
   const [showPreview, setShowPreview] = useState(false)
   const [previewBook, setPreviewBook] = useState<any | null>(null)
 
@@ -514,34 +381,29 @@ const GeneradorLibrosContables = () => {
   // Función para seleccionar todos los libros
   const handleSelectAllBooks = (checked: boolean) => {
     if (checked) {
-      setSelectedBooks(reportesData.librosContables.map((book) => book.id))
+      setSelectedBooks(data.librosContables.map((book: any) => book.id))
     } else {
       setSelectedBooks([])
     }
   }
 
   // Función para generar libros contables
-  const generateAccountingBooks = () => {
+  const generateAccountingBooks = async () => {
     if (selectedBooks.length === 0) {
-      alert("Por favor seleccione al menos un libro contable")
+      alert('Por favor seleccione al menos un libro contable')
       return
     }
 
     setIsGenerating(true)
-    setGenerationProgress(0)
-
-    // Simulación de generación de libros
-    const interval = setInterval(() => {
-      setGenerationProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          setIsGenerating(false)
-          alert(`Se han generado ${selectedBooks.length} libros contables correctamente`)
-          return 0
-        }
-        return prev + 5
-      })
-    }, 100)
+    try {
+      const blob = await exportFinancialReport(format)
+      const url = URL.createObjectURL(blob)
+      window.open(url)
+    } catch (e) {
+      alert('No se pudo generar el reporte')
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   // Función para mostrar vista previa
@@ -581,8 +443,8 @@ const GeneradorLibrosContables = () => {
                   <Checkbox
                     id="select-all-books"
                     checked={
-                      selectedBooks.length === reportesData.librosContables.length &&
-                      reportesData.librosContables.length > 0
+                      selectedBooks.length === data.librosContables.length &&
+                      data.librosContables.length > 0
                     }
                     onCheckedChange={handleSelectAllBooks}
                   />
@@ -594,7 +456,7 @@ const GeneradorLibrosContables = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {reportesData.librosContables.map((book) => (
+              {data.librosContables.map((book: any) => (
                 <TableRow key={book.id}>
                   <TableCell>
                     <Checkbox
@@ -617,26 +479,19 @@ const GeneradorLibrosContables = () => {
           </Table>
 
           {isGenerating && (
-            <div className="mt-4 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Generando libros contables...</span>
-                <span>{generationProgress}%</span>
-              </div>
-              <Progress value={generationProgress} className="h-2" />
-            </div>
+            <div className="mt-4 text-sm">Generando reporte...</div>
           )}
         </CardContent>
         <CardFooter className="flex justify-between">
           <div className="text-sm text-muted-foreground">{selectedBooks.length} libros seleccionados</div>
           <div className="flex gap-2">
-            <Select defaultValue="pdf">
+            <Select value={format} onValueChange={(v) => setFormat(v as 'pdf' | 'excel')}>
               <SelectTrigger className="w-[130px]">
                 <SelectValue placeholder="Formato" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="pdf">PDF</SelectItem>
                 <SelectItem value="excel">Excel</SelectItem>
-                <SelectItem value="csv">CSV</SelectItem>
               </SelectContent>
             </Select>
             <Button onClick={generateAccountingBooks} disabled={isGenerating || selectedBooks.length === 0}>
@@ -684,7 +539,7 @@ const GeneradorLibrosContables = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {reportesData.transacciones.map((trans) => (
+                      {data.transacciones.map((trans: any) => (
                         <TableRow key={trans.id}>
                           <TableCell>{trans.fecha}</TableCell>
                           <TableCell>{trans.concepto}</TableCell>
@@ -973,7 +828,13 @@ const GeneradorLibrosContables = () => {
             <Button variant="outline" onClick={() => setShowPreview(false)}>
               Cerrar
             </Button>
-            <Button>
+            <Button
+              onClick={async () => {
+                const blob = await exportFinancialReport('pdf')
+                const url = URL.createObjectURL(blob)
+                window.open(url)
+              }}
+            >
               <Download className="mr-2 h-4 w-4" /> Descargar PDF
             </Button>
           </DialogFooter>
@@ -984,6 +845,31 @@ const GeneradorLibrosContables = () => {
 }
 
 export function ReportesFinancieros() {
+  const [reportesData, setReportesData] = useState<any | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const data = await fetchFinancialReports()
+        setReportesData(data)
+      } catch (e) {
+        console.error('Error fetching financial reports', e)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [])
+
+  if (loading || !reportesData) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <p>Cargando reportes...</p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -1008,11 +894,11 @@ export function ReportesFinancieros() {
         </TabsList>
 
         <TabsContent value="estados-cuenta">
-          <GeneradorEstadosCuenta />
+          <GeneradorEstadosCuenta data={reportesData} />
         </TabsContent>
 
         <TabsContent value="libros-contables">
-          <GeneradorLibrosContables />
+          <GeneradorLibrosContables data={reportesData} />
         </TabsContent>
 
         <TabsContent value="reportes-personalizados">
@@ -1024,7 +910,7 @@ export function ReportesFinancieros() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {reportesData.tiposReporte.map((reporte) => (
+                  {reportesData.tiposReporte.map((reporte: any) => (
                     <Card key={reporte.id} className="border border-muted">
                       <CardHeader className="pb-2">
                         <CardTitle className="text-base">{reporte.nombre}</CardTitle>

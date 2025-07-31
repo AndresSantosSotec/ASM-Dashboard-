@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, Download, BookOpen, DollarSign, CheckCircle, XCircle, AlertTriangle, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "@/hooks/use-toast"
+import { fetchEnrolledStudents, fetchStudentCourseLists } from "@/services/students"
+import type { Course as ServiceCourse } from "@/services/courses"
 
 // Tipos
 interface Student {
@@ -58,7 +60,7 @@ interface Payment {
   studentId: string
   concept: string
   amount: number
-  date: string
+  date: string | null
   status: "paid" | "pending" | "overdue"
   dueDate: string
 }
@@ -249,11 +251,75 @@ const mockPayments: Payment[] = [
 ]
 
 export default function EstatusAcademico() {
-  const [students] = useState<Student[]>(mockStudents)
-  const [courses] = useState<Course[]>(mockCourses)
+  const [students, setStudents] = useState<Student[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
   const [payments] = useState<Payment[]>(mockPayments)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const data = await fetchEnrolledStudents()
+        const mapped: Student[] = data.map((s) => ({
+          id: s.id,
+          name: s.name,
+          program: s.program,
+          semester: 0,
+          enrollmentDate: new Date().toISOString(),
+          status: "active",
+          academicInfo: {
+            coursesApproved: 0,
+            coursesFailed: 0,
+            coursesInProgress: 0,
+            totalCourses: 0,
+            credits: { completed: 0, total: 0 },
+            gpa: 0,
+          },
+          financialInfo: {
+            enrollmentFee: 0,
+            monthlyFee: 0,
+            pendingPayments: 0,
+            totalDebt: 0,
+            lastPaymentDate: null,
+            nextPaymentDate: null,
+            paymentStatus: "up_to_date",
+          },
+        }))
+        setStudents(mapped)
+      } catch (err) {
+        console.error(err)
+      }
+    })()
+  }, [])
+
+  useEffect(() => {
+    if (!selectedStudent) return
+    ;(async () => {
+      try {
+        const lists = await fetchStudentCourseLists(selectedStudent.id)
+        const mapCourse = (c: ServiceCourse): Course => ({
+          id: String(c.id),
+          studentId: selectedStudent.id,
+          name: c.name,
+          code: c.code,
+          credits: c.credits,
+          period: "",
+          status:
+            c.status === "approved"
+              ? "approved"
+              : c.status === "draft"
+                ? "pending"
+                : "in_progress",
+          grade: null,
+          professor: c.facilitator?.name ?? "",
+        })
+        setCourses([...lists.assigned, ...lists.completed].map(mapCourse))
+      } catch (err) {
+        console.error(err)
+      }
+    })()
+  }, [selectedStudent])
 
   // Filtrar estudiantes
   const filteredStudents = students.filter(
@@ -263,7 +329,7 @@ export default function EstatusAcademico() {
   )
 
   // Obtener cursos del estudiante seleccionado
-  const studentCourses = selectedStudent ? courses.filter((course) => course.studentId === selectedStudent.id) : []
+  const studentCourses = selectedStudent ? courses : []
 
   // Obtener pagos del estudiante seleccionado
   const studentPayments = selectedStudent ? payments.filter((payment) => payment.studentId === selectedStudent.id) : []

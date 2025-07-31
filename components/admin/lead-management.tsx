@@ -68,27 +68,35 @@ export default function GestionProspectos() {
     })
       .then(r => r.json())
       .then(json => {
-        const arr: Prospecto[] = (json.data || []).map((item: any) => {
-          const c = item.creator
-          const nombreAsesor = c
-            ? c.full_name ??
-            (c.first_name && c.last_name
-              ? `${c.first_name} ${c.last_name}`
-              : c.username ?? "—")
-            : null
-          return {
-            id: String(item.id),
-            nombre: item.nombre_completo,
-            email: item.correo_electronico,
-            telefono: item.telefono,
-            departamento:
-              item.empresa_donde_labora_actualmente ?? "Sin Departamento",
-            estado: item.status || "No contactado",
-            ultimoCambio: item.updated_at ?? "N/A",
-            asesor_id: c?.id ?? null,
-            asesor: c ? { id: c.id, nombre: nombreAsesor } : null,
-          }
-        })
+        const arr: Prospecto[] = (json.data || [])
+          .map((item: any) => {
+            const c = item.creator
+            const nombreAsesor = c
+              ? c.full_name ??
+                (c.first_name && c.last_name
+                  ? `${c.first_name} ${c.last_name}`
+                  : c.username ?? "—")
+              : null
+            return {
+              id: String(item.id),
+              nombre: item.nombre_completo,
+              email: item.correo_electronico,
+              telefono: item.telefono,
+              departamento:
+                item.empresa_donde_labora_actualmente ?? "Sin Departamento",
+              estado: item.status || "No contactado",
+              ultimoCambio: item.updated_at ?? "N/A",
+              asesor_id: c?.id ?? null,
+              asesor: c ? { id: c.id, nombre: nombreAsesor } : null,
+            }
+          })
+          .sort((a: Prospecto, b: Prospecto) => {
+            const getTime = (d: string) => {
+              const t = new Date(d).getTime()
+              return isNaN(t) ? 0 : t
+            }
+            return getTime(b.ultimoCambio) - getTime(a.ultimoCambio)
+          })
         setProspectos(arr)
       })
       .catch(e => setError(e.message))

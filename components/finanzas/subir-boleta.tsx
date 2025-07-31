@@ -22,55 +22,17 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { getPendingReconciliation } from "@/services/finance"
+import { fetchProspectos } from "@/services/prospectos"
 
-// Datos de ejemplo para la carga de boletas
-const boletaData = {
-  banks: [
-    { id: "bank-001", name: "Banco Industrial" },
-    { id: "bank-002", name: "Banrural" },
-    { id: "bank-003", name: "Banco G&T" },
-    { id: "bank-004", name: "BAC Credomatic" },
-    { id: "bank-005", name: "Banco Promerica" },
-  ],
-  students: [
-    { id: "est-001", name: "Juan Pérez", carnet: "2025-0123", program: "Desarrollo Web Full Stack" },
-    { id: "est-002", name: "María López", carnet: "2025-0124", program: "Diseño UX/UI" },
-    { id: "est-003", name: "Carlos Rodríguez", carnet: "2025-0125", program: "Data Science" },
-    { id: "est-004", name: "Ana Martínez", carnet: "2025-0126", program: "Desarrollo Web Full Stack" },
-    { id: "est-005", name: "Roberto Gómez", carnet: "2024-0987", program: "Ciberseguridad" },
-  ],
-  recentUploads: [
-    {
-      id: "upload-001",
-      studentName: "Juan Pérez",
-      studentId: "2025-0123",
-      bank: "Banco Industrial",
-      receiptNumber: "BI-123456",
-      amount: 750,
-      date: "2025-03-10",
-      authNumber: "AUTH-987654",
-      status: "pendiente",
-      uploadDate: "2025-03-10",
-    },
-    {
-      id: "upload-002",
-      studentName: "María López",
-      studentId: "2025-0124",
-      bank: "Banrural",
-      receiptNumber: "BR-654321",
-      amount: 750,
-      date: "2025-03-09",
-      authNumber: "AUTH-123456",
-      status: "conciliado",
-      uploadDate: "2025-03-09",
-    },
-  ],
-}
 
 export function SubirBoleta() {
   const [activeTab, setActiveTab] = useState("upload-receipt")
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null)
+  const [banks, setBanks] = useState<any[]>([])
+  const [students, setStudents] = useState<any[]>([])
+  const [recentUploads, setRecentUploads] = useState<any[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadForm, setUploadForm] = useState({
@@ -82,13 +44,29 @@ export function SubirBoleta() {
     notes: "",
   })
 
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await getPendingReconciliation()
+        if (data) {
+          setBanks(data.banks || [])
+          setRecentUploads(data.reconciliationHistory || [])
+        }
+        const ps = await fetchProspectos()
+        setStudents(ps)
+      } catch (e) {
+        // ignore errors for now
+      }
+    }
+    load()
+  }, [])
+
   // Función para buscar estudiante
   const handleSearchStudent = () => {
-    // Simulación de búsqueda - En producción, esto sería una llamada a API
-    const foundStudent = boletaData.students.find(
+    const foundStudent = students.find(
       (student) =>
-        student.carnet.toLowerCase() === searchQuery.toLowerCase() ||
-        student.name.toLowerCase().includes(searchQuery.toLowerCase()),
+        student.carnet?.toLowerCase() === searchQuery.toLowerCase() ||
+        student.name?.toLowerCase().includes(searchQuery.toLowerCase()),
     )
 
     setSelectedStudent(foundStudent || null)
@@ -215,7 +193,7 @@ export function SubirBoleta() {
                       <SelectValue placeholder="Seleccione el banco" />
                     </SelectTrigger>
                     <SelectContent>
-                      {boletaData.banks.map((bank) => (
+                      {banks.map((bank) => (
                         <SelectItem key={bank.id} value={bank.id}>
                           {bank.name}
                         </SelectItem>
@@ -328,9 +306,9 @@ export function SubirBoleta() {
               <CardDescription>Boletas cargadas recientemente por usted</CardDescription>
             </CardHeader>
             <CardContent>
-              {boletaData.recentUploads.length > 0 ? (
+              {recentUploads.length > 0 ? (
                 <div className="space-y-4">
-                  {boletaData.recentUploads.map((upload) => (
+                  {recentUploads.map((upload) => (
                     <div key={upload.id} className="border rounded-md p-4">
                       <div className="flex justify-between items-start mb-2">
                         <div>
