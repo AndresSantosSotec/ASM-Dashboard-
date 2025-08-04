@@ -19,17 +19,16 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { fetchEnrolledStudents } from "@/services/students"
+import {
+  fetchEnrolledStudents,
+  type Student as EnrolledStudent,
+} from "@/services/students"
 import {
   fetchStudentAcademicStatus,
   AcademicStatus,
 } from "@/services/moodleCourseQueries"
 
-interface Student {
-  id: string
-  carnet: string
-  name: string
-  program: string
+interface Student extends EnrolledStudent {
   semester: number
   enrollmentDate: string
   status: "active" | "inactive" | "graduated" | "on_leave"
@@ -53,14 +52,28 @@ export default function EstatusAcademico() {
     ;(async () => {
       try {
         const data = await fetchEnrolledStudents()
-        const mapped: Student[] = data.map((s) => ({
-          id: s.id,
-          carnet: s.carnet,
-          name: s.name,
-          program: s.program,
-          semester: 0,
-          enrollmentDate: new Date().toISOString(),
-          status: "active",
+        const active = data.filter(
+          (s: any) => s.is_active !== false && s.activo !== false && s.active !== false,
+        )
+
+        const calculateSemester = (start: string | null): number => {
+          if (!start) return 1
+          const startDate = new Date(start)
+          const months =
+            (new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
+          return Math.max(1, Math.floor(months / 6) + 1)
+        }
+
+        const getStatus = (s: any): Student["status"] =>
+          s.is_active === false || s.activo === false || s.active === false
+            ? "inactive"
+            : "active"
+
+        const mapped: Student[] = active.map((s: EnrolledStudent) => ({
+          ...s,
+          semester: calculateSemester(s.startDate),
+          enrollmentDate: s.startDate ?? new Date().toISOString(),
+          status: getStatus(s),
         }))
         setStudents(mapped)
       } catch (err) {
