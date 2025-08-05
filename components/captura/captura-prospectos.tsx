@@ -76,6 +76,7 @@ export default function CapturaProspectos() {
   const [empresas, setEmpresas] = useState<{ id: number; nombre: string; descripcion: string | null; activo: boolean }[]>([])
 
   const [showOtherCompany, setShowOtherCompany] = useState(false);
+  const [showOtherOrigin, setShowOtherOrigin] = useState(false);
 
   // useForm con defaultValues para país=1 (Guatemala)
   const form = useForm<FormData>({
@@ -424,7 +425,18 @@ export default function CapturaProspectos() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Origen</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select
+                        onValueChange={(value) => {
+                          if (value === "otros") {
+                            setShowOtherOrigin(true);
+                            field.onChange("");
+                          } else {
+                            setShowOtherOrigin(false);
+                            field.onChange(value);
+                          }
+                        }}
+                        value={showOtherOrigin ? "otros" : field.value}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleccione el origen" />
@@ -443,12 +455,29 @@ export default function CapturaProspectos() {
                             Actividades de Escritorio
                           </SelectItem>
                           <SelectItem value="Meeting">Meeting</SelectItem>
+                          <SelectItem value="otros">Otros</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
+                {showOtherOrigin && (
+                  <FormField
+                    control={form.control}
+                    name="Origen"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Especifique el origen</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ingrese el origen" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </div>
 
               {/* Notas generales */}

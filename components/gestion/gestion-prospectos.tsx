@@ -34,6 +34,7 @@ interface Prospecto {
   departamento: string
   puesto: string
   estado: string
+  origen?: string
   observaciones?: string
   ultimoCambio: string
 }
@@ -52,6 +53,7 @@ export default function GestionProspectos() {
   const [estadoFilter, setEstadoFilter] = useState<string>("todos")
   const [departamentoFilter, setDepartamentoFilter] = useState<string>("todos")
   const [puestoFilter, setPuestoFilter] = useState<string>("todos")
+  const [origenFilter, setOrigenFilter] = useState<string>("todos")
   const [pageSize, setPageSize] = useState<string>("5")
   const [currentPage, setCurrentPage] = useState<number>(1)
 
@@ -76,6 +78,17 @@ export default function GestionProspectos() {
           prospectos
             .map((p) => p.puesto)
             .filter((p) => p && p.trim() !== "")
+        )
+      ),
+    [prospectos]
+  )
+  const origenes = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          prospectos
+            .map((p) => p.origen)
+            .filter((o) => o && o.trim() !== "")
         )
       ),
     [prospectos]
@@ -106,6 +119,7 @@ export default function GestionProspectos() {
               item.empresa_donde_labora_actualmente ?? "Sin Departamento",
             puesto: item.puesto ?? "—",
             estado: item.status || "No contactado",
+            origen: item.medio_conocimiento_institucion ?? "—",
             observaciones: item.observaciones ?? "",
             ultimoCambio: item.updated_at ?? "N/A",
           }))
@@ -168,11 +182,14 @@ export default function GestionProspectos() {
         departamentoFilter === "todos" || p.departamento === departamentoFilter
       const matchesPuesto =
         puestoFilter === "todos" || p.puesto === puestoFilter
+      const matchesOrigen =
+        origenFilter === "todos" || p.origen === origenFilter
       return (
         matchesSearch &&
         matchesEstado &&
         matchesDepartamento &&
-        matchesPuesto
+        matchesPuesto &&
+        matchesOrigen
       )
     })
   }, [
@@ -181,6 +198,7 @@ export default function GestionProspectos() {
     estadoFilter,
     departamentoFilter,
     puestoFilter,
+    origenFilter,
   ])
 
   // Paginación
@@ -364,6 +382,25 @@ export default function GestionProspectos() {
             ))}
           </SelectContent>
         </Select>
+        <Select
+          value={origenFilter}
+          onValueChange={(v) => {
+            setOrigenFilter(v)
+            setCurrentPage(1)
+          }}
+        >
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Origen" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos</SelectItem>
+            {origenes.map((o) => (
+              <SelectItem key={o} value={o}>
+                {o}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         <Button variant="outline">
           <Filter className="h-4 w-4 mr-2" />
@@ -399,6 +436,7 @@ export default function GestionProspectos() {
               <th className="py-3 px-4 text-left">Teléfono</th>
               <th className="py-3 px-4 text-left">Empresa</th>
               <th className="py-3 px-4 text-left">Puesto</th>
+              <th className="py-3 px-4 text-left">Origen</th>
               <th className="py-3 px-4 text-left">Estado</th>
               <th className="py-3 px-4 text-left">Acciones</th>
             </tr>
@@ -414,10 +452,11 @@ export default function GestionProspectos() {
                 </td>
                 <td className="py-3 px-4">{p.nombre}</td>
                 <td className="py-3 px-4">{p.email}</td>
-                <td className="py-3 px-4">{p.telefono}</td>
-                <td className="py-3 px-4">{p.departamento}</td>
-                <td className="py-3 px-4">{p.puesto}</td>
-                <td className="py-3 px-4">
+              <td className="py-3 px-4">{p.telefono}</td>
+              <td className="py-3 px-4">{p.departamento}</td>
+              <td className="py-3 px-4">{p.puesto}</td>
+              <td className="py-3 px-4">{p.origen}</td>
+              <td className="py-3 px-4">
                   <div className="flex flex-col">
                     <span
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getEstadoColor(
