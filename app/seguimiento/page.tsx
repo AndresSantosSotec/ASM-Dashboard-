@@ -57,8 +57,12 @@ export default function SeguimientoPage() {
   const [interactionNotes, setInteractionNotes] = useState<string>("");
 
   // Estados para citas
+  const toLocalInputValue = (date: Date) => {
+    const off = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - off).toISOString().slice(0, 16);
+  };
   const [citas, setCitas] = useState<any[]>([]);
-  const [appointmentDate, setAppointmentDate] = useState<string>("");
+  const [appointmentDate, setAppointmentDate] = useState<string>(toLocalInputValue(new Date()));
   const [appointmentDescription, setAppointmentDescription] = useState<string>("");
 
   // Estado para almacenar actividades
@@ -317,7 +321,16 @@ export default function SeguimientoPage() {
       });
       return;
     }
-    const formattedDate = appointmentDate;
+    const date = new Date(appointmentDate);
+    if (isNaN(date.getTime())) {
+      Swal.fire({
+        icon: "error",
+        title: "Fecha inválida",
+        text: "Selecciona una fecha válida",
+      });
+      return;
+    }
+    const formattedDate = date.toISOString();
     const newCita = {
       datecita: formattedDate,
       descricita: appointmentDescription,
@@ -326,14 +339,12 @@ export default function SeguimientoPage() {
     console.log("Enviando cita:", JSON.stringify(newCita, null, 2));
 
     try {
-      const response = await api.post(
-        "/citas",
-        newCita
-      );
+      const response = await api.post("/citas", newCita);
+      const saved = response.data?.data ?? response.data;
       console.log("✅ Cita guardada:", response.data);
-      setCitas((prev) => Array.isArray(prev) ? [...prev, response.data] : [response.data]);
+      setCitas((prev) => [...prev, saved]);
       setAppointmentDescription("");
-      setAppointmentDate("");
+      setAppointmentDate(toLocalInputValue(new Date()));
       Swal.fire({
         icon: "success",
         title: "¡Cita Agendada!",

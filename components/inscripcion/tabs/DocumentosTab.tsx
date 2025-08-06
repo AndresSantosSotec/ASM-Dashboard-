@@ -14,19 +14,20 @@ export interface Documento {
   nombre: string
   descripcion: string
   estado: "pendiente" | "cargado"
-  archivo?: File | null
+  archivos: File[]
   optional?: boolean
 }
 
 export const DOCUMENTOS_DEFAULT: Documento[] = [
-  { id: "dpi", nombre: "DPI (ambos lados)", descripcion: "Documento de identificación personal, ambos lados en un solo archivo.", estado: "pendiente" },
-  { id: "recibo", nombre: "Recibo de luz o teléfono", descripcion: "Comprobante de domicilio reciente (no mayor a 3 meses).", estado: "pendiente" },
-  { id: "american", nombre: "Recibo de American", descripcion: "Comprobante de pago emitido por American SM.", estado: "pendiente" },
-  { id: "inscripcion", nombre: "Boleta de inscripción", descripcion: "Comprobante de pago de la cuota de inscripción.", estado: "pendiente" },
-  { id: "titulo", nombre: "Título o diploma", descripcion: "Copia de su último título académico obtenido.", estado: "pendiente", optional: true },
-  { id: "foto", nombre: "Fotografía reciente", descripcion: "Fotografía tamaño carné con fondo blanco.", estado: "pendiente", optional: true },
-  { id: "cierrePensum", nombre: "Cierre de pensum", descripcion: "Copia del cierre de pensum emitido por la universidad.", estado: "pendiente", optional: true },
-  { id: "certificacionCursos", nombre: "Certificación de cursos aprobados", descripcion: "Certificación oficial con la cantidad de cursos aprobados.", estado: "pendiente", optional: true },
+  { id: "dpi", nombre: "DPI (ambos lados)", descripcion: "Documento de identificación personal, ambos lados en un solo archivo.", estado: "pendiente", archivos: [] },
+  { id: "recibo", nombre: "Recibo de luz o teléfono", descripcion: "Comprobante de domicilio reciente (no mayor a 3 meses).", estado: "pendiente", archivos: [] },
+  { id: "american", nombre: "Recibo de American", descripcion: "Comprobante de pago emitido por American SM.", estado: "pendiente", archivos: [] },
+  { id: "inscripcion", nombre: "Boleta de inscripción", descripcion: "Comprobante de pago de la cuota de inscripción.", estado: "pendiente", archivos: [] },
+  { id: "titulo", nombre: "Título o diploma", descripcion: "Copia de su último título académico obtenido.", estado: "pendiente", archivos: [], optional: true },
+  { id: "foto", nombre: "Fotografía reciente", descripcion: "Fotografía tamaño carné con fondo blanco.", estado: "pendiente", archivos: [], optional: true },
+  { id: "cierrePensum", nombre: "Cierre de pensum", descripcion: "Copia del cierre de pensum emitido por la universidad.", estado: "pendiente", archivos: [], optional: true },
+  { id: "certificacionCursos", nombre: "Certificación de cursos aprobados", descripcion: "Certificación oficial con la cantidad de cursos aprobados.", estado: "pendiente", archivos: [], optional: true },
+  { id: "otros", nombre: "Otros documentos (PDF)", descripcion: "Documento PDF con información adicional.", estado: "pendiente", archivos: [], optional: true },
 ]
 
 type Props = {
@@ -57,49 +58,55 @@ export default function DocumentosTab({
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !uploadTarget.current) return
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0 || !uploadTarget.current) return
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert("El archivo excede 5 MB.")
-      return
-    }
+    for (const file of files) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert("El archivo excede 5 MB.")
+        continue
+      }
 
-    const okTypes = ["application/pdf", "image/jpeg", "image/png"]
-    if (!okTypes.includes(file.type)) {
-      alert("Sólo se permiten archivos PDF, JPG o PNG.")
-      return
-    }
+      const okTypes = ["application/pdf", "image/jpeg", "image/png"]
+      if (!okTypes.includes(file.type)) {
+        alert("Sólo se permiten archivos PDF, JPG o PNG.")
+        continue
+      }
 
-    const formData = new FormData()
-    formData.append("prospecto_id", String(prospectoId))
-    formData.append("tipo_documento", uploadTarget.current)
-    formData.append("file", file)
+      const formData = new FormData()
+      formData.append("prospecto_id", String(prospectoId))
+      formData.append("tipo_documento", uploadTarget.current)
+      formData.append("file", file)
 
       try {
         await axios.post(`${API_BASE_URL}/api/documentos`, formData, {
           headers: { "Content-Type": "multipart/form-data" },
         })
-      setDocumentos(docs =>
-        docs.map(d =>
-          d.id === uploadTarget.current
-            ? { ...d, archivo: file, estado: "cargado" }
-            : d
+        setDocumentos(docs =>
+          docs.map(d =>
+            d.id === uploadTarget.current
+              ? { ...d, archivos: [...d.archivos, file], estado: "cargado" }
+              : d
+          )
         )
-      )
-    } catch (err) {
-      console.error(err)
-      alert("Error al subir el archivo. Inténtalo de nuevo.")
+      } catch (err) {
+        console.error(err)
+        alert("Error al subir el archivo. Inténtalo de nuevo.")
+      }
     }
   }
 
-  const removeFile = (id: string) =>
+  const removeFile = (id: string, index: number) =>
     setDocumentos(docs =>
-      docs.map(d =>
-        d.id === id
-          ? { ...d, archivo: null, estado: "pendiente" }
-          : d
-      )
+      docs.map(d => {
+        if (d.id !== id) return d
+        const nuevos = d.archivos.filter((_, i) => i !== index)
+        return {
+          ...d,
+          archivos: nuevos,
+          estado: nuevos.length > 0 ? "cargado" : "pendiente",
+        }
+      })
     )
 
   // Memoized validity: true when no required docs are pending
@@ -154,24 +161,38 @@ export default function DocumentosTab({
 
               <p className="mb-4 text-sm text-gray-600">{doc.descripcion}</p>
 
-              {doc.estado === "cargado" ? (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <FileText className="mr-2 h-4 w-4 text-blue-600" />
-                    <span
-                      className="max-w-[150px] truncate text-sm"
-                      title={doc.archivo?.name}
+              {doc.archivos.length > 0 ? (
+                <div className="space-y-2">
+                  {doc.archivos.map((f, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between"
                     >
-                      {doc.archivo?.name}
-                    </span>
-                  </div>
+                      <div className="flex items-center">
+                        <FileText className="mr-2 h-4 w-4 text-blue-600" />
+                        <span
+                          className="max-w-[150px] truncate text-sm"
+                          title={f.name}
+                        >
+                          {f.name}
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => removeFile(doc.id, idx)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
                   <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    onClick={() => removeFile(doc.id)}
+                    variant="outline"
+                    className="w-full gap-2"
+                    onClick={() => triggerUpload(doc.id)}
                   >
-                    <X className="h-4 w-4" />
+                    <Upload className="h-4 w-4" /> Subir archivo
                   </Button>
                 </div>
               ) : (
@@ -193,6 +214,7 @@ export default function DocumentosTab({
         type="file"
         accept=".pdf,.jpg,.jpeg,.png"
         className="hidden"
+        multiple
         onChange={handleFileChange}
       />
 

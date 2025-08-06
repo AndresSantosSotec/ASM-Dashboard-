@@ -19,6 +19,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import DetallesProspecto from "./detalles-prospecto"
 import EditarProspecto from "./editar-prospecto"
 import CambiarEstado from "./cambiar-estado"
@@ -117,7 +123,7 @@ export default function GestionProspectos() {
             telefono: item.telefono,
             departamento:
               item.empresa_donde_labora_actualmente ?? "Sin Departamento",
-            puesto: item.puesto ?? "—",
+            puesto: item.puesto ?? "N/A",
             estado: item.status || "No contactado",
             origen: item.medio_conocimiento_institucion ?? "—",
             observaciones: item.observaciones ?? "",
@@ -471,103 +477,112 @@ export default function GestionProspectos() {
                   </div>
                 </td>
                 <td className="py-3 px-4">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setSelectedProspecto(p)
-                        setModalType("detalles")
-                      }}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={async () => {
-                        try {
-                          const token = localStorage.getItem("token")
-                          const res = await fetch(
-                            `${API_URL}/prospectos/${p.id}`,
-                            {
-                              headers: {
-                                Authorization: `Bearer ${token}`,
-                                "Content-Type": "application/json",
-                              },
-                            }
-                          )
-                          if (!res.ok)
-                            throw new Error("No se pudo cargar datos de edición")
-                          const { data } = await res.json()
-                          setSelectedProspecto({
-                            id: String(data.id),
-                            nombre: data.nombre_completo,
-                            email: data.correo_electronico,
-                            telefono: data.telefono,
-                            departamento:
-                              data.empresa_donde_labora_actualmente ??
-                              "Sin Departamento",
-                            puesto: data.puesto ?? "—",
-                            estado: data.status,
-                            observaciones: data.observaciones ?? "",
-                            ultimoCambio: data.updated_at ?? "N/A",
-                          })
-                          setModalType("editar")
-                        } catch (e: any) {
-                          Swal.fire("Error", e.message, "error")
-                        }
-                      }}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    {currentUser?.rol === "administrador" && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setSelectedProspecto(p)
-                          setModalType("editar")
-                        }}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Button variant="ghost" size="icon">
-                      <UserPlus className="h-4 w-4" />
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setSelectedProspecto(p)
-                            setModalType("editar")
-                          }}
-                        >
-                          Actualizar Prospecto
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setSelectedProspecto(p)
-                            setShowEstadoMenu(true)
-                          }}
-                        >
-                          Cambiar Estado
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>Enviar Email</DropdownMenuItem>
-                        <DropdownMenuItem>Enviar Mensaje</DropdownMenuItem>
-                        <DropdownMenuItem>Llamar</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleInscribir(p.id)}>
-                          Inscribir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+                  <TooltipProvider>
+                    <div className="flex items-center gap-2">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setSelectedProspecto(p)
+                              setModalType("detalles")
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Ver prospecto</TooltipContent>
+                      </Tooltip>
+                      {currentUser?.rol !== "asesor" && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={async () => {
+                                try {
+                                  const token = localStorage.getItem("token")
+                                  const res = await fetch(`${API_URL}/prospectos/${p.id}` , {
+                                    headers: {
+                                      Authorization: `Bearer ${token}`,
+                                      "Content-Type": "application/json",
+                                    },
+                                  })
+                                  if (!res.ok)
+                                    throw new Error("No se pudo cargar datos de edición")
+                                  const { data } = await res.json()
+                                  setSelectedProspecto({
+                                    id: String(data.id),
+                                    nombre: data.nombre_completo,
+                                    email: data.correo_electronico,
+                                    telefono: data.telefono,
+                                    departamento:
+                                      data.empresa_donde_labora_actualmente ?? "Sin Departamento",
+                                    puesto: data.puesto ?? "N/A",
+                                    estado: data.status,
+                                    observaciones: data.observaciones ?? "",
+                                    ultimoCambio: data.updated_at ?? "N/A",
+                                  })
+                                  setModalType("editar")
+                                } catch (e: any) {
+                                  Swal.fire("Error", e.message, "error")
+                                }
+                              }}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Editar</TooltipContent>
+                        </Tooltip>
+                      )}
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleInscribir(p.id)}
+                          >
+                            <UserPlus className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Inscribir</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <DropdownMenu>
+                          <TooltipTrigger asChild>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                          </TooltipTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedProspecto(p)
+                                setModalType("editar")
+                              }}
+                            >
+                              Actualizar Prospecto
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedProspecto(p)
+                                setShowEstadoMenu(true)
+                              }}
+                            >
+                              Cambiar Estado
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleInscribir(p.id)}>
+                              Inscribir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <TooltipContent>Más acciones</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </TooltipProvider>
                 </td>
               </tr>
             ))}
