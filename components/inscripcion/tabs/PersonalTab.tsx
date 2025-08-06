@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useEffect, useState } from "react"
+import { useMemo, useEffect } from "react"
 import { Search, ArrowRight, CheckCircle } from "lucide-react"
 import Swal from "sweetalert2"
 
@@ -11,6 +11,12 @@ import CountryCombobox from "../CountryCombobox"
 import { Label } from "@/components/ui/label"
 import { RequiredAsterisk } from "@/components/ui/required-asterisk"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { DatosPersonales } from "../types"
 import { useCountries } from "@/hooks/useCountries"
 
@@ -52,6 +58,7 @@ export default function PersonalTab({
       (datos.telefono ?? "").trim() !== "" &&
       /^\d{13}$/.test(dpi) &&
       (datos.emailPersonal ?? "").trim() !== "" &&
+      (datos.emailCorporativo ?? "").trim() !== "" &&
       datos.fechaNacimiento !== "" &&
       (datos.direccion ?? "").trim() !== ""
     )
@@ -69,7 +76,7 @@ export default function PersonalTab({
   }
 
   return (
-    <>
+    <TooltipProvider>
       {/* Botón búsqueda de prospecto */}
       <div className="mb-4 flex justify-start">
         <Button variant="outline" onClick={openModal}>
@@ -168,9 +175,16 @@ export default function PersonalTab({
           />
         </div>
         <div className="space-y-2">
-          <Label>
-            Email corporativo <RequiredAsterisk />
-          </Label>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Label>
+                Email corporativo <RequiredAsterisk />
+              </Label>
+            </TooltipTrigger>
+            <TooltipContent>
+              Si no cuentas con un correo corporativo, ingresa tu correo personal. Podrás actualizarlo después.
+            </TooltipContent>
+          </Tooltip>
           <Input
             type="email"
             value={datos.emailCorporativo || ""}
@@ -222,6 +236,6 @@ export default function PersonalTab({
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
-    </>
+    </TooltipProvider>
   )
 }
