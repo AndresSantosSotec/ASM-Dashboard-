@@ -411,24 +411,21 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/academico/documentos-rechazados"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/documentos-rechazados" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"`
-                    } transition-colors duration-200`}
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/documentos-rechazados" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
                 >
                   <RefreshCw size={16} className="mr-2" />
                   <span>Docs Rechazados</span>
                 </Link>
                 {/* <Link
                   href="/academico/estado-sistema"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/estado-sistema" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/estado-sistema" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
                 >
                   <Activity size={16} className="mr-2" />
                   <span>Estatus General</span>
                 </Link> */}
                 <Link
                   href="/academico/ranking"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/ranking" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/ranking" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"} transition-colors duration-200`}
                 >
                   <BarChart2 size={16} className="mr-2" />
                   <span>Ranking Académico</span>
