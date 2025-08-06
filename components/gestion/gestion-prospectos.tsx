@@ -494,6 +494,7 @@ export default function GestionProspectos() {
                         </TooltipTrigger>
                         <TooltipContent>Ver prospecto</TooltipContent>
                       </Tooltip>
+
                       {currentUser?.rol !== "asesor" && (
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -503,6 +504,7 @@ export default function GestionProspectos() {
                               onClick={async () => {
                                 try {
                                   const token = localStorage.getItem("token")
+
                                   const res = await fetch(`${API_URL}/prospectos/${p.id}` , {
                                     headers: {
                                       Authorization: `Bearer ${token}`,
@@ -518,6 +520,7 @@ export default function GestionProspectos() {
                                     email: data.correo_electronico,
                                     telefono: data.telefono,
                                     departamento:
+
                                       data.empresa_donde_labora_actualmente ?? "Sin Departamento",
                                     puesto: data.puesto ?? "N/A",
                                     estado: data.status,
@@ -536,6 +539,25 @@ export default function GestionProspectos() {
                           <TooltipContent>Editar</TooltipContent>
                         </Tooltip>
                       )}
+
+                      {currentUser?.rol === "administrador" && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setSelectedProspecto(p)
+                                setModalType("editar")
+                              }}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Editar</TooltipContent>
+                        </Tooltip>
+                      )}
+
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
