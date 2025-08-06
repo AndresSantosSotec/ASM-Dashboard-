@@ -6,6 +6,7 @@ import Swal from "sweetalert2"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import CountryCombobox from "../CountryCombobox"
 import { Label } from "@/components/ui/label"
 import { RequiredAsterisk } from "@/components/ui/required-asterisk"
@@ -70,8 +71,8 @@ export default function PersonalTab({
   return (
     <>
       {/* Botón búsqueda de prospecto */}
-      <div className="flex justify-end">
-        <Button variant="outline" onClick={openModal} className="mb-4">
+      <div className="mb-4 flex justify-start">
+        <Button variant="outline" onClick={openModal}>
           <Search className="mr-2 h-4 w-4" />
           Buscar prospecto
         </Button>
@@ -182,13 +183,9 @@ export default function PersonalTab({
           <Label>
             Fecha de nacimiento <RequiredAsterisk />
           </Label>
-          <Input
-            type="date"
-            value={datos.fechaNacimiento || ""}
-            onChange={(e) =>
-              setDatos({ ...datos, fechaNacimiento: e.target.value })
-            }
-            required
+          <DatePicker
+            value={datos.fechaNacimiento}
+            onChange={(v) => setDatos({ ...datos, fechaNacimiento: v })}
           />
         </div>
 
