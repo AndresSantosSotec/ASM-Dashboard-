@@ -409,6 +409,14 @@ export default function Sidebar({ open, className }: SidebarProps) {
                   <UserCheck size={16} className="mr-2" />
                   <span>Estatus Académico</span>
                 </Link>
+                <Link
+                  href="/academico/documentos-rechazados"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/documentos-rechazados" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"`
+                    } transition-colors duration-200`}
+                >
+                  <RefreshCw size={16} className="mr-2" />
+                  <span>Docs Rechazados</span>
+                </Link>
                 {/* <Link
                   href="/academico/estado-sistema"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/estado-sistema" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
