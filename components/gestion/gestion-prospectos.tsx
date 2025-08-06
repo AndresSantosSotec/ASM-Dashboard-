@@ -557,7 +557,11 @@ export default function GestionProspectos() {
                       )}
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleInscribir(p.id)}
+                          >
                             <UserPlus className="h-4 w-4" />
                           </Button>
                         </TooltipTrigger>
@@ -589,9 +593,6 @@ export default function GestionProspectos() {
                             >
                               Cambiar Estado
                             </DropdownMenuItem>
-                            <DropdownMenuItem>Enviar Email</DropdownMenuItem>
-                            <DropdownMenuItem>Enviar Mensaje</DropdownMenuItem>
-                            <DropdownMenuItem>Llamar</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleInscribir(p.id)}>
                               Inscribir
                             </DropdownMenuItem>

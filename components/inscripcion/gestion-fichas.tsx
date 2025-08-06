@@ -30,6 +30,12 @@ import {
   SelectItem,
 } from "@/components/ui/select"
 import { Eye, CheckCircle, XCircle, Calendar, Loader2 } from "lucide-react"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { FichaEstudiante } from "@/components/inscripcion/types"
@@ -296,35 +302,64 @@ export function GestionFichas() {
                   <TableCell>{getBadgeForPrioridad(f.prioridad)}</TableCell>
                   <TableCell>{f.ultimaActualizacion}</TableCell>
                   <TableCell>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="icon" onClick={() => handleViewDetalle(f)}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleApprove(f.id)}
-                        disabled={f.estado === "aprobada" || processingId === f.id}
-                      >
-                        {processingId === f.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <CheckCircle className={`h-4 w-4 ${f.estado === "aprobada" ? "text-gray-400" : "text-green-500"}`} />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleReject(f.id)}
-                        disabled={processingId === f.id}
-                      >
-                        {processingId === f.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <XCircle className="h-4 w-4 text-red-500" />
-                        )}
-                      </Button>
-                    </div>
+                    <TooltipProvider>
+                      <div className="flex gap-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleViewDetalle(f)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Ver ficha</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleApprove(f.id)}
+                              disabled={
+                                f.estado === "aprobada" || processingId === f.id
+                              }
+                            >
+                              {processingId === f.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <CheckCircle
+                                  className={`h-4 w-4 ${
+                                    f.estado === "aprobada"
+                                      ? "text-gray-400"
+                                      : "text-green-500"
+                                  }`}
+                                />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Aprobar</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleReject(f.id)}
+                              disabled={processingId === f.id}
+                            >
+                              {processingId === f.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <XCircle className="h-4 w-4 text-red-500" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Rechazar</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TooltipProvider>
                   </TableCell>
                 </TableRow>
               ))}
