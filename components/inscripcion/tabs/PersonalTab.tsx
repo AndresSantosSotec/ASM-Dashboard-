@@ -182,7 +182,7 @@ export default function PersonalTab({
               </Label>
             </TooltipTrigger>
             <TooltipContent>
-              Si no cuentas con un correo corporativo, ingresa tu correo personal. Podrás actualizarlo después.
+              Si no cuentas con un correo corporativo, ingresa el correo personal. Podrás actualizarlo después.
             </TooltipContent>
           </Tooltip>
           <Input
