@@ -2,7 +2,6 @@
 
 import { useMemo, useEffect } from "react"
 import { Search, ArrowRight, CheckCircle } from "lucide-react"
-import Swal from "sweetalert2"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,32 +47,21 @@ export default function PersonalTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [countries])
 
-  // Validación de campos obligatorios con DPI de 13 dígitos
+  // Validación de campos obligatorios con número de identificación alfanumérico
   const isFormValid = useMemo(() => {
-    const dpi = datos.dpi ?? ""
+    const dpi = (datos.dpi ?? "").trim()
     return (
       (datos.nombre ?? "").trim() !== "" &&
       datos.paisOrigen !== "" &&
       datos.paisResidencia !== "" &&
       (datos.telefono ?? "").trim() !== "" &&
-      /^\d{13}$/.test(dpi) &&
+      /^[A-Za-z0-9]+$/.test(dpi) &&
       (datos.emailPersonal ?? "").trim() !== "" &&
       (datos.emailCorporativo ?? "").trim() !== "" &&
       datos.fechaNacimiento !== "" &&
       (datos.direccion ?? "").trim() !== ""
     )
   }, [datos])
-
-  // Función para validar DPI al salir del campo
-  const validateDpi = (value: string) => {
-    if (value && !/^\d{13}$/.test(value)) {
-      Swal.fire({
-        title: "DPI inválido",
-        text: "El DPI debe contener exactamente 13 dígitos numéricos.",
-        icon: "error",
-      })
-    }
-  }
 
   return (
     <TooltipProvider>
@@ -147,17 +135,22 @@ export default function PersonalTab({
           />
         </div>
 
-        {/* DPI con validación onBlur */}
+        {/* DPI/Identificación */}
         <div className="space-y-2">
           <Label>
-            DPI <RequiredAsterisk />
+            DPI/Identificación <RequiredAsterisk />
           </Label>
           <Input
             value={datos.dpi || ""}
             onChange={(e) => setDatos({ ...datos, dpi: e.target.value })}
-            onBlur={(e) => validateDpi(e.target.value)}
             required
           />
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>{(datos.dpi || "").length} caracteres</span>
+            {datos.dpi && datos.dpi.length === 13 && /^\d{13}$/.test(datos.dpi) && (
+              <span className="text-green-600">DPI válido</span>
+            )}
+          </div>
         </div>
 
         {/* Emails */}
