@@ -494,50 +494,56 @@ export default function GestionProspectos() {
                         </TooltipTrigger>
                         <TooltipContent>Ver prospecto</TooltipContent>
                       </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={async () => {
-                              try {
-                                const token = localStorage.getItem("token")
-                                const res = await fetch(
-                                  `${API_URL}/prospectos/${p.id}`,
-                                  {
-                                    headers: {
-                                      Authorization: `Bearer ${token}`,
-                                      "Content-Type": "application/json",
-                                    },
-                                  }
-                                )
-                                if (!res.ok)
-                                  throw new Error("No se pudo cargar datos de edición")
-                                const { data } = await res.json()
-                                setSelectedProspecto({
-                                  id: String(data.id),
-                                  nombre: data.nombre_completo,
-                                  email: data.correo_electronico,
-                                  telefono: data.telefono,
-                                  departamento:
-                                    data.empresa_donde_labora_actualmente ??
-                                    "Sin Departamento",
-                                  puesto: data.puesto ?? "N/A",
-                                  estado: data.status,
-                                  observaciones: data.observaciones ?? "",
-                                  ultimoCambio: data.updated_at ?? "N/A",
-                                })
-                                setModalType("editar")
-                              } catch (e: any) {
-                                Swal.fire("Error", e.message, "error")
-                              }
-                            }}
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Editar</TooltipContent>
-                      </Tooltip>
+
+                      {!(
+                        currentUser?.rol === "asesor" &&
+                        p.estado.toLowerCase() === "estudiante"
+                      ) && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={async () => {
+                                try {
+                                  const token = localStorage.getItem("token")
+                                  const res = await fetch(
+                                    `${API_URL}/prospectos/${p.id}`,
+                                    {
+                                      headers: {
+                                        Authorization: `Bearer ${token}`,
+                                        "Content-Type": "application/json",
+                                      },
+                                    }
+                                  )
+                                  if (!res.ok)
+                                    throw new Error("No se pudo cargar datos de edición")
+                                  const { data } = await res.json()
+                                  setSelectedProspecto({
+                                    id: String(data.id),
+                                    nombre: data.nombre_completo,
+                                    email: data.correo_electronico,
+                                    telefono: data.telefono,
+                                    departamento:
+                                      data.empresa_donde_labora_actualmente ??
+                                      "Sin Departamento",
+                                    puesto: data.puesto ?? "N/A",
+                                    estado: data.status,
+                                    observaciones: data.observaciones ?? "",
+                                    ultimoCambio: data.updated_at ?? "N/A",
+                                  })
+                                  setModalType("editar")
+                                } catch (e: any) {
+                                  Swal.fire("Error", e.message, "error")
+                                }
+                              }}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Editar</TooltipContent>
+                        </Tooltip>
+                      )}
                       {currentUser?.rol === "administrador" && (
                         <Tooltip>
                           <TooltipTrigger asChild>

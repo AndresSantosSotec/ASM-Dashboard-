@@ -168,13 +168,16 @@ export default function PersonalTab({
           />
         </div>
         <div className="space-y-2">
-          <Label>Email corporativo</Label>
+          <Label>
+            Email corporativo <RequiredAsterisk />
+          </Label>
           <Input
             type="email"
             value={datos.emailCorporativo || ""}
             onChange={(e) =>
               setDatos({ ...datos, emailCorporativo: e.target.value })
             }
+            required
           />
         </div>
 
