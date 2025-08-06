@@ -495,10 +495,7 @@ export default function GestionProspectos() {
                         <TooltipContent>Ver prospecto</TooltipContent>
                       </Tooltip>
 
-                      {!(
-                        currentUser?.rol === "asesor" &&
-                        p.estado.toLowerCase() === "estudiante"
-                      ) && (
+                      {currentUser?.rol !== "asesor" && (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
@@ -507,15 +504,13 @@ export default function GestionProspectos() {
                               onClick={async () => {
                                 try {
                                   const token = localStorage.getItem("token")
-                                  const res = await fetch(
-                                    `${API_URL}/prospectos/${p.id}`,
-                                    {
-                                      headers: {
-                                        Authorization: `Bearer ${token}`,
-                                        "Content-Type": "application/json",
-                                      },
-                                    }
-                                  )
+
+                                  const res = await fetch(`${API_URL}/prospectos/${p.id}` , {
+                                    headers: {
+                                      Authorization: `Bearer ${token}`,
+                                      "Content-Type": "application/json",
+                                    },
+                                  })
                                   if (!res.ok)
                                     throw new Error("No se pudo cargar datos de edición")
                                   const { data } = await res.json()
@@ -525,8 +520,8 @@ export default function GestionProspectos() {
                                     email: data.correo_electronico,
                                     telefono: data.telefono,
                                     departamento:
-                                      data.empresa_donde_labora_actualmente ??
-                                      "Sin Departamento",
+
+                                      data.empresa_donde_labora_actualmente ?? "Sin Departamento",
                                     puesto: data.puesto ?? "N/A",
                                     estado: data.status,
                                     observaciones: data.observaciones ?? "",
@@ -544,6 +539,7 @@ export default function GestionProspectos() {
                           <TooltipContent>Editar</TooltipContent>
                         </Tooltip>
                       )}
+
                       {currentUser?.rol === "administrador" && (
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -561,6 +557,7 @@ export default function GestionProspectos() {
                           <TooltipContent>Editar</TooltipContent>
                         </Tooltip>
                       )}
+
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button

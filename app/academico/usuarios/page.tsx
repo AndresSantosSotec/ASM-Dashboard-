@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useMemo } from "react"
-import { Search, Plus, Edit, Trash, Mail, MessageSquare, RefreshCw, Filter } from "lucide-react"
+import { Search, Plus, Mail, MessageSquare, RefreshCw, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -288,37 +288,7 @@ export default function GestionUsuarios() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  // Abrir formulario para editar
-  const handleEdit = (student: Student) => {
-    setSelectedStudent(student)
-    setFormData({
-      name: student.name,
-      lastName: student.lastName,
-      email: student.email,
-      phone: student.phone,
-      program: student.program,
-      idNumber: student.idNumber,
-      birthDate: student.birthDate,
-    })
-    setIsFormOpen(true)
-  }
-
-  // Abrir formulario para crear
-  const handleCreate = () => {
-    setSelectedStudent(null)
-    setFormData({
-      name: "",
-      lastName: "",
-      email: "",
-      phone: "",
-      program: "",
-      idNumber: "",
-      birthDate: "",
-    })
-    setIsFormOpen(true)
-  }
-
-  // Guardar estudiante (crear o actualizar) - Solo frontend, deberías implementar POST/PUT en tu API para persistir
+  // Guardar estudiante - Solo frontend, deberías implementar POST/PUT en tu API para persistir
   const handleSaveStudent = () => {
     if (selectedStudent) {
       // Actualizar estudiante existente (solo en frontend)
@@ -327,33 +297,8 @@ export default function GestionUsuarios() {
         title: "Estudiante actualizado",
         description: `Los datos de ${formData.name} ${formData.lastName} han sido actualizados.`,
       })
-    } else {
-      // Crear nuevo estudiante (solo en frontend)
-      const newStudent: Student = {
-        id: `${Date.now()}`,
-        ...formData,
-        status: "pending",
-      }
-      setStudents((prev) => [...prev, newStudent])
-      setSelectedStudent(newStudent)
-      toast({
-        title: "Estudiante creado",
-        description: `${formData.name} ${formData.lastName} ha sido registrado correctamente.`,
-      })
     }
     setIsFormOpen(false)
-  }
-
-  // Eliminar estudiante (solo frontend)
-  const handleDelete = (id: string) => {
-    setStudents((prev) => prev.filter((s) => s.id !== id))
-    if (selectedStudent?.id === id) {
-      setSelectedStudent(null)
-    }
-    toast({
-      title: "Estudiante eliminado",
-      description: "El estudiante ha sido eliminado correctamente.",
-    })
   }
 
   const updateProspectStatus = async (id: string, status: string) => {
@@ -525,9 +470,6 @@ export default function GestionUsuarios() {
     <div className="container mx-auto py-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Gestión de Usuarios y Acceso</h1>
-        <Button onClick={handleCreate}>
-          <Plus className="mr-2 h-4 w-4" /> Nuevo Usuario
-        </Button>
       </div>
 
       {fetchError && (
@@ -593,13 +535,12 @@ export default function GestionUsuarios() {
                     <TableHead>Nombre</TableHead>
                     <TableHead>Programa</TableHead>
                     <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredStudents.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-4 text-gray-500">
+                      <TableCell colSpan={3} className="text-center py-4 text-gray-500">
                         No se encontraron estudiantes
                       </TableCell>
                     </TableRow>
@@ -625,30 +566,7 @@ export default function GestionUsuarios() {
                             return <Badge variant={variant}>{label}</Badge>
                           })()}
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleEdit(student)
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleDelete(student.id)
-                              }}
-                            >
-                              <Trash className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
+                        {/* Actions removed */}
                       </TableRow>
                     ))
                   )}
