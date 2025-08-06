@@ -494,6 +494,7 @@ export default function GestionProspectos() {
                         </TooltipTrigger>
                         <TooltipContent>Ver prospecto</TooltipContent>
                       </Tooltip>
+
                       {!(
                         currentUser?.rol === "asesor" &&
                         p.estado.toLowerCase() === "estudiante"
