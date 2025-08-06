@@ -12,6 +12,7 @@ export interface Prospecto {
   id: number
   nombre_completo: string
   status: string
+  puesto?: string
 
 }
 

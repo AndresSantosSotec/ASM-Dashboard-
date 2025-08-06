@@ -10,6 +10,7 @@ interface Prospecto {
   email: string
   telefono: string
   departamento: string
+  puesto?: string
   estado: string
 }
 
@@ -54,7 +55,7 @@ export default function DetallesProspecto({ prospecto, onClose }: DetallesProspe
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Puesto:</label>
-            <div className="mt-1">-</div>
+            <div className="mt-1">{prospecto.puesto || "N/A"}</div>
           </div>
         </div>
       </DialogContent>
