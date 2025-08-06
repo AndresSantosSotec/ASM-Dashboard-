@@ -113,13 +113,13 @@ export default function Sidebar({ open, className }: SidebarProps) {
               </button>
               {expandedSections.prospectos && (
                 <div className="pl-10 text-sm space-y-1">
-                  <Link href="/gestion" className={linkClass("/gestion")}>
-                    <Users size={16} className="mr-2" />
-                    Gestión de Prospectos
-                  </Link>
                   <Link href="/captura" className={linkClass("/captura")}>
                     <Plus size={16} className="mr-2" />
                     Captura de Prospectos
+                  </Link>
+                  <Link href="/gestion" className={linkClass("/gestion")}>
+                    <Users size={16} className="mr-2" />
+                    Gestión de Prospectos
                   </Link>
                   <Link href="/leads-asignados" className={linkClass("/leads-asignados")}>
                     <FileText size={16} className="mr-2" />

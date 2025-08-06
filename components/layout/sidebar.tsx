@@ -163,20 +163,20 @@ export default function Sidebar({ open, className }: SidebarProps) {
             <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
               {/* Links visibles para Administradores y Asesores */}
               <Link
-                href="/gestion"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/gestion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                  } transition-colors duration-200`}
-              >
-                <Users size={16} className="mr-2" />
-                <span>Gestión de Prospectos</span>
-              </Link>
-              <Link
                 href="/captura"
                 className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/captura" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                   } transition-colors duration-200`}
               >
                 <Plus size={16} className="mr-2" />
                 <span>Captura de Prospectos</span>
+              </Link>
+              <Link
+                href="/gestion"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/gestion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  } transition-colors duration-200`}
+              >
+                <Users size={16} className="mr-2" />
+                <span>Gestión de Prospectos</span>
               </Link>
               <Link
                 href="/leads-asignados"
