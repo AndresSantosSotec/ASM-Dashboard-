@@ -94,16 +94,20 @@ export default function RegistrationForm() {
       setProspectoId(nuevoId);
   
       // Subida de documentos
-      const docsToUpload = documentos.filter((d) => d.estado === "cargado" && d.archivo);
+      const docsToUpload = documentos.filter(
+        (d) => d.archivos && d.archivos.length > 0
+      );
       for (const doc of docsToUpload) {
-        const formData = new FormData();
-        formData.append("prospecto_id", nuevoId.toString());
-        formData.append("tipo_documento", doc.id);
-        formData.append("file", doc.archivo!);
-  
-        await axios.post(`${API_BASE_URL}/api/documentos`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        for (const file of doc.archivos) {
+          const formData = new FormData();
+          formData.append("prospecto_id", nuevoId.toString());
+          formData.append("tipo_documento", doc.id);
+          formData.append("file", file);
+
+          await axios.post(`${API_BASE_URL}/api/documentos`, formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+        }
       }
   
       // Generar plan de pagos para cada programa

@@ -88,7 +88,8 @@ export interface Documento {
   nombre: string;
   descripcion: string;
   estado: "pendiente" | "cargado";
-  archivo?: File | null;
+  archivos: File[];
+  optional?: boolean;
 }
 
 /** Ficha de inscripción del estudiante */

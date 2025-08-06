@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from "react"
 import { ArrowLeft, ArrowRight, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { RequiredAsterisk } from "@/components/ui/required-asterisk"
 import { Textarea } from "@/components/ui/textarea"
@@ -289,33 +290,27 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
           <Label>
             Fecha de inicio específica <RequiredAsterisk />
           </Label>
-          <Input
-            type="date"
+          <DatePicker
             value={datos.fechaInicioEspecifica}
-            onChange={e => setDatos({ ...datos, fechaInicioEspecifica: e.target.value })}
-            required
+            onChange={v => setDatos({ ...datos, fechaInicioEspecifica: v })}
           />
         </div>
         <div className="space-y-2">
           <Label>
             Fecha taller de inducción <RequiredAsterisk />
           </Label>
-          <Input
-            type="date"
+          <DatePicker
             value={datos.fechaTallerInduccion}
-            onChange={e => setDatos({ ...datos, fechaTallerInduccion: e.target.value })}
-            required
+            onChange={v => setDatos({ ...datos, fechaTallerInduccion: v })}
           />
         </div>
         <div className="space-y-2">
           <Label>
             Fecha taller de integración <RequiredAsterisk />
           </Label>
-          <Input
-            type="date"
+          <DatePicker
             value={datos.fechaTallerIntegracion}
-            onChange={e => setDatos({ ...datos, fechaTallerIntegracion: e.target.value })}
-            required
+            onChange={v => setDatos({ ...datos, fechaTallerIntegracion: v })}
           />
         </div>
 
