@@ -37,10 +37,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { FichaEstudiante } from "@/components/inscripcion/types"
 import FichaDetalleModal from "@/components/inscripcion/modal/FichaDetalleModal"
 import { API_BASE_URL } from "@/utils/apiConfig"
-import { ProspectoDetalle } from "@/types/prospecto"
-import { getProspectos } from "@/services/prospectoService"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || API_BASE_URL
 const CONTEO_REVISADAS_KEY = "fichasRevisadasCount"
@@ -54,13 +54,13 @@ function incrementarRevisadas() {
 }
 
 export function GestionFichas() {
-  const [fichas, setFichas] = useState<ProspectoDetalle[]>([])
+  const [fichas, setFichas] = useState<FichaEstudiante[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [filtroEstado, setFiltroEstado] = useState<string>("todos")
   const [filtroPrioridad, setFiltroPrioridad] = useState<string>("todas")
   const [filtroPeriodo, setFiltroPeriodo] = useState<string>("todos")
 
-  const [selectedFicha, setSelectedFicha] = useState<ProspectoDetalle | null>(null)
+  const [selectedFicha, setSelectedFicha] = useState<FichaEstudiante | null>(null)
   const [activeTab, setActiveTab] = useState<"fichas" | "documentos">("fichas")
   const [isDetalleModalOpen, setDetalleModalOpen] = useState(false)
   const [processingId, setProcessingId] = useState<number | null>(null)
@@ -68,20 +68,56 @@ export function GestionFichas() {
   useEffect(() => {
     async function fetchFichas() {
       try {
-        const data = await getProspectos('pendiente')
-        setFichas(data)
+        const res = await fetch(
+          `${API_URL}/prospectos/fichas/pendientes-public`,
+          { headers: { Accept: "application/json" } }
+        )
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const { data } = await res.json()
+        const mapped: FichaEstudiante[] = data.map((raw: any) => ({
+          id: raw.id,
+          nombre: raw.nombre_completo,
+          telefono: raw.telefono,
+          correo: raw.correo,
+          departamento: raw.departamento,
+          programa: raw.nombre_programa,
+          fecha: raw.created_at?.split("T")[0] ?? "",
+          estado: raw.status,
+          prioridad: (raw.prioridad as "alta" | "media" | "baja") || "media",
+          ultimaActualizacion: raw.updated_at ?? "",
+          documentos: [],
+        }))
+        setFichas(mapped)
       } catch (err) {
-        console.error('Error cargando fichas:', err)
-        Swal.fire('Error', 'No se pudieron cargar las fichas', 'error')
+        console.error("Error cargando fichas:", err)
+        Swal.fire("Error", "No se pudieron cargar las fichas", "error")
       }
     }
     fetchFichas()
   }, [])
 
-  const handleViewDetalle = async (f: ProspectoDetalle) => {
+  const handleViewDetalle = async (f: FichaEstudiante) => {
     setSelectedFicha(f)
-    setActiveTab('documentos')
-    setDetalleModalOpen(true)
+    const token = localStorage.getItem("token")
+    try {
+      const res = await fetch(
+        `${API_URL}/documentos/prospecto/${f.id}`,
+        {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+            Accept: "application/json",
+          },
+        }
+      )
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const docs = await res.json()
+      setSelectedFicha({ ...f, documentos: docs })
+      setActiveTab("documentos")
+      setDetalleModalOpen(true)
+    } catch (err) {
+      console.error("Error cargando documentos:", err)
+      Swal.fire("Error", "No se pudieron cargar los documentos.", "error")
+    }
   }
 
   const handleApprove = async (id: number) => {
@@ -98,7 +134,7 @@ export function GestionFichas() {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setFichas(prev =>
-        prev.map(f => (f.id === id ? { ...f, status: "aprobada" } : f))
+        prev.map(f => (f.id === id ? { ...f, estado: "aprobada" } : f))
       )
       incrementarRevisadas()
       await Swal.fire({
@@ -141,12 +177,12 @@ export function GestionFichas() {
   const filteredFichas = fichas.filter(f => {
     const term = searchTerm.toLowerCase()
     return (
-      (f.nombre_completo.toLowerCase().includes(term) ||
-        f.programas[0]?.programa?.nombre.toLowerCase().includes(term) ||
+      (f.nombre.toLowerCase().includes(term) ||
+        f.programa.toLowerCase().includes(term) ||
         f.id.toString().includes(term)) &&
-      (filtroEstado === 'todos' || f.status === filtroEstado) &&
-      filtroPrioridad === 'todas' &&
-      filtroPeriodo === 'todos'
+      (filtroEstado === "todos" || f.estado === filtroEstado) &&
+      (filtroPrioridad === "todas" || f.prioridad === filtroPrioridad) &&
+      (filtroPeriodo === "todos")
     )
   })
 
@@ -259,12 +295,12 @@ export function GestionFichas() {
               {filteredFichas.map(f => (
                 <TableRow key={f.id}>
                   <TableCell>{f.id}</TableCell>
-                  <TableCell>{f.nombre_completo}</TableCell>
-                  <TableCell>{f.programas[0]?.programa?.nombre}</TableCell>
+                  <TableCell>{f.nombre}</TableCell>
+                  <TableCell>{f.programa}</TableCell>
                   <TableCell>{f.fecha}</TableCell>
-                  <TableCell>{getBadgeForEstado(f.status)}</TableCell>
-                  <TableCell>{getBadgeForPrioridad('media')}</TableCell>
-                  <TableCell>{f.fecha}</TableCell>
+                  <TableCell>{getBadgeForEstado(f.estado)}</TableCell>
+                  <TableCell>{getBadgeForPrioridad(f.prioridad)}</TableCell>
+                  <TableCell>{f.ultimaActualizacion}</TableCell>
                   <TableCell>
                     <TooltipProvider>
                       <div className="flex gap-2">
@@ -285,21 +321,21 @@ export function GestionFichas() {
                             <Button
                               variant="ghost"
                               size="icon"
-                                onClick={() => handleApprove(f.id)}
-                                disabled={
-                                  f.status === "aprobada" || processingId === f.id
-                                }
+                              onClick={() => handleApprove(f.id)}
+                              disabled={
+                                f.estado === "aprobada" || processingId === f.id
+                              }
                             >
                               {processingId === f.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                  <CheckCircle
-                                    className={`h-4 w-4 ${
-                                      f.status === "aprobada"
-                                        ? "text-gray-400"
-                                        : "text-green-500"
-                                    }`}
-                                  />
+                                <CheckCircle
+                                  className={`h-4 w-4 ${
+                                    f.estado === "aprobada"
+                                      ? "text-gray-400"
+                                      : "text-green-500"
+                                  }`}
+                                />
                               )}
                             </Button>
                           </TooltipTrigger>
