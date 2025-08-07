@@ -55,7 +55,7 @@ export default function RejectedDocumentsPage() {
     formData.append("estado", "pendiente")
     try {
       setLoading(true)
-      const res = await api.patch(`/documentos/${selected.id}`, formData, {
+      await api.put(`/documentos/${selected.id}`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       })
       toast({ title: "Documento reenviado" })
