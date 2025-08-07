@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +24,7 @@ import { API_BASE_URL } from '@/utils/apiConfig'
 interface Student {
   id: string
   name: string
+  email: string
 }
 interface ProgramaItem {
   id: number
@@ -42,6 +45,7 @@ interface User {
   first_name: string
   last_name: string
   username: string
+  email: string
 }
 
 export function StudentDetails() {
@@ -66,6 +70,14 @@ export function StudentDetails() {
   // Alias al primer programa (si existe)
   const programa = programas[0]
 
+  // Fecha formateada una vez para coincidir con PDF
+  const formattedDate = new Date().toLocaleDateString("es-GT", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  })
+
   // 1) Traer prospecto
   useEffect(() => {
     if (!studentId) return
@@ -81,6 +93,11 @@ export function StudentDetails() {
           setStudent({
             id: String(json.data.id),
             name: json.data.nombre_completo,
+            email:
+              json.data.correo_electronico ||
+              json.data.correo ||
+              json.data.email ||
+              "",
           })
         } catch (err) {
           console.error(err)
@@ -119,6 +136,9 @@ export function StudentDetails() {
         const user: User = await res.json()
         console.log("Usuario recibido:", user)
         setCurrentUser(user)
+        setStudent((prev) =>
+          prev ? { ...prev, email: prev.email || user.email } : prev
+        )
       } catch (err) {
         console.error(err)
       }
@@ -193,6 +213,10 @@ export function StudentDetails() {
       alert("Por favor, firme el contrato antes de enviarlo.")
       return
     }
+    if (!currentUser?.email) {
+      alert("No se pudo obtener el correo del usuario.")
+      return
+    }
     setShowConfirmDialog(true)
   }
   const confirmSendContract = async () => {
@@ -210,7 +234,18 @@ export function StudentDetails() {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify({ signature }),
+          body: JSON.stringify({
+            signature,
+            email: currentUser?.email || student?.email,
+            prospecto: student?.name,
+            programa: programa?.programa.nombre_del_programa,
+            matricula: programa?.inscripcion,
+            mensualidad: programa?.cuota_mensual,
+            asesor: currentUser
+              ? `${currentUser.first_name} ${currentUser.last_name}`
+              : "",
+            fecha: formattedDate,
+          }),
         }
       )
       if (!res.ok) {
@@ -258,6 +293,10 @@ export function StudentDetails() {
         ID Estudiante: {student.id}
       </p>
       <p className="text-lg font-semibold mb-4">{student.name}</p>
+      <div className="mb-4 max-w-md">
+        <Label htmlFor="email">Correo electrónico</Label>
+        <Input id="email" value={currentUser?.email || student.email} readOnly />
+      </div>
 
       <Card>
         <CardHeader className="flex justify-between items-center">
@@ -283,16 +322,12 @@ export function StudentDetails() {
             </p>
             <p>(Por favor firme ambas páginas en donde corresponde)</p>
             <p>
-              En la ciudad de Guatemala, el día:{" "}
-              {new Date().toLocaleDateString("es-GT", {
-                weekday: "long",
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
+              En la ciudad de Guatemala, el día: {formattedDate}
             </p>
             <p>
-              Yo: <strong>{student.name}</strong> &nbsp;&nbsp;Firma: __________________________
+              Yo: <strong>{student.name}</strong>{" "}
+              {student.email && <span>({student.email})</span>} &nbsp;&nbsp;Firma:
+              __________________________
             </p>
             <p>
               Me comprometo a mantener de manera estrictamente confidencial los

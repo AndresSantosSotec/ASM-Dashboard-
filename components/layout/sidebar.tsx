@@ -313,6 +313,17 @@ export default function Sidebar({ open, className }: SidebarProps) {
                   <span>Validación de Documentos</span>
                 </Link>
 
+                <Link
+                  href="/inscripcion/documentos-rechazados"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/documentos-rechazados"
+                    ? "bg-asm-medium-gold text-white"
+                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <RefreshCw size={16} className="mr-2" />
+                  <span>Docs Rechazados</span>
+                </Link>
+
                 <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
                   Administración
                 </div>

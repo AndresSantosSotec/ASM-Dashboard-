@@ -16,11 +16,11 @@ import { CheckCircle2, XCircle, Send } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
-import { FichaEstudiante } from "../types"
+import { ProspectoDetalle } from "@/types/prospecto"
 import { API_BASE_URL } from "@/utils/apiConfig"
 
 interface Props {
-  ficha: FichaEstudiante
+  ficha: ProspectoDetalle
   isOpen: boolean
   onClose: () => void
   onMarcarRevisada: () => void
@@ -38,89 +38,65 @@ export default function FichaDetalleModal({
   comentarioRevision,
   showSuccessMessage,
 }: Props) {
-  // Estados de datos
-  const [personales, setPersonales] = useState<any>({})
-  const [laborales, setLaborales] = useState<any>({})
-  const [academicos, setAcademicos] = useState<any>({})
-  const [financieros, setFinancieros] = useState<any>({})
-  const [programasInscritos, setProgramasInscritos] = useState<any[]>([])
-  const [documentos, setDocumentos] = useState<any[]>([])
-  const [catalogoProgramas, setCatalogoProgramas] = useState<
-    { id: number; abreviatura: string; nombre_del_programa: string }[]
-  >([])
+  const cuotaMensual = ficha.paymentPlans?.length
+    ? (
+        parseFloat(ficha.monto_inscripcion ?? "0") /
+        ficha.paymentPlans.length
+      ).toFixed(2)
+    : ficha.monto_inscripcion
 
-  // Campos para mostrar
   const camposPersonales: [string, any][] = [
-    ["Nombre completo", personales.nombre],
-    ["País origen", personales.paisOrigen],
-    ["País residencia", personales.paisResidencia],
-    ["Teléfono", personales.telefono],
-    ["DPI", personales.dpi],
-    ["Email personal", personales.emailPersonal],
-    ["Email corporativo", personales.emailCorporativo],
-    ["Fecha Nac.", personales.fechaNacimiento],
-    ["Dirección", personales.direccion],
+    ["Nombre completo", ficha.nombre_completo],
+    ["País origen", ficha.pais_origen],
+    ["País residencia", ficha.pais_residencia],
+    ["Teléfono", ficha.telefono],
+    ["Correo electrónico", ficha.correo_electronico],
+    ["Dirección", ficha.direccion_residencia],
+    ["Departamento", ficha.departamento?.nombre],
+    ["Municipio", ficha.municipio?.nombre],
   ]
 
-  const camposAcademicos: [string, any][] = [
-    ["Modalidad", academicos.modalidad],
-    ["Inicio específico", academicos.fechaInicioEspecifica],
-    ["Taller inducción", academicos.tallerInduccion],
-    ["Taller integración", academicos.tallerIntegracion],
-    ["Institución anterior", academicos.institucionAnterior],
-    ["Año graduación", academicos.añoGraduacion],
-    ["Medio conoció", academicos.medioConocio],
-    ["Cursos aprobados", academicos.cursosAprobados],
-    ["Día de estudio", academicos.diaEstudio],
-  ]
+  const programa = ficha.programas[0]
+  const camposAcademicos: [string, any][] = programa
+    ? [
+        ["Programa", programa.programa.nombre],
+        ["Modalidad", programa.modalidad],
+        ["Inicio específico", programa.fecha_inicio_especifica],
+        ["Año graduación", programa.anio_graduacion],
+        ["Cursos aprobados", programa.cantidad_cursos_aprobados],
+        ["Día de estudio", programa.dia_estudio],
+      ]
+    : []
 
   const camposLaborales: [string, any][] = [
-    ["Empresa", laborales.empresa],
-    ["Puesto", laborales.puesto],
-    ["Teléfono corp.", laborales.telefonoCorporativo],
-    ["Departamento", laborales.departamento],
-    ["Dirección empresa", laborales.direccionEmpresa],
+    ["Empresa", ficha.empresa_donde_labora_actualmente],
+    ["Puesto", ficha.puesto],
+    ["Teléfono corp.", ficha.telefono_corporativo],
+    ["Dirección empresa", ficha.direccion_empresa],
   ]
 
   const camposFinancieros: [string, any][] = [
-    ["Método de pago", financieros.formaPago],
-    ["Convenio ID", financieros.convenioId],
-    ["Inscripción", financieros.inscripcion],
-    ["Cuota mensual", financieros.cuotaMensual],
-    ["Inversión total", financieros.inversionTotal],
+    ["Método de pago", ficha.metodo_pago],
+    ["Inscripción", ficha.monto_inscripcion],
+    ["Cuota mensual", cuotaMensual],
+    ["Convenio", ficha.convenio?.nombre],
   ]
+
+  const programasInscritos = ficha.courses ?? []
+  const documentos = (ficha.documentos ?? []).map(d => ({
+    id: d.id,
+    nombre: d.tipo_documento,
+    url: `${API_BASE_URL}/storage/${d.ruta_archivo}`,
+  }))
 
   // Estados de UI
   const [isRevisada, setIsRevisada] = useState(false)
   const [correctionMode, setCorrectionMode] = useState(false)
 
-  // Carga inicial
   useEffect(() => {
-    if (!isOpen) return
-    ;(async () => {
-      try {
-        const token = localStorage.getItem("token") ?? ""
-        const resFicha = await fetch(
-          `${API_BASE_URL}/api/fichas/${ficha.id}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        )
-        const json = await resFicha.json()
-        setPersonales(json.personales)
-        setLaborales(json.laborales)
-        setAcademicos(json.academicos)
-        setFinancieros(json.financieros)
-        setProgramasInscritos(json.programas ?? [])
-        setDocumentos(json.documentos ?? [])
-
-        const resProg = await fetch(`${API_BASE_URL}/api/programas`)
-        setCatalogoProgramas(await resProg.json())
-
-        // Leer estado 'revisada' de localStorage
-        setIsRevisada(localStorage.getItem(`ficha-${ficha.id}-revisada`) === "true")
-      } catch (err) {
-        console.error("Error al cargar detalle de ficha:", err)
-      }
-    })()
+    if (isOpen) {
+      setIsRevisada(localStorage.getItem(`ficha-${ficha.id}-revisada`) === 'true')
+    }
   }, [isOpen, ficha.id])
 
   // Marcar como revisada
@@ -138,7 +114,7 @@ export default function FichaDetalleModal({
         <DialogHeader>
           <DialogTitle>Ficha #{ficha.id}</DialogTitle>
           <DialogDescription>
-            {personales.nombre || ficha.nombre}
+            {ficha.nombre_completo}
           </DialogDescription>
         </DialogHeader>
 
@@ -209,27 +185,13 @@ export default function FichaDetalleModal({
               {programasInscritos.length === 0 ? (
                 <p>Sin programas inscritos.</p>
               ) : (
-                programasInscritos.map((p) => {
-                  const meta = catalogoProgramas.find((c) => c.id === p.programa_id)
-                  return (
-                    <Card key={p.id} className="p-2 border rounded">
-                      <CardContent className="space-y-1">
-                        <p>
-                          <strong>
-                            {meta?.abreviatura} – {meta?.nombre_del_programa}
-                          </strong>
-                        </p>
-                        <p>
-                          <strong>Inicio:</strong> {p.fecha_inicio} |{" "}
-                          <strong>Fin:</strong> {p.fecha_fin}
-                        </p>
-                        <p>
-                          <strong>Duración:</strong> {p.duracion_meses} meses
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )
-                })
+                programasInscritos.map(p => (
+                  <Card key={p.id} className="p-2 border rounded">
+                    <CardContent className="space-y-1">
+                      <p>{p.fullname}</p>
+                    </CardContent>
+                  </Card>
+                ))
               )}
             </TabsContent>
 
