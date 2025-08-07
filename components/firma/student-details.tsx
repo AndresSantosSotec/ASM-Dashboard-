@@ -22,6 +22,7 @@ import { API_BASE_URL } from '@/utils/apiConfig'
 interface Student {
   id: string
   name: string
+  email: string
 }
 interface ProgramaItem {
   id: number
@@ -81,6 +82,11 @@ export function StudentDetails() {
           setStudent({
             id: String(json.data.id),
             name: json.data.nombre_completo,
+            email:
+              json.data.correo_electronico ||
+              json.data.correo ||
+              json.data.email ||
+              "",
           })
         } catch (err) {
           console.error(err)
@@ -210,7 +216,18 @@ export function StudentDetails() {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify({ signature }),
+          body: JSON.stringify({
+            signature,
+            email: student?.email,
+            prospecto: student?.name,
+            programa: programa?.programa.nombre_del_programa,
+            matricula: programa?.inscripcion,
+            mensualidad: programa?.cuota_mensual,
+            asesor: currentUser
+              ? `${currentUser.first_name} ${currentUser.last_name}`
+              : "",
+            fecha: new Date().toISOString(),
+          }),
         }
       )
       if (!res.ok) {
@@ -292,7 +309,9 @@ export function StudentDetails() {
               })}
             </p>
             <p>
-              Yo: <strong>{student.name}</strong> &nbsp;&nbsp;Firma: __________________________
+              Yo: <strong>{student.name}</strong>{" "}
+              {student.email && <span>({student.email})</span>} &nbsp;&nbsp;Firma:
+              __________________________
             </p>
             <p>
               Me comprometo a mantener de manera estrictamente confidencial los
