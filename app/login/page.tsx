@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 
 export default function LoginPage() {
   const router = useRouter()
-  const { setToken } = useAuth()
+  const { setToken, setAllowedViews } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -36,14 +36,14 @@ export default function LoginPage() {
       // Muestra la respuesta completa en consola para depuración
 
 
-      // Extrae token, user y permissions de la respuesta
-      const { id, token, user, permissions } = response.data
+      // Extrae token, user y allowedViews de la respuesta
+      const { id, token, user, allowedViews } = response.data
 
       // Almacena el token y demás datos en localStorage mediante el contexto
       setToken(token)
+      setAllowedViews(allowedViews || [])
       localStorage.setItem("userId", id)
       localStorage.setItem("user", JSON.stringify(user))
-      localStorage.setItem("permissions", JSON.stringify(permissions))
 
       // Redirige al dashboard
       router.push("/")
