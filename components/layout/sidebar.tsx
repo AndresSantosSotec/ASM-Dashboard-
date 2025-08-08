@@ -93,7 +93,6 @@ export default function Sidebar({ open, className }: SidebarProps) {
           <span>American School of Management</span>
         </Link>
       </div>
-
       <div className="flex-1 py-4 overflow-y-auto px-3">
         <Link
           href="/"
