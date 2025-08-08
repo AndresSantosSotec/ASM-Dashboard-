@@ -10,6 +10,20 @@ const nextConfig = {
   basePath: '/webpanel',
   assetPrefix: '/webpanel',
   output: 'standalone',
+
+  env: {
+    NEXT_PUBLIC_BASE_PATH: '/webpanel',
+  },
+
+  async redirects() {
+    return [
+      {
+        source: '/login',
+        destination: '/webpanel/login',
+        permanent: false,
+      },
+    ];
+  },
   
   eslint: {
     ignoreDuringBuilds: true,
