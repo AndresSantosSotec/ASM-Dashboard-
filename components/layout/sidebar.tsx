@@ -1,5 +1,6 @@
 "use client";
 
+
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -18,6 +19,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
   const { allowedViews, setToken, setAllowedViews } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const uniqueViews = useMemo(() => {
@@ -33,11 +35,13 @@ export default function Sidebar({ open, className }: SidebarProps) {
   const modules = useMemo(() => {
     const grouped: Record<string, AllowedView[]> = {};
     uniqueViews.forEach((view) => {
+
       const key = view.module?.name || "General";
       grouped[key] = grouped[key] || [];
       grouped[key].push(view);
     });
     return grouped;
+
   }, [uniqueViews]);
 
   const moduleOrder = [
@@ -65,6 +69,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
   const toggleModule = (module: string) => {
     setExpanded((prev) => ({ ...prev, [module]: !prev[module] }));
   };
+
 
   const handleLogout = async () => {
     try {

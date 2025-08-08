@@ -1,6 +1,8 @@
 "use client";
 
+
 import React, { ReactNode, useEffect } from "react";
+
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -10,6 +12,7 @@ export default function ProtectedRoute({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
+
     const alwaysAllowed = ["/", "/login"];
     const isAllowed =
       alwaysAllowed.includes(pathname) ||
