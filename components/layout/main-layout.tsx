@@ -5,6 +5,7 @@ import { useState, useEffect } from "react"
 import { Menu, X } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import Sidebar from "@/components/layout/sidebar"
+import ProtectedRoute from "@/components/ProtectedRoute"
 import { cn } from "@/lib/utils"
 import { Toaster } from "@/components/ui/toaster"
 
@@ -102,7 +103,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 isMobile ? "w-full" : "lg:ml-0"
               )}
             >
-              <div className="p-4 md:p-6">{children}</div>
+              <ProtectedRoute>
+                <div className="p-4 md:p-6">{children}</div>
+              </ProtectedRoute>
             </main>
           </div>
 
