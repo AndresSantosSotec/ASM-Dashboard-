@@ -1,7 +1,6 @@
 "use client"
 
-import type React from "react"
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { Menu, X } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import Sidebar from "@/components/layout/sidebar"

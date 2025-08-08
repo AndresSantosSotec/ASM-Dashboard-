@@ -1,9 +1,8 @@
 "use client"
 
-import type React from "react"
+import React, { useState } from "react"
 import { api } from "@/services/api"
 import { useAuth } from "@/contexts/AuthContext"
-import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Eye, EyeOff, LogIn } from "lucide-react"
 import { Button } from "@/components/ui/button"
