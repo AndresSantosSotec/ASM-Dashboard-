@@ -12,11 +12,21 @@ export default function ProtectedRoute({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-
     const alwaysAllowed = ["/", "/login"];
+    const views =
+      allowedViews.length > 0
+        ? allowedViews
+        : typeof window !== "undefined"
+          ? JSON.parse(localStorage.getItem("allowedViews") || "[]")
+          : [];
+
+    if (views.length === 0) {
+      return;
+    }
+
     const isAllowed =
       alwaysAllowed.includes(pathname) ||
-      allowedViews.some((v) => pathname.startsWith(v.view_path));
+      views.some((v) => pathname.startsWith(v.view_path));
 
     if (!isAllowed) {
       router.replace("/403");
