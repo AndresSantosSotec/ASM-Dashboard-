@@ -18,6 +18,8 @@ import { Textarea } from "@/components/ui/textarea"
 
 import { FichaEstudiante } from "../types"
 import { API_BASE_URL } from "@/utils/apiConfig"
+import fetchFicha from "@/services/fichas"
+import { formatDate } from "@/utils/formatDate"
 
 interface Props {
   ficha: FichaEstudiante
@@ -45,9 +47,6 @@ export default function FichaDetalleModal({
   const [financieros, setFinancieros] = useState<any>({})
   const [programasInscritos, setProgramasInscritos] = useState<any[]>([])
   const [documentos, setDocumentos] = useState<any[]>([])
-  const [catalogoProgramas, setCatalogoProgramas] = useState<
-    { id: number; abreviatura: string; nombre_del_programa: string }[]
-  >([])
 
   // Campos para mostrar
   const camposPersonales: [string, any][] = [
@@ -58,15 +57,15 @@ export default function FichaDetalleModal({
     ["DPI", personales.dpi],
     ["Email personal", personales.emailPersonal],
     ["Email corporativo", personales.emailCorporativo],
-    ["Fecha Nac.", personales.fechaNacimiento],
+    ["Fecha Nac.", formatDate(personales.fechaNacimiento)],
     ["Dirección", personales.direccion],
   ]
 
   const camposAcademicos: [string, any][] = [
     ["Modalidad", academicos.modalidad],
-    ["Inicio específico", academicos.fechaInicioEspecifica],
-    ["Taller inducción", academicos.tallerInduccion],
-    ["Taller integración", academicos.tallerIntegracion],
+    ["Inicio específico", formatDate(academicos.fechaInicioEspecifica)],
+    ["Taller inducción", formatDate(academicos.tallerInduccion)],
+    ["Taller integración", formatDate(academicos.tallerIntegracion)],
     ["Institución anterior", academicos.institucionAnterior],
     ["Año graduación", academicos.añoGraduacion],
     ["Medio conoció", academicos.medioConocio],
@@ -84,7 +83,7 @@ export default function FichaDetalleModal({
 
   const camposFinancieros: [string, any][] = [
     ["Método de pago", financieros.formaPago],
-    ["Convenio ID", financieros.convenioId],
+    ["Convenio", financieros.convenioNombre],
     ["Inscripción", financieros.inscripcion],
     ["Cuota mensual", financieros.cuotaMensual],
     ["Inversión total", financieros.inversionTotal],
@@ -99,24 +98,37 @@ export default function FichaDetalleModal({
     if (!isOpen) return
     ;(async () => {
       try {
-        const token = localStorage.getItem("token") ?? ""
-        const resFicha = await fetch(
-          `${API_BASE_URL}/api/fichas/${ficha.id}`,
-          { headers: { Authorization: `Bearer ${token}` } }
+        const data = await fetchFicha(ficha.id)
+        console.log(
+          `[FichaDetalleModal] datos recibidos para prospecto ${ficha.id}:`,
+          data,
         )
-        const json = await resFicha.json()
-        setPersonales(json.personales)
-        setLaborales(json.laborales)
-        setAcademicos(json.academicos)
-        setFinancieros(json.financieros)
-        setProgramasInscritos(json.programas ?? [])
-        setDocumentos(json.documentos ?? [])
-
-        const resProg = await fetch(`${API_BASE_URL}/api/programas`)
-        setCatalogoProgramas(await resProg.json())
+        if (!data.documentos?.length) {
+          console.warn(
+            `[FichaDetalleModal] sin documentos. Verificar GET /api/documentos/prospecto/${ficha.id}`,
+          )
+        }
+        if (data.financieros?.convenioId && !data.financieros?.convenioNombre) {
+          console.warn(
+            `[FichaDetalleModal] convenio ${data.financieros.convenioId} sin nombre. Revisar GET /api/convenios/${data.financieros.convenioId}`,
+          )
+        }
+        if (!data.laborales?.departamento) {
+          console.warn(
+            "[FichaDetalleModal] departamento no resuelto. El backend debe enviar 'departamento_nombre' o usar /api/ubicacion/{paisId}",
+          )
+        }
+        setPersonales(data.personales || {})
+        setLaborales(data.laborales || {})
+        setAcademicos(data.academicos || {})
+        setFinancieros(data.financieros || {})
+        setProgramasInscritos(data.programas || [])
+        setDocumentos(data.documentos || [])
 
         // Leer estado 'revisada' de localStorage
-        setIsRevisada(localStorage.getItem(`ficha-${ficha.id}-revisada`) === "true")
+        setIsRevisada(
+          localStorage.getItem(`ficha-${ficha.id}-revisada`) === "true"
+        )
       } catch (err) {
         console.error("Error al cargar detalle de ficha:", err)
       }
@@ -161,7 +173,7 @@ export default function FichaDetalleModal({
               {camposPersonales.map(([label, val], i) => (
                 <div key={i} className="p-2 border rounded">
                   <Label>{label}</Label>
-                  <p className="mt-1">{val ?? "—"}</p>
+                  <p className="mt-1">{val === null || val === undefined || val === "" ? "—" : val}</p>
                 </div>
               ))}
             </TabsContent>
@@ -172,7 +184,7 @@ export default function FichaDetalleModal({
                 {camposAcademicos.map(([label, val], i) => (
                   <div key={i} className="p-2 border rounded">
                     <Label>{label}</Label>
-                    <p className="mt-1">{val ?? "—"}</p>
+                    <p className="mt-1">{val === null || val === undefined || val === "" ? "—" : val}</p>
                   </div>
                 ))}
               </div>
@@ -186,7 +198,7 @@ export default function FichaDetalleModal({
               {camposLaborales.map(([label, val], i) => (
                 <div key={i} className="p-2 border rounded">
                   <Label>{label}</Label>
-                  <p className="mt-1">{val ?? "—"}</p>
+                  <p className="mt-1">{val === null || val === undefined || val === "" ? "—" : val}</p>
                 </div>
               ))}
             </TabsContent>
@@ -199,7 +211,7 @@ export default function FichaDetalleModal({
               {camposFinancieros.map(([label, val], i) => (
                 <div key={i} className="p-2 border rounded">
                   <Label>{label}</Label>
-                  <p className="mt-1">{val ?? "—"}</p>
+                  <p className="mt-1">{val === null || val === undefined || val === "" ? "—" : val}</p>
                 </div>
               ))}
             </TabsContent>
@@ -209,27 +221,32 @@ export default function FichaDetalleModal({
               {programasInscritos.length === 0 ? (
                 <p>Sin programas inscritos.</p>
               ) : (
-                programasInscritos.map((p) => {
-                  const meta = catalogoProgramas.find((c) => c.id === p.programa_id)
-                  return (
-                    <Card key={p.id} className="p-2 border rounded">
-                      <CardContent className="space-y-1">
-                        <p>
-                          <strong>
-                            {meta?.abreviatura} – {meta?.nombre_del_programa}
-                          </strong>
-                        </p>
-                        <p>
-                          <strong>Inicio:</strong> {p.fecha_inicio} |{" "}
-                          <strong>Fin:</strong> {p.fecha_fin}
-                        </p>
-                        <p>
-                          <strong>Duración:</strong> {p.duracion_meses} meses
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )
-                })
+                programasInscritos.map((p) => (
+                  <Card key={p.id} className="p-2 border rounded">
+                    <CardContent className="space-y-1">
+                      <p>
+                        <strong>
+                          {p.programa?.abreviatura} – {p.programa?.nombre_del_programa}
+                        </strong>
+                      </p>
+                      <p>
+                        <strong>Inicio:</strong> {formatDate(p.fecha_inicio)} | <strong>Fin:</strong> {formatDate(p.fecha_fin)}
+                      </p>
+                      <p>
+                        <strong>Duración:</strong> {p.duracion_meses} meses
+                      </p>
+                      <p>
+                        <strong>Inscripción:</strong> {p.inscripcion ?? "—"}
+                      </p>
+                      <p>
+                        <strong>Cuota mensual:</strong> {p.cuota_mensual ?? "—"}
+                      </p>
+                      <p>
+                        <strong>Inversión total:</strong> {p.inversion_total ?? "—"}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))
               )}
             </TabsContent>
 
@@ -240,18 +257,25 @@ export default function FichaDetalleModal({
               ) : (
                 documentos.map((d) => (
                   <Card key={d.id} className="p-2 border rounded">
-                    <CardContent className="space-y-1">
-                      <p>
-                        <strong>{d.nombre}</strong>
-                      </p>
-                      <a
-                        href={d.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm underline"
-                      >
-                        Ver archivo
-                      </a>
+                    <CardContent className="flex items-center justify-between">
+                      <div>
+                        <p>
+                          <strong>{d.nombre}</strong>
+                        </p>
+                        <p className="text-sm capitalize">
+                          {d.estado || (d.url ? "cargado" : "pendiente")}
+                        </p>
+                      </div>
+                      {d.url ? (
+                        <a
+                          href={d.url || `${API_BASE_URL}/api/documentos/${d.id}/file`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm underline"
+                        >
+                          Ver/Descargar
+                        </a>
+                      ) : null}
                     </CardContent>
                   </Card>
                 ))
