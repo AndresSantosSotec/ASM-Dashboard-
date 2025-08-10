@@ -26,14 +26,15 @@ type ModuleMeta = {
 
 /** --- Orden fijo de módulos y metadatos (fallbacks) --- */
 const MODULES_META: ModuleMeta[] = [
-  { name: "Académico",            order: 1, icon: "BookOpen" },
-  { name: "Prospectos y Asesores",order: 2, icon: "Users" },
-  { name: "Inscripción",          order: 3, icon: "FileText" },
-  { name: "Docentes",             order: 4, icon: "GraduationCap" as LucideIconName },
-  { name: "Estudiantes",          order: 5, icon: "Users" },
-  { name: "Finanzas y Pagos",     order: 6, icon: "DollarSign" },
-  { name: "Administración",       order: 7, icon: "Settings" },
-  { name: "Seguridad",            order: 8, icon: "Shield" },
+  // Orden definido por producto: Prospectos y Asesores primero
+  { name: "Prospectos y Asesores", order: 1, icon: "Users" },
+  { name: "Inscripción",           order: 2, icon: "FileText" },
+  { name: "Académico",             order: 3, icon: "BookOpen" },
+  { name: "Finanzas y Pagos",      order: 4, icon: "DollarSign" },
+  { name: "Docentes",              order: 5, icon: "GraduationCap" as LucideIconName },
+  { name: "Estudiantes",           order: 6, icon: "Users" },
+  { name: "Seguridad",             order: 7, icon: "Shield" },
+  { name: "Administración",        order: 8, icon: "Settings" },
 ];
 
 /** Mapa rápido: nombre → meta */
