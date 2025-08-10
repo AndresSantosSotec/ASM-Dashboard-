@@ -87,6 +87,8 @@ export async function fetchFicha(id: number): Promise<FichaDetalle> {
         emailCorporativo: prospecto.correo_corporativo,
         fechaNacimiento: prospecto.fecha_nacimiento,
         direccion: prospecto.direccion_residencia,
+
+        
       },
       laborales: {
         empresa: prospecto.empresa_donde_labora_actualmente,

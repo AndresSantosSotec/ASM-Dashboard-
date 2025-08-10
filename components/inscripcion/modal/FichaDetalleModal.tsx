@@ -99,6 +99,7 @@ export default function FichaDetalleModal({
     ;(async () => {
       try {
         const data = await fetchFicha(ficha.id)
+
         console.log(
           `[FichaDetalleModal] datos recibidos para prospecto ${ficha.id}:`,
           data,
@@ -118,6 +119,7 @@ export default function FichaDetalleModal({
             "[FichaDetalleModal] departamento no resuelto. El backend debe enviar 'departamento_nombre' o usar /api/ubicacion/{paisId}",
           )
         }
+
         setPersonales(data.personales || {})
         setLaborales(data.laborales || {})
         setAcademicos(data.academicos || {})
