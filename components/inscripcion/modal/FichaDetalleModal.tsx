@@ -99,6 +99,27 @@ export default function FichaDetalleModal({
     ;(async () => {
       try {
         const data = await fetchFicha(ficha.id)
+
+        console.log(
+          `[FichaDetalleModal] datos recibidos para prospecto ${ficha.id}:`,
+          data,
+        )
+        if (!data.documentos?.length) {
+          console.warn(
+            `[FichaDetalleModal] sin documentos. Verificar GET /api/documentos/prospecto/${ficha.id}`,
+          )
+        }
+        if (data.financieros?.convenioId && !data.financieros?.convenioNombre) {
+          console.warn(
+            `[FichaDetalleModal] convenio ${data.financieros.convenioId} sin nombre. Revisar GET /api/convenios/${data.financieros.convenioId}`,
+          )
+        }
+        if (!data.laborales?.departamento) {
+          console.warn(
+            "[FichaDetalleModal] departamento no resuelto. El backend debe enviar 'departamento_nombre' o usar /api/ubicacion/{paisId}",
+          )
+        }
+
         setPersonales(data.personales || {})
         setLaborales(data.laborales || {})
         setAcademicos(data.academicos || {})

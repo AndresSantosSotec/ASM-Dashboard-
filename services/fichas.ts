@@ -57,10 +57,13 @@ export async function fetchFicha(id: number): Promise<FichaDetalle> {
 
     // Departamento nombre
     let departamentoNombre = prospecto.departamento_nombre
-    if (!departamentoNombre && typeof prospecto.departamento === 'number') {
+    const depId = Number(prospecto.departamento)
+    if (!departamentoNombre && !isNaN(depId)) {
       try {
-        const { data } = await api.get(`/ubicacion/${prospecto.pais_id || ''}`)
-        const dep = data?.departamentos?.find((d: any) => d.id === prospecto.departamento)
+        const { data } = await api.get(
+          `/ubicacion/${prospecto.pais_residencia_id || prospecto.pais_id || ''}`
+        )
+        const dep = data?.departamentos?.find((d: any) => d.id === depId)
         departamentoNombre = dep?.nombre
       } catch {
         // ignore
@@ -79,11 +82,13 @@ export async function fetchFicha(id: number): Promise<FichaDetalle> {
         paisOrigen: prospecto.pais_origen,
         paisResidencia: prospecto.pais_residencia,
         telefono: prospecto.telefono,
-        dpi: prospecto.dpi,
-        emailPersonal: prospecto.email_personal,
-        emailCorporativo: prospecto.email_corporativo,
+        dpi: prospecto.numero_identificacion,
+        emailPersonal: prospecto.correo_electronico,
+        emailCorporativo: prospecto.correo_corporativo,
         fechaNacimiento: prospecto.fecha_nacimiento,
-        direccion: prospecto.direccion,
+        direccion: prospecto.direccion_residencia,
+
+        
       },
       laborales: {
         empresa: prospecto.empresa_donde_labora_actualmente,
