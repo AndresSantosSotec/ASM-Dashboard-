@@ -16,10 +16,12 @@ export interface FichaDetalle {
   documentos: Documento[]
 }
 
+
 async function buildFromProspecto(
   prospecto: any,
   fallbackId?: number,
 ): Promise<FichaDetalle> {
+
   let convenioNombre: string | undefined
   if (prospecto.convenio?.nombre) {
     convenioNombre = prospecto.convenio.nombre
@@ -33,6 +35,7 @@ async function buildFromProspecto(
   }
 
   // Documentos
+
   const documentos: Documento[] = []
   const prospectoId = prospecto.id ?? fallbackId
   if (prospectoId) {
@@ -49,6 +52,7 @@ async function buildFromProspecto(
     } catch {
       // ignore
     }
+
   }
 
   // Departamento nombre
@@ -187,7 +191,9 @@ export async function fetchFicha(id: number): Promise<FichaDetalle> {
   }
 
   const { data: prospecto } = await api.get(`/prospectos/${id}`)
+
   return buildFromProspecto(prospecto, id)
+
 }
 
 export default fetchFicha
