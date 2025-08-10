@@ -16,6 +16,7 @@ export interface FichaDetalle {
   documentos: Documento[]
 }
 
+
 async function buildFromProspecto(prospecto: any): Promise<FichaDetalle> {
   let convenioNombre: string | undefined
   if (prospecto.convenio?.nombre) {

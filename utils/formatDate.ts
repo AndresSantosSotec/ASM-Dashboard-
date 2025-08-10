@@ -1,3 +1,4 @@
+
 /**
  * Formats an ISO date string into dd/MM/yyyy without timezone shifts.
  * Returns "—" when the value is falsy or cannot be parsed.
@@ -8,6 +9,7 @@ export function formatDate(value?: string): string {
   if (!match) return '—'
   const [, year, month, day] = match
   return `${day}/${month}/${year}`
+
 }
 
 export default formatDate
