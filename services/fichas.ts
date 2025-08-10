@@ -17,7 +17,11 @@ export interface FichaDetalle {
 }
 
 
-async function buildFromProspecto(prospecto: any): Promise<FichaDetalle> {
+async function buildFromProspecto(
+  prospecto: any,
+  fallbackId?: number,
+): Promise<FichaDetalle> {
+
   let convenioNombre: string | undefined
   if (prospecto.convenio?.nombre) {
     convenioNombre = prospecto.convenio.nombre
@@ -31,17 +35,24 @@ async function buildFromProspecto(prospecto: any): Promise<FichaDetalle> {
   }
 
   // Documentos
-  let documentos: Documento[] = []
-  try {
-    const { data } = await api.get(`/documentos/prospecto/${prospecto.id}`)
-    documentos = Array.isArray(data)
-      ? data.map((d: any) => ({
-          ...d,
-          estado: d.url ? 'cargado' : 'pendiente',
-        }))
-      : []
-  } catch {
-    documentos = []
+
+  const documentos: Documento[] = []
+  const prospectoId = prospecto.id ?? fallbackId
+  if (prospectoId) {
+    try {
+      const { data } = await api.get(`/documentos/prospecto/${prospectoId}`)
+      if (Array.isArray(data)) {
+        documentos.push(
+          ...data.map((d: any) => ({
+            ...d,
+            estado: d.url ? 'cargado' : 'pendiente',
+          })),
+        )
+      }
+    } catch {
+      // ignore
+    }
+
   }
 
   // Departamento nombre
@@ -180,7 +191,9 @@ export async function fetchFicha(id: number): Promise<FichaDetalle> {
   }
 
   const { data: prospecto } = await api.get(`/prospectos/${id}`)
-  return buildFromProspecto(prospecto)
+
+  return buildFromProspecto(prospecto, id)
+
 }
 
 export default fetchFicha
