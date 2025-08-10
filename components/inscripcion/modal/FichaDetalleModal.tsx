@@ -64,8 +64,10 @@ export default function FichaDetalleModal({
   const camposAcademicos: [string, any][] = [
     ["Modalidad", academicos.modalidad],
     ["Inicio específico", formatDate(academicos.fechaInicioEspecifica)],
-    ["Taller inducción", formatDate(academicos.tallerInduccion)],
-    ["Taller integración", formatDate(academicos.tallerIntegracion)],
+
+    ["Taller inducción", formatDate(academicos.fechaTallerInduccion)],
+    ["Taller integración", formatDate(academicos.fechaTallerIntegracion)],
+
     ["Institución anterior", academicos.institucionAnterior],
     ["Año graduación", academicos.añoGraduacion],
     ["Medio conoció", academicos.medioConocio],
