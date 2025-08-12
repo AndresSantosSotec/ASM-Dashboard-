@@ -25,7 +25,6 @@ interface Props {
   goPrev: () => void
   goNext: () => void
   programas: ProgramaConDuracion[]
-  convenioId?: number
 }
 
 export default function FinancieroTab({
@@ -34,7 +33,6 @@ export default function FinancieroTab({
   goPrev,
   goNext,
   programas,
-  convenioId,
 }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -77,10 +75,13 @@ export default function FinancieroTab({
   /* ——— Cálculo de precios dinámicos ——— */
   useEffect(() => {
     if (!programas.length) return
-    if (datos.tieneConvenio && !convenioId) return
+    if (datos.tieneConvenio && !datos.convenioId) return
 
-    const key = programas.map(p => `${p.programaId}:${p.duracion}`).join("|")
-      + `|conv:${datos.tieneConvenio ? convenioId : "no"}`
+    const convId = datos.tieneConvenio ? datos.convenioId : null
+
+    const key =
+      programas.map(p => `${p.programaId}:${p.duracion}`).join("|") +
+      `|conv:${convId ?? "no"}`
     if (key === lastKey.current) return
     lastKey.current = key
 
@@ -88,13 +89,17 @@ export default function FinancieroTab({
     setError(null)
 
     const calls = programas.map(({ programaId, duracion }) => {
-      const cacheKey = `${datos.tieneConvenio ? convenioId : "no"}-${programaId}-${duracion}`
+      const cacheKey = `${convId ?? "no"}-${programaId}-${duracion}`
       if (cache.current.has(cacheKey)) {
         return Promise.resolve({ ok: true as const, data: cache.current.get(cacheKey)! })
       }
-    const url = datos.tieneConvenio
-        ? `${API_BASE_URL}/api/precios/convenio/${convenioId}/${programaId}?meses=${duracion}`
+
+      const url = convId
+        ? `${API_BASE_URL}/api/precios/convenio/${convId}/${programaId}?meses=${duracion}`
         : `${API_BASE_URL}/api/precios/programa/${programaId}?meses=${duracion}`
+
+      console.debug("GET precios:", url)
+
       return axios
         .get<{ inscripcion: number; cuota_mensual: number }>(url)
         .then(r => {
@@ -107,8 +112,8 @@ export default function FinancieroTab({
     Promise.all(calls).then(results => {
       setLoading(false)
 
-      const exitosos = results.filter(r => r.ok).map(r => (r as any).data)
-      const fallidos = results.filter(r => !r.ok).map(r => (r as any).error as AxiosError)
+      const exitosos = results.filter(r => (r as any).ok).map(r => (r as any).data)
+      const fallidos = results.filter(r => !(r as any).ok).map(r => (r as any).error as AxiosError)
 
       if (fallidos.some(e => axios.isAxiosError(e) && e.response?.status === 429)) {
         setError("Has excedido el límite de solicitudes. Espera unos segundos.")
@@ -141,7 +146,7 @@ export default function FinancieroTab({
       if (fallidos.length) console.warn("Peticiones fallidas no críticas:", fallidos)
       setError(null)
     })
-  }, [programas, datos.tieneConvenio, convenioId, setDatos])
+  }, [programas, datos.tieneConvenio, datos.convenioId, setDatos])
 
   // Recalcular inversión total al editar montos
   useEffect(() => {
@@ -186,7 +191,15 @@ export default function FinancieroTab({
           </Label>
           <Select
             value={datos.tieneConvenio ? "si" : "no"}
-            onValueChange={v => setDatos(d => ({ ...d, tieneConvenio: v === "si" }))}
+            onValueChange={v => {
+              const tiene = v === "si"
+              setDatos(d => ({
+                ...d,
+                tieneConvenio: tiene,
+                // Si pasa a "no", limpiamos convenioId para evitar confusiones
+                convenioId: tiene ? d.convenioId : undefined,
+              }))
+            }}
             disabled={loading}
           >
             <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
