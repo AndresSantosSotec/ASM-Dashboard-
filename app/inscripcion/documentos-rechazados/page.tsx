@@ -28,19 +28,21 @@ export default function RejectedDocumentsPage() {
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
 
-  useEffect(() => {
-    const fetchDocuments = async () => {
-      try {
-        const res = await api.get("/documentos")
-        const rejected = res.data.filter((doc: ProspectDocument) => doc.estado === "rechazado")
-        setDocuments(rejected)
-      } catch (error) {
-        console.error(error)
-        toast({ title: "Error", description: "No se pudieron cargar los documentos" })
-      }
+  const fetchDocuments = async () => {
+    try {
+      const res = await api.get("/documentos")
+      const rejected = res.data.filter((doc: ProspectDocument) => doc.estado === "rechazado")
+      setDocuments(rejected)
+    } catch (error) {
+      console.error(error)
+      toast({ title: "Error", description: "No se pudieron cargar los documentos" })
     }
+  }
+
+  useEffect(() => {
     fetchDocuments()
-  }, [toast])
+  }, [])
+
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -59,7 +61,7 @@ export default function RejectedDocumentsPage() {
         headers: { "Content-Type": "multipart/form-data" },
       })
       toast({ title: "Documento reenviado" })
-      setDocuments((prev) => prev.filter((d) => d.id !== selected.id))
+      await fetchDocuments()
       setSelected(null)
       setFile(null)
     } catch (error) {

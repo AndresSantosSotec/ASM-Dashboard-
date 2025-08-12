@@ -29,6 +29,8 @@ import { Textarea } from "@/components/ui/textarea"
 
 import { FichaEstudiante } from "../types"
 import { API_BASE_URL } from "@/utils/apiConfig"
+import fetchFicha from "@/services/fichas"
+import { formatDate } from "@/utils/formatDate"
 
 interface Props {
   ficha: FichaEstudiante
@@ -56,9 +58,6 @@ export default function FichaDetalleModal({
   const [financieros, setFinancieros] = useState<any>({})
   const [programasInscritos, setProgramasInscritos] = useState<any[]>([])
   const [documentos, setDocumentos] = useState<any[]>([])
-  const [catalogoProgramas, setCatalogoProgramas] = useState<
-    { id: number; abreviatura: string; nombre_del_programa: string }[]
-  >([])
 
   // Campos para mostrar
   const camposPersonales: [string, any][] = [
@@ -70,6 +69,7 @@ export default function FichaDetalleModal({
     ["Email personal", personales.emailPersonal],
     ["Email corporativo", personales.emailCorporativo],
     ["Fecha Nac.", formatFecha(personales.fechaNacimiento)],
+
     ["Dirección", personales.direccion],
   ]
 
@@ -127,6 +127,7 @@ export default function FichaDetalleModal({
 
   const camposFinancieros: [string, any][] = [
     ["Método de pago", financieros.formaPago],
+
     [
       "Convenio",
       financieros.convenio || "—"
@@ -145,11 +146,13 @@ export default function FichaDetalleModal({
     if (!isOpen) return
     ;(async () => {
       try {
-        const token = localStorage.getItem("token") ?? ""
-        const resFicha = await fetch(
-          `${API_BASE_URL}/api/fichas/${ficha.id}`,
-          { headers: { Authorization: `Bearer ${token}` } }
+        const data = await fetchFicha(ficha.id)
+
+        console.log(
+          `[FichaDetalleModal] datos recibidos para prospecto ${ficha.id}:`,
+          data,
         )
+
         const json = await resFicha.json()
 
         setPersonales(json.personales)
@@ -187,11 +190,18 @@ export default function FichaDetalleModal({
         }
         setDocumentos(docs || []);
 
-        const resProg = await fetch(`${API_BASE_URL}/api/programas`)
-        setCatalogoProgramas(await resProg.json())
+
+        setPersonales(data.personales || {})
+        setLaborales(data.laborales || {})
+        setAcademicos(data.academicos || {})
+        setFinancieros(data.financieros || {})
+        setProgramasInscritos(data.programas || [])
+        setDocumentos(data.documentos || [])
 
         // Leer estado 'revisada' de localStorage
-        setIsRevisada(localStorage.getItem(`ficha-${ficha.id}-revisada`) === "true")
+        setIsRevisada(
+          localStorage.getItem(`ficha-${ficha.id}-revisada`) === "true"
+        )
       } catch (err) {
         console.error("Error al cargar detalle de ficha:", err)
       }
@@ -236,7 +246,7 @@ export default function FichaDetalleModal({
               {camposPersonales.map(([label, val], i) => (
                 <div key={i} className="p-2 border rounded">
                   <Label>{label}</Label>
-                  <p className="mt-1">{val ?? "—"}</p>
+                  <p className="mt-1">{val === null || val === undefined || val === "" ? "—" : val}</p>
                 </div>
               ))}
             </TabsContent>
@@ -247,7 +257,7 @@ export default function FichaDetalleModal({
                 {camposAcademicos.map(([label, val], i) => (
                   <div key={i} className="p-2 border rounded">
                     <Label>{label}</Label>
-                    <p className="mt-1">{val ?? "—"}</p>
+                    <p className="mt-1">{val === null || val === undefined || val === "" ? "—" : val}</p>
                   </div>
                 ))}
               </div>
@@ -261,7 +271,7 @@ export default function FichaDetalleModal({
               {camposLaborales.map(([label, val], i) => (
                 <div key={i} className="p-2 border rounded">
                   <Label>{label}</Label>
-                  <p className="mt-1">{val ?? "—"}</p>
+                  <p className="mt-1">{val === null || val === undefined || val === "" ? "—" : val}</p>
                 </div>
               ))}
             </TabsContent>
@@ -274,7 +284,7 @@ export default function FichaDetalleModal({
               {camposFinancieros.map(([label, val], i) => (
                 <div key={i} className="p-2 border rounded">
                   <Label>{label}</Label>
-                  <p className="mt-1">{val ?? "—"}</p>
+                  <p className="mt-1">{val === null || val === undefined || val === "" ? "—" : val}</p>
                 </div>
               ))}
             </TabsContent>
@@ -284,6 +294,7 @@ export default function FichaDetalleModal({
               {programasInscritos.length === 0 ? (
                 <p>Sin programas inscritos.</p>
               ) : (
+
                 programasInscritos.map((p) => {
                   const meta = catalogoProgramas.find((c) => c.id === p.programa_id)
                   return (
@@ -313,6 +324,7 @@ export default function FichaDetalleModal({
               {documentos.length === 0 ? (
                 <p>No hay documentos adjuntos.</p>
               ) : (
+
                 // Agrupar documentos por tipo_documento y mostrar solo el más reciente de cada tipo
                 Object.values(
                   documentos.reduce((acc, doc) => {
@@ -338,6 +350,7 @@ export default function FichaDetalleModal({
                           rel="noreferrer"
                           className="text-sm underline"
                         >
+
                           Ver Documento
                         </a>
                         <div className="text-xs text-muted-foreground">Subido: {formatFecha(doc.subida_at)}</div>
