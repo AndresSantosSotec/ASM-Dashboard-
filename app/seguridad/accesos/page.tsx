@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -8,6 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CalendarIcon, Clock, Eye, Lock, Search, Shield, User } from "lucide-react"
+import RouteGuard from "@/permissions/RouteGuard"
+import IfCan from "@/permissions/IfCan"
+import { ROUTES } from "@/constants/routes"
 
 export default function ControlAccesos() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -120,14 +123,17 @@ export default function ControlAccesos() {
   })
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Control de Accesos</h1>
-        <Button className="bg-blue-600 hover:bg-blue-700">
-          <Eye className="mr-2 h-4 w-4" />
-          Ver Políticas de Acceso
-        </Button>
-      </div>
+    <RouteGuard routePath={ROUTES.access} strictMode={false}>
+      <div className="container mx-auto py-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Control de Accesos</h1>
+          <IfCan routePath={ROUTES.access} action="view">
+            <Button className="bg-blue-600 hover:bg-blue-700">
+              <Eye className="mr-2 h-4 w-4" />
+              Ver Políticas de Acceso
+            </Button>
+          </IfCan>
+        </div>
 
       <Card className="mb-6">
         <CardHeader className="pb-3">
@@ -238,6 +244,7 @@ export default function ControlAccesos() {
         </CardContent>
       </Card>
     </div>
+    </RouteGuard>
   )
 }
 

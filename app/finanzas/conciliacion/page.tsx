@@ -1,5 +1,8 @@
+import React from "react"
 import type { Metadata } from "next"
 import ConciliacionClient from "./conciliacion-client"
+import RouteGuard from "@/permissions/RouteGuard"
+import { ROUTES } from "@/constants/routes"
 
 export const metadata: Metadata = {
   title: "Conciliación de Pagos | Blue Atlas",
@@ -7,6 +10,10 @@ export const metadata: Metadata = {
 }
 
 export default function ConciliacionPage() {
-  return <ConciliacionClient />
+  return (
+    <RouteGuard routePath={ROUTES.conciliacion} strictMode={false}>
+      <ConciliacionClient />
+    </RouteGuard>
+  )
 }
 
