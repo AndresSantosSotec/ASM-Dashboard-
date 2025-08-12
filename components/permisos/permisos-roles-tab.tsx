@@ -97,6 +97,7 @@ export default function PermisosRolesTab() {
   const [loadingPermissions, setLoadingPermissions] = useState(false);
   const [permSearchTerm, setPermSearchTerm] = useState("");
 
+
   // Modal para crear permiso
   const [isNewPermModalOpen, setIsNewPermModalOpen] = useState(false);
   const [newPermModuleviewId, setNewPermModuleviewId] = useState("");
@@ -175,6 +176,7 @@ export default function PermisosRolesTab() {
       });
 
       setRolePermissions(Array.from(map.values()));
+
     } catch (error) {
       console.error("Error al obtener permisos del rol:", error);
       Swal.fire({
@@ -282,6 +284,7 @@ export default function PermisosRolesTab() {
       perm.view_path.toLowerCase().includes(term)
     );
   });
+
   // Crear o editar un rol
   const onSubmitRol = async (data: z.infer<typeof rolSchema>) => {
     try {
@@ -736,6 +739,7 @@ export default function PermisosRolesTab() {
                   Cargando permisos...
                 </p>
               ) : (
+
                 <div>
                   <div className="mb-2 flex items-center">
                     <Input
