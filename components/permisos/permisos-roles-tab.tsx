@@ -95,8 +95,6 @@ export default function PermisosRolesTab() {
   const [isPermisosModalOpen, setIsPermisosModalOpen] = useState(false);
   const [rolePermissions, setRolePermissions] = useState<RolePermission[]>([]);
   const [loadingPermissions, setLoadingPermissions] = useState(false);
-  const [permSearchTerm, setPermSearchTerm] = useState("");
-
 
   // Modal para crear permiso
   const [isNewPermModalOpen, setIsNewPermModalOpen] = useState(false);
@@ -147,36 +145,7 @@ export default function PermisosRolesTab() {
       const response = await axios.get(
         `${API_BASE_URL}/api/roles/${roleId}/permissions`
       );
-      const normalizePath = (path: string) =>
-        path.toLowerCase().replace(/\/+$/, "");
-
-      const map = new Map<string, RolePermission>();
-      const basePerms: Record<ActionName, boolean> = {
-        view: false,
-        create: false,
-        edit: false,
-        delete: false,
-        export: false,
-      };
-
-      (response.data as RolePermission[]).forEach((perm) => {
-        const key = normalizePath(perm.view_path);
-        const existing = map.get(key);
-        const merged = existing ? { ...existing.permissions } : { ...basePerms };
-        (Object.entries(perm.permissions) as [ActionName, boolean][]).forEach(
-          ([action, val]) => {
-            if (val) merged[action] = true;
-          }
-        );
-        map.set(key, {
-          ...perm,
-          view_path: key,
-          permissions: merged,
-        });
-      });
-
-      setRolePermissions(Array.from(map.values()));
-
+      setRolePermissions(response.data);
     } catch (error) {
       console.error("Error al obtener permisos del rol:", error);
       Swal.fire({
@@ -275,16 +244,6 @@ export default function PermisosRolesTab() {
       Swal.fire({ title: "Error", text: msg, icon: "error" });
     }
   };
-
-  const filteredPermissions = rolePermissions.filter((perm) => {
-    const term = permSearchTerm.toLowerCase();
-    return (
-      perm.menu.toLowerCase().includes(term) ||
-      (perm.submenu ? perm.submenu.toLowerCase().includes(term) : false) ||
-      perm.view_path.toLowerCase().includes(term)
-    );
-  });
-
   // Crear o editar un rol
   const onSubmitRol = async (data: z.infer<typeof rolSchema>) => {
     try {
@@ -739,74 +698,60 @@ export default function PermisosRolesTab() {
                   Cargando permisos...
                 </p>
               ) : (
-
-                <div>
-                  <div className="mb-2 flex items-center">
-                    <Input
-                      placeholder="Filtrar módulos o vistas..."
-                      value={permSearchTerm}
-                      onChange={(e) => setPermSearchTerm(e.target.value)}
-                      className="max-w-sm"
-                    />
-                  </div>
-                  <div className="rounded-md border overflow-x-auto max-h-[400px] overflow-y-auto">
-                    <Table>
-                      <TableHeader>
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Módulo / Vista</TableHead>
+                        <TableHead className="text-center">Ver</TableHead>
+                        <TableHead className="text-center">Crear</TableHead>
+                        <TableHead className="text-center">Editar</TableHead>
+                        <TableHead className="text-center">Eliminar</TableHead>
+                        <TableHead className="text-center">Exportar</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rolePermissions.length === 0 ? (
                         <TableRow>
-                          <TableHead>Módulo / Vista</TableHead>
-                          <TableHead className="text-center">Ver</TableHead>
-                          <TableHead className="text-center">Crear</TableHead>
-                          <TableHead className="text-center">Editar</TableHead>
-                          <TableHead className="text-center">Eliminar</TableHead>
-                          <TableHead className="text-center">Exportar</TableHead>
+                          <TableCell colSpan={6} className="text-center py-4">
+                            No hay vistas registradas
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredPermissions.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={6} className="text-center py-4">
-                              No hay vistas registradas
+                      ) : (
+                        rolePermissions.map((perm, idx) => (
+                          <TableRow key={perm.moduleview_id}>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-medium">
+                                  {perm.menu}
+                                  {perm.submenu ? ` / ${perm.submenu}` : ""}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {perm.view_path}
+                                </span>
+                              </div>
                             </TableCell>
+                            {(["view", "create", "edit", "delete", "export"] as ActionName[]).map(
+                              (action) => (
+                                <TableCell key={action} className="text-center">
+                                  <Checkbox
+                                    checked={perm.permissions[action]}
+                                    onCheckedChange={(checked) =>
+                                      handleTogglePermission(
+                                        idx,
+                                        action,
+                                        checked as boolean
+                                      )
+                                    }
+                                  />
+                                </TableCell>
+                              )
+                            )}
                           </TableRow>
-                        ) : (
-                          filteredPermissions.map((perm) => {
-                            const idx = rolePermissions.indexOf(perm);
-                            return (
-                            <TableRow key={perm.moduleview_id}>
-                              <TableCell>
-                                <div className="flex flex-col">
-                                  <span className="font-medium">
-                                    {perm.menu}
-                                    {perm.submenu ? ` / ${perm.submenu}` : ""}
-                                  </span>
-                                  <span className="text-xs text-muted-foreground">
-                                    {perm.view_path}
-                                  </span>
-                                </div>
-                              </TableCell>
-                              {(["view", "create", "edit", "delete", "export"] as ActionName[]).map(
-                                (action) => (
-                                  <TableCell key={action} className="text-center">
-                                    <Checkbox
-                                      checked={perm.permissions[action]}
-                                      onCheckedChange={(checked) =>
-                                        handleTogglePermission(
-                                          idx,
-                                          action,
-                                          checked as boolean
-                                        )
-                                      }
-                                    />
-                                  </TableCell>
-                                )
-                              )}
-                            </TableRow>
-                            );
-                          })
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </div>
