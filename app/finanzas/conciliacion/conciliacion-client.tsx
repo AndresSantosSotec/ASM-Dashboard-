@@ -1,6 +1,8 @@
 "use client"
 
-import React, { useState } from "react"
+import type React from "react"
+
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -24,8 +26,6 @@ import {
   XCircle,
 } from "lucide-react"
 import Link from "next/link"
-import IfCan from "@/permissions/IfCan"
-import { ROUTES } from "@/constants/routes"
 
 export default function ConciliacionClient() {
   const [activeTab, setActiveTab] = useState("pendientes")
@@ -220,12 +220,10 @@ export default function ConciliacionClient() {
                 <CardDescription>Gestione los recibos de pago pendientes de conciliación.</CardDescription>
               </div>
               <div className="flex gap-2">
-                <IfCan routePath={ROUTES.conciliacion} action="export">
-                  <Button variant="outline" size="sm" onClick={handleExportResults}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Exportar
-                  </Button>
-                </IfCan>
+                <Button variant="outline" size="sm" onClick={handleExportResults}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Exportar
+                </Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -316,12 +314,10 @@ export default function ConciliacionClient() {
                 <CardTitle>Recibos Conciliados</CardTitle>
                 <CardDescription>Historial de recibos de pago conciliados.</CardDescription>
               </div>
-                <IfCan routePath={ROUTES.conciliacion} action="export">
-                  <Button variant="outline" size="sm" onClick={handleExportResults}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Exportar
-                  </Button>
-                </IfCan>
+              <Button variant="outline" size="sm" onClick={handleExportResults}>
+                <Download className="mr-2 h-4 w-4" />
+                Exportar
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between mb-4">
@@ -390,12 +386,10 @@ export default function ConciliacionClient() {
                 <CardTitle>Recibos Rechazados</CardTitle>
                 <CardDescription>Historial de recibos de pago rechazados.</CardDescription>
               </div>
-                <IfCan routePath={ROUTES.conciliacion} action="export">
-                  <Button variant="outline" size="sm" onClick={handleExportResults}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Exportar
-                  </Button>
-                </IfCan>
+              <Button variant="outline" size="sm" onClick={handleExportResults}>
+                <Download className="mr-2 h-4 w-4" />
+                Exportar
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between mb-4">
@@ -490,13 +484,11 @@ export default function ConciliacionClient() {
                         </Button>
                       </div>
                     </div>
-                      {selectedFile && (
-                        <IfCan routePath={ROUTES.conciliacion} action="delete">
-                          <Button variant="outline" onClick={() => setSelectedFile(null)}>
-                            Eliminar
-                          </Button>
-                        </IfCan>
-                      )}
+                    {selectedFile && (
+                      <Button variant="outline" onClick={() => setSelectedFile(null)}>
+                        Eliminar
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -514,12 +506,10 @@ export default function ConciliacionClient() {
                       </>
                     )}
                   </Button>
-                    <IfCan routePath={ROUTES.conciliacion} action="create">
-                      <Button onClick={handleImport} disabled={!selectedFile}>
-                        <Upload className="mr-2 h-4 w-4" />
-                        Importar Recibos
-                      </Button>
-                    </IfCan>
+                  <Button onClick={handleImport} disabled={!selectedFile}>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Importar Recibos
+                  </Button>
                 </div>
 
                 {showStructure && (
@@ -542,19 +532,9 @@ export default function ConciliacionClient() {
                               <TableCell>{column.name}</TableCell>
                               <TableCell>{column.column}</TableCell>
                               <TableCell className="text-right">
-                                <IfCan
-                                  routePath={ROUTES.conciliacion}
-                                  action="edit"
-                                  mode="disable"
-                                >
-                                  <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={() => handleEditColumn(column)}
-                                  >
-                                    Editar
-                                  </Button>
-                                </IfCan>
+                                <Button variant="secondary" size="sm" onClick={() => handleEditColumn(column)}>
+                                  Editar
+                                </Button>
                               </TableCell>
                             </TableRow>
                           ))}
