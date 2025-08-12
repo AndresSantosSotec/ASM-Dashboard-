@@ -78,6 +78,8 @@ export default function FichaDetalleModal({
     ["Empresa", laborales.empresa],
     ["Puesto", laborales.puesto],
     ["Teléfono corp.", laborales.telefonoCorporativo],
+
+
     ["Dirección empresa", laborales.direccionEmpresa],
   ]
 
@@ -104,6 +106,7 @@ export default function FichaDetalleModal({
           `[FichaDetalleModal] datos recibidos para prospecto ${ficha.id}:`,
           data,
         )
+
         if (data.financieros?.convenioId && !data.financieros?.convenioNombre) {
           console.warn(
             `[FichaDetalleModal] convenio ${data.financieros.convenioId} sin nombre. Revisar GET /api/convenios/${data.financieros.convenioId}`,
