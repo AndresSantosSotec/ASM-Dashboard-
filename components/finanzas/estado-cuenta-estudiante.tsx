@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -32,6 +30,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { fetchStudentAccountSummary } from "@/services/finance"
+import IfCan from "@/permissions/IfCan"
+import { ROUTES } from "@/constants/routes"
 
 export function EstadoCuentaEstudiante() {
   const [activeTab, setActiveTab] = useState("pending")
@@ -266,12 +266,16 @@ export function EstadoCuentaEstudiante() {
                     </div>
                   </CardContent>
                   <CardFooter className="flex flex-col sm:flex-row gap-2 pt-2">
-                    <Button onClick={() => startCardPayment(payment)} className="w-full sm:w-auto">
-                      <CreditCard className="mr-2 h-4 w-4" /> Pagar con Tarjeta
-                    </Button>
-                    <Button variant="outline" onClick={() => startReceiptUpload(payment)} className="w-full sm:w-auto">
-                      <Upload className="mr-2 h-4 w-4" /> Subir Recibo
-                    </Button>
+                    <IfCan routePath={ROUTES.accountState} action="create">
+                      <Button onClick={() => startCardPayment(payment)} className="w-full sm:w-auto">
+                        <CreditCard className="mr-2 h-4 w-4" /> Pagar con Tarjeta
+                      </Button>
+                    </IfCan>
+                    <IfCan routePath={ROUTES.accountState} action="edit">
+                      <Button variant="outline" onClick={() => startReceiptUpload(payment)} className="w-full sm:w-auto">
+                        <Upload className="mr-2 h-4 w-4" /> Subir Recibo
+                      </Button>
+                    </IfCan>
                   </CardFooter>
                 </Card>
               ))}
@@ -315,9 +319,11 @@ export function EstadoCuentaEstudiante() {
                       <TableCell>{payment.method}</TableCell>
                       <TableCell>{payment.reference}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm">
-                          <Download className="h-4 w-4 mr-1" /> Recibo
-                        </Button>
+                        <IfCan routePath={ROUTES.accountState} action="export">
+                          <Button variant="ghost" size="sm">
+                            <Download className="h-4 w-4 mr-1" /> Recibo
+                          </Button>
+                        </IfCan>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -325,9 +331,11 @@ export function EstadoCuentaEstudiante() {
               </Table>
             </CardContent>
             <CardFooter>
-              <Button variant="outline" className="ml-auto">
-                <Download className="mr-2 h-4 w-4" /> Descargar Estado de Cuenta
-              </Button>
+              <IfCan routePath={ROUTES.accountState} action="export">
+                <Button variant="outline" className="ml-auto">
+                  <Download className="mr-2 h-4 w-4" /> Descargar Estado de Cuenta
+                </Button>
+              </IfCan>
             </CardFooter>
           </Card>
         </TabsContent>
