@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-function useUserPermissions() {
+export function useUserPermissions() {
   const [permissions, setPermissions] = useState<any[]>([]);
 
   useEffect(() => {
@@ -16,10 +16,10 @@ function useUserPermissions() {
 
   return permissions;
 }
-function hasPermission(permissions: any[], requiredPath: string) {
-    return permissions.some(
-      (permiso) => permiso.permission && permiso.permission.view_path === requiredPath
-    );
-  }
 
-  
+export function hasPermission(permissions: any[], requiredPath: string) {
+  return permissions.some(
+    (permiso) => permiso.permission && permiso.permission.view_path === requiredPath
+  );
+}
+

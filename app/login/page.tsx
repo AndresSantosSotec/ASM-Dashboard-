@@ -3,6 +3,7 @@
 import React, { useState } from "react"
 import { api } from "@/services/api"
 import { useAuth } from "@/contexts/AuthContext"
+import { usePermissions } from "@/hooks/usePermissions"
 import { useRouter } from "next/navigation"
 import { Eye, EyeOff, LogIn } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -13,6 +14,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 export default function LoginPage() {
   const router = useRouter()
   const { setToken, setAllowedViews } = useAuth()
+  const { setPermissions } = usePermissions()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -36,11 +38,12 @@ export default function LoginPage() {
 
 
       // Extrae token, user y allowedViews de la respuesta
-      const { id, token, user, allowedViews } = response.data
+      const { id, token, user, allowedViews, permissions } = response.data
 
       // Almacena el token y demás datos en localStorage mediante el contexto
       setToken(token)
       setAllowedViews(allowedViews || [])
+      setPermissions(permissions || [])
       localStorage.setItem("userId", id)
       localStorage.setItem("user", JSON.stringify(user))
 
