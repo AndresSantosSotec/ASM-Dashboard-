@@ -16,11 +16,12 @@ export interface FichaDetalle {
   documentos: Documento[]
 }
 
-
 async function buildFromProspecto(
   prospecto: any,
   fallbackId?: number,
 ): Promise<FichaDetalle> {
+  // Algunas respuestas de la API envuelven el objeto en `data`
+  prospecto = prospecto?.data ?? prospecto
 
   let convenioNombre: string | undefined
   if (prospecto.convenio?.nombre) {
@@ -35,7 +36,6 @@ async function buildFromProspecto(
   }
 
   // Documentos
-
   const documentos: Documento[] = []
   const prospectoId = prospecto.id ?? fallbackId
   if (prospectoId) {
@@ -52,7 +52,6 @@ async function buildFromProspecto(
     } catch {
       // ignore
     }
-
   }
 
   // Departamento nombre
@@ -130,70 +129,51 @@ export async function fetchFicha(id: number): Promise<FichaDetalle> {
   try {
     const { data } = await api.get(`/fichas/${id}`)
 
-    const documentos = Array.isArray(data.documentos)
-      ? data.documentos.map((d: any) => ({
-          ...d,
-          estado: d.url ? 'cargado' : 'pendiente',
-        }))
-      : []
-
-    const academicos = {
-      modalidad: data.academicos?.modalidad,
-      fechaInicioEspecifica: data.academicos?.fechaInicioEspecifica,
-      fechaTallerInduccion:
-        data.academicos?.fechaTallerInduccion ??
-        data.academicos?.tallerInduccion ??
-        data.academicos?.fechaTallerReduccion ??
-        data.academicos?.tallerReduccion,
-      fechaTallerIntegracion:
-        data.academicos?.fechaTallerIntegracion ??
-        data.academicos?.tallerIntegracion,
-      institucionAnterior: data.academicos?.institucionAnterior,
-      añoGraduacion: data.academicos?.añoGraduacion,
-      medioConocio: data.academicos?.medioConocio,
-      cursosAprobados: data.academicos?.cursosAprobados,
-      diaEstudio: data.academicos?.diaEstudio
-        ? String(data.academicos.diaEstudio).toLowerCase()
-        : undefined,
+    let documentos: Documento[] = []
+    if (Array.isArray(data.documentos)) {
+      documentos = data.documentos.map((d: any) => ({
+        ...d,
+        estado: d.url ? 'cargado' : 'pendiente',
+      }))
+    } else {
+      try {
+        const { data: docs } = await api.get(`/documentos/prospecto/${id}`)
+        if (Array.isArray(docs)) {
+          documentos = docs.map((d: any) => ({
+            ...d,
+            estado: d.url ? 'cargado' : 'pendiente',
+          }))
+        }
+      } catch {
+        // ignore
+      }
     }
 
+    const academicos = { ...data.academicos }
     const laborales = {
       ...data.laborales,
       departamento:
         data.laborales?.departamentoNombre || data.laborales?.departamento,
     }
-
     const financieros = {
       ...data.financieros,
       convenioNombre:
         data.financieros?.convenioNombre || data.financieros?.convenio?.nombre,
     }
 
-    const programas = data.programas || []
-
-    const needsProspecto =
-      !programas[0]?.programa ||
-      (!financieros.convenioNombre && financieros.convenioId) ||
-      (!laborales.departamento || !isNaN(Number(laborales.departamento)))
-
-    if (!needsProspecto) {
-      return {
-        personales: data.personales || {},
-        laborales,
-        academicos,
-        financieros,
-        programas,
-        documentos,
-      }
+    return {
+      personales: data.personales || {},
+      laborales,
+      academicos,
+      financieros,
+      programas: data.programas || [],
+      documentos,
     }
   } catch {
-    // ignore y hacer fallback
+    const res = await api.get(`/prospectos/${id}`)
+    const prospecto = res.data?.data ?? res.data
+    return buildFromProspecto(prospecto, id)
   }
-
-  const { data: prospecto } = await api.get(`/prospectos/${id}`)
-
-  return buildFromProspecto(prospecto, id)
-
 }
 
 export default fetchFicha
