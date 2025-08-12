@@ -42,6 +42,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -69,6 +71,16 @@ const rolSchema = z.object({
   type: z.string().optional(),
 });
 
+type ActionName = "view" | "create" | "edit" | "delete" | "export";
+
+interface RolePermission {
+  moduleview_id: number;
+  menu: string;
+  submenu?: string | null;
+  view_path: string;
+  permissions: Record<ActionName, boolean>;
+}
+
 export default function PermisosRolesTab() {
   const [roles, setRoles] = useState<Rol[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -81,6 +93,14 @@ export default function PermisosRolesTab() {
 
   // Modal para "Asignar Permisos"
   const [isPermisosModalOpen, setIsPermisosModalOpen] = useState(false);
+  const [rolePermissions, setRolePermissions] = useState<RolePermission[]>([]);
+  const [loadingPermissions, setLoadingPermissions] = useState(false);
+
+  // Modal para crear permiso
+  const [isNewPermModalOpen, setIsNewPermModalOpen] = useState(false);
+  const [newPermModuleviewId, setNewPermModuleviewId] = useState("");
+  const [newPermAction, setNewPermAction] = useState<ActionName>("view");
+  const [newPermDescription, setNewPermDescription] = useState("");
 
   // react-hook-form para crear/editar
   const form = useForm<z.infer<typeof rolSchema>>({
@@ -118,6 +138,112 @@ export default function PermisosRolesTab() {
   // ===============================
   // Funciones de CRUD
   // ===============================
+
+  const fetchRolePermissions = async (roleId: number) => {
+    try {
+      setLoadingPermissions(true);
+      const response = await axios.get(
+        `${API_BASE_URL}/api/roles/${roleId}/permissions`
+      );
+      setRolePermissions(response.data);
+    } catch (error) {
+      console.error("Error al obtener permisos del rol:", error);
+      Swal.fire({
+        title: "Error",
+        text: "No se pudieron obtener los permisos del rol.",
+        icon: "error",
+      });
+    } finally {
+      setLoadingPermissions(false);
+    }
+  };
+
+  const handleOpenPermisosModal = async () => {
+    if (!selectedRol) return;
+    await fetchRolePermissions(selectedRol.id);
+    setIsPermisosModalOpen(true);
+  };
+
+  const handleTogglePermission = (
+    index: number,
+    action: ActionName,
+    value: boolean
+  ) => {
+    setRolePermissions((prev) => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        permissions: { ...updated[index].permissions, [action]: value },
+      };
+      return updated;
+    });
+  };
+
+  const handleSavePermissions = async () => {
+    if (!selectedRol) return;
+    try {
+      const payload = {
+        permissions: rolePermissions.map((rp) => {
+          const actions = (
+            Object.entries(rp.permissions) as [ActionName, boolean][]
+          )
+            .filter(([, val]) => val)
+            .map(([key]) => key);
+          return { moduleview_id: rp.moduleview_id, actions };
+        }),
+      };
+      await axios.put(
+        `${API_BASE_URL}/api/roles/${selectedRol.id}/permissions`,
+        payload
+      );
+      Swal.fire({
+        title: "Permisos actualizados",
+        icon: "success",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+      setIsPermisosModalOpen(false);
+    } catch (error: any) {
+      console.error("Error al actualizar permisos:", error);
+      let msg = "No se pudieron actualizar los permisos.";
+      if (error.response?.data?.message) {
+        msg = error.response.data.message;
+      }
+      Swal.fire({
+        title: "Error",
+        text: msg,
+        icon: "error",
+      });
+    }
+  };
+
+  const handleCreatePermission = async () => {
+    try {
+      const body = {
+        moduleview_id: Number(newPermModuleviewId),
+        action: newPermAction,
+        description: newPermDescription,
+      };
+      await axios.post(`${API_BASE_URL}/api/permissions`, body);
+      Swal.fire({
+        title: "Permiso creado",
+        icon: "success",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+      setIsNewPermModalOpen(false);
+      if (selectedRol) {
+        fetchRolePermissions(selectedRol.id);
+      }
+    } catch (error: any) {
+      console.error("Error al crear permiso:", error);
+      let msg = "No se pudo crear el permiso.";
+      if (error.response?.data?.message) {
+        msg = error.response.data.message;
+      }
+      Swal.fire({ title: "Error", text: msg, icon: "error" });
+    }
+  };
   // Crear o editar un rol
   const onSubmitRol = async (data: z.infer<typeof rolSchema>) => {
     try {
@@ -425,7 +551,7 @@ export default function PermisosRolesTab() {
               <Button variant="outline" onClick={() => setSelectedRol(null)}>
                 Cerrar
               </Button>
-              <Button onClick={() => setIsPermisosModalOpen(true)}>
+              <Button onClick={handleOpenPermisosModal}>
                 <UserCog className="mr-2 h-4 w-4" />
                 Asignar Permisos
               </Button>
@@ -516,25 +642,187 @@ export default function PermisosRolesTab() {
 
       {/* Modal para Asignar Permisos */}
       <Dialog open={isPermisosModalOpen} onOpenChange={setIsPermisosModalOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[700px]">
           <DialogHeader>
-            <DialogTitle>Asignar Permisos</DialogTitle>
+            <DialogTitle>Información del Rol</DialogTitle>
             <DialogDescription>
-              Aquí podrás asignar o modificar permisos para el rol seleccionado.
-              (Pendiente de implementar)
+              Gestiona los permisos del rol seleccionado.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            {/* Tu lógica de permisos irá aquí más adelante */}
-            <p className="text-sm text-muted-foreground">
-              (En construcción)
-            </p>
-          </div>
+          {selectedRol && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label>Nombre</Label>
+                  <Input
+                    value={selectedRol.name}
+                    readOnly
+                    className="mt-1 bg-muted"
+                  />
+                </div>
+                <div>
+                  <Label>Estado</Label>
+                  <Input
+                    value={isActivo(selectedRol) ? "Activo" : "Inactivo"}
+                    readOnly
+                    className="mt-1 bg-muted"
+                  />
+                </div>
+                <div className="md:col-span-3">
+                  <Label>Descripción</Label>
+                  <Input
+                    value={selectedRol.description ?? "N/A"}
+                    readOnly
+                    className="mt-1 bg-muted"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setNewPermModuleviewId("");
+                    setNewPermAction("view");
+                    setNewPermDescription("");
+                    setIsNewPermModalOpen(true);
+                  }}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nuevo Permiso
+                </Button>
+              </div>
+
+              {loadingPermissions ? (
+                <p className="text-sm text-muted-foreground">
+                  Cargando permisos...
+                </p>
+              ) : (
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Módulo / Vista</TableHead>
+                        <TableHead className="text-center">Ver</TableHead>
+                        <TableHead className="text-center">Crear</TableHead>
+                        <TableHead className="text-center">Editar</TableHead>
+                        <TableHead className="text-center">Eliminar</TableHead>
+                        <TableHead className="text-center">Exportar</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rolePermissions.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-4">
+                            No hay vistas registradas
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        rolePermissions.map((perm, idx) => (
+                          <TableRow key={perm.moduleview_id}>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-medium">
+                                  {perm.menu}
+                                  {perm.submenu ? ` / ${perm.submenu}` : ""}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {perm.view_path}
+                                </span>
+                              </div>
+                            </TableCell>
+                            {(["view", "create", "edit", "delete", "export"] as ActionName[]).map(
+                              (action) => (
+                                <TableCell key={action} className="text-center">
+                                  <Checkbox
+                                    checked={perm.permissions[action]}
+                                    onCheckedChange={(checked) =>
+                                      handleTogglePermission(
+                                        idx,
+                                        action,
+                                        checked as boolean
+                                      )
+                                    }
+                                  />
+                                </TableCell>
+                              )
+                            )}
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsPermisosModalOpen(false)}>
               Cerrar
             </Button>
-            {/* Podrías poner un botón para Guardar cambios si fuera necesario */}
+            <Button onClick={handleSavePermissions}>
+              <Save className="mr-2 h-4 w-4" />
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para Crear Nuevo Permiso */}
+      <Dialog open={isNewPermModalOpen} onOpenChange={setIsNewPermModalOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Nuevo Permiso</DialogTitle>
+            <DialogDescription>
+              Crea un nuevo permiso para una vista.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="moduleview">ID de Vista</Label>
+              <Input
+                id="moduleview"
+                value={newPermModuleviewId}
+                onChange={(e) => setNewPermModuleviewId(e.target.value)}
+                type="number"
+              />
+            </div>
+            <div>
+              <Label>Acción</Label>
+              <Select
+                value={newPermAction}
+                onValueChange={(v: ActionName) => setNewPermAction(v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Acción" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="view">Ver</SelectItem>
+                  <SelectItem value="create">Crear</SelectItem>
+                  <SelectItem value="edit">Editar</SelectItem>
+                  <SelectItem value="delete">Eliminar</SelectItem>
+                  <SelectItem value="export">Exportar</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="permDesc">Descripción</Label>
+              <Input
+                id="permDesc"
+                value={newPermDescription}
+                onChange={(e) => setNewPermDescription(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsNewPermModalOpen(false)}>
+              <X className="mr-2 h-4 w-4" />
+              Cancelar
+            </Button>
+            <Button onClick={handleCreatePermission}>
+              <Save className="mr-2 h-4 w-4" />
+              Guardar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
