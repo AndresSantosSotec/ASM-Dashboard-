@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { FichaEstudiante } from "../types"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import fetchFicha from "@/services/fichas"
+import fetchDocumentosRevision from "@/services/documentos"
 import { formatDate } from "@/utils/formatDate"
 
 interface Props {
@@ -77,7 +78,8 @@ export default function FichaDetalleModal({
     ["Empresa", laborales.empresa],
     ["Puesto", laborales.puesto],
     ["Teléfono corp.", laborales.telefonoCorporativo],
-    ["Departamento", laborales.departamento],
+
+
     ["Dirección empresa", laborales.direccionEmpresa],
   ]
 
@@ -104,19 +106,16 @@ export default function FichaDetalleModal({
           `[FichaDetalleModal] datos recibidos para prospecto ${ficha.id}:`,
           data,
         )
-        if (!data.documentos?.length) {
-          console.warn(
-            `[FichaDetalleModal] sin documentos. Verificar GET /api/documentos/prospecto/${ficha.id}`,
-          )
-        }
+
         if (data.financieros?.convenioId && !data.financieros?.convenioNombre) {
           console.warn(
             `[FichaDetalleModal] convenio ${data.financieros.convenioId} sin nombre. Revisar GET /api/convenios/${data.financieros.convenioId}`,
           )
         }
-        if (!data.laborales?.departamento) {
+        const docs = await fetchDocumentosRevision(ficha.id)
+        if (docs.length === 0) {
           console.warn(
-            "[FichaDetalleModal] departamento no resuelto. El backend debe enviar 'departamento_nombre' o usar /api/ubicacion/{paisId}",
+            `[FichaDetalleModal] sin documentos en revisión para prospecto ${ficha.id}`,
           )
         }
 
@@ -125,7 +124,7 @@ export default function FichaDetalleModal({
         setAcademicos(data.academicos || {})
         setFinancieros(data.financieros || {})
         setProgramasInscritos(data.programas || [])
-        setDocumentos(data.documentos || [])
+        setDocumentos(docs)
 
         // Leer estado 'revisada' de localStorage
         setIsRevisada(
