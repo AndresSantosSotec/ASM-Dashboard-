@@ -4,9 +4,9 @@ import React, { useState, useEffect } from "react"
 import { Menu, X } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import Sidebar from "@/components/layout/sidebar"
-import ProtectedRoute from "@/components/ProtectedRoute"
 import { cn } from "@/lib/utils"
 import { Toaster } from "@/components/ui/toaster"
+import { PermissionsProvider, usePermissions } from "@/permissions/PermissionsProvider"
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -15,6 +15,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const [isMobile, setIsMobile] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [userName, setUserName] = useState<string>("")
+  const [ids, setIds] = useState<{ userId: number; roleId: number } | null>(null)
 
   // Verificar autenticación y obtener el nombre del usuario
   useEffect(() => {
@@ -40,6 +41,15 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     checkIfMobile()
     window.addEventListener("resize", checkIfMobile)
     return () => window.removeEventListener("resize", checkIfMobile)
+  }, [])
+
+  useEffect(() => {
+    const uid = Number(localStorage.getItem("userId"))
+    const user = JSON.parse(localStorage.getItem("user") || "{}")
+    const rid = user.role_id ?? user.roleId
+    if (uid && rid) {
+      setIds({ userId: uid, roleId: rid })
+    }
   }, [])
 
   const handleOverlayClick = () => {
@@ -102,9 +112,13 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 isMobile ? "w-full" : "lg:ml-0"
               )}
             >
-              <ProtectedRoute>
-                <div className="p-4 md:p-6">{children}</div>
-              </ProtectedRoute>
+              {ids && (
+                <PermissionsProvider userId={ids.userId} roleId={ids.roleId}>
+                  <PermissionsGate>
+                    <div className="p-4 md:p-6">{children}</div>
+                  </PermissionsGate>
+                </PermissionsProvider>
+              )}
             </main>
           </div>
 
@@ -113,4 +127,16 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       )}
     </>
   )
+}
+
+function PermissionsGate({ children }: { children: React.ReactNode }) {
+  const { loading, error, refresh } = usePermissions()
+  if (loading) return <div className="p-4">Cargando permisos...</div>
+  if (error)
+    return (
+      <div className="p-4">
+        Error al cargar permisos. <button onClick={refresh}>Reintentar</button>
+      </div>
+    )
+  return <>{children}</>
 }
