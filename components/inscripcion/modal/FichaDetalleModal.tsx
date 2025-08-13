@@ -78,6 +78,7 @@ export default function FichaDetalleModal({
     ["Empresa", laborales.empresa],
     ["Puesto", laborales.puesto],
     ["Teléfono corp.", laborales.telefonoCorporativo],
+
     ["Dirección empresa", laborales.direccionEmpresa],
   ]
 
@@ -104,6 +105,7 @@ export default function FichaDetalleModal({
           `[FichaDetalleModal] datos recibidos para prospecto ${ficha.id}:`,
           data,
         )
+
         if (data.financieros?.convenioId && !data.financieros?.convenioNombre) {
           console.warn(
             `[FichaDetalleModal] convenio ${data.financieros.convenioId} sin nombre. Revisar GET /api/convenios/${data.financieros.convenioId}`,
@@ -256,6 +258,7 @@ export default function FichaDetalleModal({
               {documentos.length === 0 ? (
                 <p>No hay documentos adjuntos.</p>
               ) : (
+
                 Object.values(
                   documentos.reduce((acc, doc) => {
                     const tipo = doc.tipo_documento
@@ -275,12 +278,14 @@ export default function FichaDetalleModal({
                         <span className="font-semibold capitalize">
                           {d.tipo_documento}
                         </span>
+
                         <a
-                          href={url}
+                          href={d.url || `${API_BASE_URL}/api/documentos/${d.id}/file`}
                           target="_blank"
                           rel="noreferrer"
                           className="text-sm underline"
                         >
+
                           Ver Documento
                         </a>
                         <div className="text-xs text-muted-foreground">
@@ -290,6 +295,7 @@ export default function FichaDetalleModal({
                     </Card>
                   )
                 })
+
               )}
             </TabsContent>
           </Tabs>
