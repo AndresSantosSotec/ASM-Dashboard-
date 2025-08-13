@@ -79,7 +79,6 @@ export default function FichaDetalleModal({
     ["Puesto", laborales.puesto],
     ["Teléfono corp.", laborales.telefonoCorporativo],
 
-
     ["Dirección empresa", laborales.direccionEmpresa],
   ]
 
@@ -252,34 +251,51 @@ export default function FichaDetalleModal({
             </TabsContent>
 
             {/* DOCUMENTOS ADJUNTOS */}
-            <TabsContent value="documentos" className="mt-4 space-y-4">
+            <TabsContent
+              value="documentos"
+              className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+            >
               {documentos.length === 0 ? (
                 <p>No hay documentos adjuntos.</p>
               ) : (
-                documentos.map((d) => (
-                  <Card key={d.id} className="p-2 border rounded">
-                    <CardContent className="flex items-center justify-between">
-                      <div>
-                        <p>
-                          <strong>{d.nombre}</strong>
-                        </p>
-                        <p className="text-sm capitalize">
-                          {d.estado || (d.url ? "cargado" : "pendiente")}
-                        </p>
-                      </div>
-                      {d.url ? (
+
+                Object.values(
+                  documentos.reduce((acc, doc) => {
+                    const tipo = doc.tipo_documento
+                    if (
+                      !acc[tipo] ||
+                      new Date(doc.subida_at) > new Date(acc[tipo].subida_at)
+                    ) {
+                      acc[tipo] = doc
+                    }
+                    return acc
+                  }, {} as Record<string, any>),
+                ).map((d: any) => {
+                  const url = d.url || `${API_BASE_URL}/storage/${d.ruta_archivo}`
+                  return (
+                    <Card key={d.id} className="p-2 border rounded">
+                      <CardContent className="space-y-1">
+                        <span className="font-semibold capitalize">
+                          {d.tipo_documento}
+                        </span>
+
                         <a
                           href={d.url || `${API_BASE_URL}/api/documentos/${d.id}/file`}
                           target="_blank"
                           rel="noreferrer"
                           className="text-sm underline"
                         >
-                          Ver/Descargar
+
+                          Ver Documento
                         </a>
-                      ) : null}
-                    </CardContent>
-                  </Card>
-                ))
+                        <div className="text-xs text-muted-foreground">
+                          Subido: {formatDate(d.subida_at)}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })
+
               )}
             </TabsContent>
           </Tabs>
