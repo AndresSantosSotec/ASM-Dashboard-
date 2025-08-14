@@ -228,3 +228,15 @@ body {
   transform: rotate(-45deg);
 }
 
+
+/* Estilo para eventos pasados */
+.evento-pasado {
+  opacity: 0.7;
+  border-left: 3px solid #ccc;
+}
+
+/* Estilo para el texto de eventos pasados */
+.texto-evento-pasado {
+  color: #666;
+  text-decoration: line-through;
+}

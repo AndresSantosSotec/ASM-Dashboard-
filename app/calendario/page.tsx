@@ -28,10 +28,26 @@ interface Tarea {
 }
 
 interface Cita {
-  id: string;
+  id: string | number;
   datecita: string;
   descricita: string;
+
+  // existentes
+  createby?: number | string;
+
+  // NUEVO: datos del creador y marca de tiempo que devuelve el backend
+  creado_por?: {
+    id?: number | string;
+    nombre?: string;
+    rol?: string | null;
+  };
+  fecha_creacion?: string;
+
+  // si luego usas participantes, los dejas opcionales:
+  asesores?: { id: number | string; nombre: string; email: string }[];
+  prospectos?: { id: number | string; nombre: string; email: string }[];
 }
+
 
 export default function CalendarioPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -72,27 +88,37 @@ export default function CalendarioPage() {
   }, []);
 
   // --- Fetch tareas ---
-  useEffect(() => {
-    if (!token) return;
-    api
-      .get("/tareas", {
-        withCredentials: true,
-      })
-      .then((res) => setTareas(res.data.data))
-      .catch(console.error);
-  }, [token]);
+useEffect(() => {
+  if (!token) return;
+  api
+    .get("/tareas", { withCredentials: true })
+    .then((res) => {
+      console.log("GET /tareas raw:", res);                // 👈 log completo
+      console.log("GET /tareas data:", res.data);
+      setTareas(res.data?.data ?? []);                     // tu API devuelve { message, data }
+    })
+    .catch((err) => {
+      console.error("GET /tareas error:", err?.response?.data ?? err);
+    });
+}, [token]);
 
-  // --- Fetch citas ---
-  useEffect(() => {
-    if (!token) return;
-    api
-      .get("/citas")
-      .then((res) => {
-        const arr = Array.isArray(res.data) ? res.data : res.data.data || [];
-        setCitas(arr);
-      })
-      .catch(console.error);
-  }, [token]);
+// --- Fetch citas ---
+useEffect(() => {
+  if (!token) return;
+  api
+    .get("/citas", { withCredentials: true })
+    .then((res) => {
+      console.log("GET /citas raw:", res);                 // 👈 log completo
+      console.log("GET /citas data:", res.data);
+      const arr = Array.isArray(res.data) ? res.data : res.data?.data ?? [];
+      console.log("GET /citas parsed array:", arr);        // 👈 lo que guardarás en estado
+      setCitas(arr);
+    })
+    .catch((err) => {
+      console.error("GET /citas error:", err?.response?.data ?? err);
+    });
+}, [token]);
+
 
   // --- Calendar days ---
   const monthStart = startOfMonth(currentDate);
@@ -576,30 +602,53 @@ export default function CalendarioPage() {
       </Dialog>
 
       {/* Modal Detalles Cita */}
-      <Dialog open={citaModalOpen} onOpenChange={() => setCitaModalOpen(false)}>
-        {selectedCita && (
-          <DialogContent className="sm:max-w-[400px]">
-            <DialogHeader>
-              <DialogTitle>Detalles de Cita</DialogTitle>
-              <DialogDescription>
-                {format(parseISO(selectedCita.datecita), "EEEE, dd MMMM yyyy HH:mm", { locale: es })}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <p className="text-gray-700">{selectedCita.descricita}</p>
-            </div>
-            <DialogFooter className="justify-end space-x-2">
-              <Button variant="outline" onClick={() => setCitaModalOpen(false)}>
-                Cerrar
-              </Button>
-              <Button variant="destructive" onClick={() => deleteCita(selectedCita.id)}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Eliminar Cita
-              </Button>
-            </DialogFooter>
-          </DialogContent>
+    
+<Dialog open={citaModalOpen} onOpenChange={() => setCitaModalOpen(false)}>
+  {selectedCita && (
+    <DialogContent className="sm:max-w-[400px]">
+      <DialogHeader>
+        <DialogTitle>Detalles de Cita</DialogTitle>
+        <DialogDescription>
+          {selectedCita.datecita
+            ? format(parseISO(selectedCita.datecita), "EEEE, dd MMMM yyyy", { locale: es })
+            : "Sin fecha"}
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="py-4">
+        <p className="text-gray-700">{selectedCita?.descricita || "Sin descripción"}</p>
+
+        {selectedCita?.creado_por?.nombre && (
+          <p className="text-sm text-gray-700 mt-2">
+            <strong>Creado por:</strong> {selectedCita.creado_por.nombre}
+            {selectedCita.creado_por.rol ? ` (${selectedCita.creado_por.rol})` : ""}
+          </p>
         )}
-      </Dialog>
+
+        {selectedCita?.fecha_creacion && (
+          <p className="text-xs text-gray-500">
+            <strong>Creada el:</strong> {selectedCita.fecha_creacion}
+          </p>
+        )}
+      </div>
+
+      <DialogFooter className="justify-end space-x-2">
+        <Button variant="outline" onClick={() => setCitaModalOpen(false)}>
+          Cerrar
+        </Button>
+        <Button
+          variant="destructive"
+          disabled={!selectedCita?.id}
+          onClick={() => selectedCita?.id && deleteCita(String(selectedCita.id))}
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Eliminar Cita
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  )}
+</Dialog>
+
     </div>
   );
-}
+} 
