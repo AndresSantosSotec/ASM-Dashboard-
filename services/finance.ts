@@ -82,12 +82,11 @@ export const createNotificationRule = async (
   data: any,
 ) => {
   // map UI -> API
-  const payload = {
-    type: data.type,                         // 'email' | 'sms' | 'whatsapp'
-    offset_days: Number(data.triggerDays),   // requerido por backend
-    message: data.message ?? null,           // opcional
-    // name y active NO existen en el backend que mostraste
-  }
+const payload = {
+  type: data.type ?? "email", // o el valor por defecto
+  offset_days: Number(data.triggerDays ?? 0),
+  message: data.message ?? "",
+};
   const res = await api.post(`/payment-rules/${ruleId}/notifications`, payload)
   return res.data
 }
@@ -289,14 +288,22 @@ export const fetchBlockingRulesByRule = async (ruleId: string | number) => {
 }
 
 export const createBlockingRule = async (ruleId: string | number, data: any) => {
-  // Map UI → API
+  console.log('Datos recibidos del form:', data) // Debug
+  
   const payload = {
     name: data.name,
     description: data.description,
     days_after_due: Number(data.daysAfterDue),
-    affected_services: data.services, // array ["plataforma", ...]
+    affected_services: Array.isArray(data.services) ? data.services : [],
     active: !!data.active,
   }
+  
+  console.log('Payload final:', payload) // Debug
+  
+  if (!payload.affected_services || payload.affected_services.length === 0) {
+    throw new Error('Debe seleccionar al menos un servicio')
+  }
+  
   const res = await api.post(`/payment-rules/${ruleId}/blocking-rules`, payload)
   return res.data
 }

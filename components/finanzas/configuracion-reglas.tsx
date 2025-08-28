@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
-import { AlertCircle, Save, Plus, Trash2, Settings, Eye } from "lucide-react"
+import { AlertCircle, Save, Plus, Trash2, Settings, Eye, Edit } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Dialog,
@@ -35,6 +35,19 @@ import {
   createBlockingRule,
   updateBlockingRule,
   deleteBlockingRule,
+  // *** NUEVAS IMPORTACIONES PARA PASARELAS ***
+  getPaymentGateways,
+  createPaymentGateway,
+  updatePaymentGateway,
+  deletePaymentGateway,
+  togglePaymentGatewayStatus,
+  // *** NUEVAS IMPORTACIONES PARA EXCEPCIONES ***
+  getExceptionCategories,
+  createExceptionCategory,
+  updateExceptionCategory,
+  deleteExceptionCategory,
+  toggleExceptionCategoryStatus,
+  assignCategoryToStudent,
 } from "@/services/finance"
 import { toast } from "@/hooks/use-toast"
 
@@ -47,8 +60,16 @@ export function ConfiguracionReglas() {
   const [exceptionCategories, setExceptionCategories] = useState<any[]>([])
   const [selectedNotifications, setSelectedNotifications] = useState<Set<number>>(new Set())
   const [selectedBlockingRules, setSelectedBlockingRules] = useState<Set<number>>(new Set())
+  // *** NUEVOS ESTADOS PARA SELECCIONES ***
+  const [selectedGateways, setSelectedGateways] = useState<Set<number>>(new Set())
+  const [selectedCategories, setSelectedCategories] = useState<Set<number>>(new Set())
+  
   const [editingNotification, setEditingNotification] = useState<any | null>(null)
   const [editingBlockingRule, setEditingBlockingRule] = useState<any | null>(null)
+  // *** NUEVOS ESTADOS PARA EDICIÓN ***
+  const [editingGateway, setEditingGateway] = useState<any | null>(null)
+  const [editingCategory, setEditingCategory] = useState<any | null>(null)
+  
   const [showNotificationForm, setShowNotificationForm] = useState(false)
   const [notificationForm, setNotificationForm] = useState({
     type: 'email',
@@ -69,9 +90,9 @@ export function ConfiguracionReglas() {
   const [gatewayForm, setGatewayForm] = useState({
     name: '',
     description: '',
-    fee: 0,
-    apiKey: '',
-    merchantId: '',
+    commission_percentage: 0,
+    api_key: '',
+    merchant_id: '',
     active: true,
   })
 
@@ -79,12 +100,11 @@ export function ConfiguracionReglas() {
   const [categoryForm, setCategoryForm] = useState({
     name: '',
     description: '',
-    rules: {
-      skipLateFee: false,
-      extendedDueDate: 1,
-      allowPartialPayments: false,
-      skipBlocking: false,
-    },
+    due_day_override: null as number | null,
+    skip_late_fee: false,
+    allow_partial_payments: false,
+    skip_blocking: false,
+    active: true,
   })
 
   const [showRulesDialog, setShowRulesDialog] = useState(false)
@@ -133,7 +153,7 @@ export function ConfiguracionReglas() {
     }))
   }
 
-  // *** NUEVO: MAPEAR REGLAS DE BLOQUEO ***
+  // *** MAPEAR REGLAS DE BLOQUEO ***
   function mapBlockingRulesFromApi(apiList: any[]) {
     return (apiList ?? []).map((b: any) => ({
       id: b.id,
@@ -144,6 +164,38 @@ export function ConfiguracionReglas() {
       active: !!b.active,
       createdAt: b.created_at,
       updatedAt: b.updated_at,
+    }))
+  }
+
+  // *** NUEVAS FUNCIONES DE MAPEO PARA PASARELAS ***
+  function mapGatewaysFromApi(apiList: any[]) {
+    return (apiList ?? []).map((g: any) => ({
+      id: g.id,
+      name: g.name,
+      description: g.description,
+      commission_percentage: Number(g.commission_percentage || 0),
+      api_key: g.api_key,
+      merchant_id: g.merchant_id,
+      active: !!g.active,
+      is_configured: g.is_configured || false,
+      created_at: g.created_at,
+      updated_at: g.updated_at,
+    }))
+  }
+
+  // *** NUEVAS FUNCIONES DE MAPEO PARA CATEGORÍAS ***
+  function mapCategoriesFromApi(apiList: any[]) {
+    return (apiList ?? []).map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      description: c.description,
+      due_day_override: c.due_day_override,
+      skip_late_fee: !!c.skip_late_fee,
+      allow_partial_payments: !!c.allow_partial_payments,
+      skip_blocking: !!c.skip_blocking,
+      active: !!c.active,
+      created_at: c.created_at,
+      updated_at: c.updated_at,
     }))
   }
 
@@ -158,7 +210,7 @@ export function ConfiguracionReglas() {
     }
   }
 
-  // *** CARGAR AL ENTRAR Y REFRESCAR (ACTUALIZADO) ***
+  // *** CARGAR AL ENTRAR Y REFRESCAR (ACTUALIZADO CON PASARELAS Y CATEGORÍAS) ***
 
   const refreshRules = async () => {
     try {
@@ -180,30 +232,35 @@ export function ConfiguracionReglas() {
         setGeneralRules({})
         setNotificationRules([])
         setBlockingRules([])
-        setPaymentGateways([])
-        setExceptionCategories([])
-        return
+        // No limpiar pasarelas y categorías ya que se cargan independiente
+      } else {
+        // 2) mapear regla API -> UI (campos generales)
+        const mapped = mapFromApiRule(rule)
+        setGeneralRules((prev: any) => ({ ...prev, ...mapped }))
+
+        // 3) pedir notificaciones por endpoint dedicado
+        const notifApi = await fetchNotificationRulesByRule(rule.id)
+        notifApi.sort((a: any, b: any) => (a.offset_days ?? 0) - (b.offset_days ?? 0))
+        const notifUi = mapNotificationsFromApi(notifApi)
+        setNotificationRules(notifUi)
+
+        // 4) cargar reglas de bloqueo
+        const blockingApi = await fetchBlockingRulesByRule(rule.id)
+        blockingApi.sort((a: any, b: any) => (a.days_after_due ?? 0) - (b.days_after_due ?? 0))
+        const blockingUi = mapBlockingRulesFromApi(blockingApi)
+        setBlockingRules(blockingUi)
       }
 
-      // 2) mapear regla API -> UI (campos generales)
-      const mapped = mapFromApiRule(rule)
-      setGeneralRules((prev: any) => ({ ...prev, ...mapped }))
-      setPaymentGateways(mapped.paymentGateways ?? [])
+      // *** 5) CARGAR PASARELAS DE PAGO INDEPENDIENTE ***
+      const gatewaysApi = await getPaymentGateways()
+      const gatewaysUi = mapGatewaysFromApi(gatewaysApi)
+      setPaymentGateways(gatewaysUi)
 
-      // 3) pedir notificaciones por endpoint dedicado
-      const notifApi = await fetchNotificationRulesByRule(rule.id)
-      notifApi.sort((a: any, b: any) => (a.offset_days ?? 0) - (b.offset_days ?? 0))
-      const notifUi = mapNotificationsFromApi(notifApi)
-      setNotificationRules(notifUi)
+      // *** 6) CARGAR CATEGORÍAS DE EXCEPCIÓN INDEPENDIENTE ***
+      const categoriesApi = await getExceptionCategories()
+      const categoriesUi = mapCategoriesFromApi(categoriesApi)
+      setExceptionCategories(categoriesUi)
 
-      // 4) *** NUEVO: cargar reglas de bloqueo ***
-      const blockingApi = await fetchBlockingRulesByRule(rule.id)
-      blockingApi.sort((a: any, b: any) => (a.days_after_due ?? 0) - (b.days_after_due ?? 0))
-      const blockingUi = mapBlockingRulesFromApi(blockingApi)
-      setBlockingRules(blockingUi)
-
-      // 5) excepciones (por ahora locales)
-      setExceptionCategories(rule.exceptionCategories ?? [])
     } catch (e) {
       toast({ title: 'Error', description: 'No se pudieron cargar las reglas' })
     }
@@ -246,7 +303,7 @@ export function ConfiguracionReglas() {
     }
   }, [activeTab, generalRules?.id])
 
-  // *** NUEVO: Recargar cuando entras al tab "Bloqueos" ***
+  // Recargar cuando entras al tab "Bloqueos"
   useEffect(() => {
     if (activeTab === 'blocking' && generalRules?.id) {
       fetchBlockingRulesByRule(generalRules.id)
@@ -259,6 +316,32 @@ export function ConfiguracionReglas() {
         )
     }
   }, [activeTab, generalRules?.id])
+
+  // *** NUEVO: Recargar cuando entras al tab "Pasarelas" ***
+  useEffect(() => {
+    if (activeTab === 'gateways') {
+      getPaymentGateways()
+        .then((list) => {
+          setPaymentGateways(mapGatewaysFromApi(list))
+        })
+        .catch(() =>
+          toast({ title: 'Error', description: 'No se pudieron cargar las pasarelas de pago' })
+        )
+    }
+  }, [activeTab])
+
+  // *** NUEVO: Recargar cuando entras al tab "Excepciones" ***
+  useEffect(() => {
+    if (activeTab === 'exceptions') {
+      getExceptionCategories()
+        .then((list) => {
+          setExceptionCategories(mapCategoriesFromApi(list))
+        })
+        .catch(() =>
+          toast({ title: 'Error', description: 'No se pudieron cargar las categorías de excepción' })
+        )
+    }
+  }, [activeTab])
 
   // Función para manejar cambios en las reglas generales
   const handleGeneralRuleChange = (key: string, value: any) => {
@@ -338,7 +421,7 @@ export function ConfiguracionReglas() {
     }
   }
 
-  // *** NUEVAS FUNCIONES DE BLOQUEO ***
+  // *** FUNCIONES DE BLOQUEO ***
   const openBlockingForm = (blockingRule: any = null) => {
     setEditingBlockingRule(blockingRule)
     if (blockingRule) {
@@ -442,55 +525,210 @@ export function ConfiguracionReglas() {
     }
   }
 
+  // *** NUEVAS FUNCIONES PARA PASARELAS DE PAGO ***
+  const openGatewayForm = (gateway: any = null) => {
+    setEditingGateway(gateway)
+    if (gateway) {
+      setGatewayForm({
+        name: gateway.name,
+        description: gateway.description,
+        commission_percentage: gateway.commission_percentage,
+        api_key: gateway.api_key,
+        merchant_id: gateway.merchant_id,
+        active: gateway.active,
+      })
+    } else {
+      setGatewayForm({
+        name: '',
+        description: '',
+        commission_percentage: 0,
+        api_key: '',
+        merchant_id: '',
+        active: true,
+      })
+    }
+    setShowGatewayDialog(true)
+  }
+
+  const toggleGatewaySelection = (id: number, checked: boolean) => {
+    setSelectedGateways((prev) => {
+      const newSet = new Set(prev)
+      if (checked) {
+        newSet.add(id)
+      } else {
+        newSet.delete(id)
+      }
+      return newSet
+    })
+  }
+
+  const handleDeleteGateway = async (gatewayId: number) => {
+    try {
+      await deletePaymentGateway(gatewayId)
+      toast({ title: 'Pasarela eliminada correctamente' })
+      await refreshRules()
+    } catch (error) {
+      toast({ 
+        title: 'Error', 
+        description: 'No se pudo eliminar la pasarela' 
+      })
+    }
+  }
+
+  const handleToggleGatewayStatus = async (gatewayId: number) => {
+    try {
+      await togglePaymentGatewayStatus(gatewayId)
+      toast({ title: 'Estado de pasarela actualizado' })
+      await refreshRules()
+    } catch (error) {
+      toast({ 
+        title: 'Error', 
+        description: 'No se pudo actualizar el estado de la pasarela' 
+      })
+    }
+  }
+
   const handleCreateGateway = async () => {
     try {
-      await persistRules({
-        ...generalRules,
-        notificationRules,
-        blockingRules,
-        paymentGateways: [...paymentGateways, gatewayForm],
-        exceptionCategories,
-      })
-      toast({ title: 'Pasarela creada' })
+      if (editingGateway) {
+        await updatePaymentGateway(editingGateway.id, gatewayForm)
+        toast({ title: 'Pasarela actualizada' })
+      } else {
+        await createPaymentGateway(gatewayForm)
+        toast({ title: 'Pasarela creada' })
+      }
       setShowGatewayDialog(false)
       setGatewayForm({
         name: '',
         description: '',
-        fee: 0,
-        apiKey: '',
-        merchantId: '',
+        commission_percentage: 0,
+        api_key: '',
+        merchant_id: '',
         active: true,
       })
       await refreshRules()
     } catch (e) {
-      toast({ title: 'Error', description: 'No se pudo crear la pasarela' })
+      toast({ title: 'Error', description: 'No se pudo guardar la pasarela' })
+    }
+  }
+
+  const handleDeleteSelectedGateways = async () => {
+    if (selectedGateways.size === 0) return
+    
+    try {
+      await Promise.all(
+        Array.from(selectedGateways).map((id) => deletePaymentGateway(id))
+      )
+      setSelectedGateways(new Set())
+      toast({ title: 'Pasarelas eliminadas' })
+      await refreshRules()
+    } catch {
+      toast({ title: 'Error', description: 'No se pudieron eliminar las pasarelas' })
+    }
+  }
+
+  // *** NUEVAS FUNCIONES PARA CATEGORÍAS DE EXCEPCIÓN ***
+  const openCategoryForm = (category: any = null) => {
+    setEditingCategory(category)
+    if (category) {
+      setCategoryForm({
+        name: category.name,
+        description: category.description,
+        due_day_override: category.due_day_override,
+        skip_late_fee: category.skip_late_fee,
+        allow_partial_payments: category.allow_partial_payments,
+        skip_blocking: category.skip_blocking,
+        active: category.active,
+      })
+    } else {
+      setCategoryForm({
+        name: '',
+        description: '',
+        due_day_override: null,
+        skip_late_fee: false,
+        allow_partial_payments: false,
+        skip_blocking: false,
+        active: true,
+      })
+    }
+    setShowCategoryDialog(true)
+  }
+
+  const toggleCategorySelection = (id: number, checked: boolean) => {
+    setSelectedCategories((prev) => {
+      const newSet = new Set(prev)
+      if (checked) {
+        newSet.add(id)
+      } else {
+        newSet.delete(id)
+      }
+      return newSet
+    })
+  }
+
+  const handleDeleteCategory = async (categoryId: number) => {
+    try {
+      await deleteExceptionCategory(categoryId)
+      toast({ title: 'Categoría eliminada correctamente' })
+      await refreshRules()
+    } catch (error) {
+      toast({ 
+        title: 'Error', 
+        description: 'No se pudo eliminar la categoría' 
+      })
+    }
+  }
+
+  const handleToggleCategoryStatus = async (categoryId: number) => {
+    try {
+      await toggleExceptionCategoryStatus(categoryId)
+      toast({ title: 'Estado de categoría actualizado' })
+      await refreshRules()
+    } catch (error) {
+      toast({ 
+        title: 'Error', 
+        description: 'No se pudo actualizar el estado de la categoría' 
+      })
     }
   }
 
   const handleCreateCategory = async () => {
     try {
-      await persistRules({
-        ...generalRules,
-        notificationRules,
-        blockingRules,
-        paymentGateways,
-        exceptionCategories: [...exceptionCategories, categoryForm],
-      })
-      toast({ title: 'Categoría creada' })
+      if (editingCategory) {
+        await updateExceptionCategory(editingCategory.id, categoryForm)
+        toast({ title: 'Categoría actualizada' })
+      } else {
+        await createExceptionCategory(categoryForm)
+        toast({ title: 'Categoría creada' })
+      }
       setShowCategoryDialog(false)
       setCategoryForm({
         name: '',
         description: '',
-        rules: {
-          skipLateFee: false,
-          extendedDueDate: 1,
-          allowPartialPayments: false,
-          skipBlocking: false,
-        },
+        due_day_override: null,
+        skip_late_fee: false,
+        allow_partial_payments: false,
+        skip_blocking: false,
+        active: true,
       })
       await refreshRules()
     } catch (e) {
-      toast({ title: 'Error', description: 'No se pudo crear la categoría' })
+      toast({ title: 'Error', description: 'No se pudo guardar la categoría' })
+    }
+  }
+
+  const handleDeleteSelectedCategories = async () => {
+    if (selectedCategories.size === 0) return
+    
+    try {
+      await Promise.all(
+        Array.from(selectedCategories).map((id) => deleteExceptionCategory(id))
+      )
+      setSelectedCategories(new Set())
+      toast({ title: 'Categorías eliminadas' })
+      await refreshRules()
+    } catch {
+      toast({ title: 'Error', description: 'No se pudieron eliminar las categorías' })
     }
   }
 
@@ -882,7 +1120,6 @@ export function ConfiguracionReglas() {
           )}
         </TabsContent>
 
-        {/* *** ACTUALIZADO: Tab de Bloqueos con funcionalidad completa *** */}
         <TabsContent value="blocking" className="space-y-4">
           <Card>
             <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between">
@@ -1004,16 +1241,26 @@ export function ConfiguracionReglas() {
           </Card>
         </TabsContent>
 
+        {/* *** ACTUALIZADO: Tab de Pasarelas completamente funcional *** */}
         <TabsContent value="gateways" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Pasarelas de Pago</CardTitle>
-              <CardDescription>Configure las pasarelas de pago disponibles para los alumnos</CardDescription>
+            <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle>Pasarelas de Pago</CardTitle>
+                <CardDescription>Configure las pasarelas de pago disponibles para los alumnos</CardDescription>
+              </div>
+              <Button 
+                onClick={() => openGatewayForm()} 
+                className="mt-4 md:mt-0"
+              >
+                <Plus className="mr-2 h-4 w-4" /> Nueva Pasarela
+              </Button>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]"></TableHead>
                     <TableHead>Nombre</TableHead>
                     <TableHead>Descripción</TableHead>
                     <TableHead>Comisión (%)</TableHead>
@@ -1026,28 +1273,63 @@ export function ConfiguracionReglas() {
                 <TableBody>
                   {paymentGateways.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center">
-                        Sin datos
+                      <TableCell colSpan={8} className="text-center">
+                        Sin pasarelas configuradas
                       </TableCell>
                     </TableRow>
                   ) : (
                     paymentGateways.map((gateway) => {
                       return (
                         <TableRow key={gateway.id}>
+                          <TableCell>
+                            <Checkbox
+                              id={`select-gateway-${gateway.id}`}
+                              checked={selectedGateways.has(gateway.id)}
+                              onCheckedChange={(checked) =>
+                                toggleGatewaySelection(
+                                  gateway.id,
+                                  !!checked,
+                                )
+                              }
+                            />
+                          </TableCell>
                           <TableCell className="font-medium">{gateway.name}</TableCell>
                           <TableCell>{gateway.description}</TableCell>
-                          <TableCell>{gateway.fee}%</TableCell>
-                          <TableCell>{gateway.apiKey || "No configurado"}</TableCell>
-                          <TableCell>{gateway.merchantId || "No configurado"}</TableCell>
+                          <TableCell>{gateway.commission_percentage}%</TableCell>
+                          <TableCell>
+                            {gateway.api_key ? 
+                              <span className="text-xs text-muted-foreground">****{gateway.api_key?.slice(-4)}</span> 
+                              : "No configurado"
+                            }
+                          </TableCell>
+                          <TableCell>{gateway.merchant_id || "No configurado"}</TableCell>
                           <TableCell>
                             <Badge variant={gateway.active ? "default" : "outline"}>
                               {gateway.active ? "Activo" : "Inactivo"}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button variant="ghost" size="sm">
-                              <Settings className="h-4 w-4 mr-1" /> Configurar
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              <Button variant="ghost" size="sm" onClick={() => openGatewayForm(gateway)}>
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => handleToggleGatewayStatus(gateway.id)}
+                                className="text-blue-600 hover:text-blue-800"
+                              >
+                                <Settings className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => handleDeleteGateway(gateway.id)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       )
@@ -1055,78 +1337,121 @@ export function ConfiguracionReglas() {
                 </TableBody>
               </Table>
             </CardContent>
-            <CardFooter>
-              <Button className="ml-auto" onClick={() => setShowGatewayDialog(true)}>
-                <Plus className="mr-2 h-4 w-4" /> Agregar Pasarela
+            <CardFooter className="flex justify-between">
+              <div className="text-sm text-muted-foreground">
+                Mostrando {paymentGateways.length} pasarelas configuradas
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={handleDeleteSelectedGateways}
+                disabled={selectedGateways.size === 0}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Eliminar Seleccionadas
               </Button>
             </CardFooter>
           </Card>
         </TabsContent>
 
+        {/* *** ACTUALIZADO: Tab de Excepciones completamente funcional *** */}
         <TabsContent value="exceptions" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Categorías de Excepción</CardTitle>
-              <CardDescription>Configure reglas especiales para grupos específicos de alumnos</CardDescription>
+            <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle>Categorías de Excepción</CardTitle>
+                <CardDescription>Configure reglas especiales para grupos específicos de alumnos</CardDescription>
+              </div>
+              <Button 
+                onClick={() => openCategoryForm()} 
+                className="mt-4 md:mt-0"
+              >
+                <Plus className="mr-2 h-4 w-4" /> Nueva Categoría
+              </Button>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]"></TableHead>
                     <TableHead>Nombre</TableHead>
                     <TableHead>Descripción</TableHead>
-                    <TableHead>Exención de Mora</TableHead>
-                    <TableHead>Día de Vencimiento</TableHead>
+                    <TableHead>Día Vencimiento</TableHead>
+                    <TableHead>Exención Mora</TableHead>
                     <TableHead>Pagos Parciales</TableHead>
-                    <TableHead>Exención de Bloqueo</TableHead>
+                    <TableHead>Exención Bloqueo</TableHead>
+                    <TableHead>Estado</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {exceptionCategories.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center">
-                        Sin datos
+                      <TableCell colSpan={9} className="text-center">
+                        Sin categorías configuradas
                       </TableCell>
                     </TableRow>
                   ) : (
                     exceptionCategories.map((category) => {
                       return (
                         <TableRow key={category.id}>
+                          <TableCell>
+                            <Checkbox
+                              id={`select-category-${category.id}`}
+                              checked={selectedCategories.has(category.id)}
+                              onCheckedChange={(checked) =>
+                                toggleCategorySelection(
+                                  category.id,
+                                  !!checked,
+                                )
+                              }
+                            />
+                          </TableCell>
                           <TableCell className="font-medium">{category.name}</TableCell>
                           <TableCell>{category.description}</TableCell>
                           <TableCell>
-                            {category.rules.skipLateFee ? (
-                              <Badge variant="default" className="bg-green-500">
-                                Sí
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline">No</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>Día {category.rules.extendedDueDate}</TableCell>
-                          <TableCell>
-                            {category.rules.allowPartialPayments ? (
-                              <Badge variant="default" className="bg-green-500">
-                                Permitidos
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline">No permitidos</Badge>
-                            )}
+                            {category.due_day_override ? `Día ${category.due_day_override}` : "General"}
                           </TableCell>
                           <TableCell>
-                            {category.rules.skipBlocking ? (
-                              <Badge variant="default" className="bg-green-500">
-                                Sí
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline">No</Badge>
-                            )}
+                            <Badge variant={category.skip_late_fee ? "default" : "outline"}>
+                              {category.skip_late_fee ? "Sí" : "No"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={category.allow_partial_payments ? "default" : "outline"}>
+                              {category.allow_partial_payments ? "Sí" : "No"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={category.skip_blocking ? "default" : "outline"}>
+                              {category.skip_blocking ? "Sí" : "No"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={category.active ? "default" : "outline"}>
+                              {category.active ? "Activo" : "Inactivo"}
+                            </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button variant="ghost" size="sm">
-                              <Settings className="h-4 w-4 mr-1" /> Editar
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              <Button variant="ghost" size="sm" onClick={() => openCategoryForm(category)}>
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => handleToggleCategoryStatus(category.id)}
+                                className="text-blue-600 hover:text-blue-800"
+                              >
+                                <Settings className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => handleDeleteCategory(category.id)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       )
@@ -1134,16 +1459,23 @@ export function ConfiguracionReglas() {
                 </TableBody>
               </Table>
             </CardContent>
-            <CardFooter>
-              <Button className="ml-auto" onClick={() => setShowCategoryDialog(true)}>
-                <Plus className="mr-2 h-4 w-4" /> Nueva Categoría
+            <CardFooter className="flex justify-between">
+              <div className="text-sm text-muted-foreground">
+                Mostrando {exceptionCategories.length} categorías configuradas
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={handleDeleteSelectedCategories}
+                disabled={selectedCategories.size === 0}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Eliminar Seleccionadas
               </Button>
             </CardFooter>
           </Card>
         </TabsContent>
       </Tabs>
 
-      {/* *** ACTUALIZADO: Dialog de Reglas de Bloqueo *** */}
+      {/* Dialog de Reglas de Bloqueo */}
       <Dialog open={showBlockingDialog} onOpenChange={setShowBlockingDialog}>
         <DialogContent>
           <DialogHeader>
@@ -1206,8 +1538,7 @@ export function ConfiguracionReglas() {
                   <label key={svc} className="flex items-center gap-2">
                     <Checkbox
                       checked={blockingForm.services.includes(svc)}
-                      onCheckedChange={(checked) => {
-                        setBlockingForm((prev) => {
+                      onCheckedChange={(checked) => {                        setBlockingForm((prev) => {
                           const services = prev.services.includes(svc)
                             ? prev.services.filter((s) => s !== svc)
                             : [...prev.services, svc]
@@ -1248,13 +1579,16 @@ export function ConfiguracionReglas() {
         </DialogContent>
       </Dialog>
 
-      {/* Resto de dialogs permanecen igual... */}
+      {/* *** NUEVO: Dialog de Pasarelas de Pago *** */}
       <Dialog open={showGatewayDialog} onOpenChange={setShowGatewayDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nueva Pasarela</DialogTitle>
+            <DialogTitle>{editingGateway ? "Editar Pasarela de Pago" : "Nueva Pasarela de Pago"}</DialogTitle>
             <DialogDescription>
-              Ingrese los datos de la pasarela de pago
+              {editingGateway 
+                ? "Modifique los detalles de la pasarela de pago"
+                : "Configure una nueva pasarela de pago"
+              }
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -1266,6 +1600,7 @@ export function ConfiguracionReglas() {
                 onChange={(e) =>
                   setGatewayForm({ ...gatewayForm, name: e.target.value })
                 }
+                placeholder="Ej: PayPal, Stripe, Banco Industrial"
               />
             </div>
             <div className="space-y-2">
@@ -1279,47 +1614,58 @@ export function ConfiguracionReglas() {
                     description: e.target.value,
                   })
                 }
+                placeholder="Descripción de la pasarela de pago"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="gateway-fee">Comisión (%)</Label>
+              <Label htmlFor="gateway-commission">Comisión (%)</Label>
               <Input
-                id="gateway-fee"
+                id="gateway-commission"
                 type="number"
-                value={gatewayForm.fee}
+                min="0"
+                max="100"
+                step="0.01"
+                value={gatewayForm.commission_percentage}
                 onChange={(e) =>
                   setGatewayForm({
                     ...gatewayForm,
-                    fee: Number(e.target.value),
+                    commission_percentage: Number(e.target.value),
                   })
                 }
+                placeholder="2.5"
               />
+              <p className="text-xs text-muted-foreground">
+                Porcentaje de comisión que cobra la pasarela
+              </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="gateway-apiKey">API Key</Label>
+              <Label htmlFor="gateway-apikey">API Key</Label>
               <Input
-                id="gateway-apiKey"
-                value={gatewayForm.apiKey}
+                id="gateway-apikey"
+                type="password"
+                value={gatewayForm.api_key}
                 onChange={(e) =>
-                  setGatewayForm({ ...gatewayForm, apiKey: e.target.value })
+                  setGatewayForm({ ...gatewayForm, api_key: e.target.value })
                 }
+                placeholder="Clave API de la pasarela"
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="gateway-merchant">Merchant ID</Label>
               <Input
                 id="gateway-merchant"
-                value={gatewayForm.merchantId}
+                value={gatewayForm.merchant_id}
                 onChange={(e) =>
                   setGatewayForm({
                     ...gatewayForm,
-                    merchantId: e.target.value,
+                    merchant_id: e.target.value,
                   })
                 }
+                placeholder="ID del comercio"
               />
             </div>
             <div className="flex items-center justify-between">
-              <Label htmlFor="gateway-active">Activa</Label>
+              <Label htmlFor="gateway-active">Pasarela Activa</Label>
               <Switch
                 id="gateway-active"
                 checked={gatewayForm.active}
@@ -1334,35 +1680,41 @@ export function ConfiguracionReglas() {
               Cancelar
             </Button>
             <Button onClick={handleCreateGateway}>
-              <Save className="mr-2 h-4 w-4" /> Guardar
+              <Save className="mr-2 h-4 w-4" /> 
+              {editingGateway ? 'Actualizar' : 'Guardar'} Pasarela
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* *** NUEVO: Dialog de Categorías de Excepción *** */}
       <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nueva Categoría</DialogTitle>
+            <DialogTitle>{editingCategory ? "Editar Categoría de Excepción" : "Nueva Categoría de Excepción"}</DialogTitle>
             <DialogDescription>
-              Configure la categoría de excepción
+              {editingCategory 
+                ? "Modifique los detalles de la categoría de excepción"
+                : "Configure una nueva categoría de excepción"
+              }
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="cat-name">Nombre</Label>
+              <Label htmlFor="category-name">Nombre</Label>
               <Input
-                id="cat-name"
+                id="category-name"
                 value={categoryForm.name}
                 onChange={(e) =>
                   setCategoryForm({ ...categoryForm, name: e.target.value })
                 }
+                placeholder="Ej: Becados, Empleados, Convenios Especiales"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="cat-description">Descripción</Label>
+              <Label htmlFor="category-description">Descripción</Label>
               <Input
-                id="cat-description"
+                id="category-description"
                 value={categoryForm.description}
                 onChange={(e) =>
                   setCategoryForm({
@@ -1370,61 +1722,93 @@ export function ConfiguracionReglas() {
                     description: e.target.value,
                   })
                 }
+                placeholder="Descripción de la categoría de excepción"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="cat-due">Día de Vencimiento</Label>
+              <Label htmlFor="category-due-day">Día de Vencimiento Personalizado</Label>
               <Input
-                id="cat-due"
+                id="category-due-day"
                 type="number"
-                value={categoryForm.rules.extendedDueDate}
+                min="1"
+                max="28"
+                value={categoryForm.due_day_override || ""}
                 onChange={(e) =>
                   setCategoryForm({
                     ...categoryForm,
-                    rules: {
-                      ...categoryForm.rules,
-                      extendedDueDate: Number(e.target.value),
-                    },
+                    due_day_override: e.target.value ? Number(e.target.value) : null,
                   })
                 }
+                placeholder="Dejar vacío para usar el general"
               />
+              <p className="text-xs text-muted-foreground">
+                Si se especifica, sobreescribe el día de vencimiento general para esta categoría
+              </p>
             </div>
-            <div className="flex items-center justify-between">
-              <Label>Exención de Mora</Label>
-              <Switch
-                checked={categoryForm.rules.skipLateFee}
-                onCheckedChange={(checked) =>
-                  setCategoryForm({
-                    ...categoryForm,
-                    rules: { ...categoryForm.rules, skipLateFee: checked },
-                  })
-                }
-              />
+            
+            <Separator />
+            
+            <div className="space-y-4">
+              <Label className="text-base font-medium">Excepciones de Reglas</Label>
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="skip-late-fee">Exención de Mora</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Los estudiantes en esta categoría no pagarán recargos por mora
+                  </p>
+                </div>
+                <Switch
+                  id="skip-late-fee"
+                  checked={categoryForm.skip_late_fee}
+                  onCheckedChange={(checked) =>
+                    setCategoryForm({ ...categoryForm, skip_late_fee: checked })
+                  }
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="allow-partial">Permitir Pagos Parciales</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Los estudiantes pueden realizar pagos parciales de sus cuotas
+                  </p>
+                </div>
+                <Switch
+                  id="allow-partial"
+                  checked={categoryForm.allow_partial_payments}
+                  onCheckedChange={(checked) =>
+                    setCategoryForm({ ...categoryForm, allow_partial_payments: checked })
+                  }
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="skip-blocking">Exención de Bloqueo</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Los estudiantes en esta categoría no serán bloqueados automáticamente
+                  </p>
+                </div>
+                <Switch
+                  id="skip-blocking"
+                  checked={categoryForm.skip_blocking}
+                  onCheckedChange={(checked) =>
+                    setCategoryForm({ ...categoryForm, skip_blocking: checked })
+                  }
+                />
+              </div>
             </div>
+            
+            <Separator />
+            
             <div className="flex items-center justify-between">
-              <Label>Pagos Parciales</Label>
+              <Label htmlFor="category-active">Categoría Activa</Label>
               <Switch
-                checked={categoryForm.rules.allowPartialPayments}
+                id="category-active"
+                checked={categoryForm.active}
                 onCheckedChange={(checked) =>
-                  setCategoryForm({
-                    ...categoryForm,
-                    rules: {
-                      ...categoryForm.rules,
-                      allowPartialPayments: checked,
-                    },
-                  })
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label>Exención de Bloqueo</Label>
-              <Switch
-                checked={categoryForm.rules.skipBlocking}
-                onCheckedChange={(checked) =>
-                  setCategoryForm({
-                    ...categoryForm,
-                    rules: { ...categoryForm.rules, skipBlocking: checked },
-                  })
+                  setCategoryForm({ ...categoryForm, active: checked })
                 }
               />
             </div>
@@ -1434,91 +1818,172 @@ export function ConfiguracionReglas() {
               Cancelar
             </Button>
             <Button onClick={handleCreateCategory}>
-              <Save className="mr-2 h-4 w-4" /> Guardar
+              <Save className="mr-2 h-4 w-4" /> 
+              {editingCategory ? 'Actualizar' : 'Guardar'} Categoría
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* *** ACTUALIZADO: Dialog de Ver Reglas con toda la información *** */}
       <Dialog open={showRulesDialog} onOpenChange={setShowRulesDialog}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Reglas Configuradas</DialogTitle>
+            <DialogTitle>Resumen de Reglas Configuradas</DialogTitle>
             <DialogDescription>
-              Visualice el resumen de todas las reglas actuales
+              Visualice el resumen completo de todas las reglas actuales del sistema
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4 text-sm">
+            
+            {/* Reglas Generales */}
             <div>
-              <h4 className="font-semibold mb-2">Generales</h4>
-              <ul className="space-y-1">
-                <li>Día de vencimiento: {generalRules.dueDateDay ?? '-'}</li>
-                <li>Mora: Q{generalRules.lateFeeAmount ?? '-'}</li>
-                <li>Bloquear tras {generalRules.blockAfterMonths ?? '-'} meses</li>
-                <li>
-                  Recordatorios automáticos:{' '}
-                  {generalRules.sendAutomaticReminders ? 'Sí' : 'No'}
-                </li>
-                <li>
-                  Pagos parciales:{' '}
-                  {generalRules.allowPartialPayments ? 'Permitidos' : 'No'}
-                </li>
-              </ul>
+              <h4 className="font-semibold mb-3 text-lg border-b pb-2">Reglas Generales</h4>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="font-medium">Día de vencimiento:</span>
+                    <span>{generalRules.dueDateDay ?? 'No configurado'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Monto de mora:</span>
+                    <span>Q{generalRules.lateFeeAmount ?? 'No configurado'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Bloqueo tras:</span>
+                    <span>{generalRules.blockAfterMonths ?? 'No configurado'} meses</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="font-medium">Recordatorios automáticos:</span>
+                    <Badge variant={generalRules.sendAutomaticReminders ? "default" : "outline"}>
+                      {generalRules.sendAutomaticReminders ? 'Sí' : 'No'}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">Desbloqueo automático:</span>
+                    <Badge variant={generalRules.autoUnblockAfterPayment ? "default" : "outline"}>
+                      {generalRules.autoUnblockAfterPayment ? 'Sí' : 'No'}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
             </div>
+
+            {/* Notificaciones */}
             <div>
-              <h4 className="font-semibold mb-2">Notificaciones</h4>
+              <h4 className="font-semibold mb-3 text-lg border-b pb-2">Notificaciones ({notificationRules.length})</h4>
               {notificationRules.length === 0 ? (
-                <p className="text-muted-foreground">Sin notificaciones</p>
+                <p className="text-muted-foreground italic">Sin notificaciones configuradas</p>
               ) : (
-                <ul className="space-y-1">
+                <div className="space-y-2">
                   {notificationRules.map((n) => (
-                    <li key={n.id}>
-                      {n.displayName}
-                    </li>
+                    <div key={n.id} className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                      <span>{n.displayName}</span>
+                      <Badge variant="outline">{n.type}</Badge>
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
+
+            {/* Reglas de Bloqueo */}
             <div>
-              <h4 className="font-semibold mb-2">Bloqueos</h4>
+              <h4 className="font-semibold mb-3 text-lg border-b pb-2">Reglas de Bloqueo ({blockingRules.length})</h4>
               {blockingRules.length === 0 ? (
-                <p className="text-muted-foreground">Sin reglas de bloqueo</p>
+                <p className="text-muted-foreground italic">Sin reglas de bloqueo configuradas</p>
               ) : (
-                <ul className="space-y-1">
+                <div className="space-y-2">
                   {blockingRules.map((b) => (
-                    <li key={b.id}>
-                      {b.name} - {b.daysAfterDue} días -{' '}
-                      {b.active ? 'Activo' : 'Inactivo'}
-                    </li>
+                    <div key={b.id} className="p-3 bg-muted/30 rounded">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium">{b.name}</span>
+                        <Badge variant={b.active ? "default" : "outline"}>
+                          {b.active ? 'Activo' : 'Inactivo'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-2">{b.description}</p>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span>Después de {b.daysAfterDue} días</span>
+                        <span>•</span>
+                        <span>Servicios: {b.services.join(', ')}</span>
+                      </div>
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
+
+            {/* Pasarelas de Pago */}
             <div>
-              <h4 className="font-semibold mb-2">Pasarelas</h4>
+              <h4 className="font-semibold mb-3 text-lg border-b pb-2">Pasarelas de Pago ({paymentGateways.length})</h4>
               {paymentGateways.length === 0 ? (
-                <p className="text-muted-foreground">Sin pasarelas</p>
+                <p className="text-muted-foreground italic">Sin pasarelas configuradas</p>
               ) : (
-                <ul className="space-y-1">
+                <div className="space-y-2">
                   {paymentGateways.map((g) => (
-                    <li key={g.id}>
-                      {g.name} - Comisión {g.fee}% -{' '}
-                      {g.active ? 'Activa' : 'Inactiva'}
-                    </li>
+                    <div key={g.id} className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                      <div>
+                        <span className="font-medium">{g.name}</span>
+                        <span className="text-xs text-muted-foreground ml-2">
+                          Comisión: {g.commission_percentage}%
+                        </span>
+                      </div>
+                      <Badge variant={g.active ? "default" : "outline"}>
+                        {g.active ? 'Activa' : 'Inactiva'}
+                      </Badge>
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
+
+            {/* Categorías de Excepción */}
             <div>
-              <h4 className="font-semibold mb-2">Excepciones</h4>
+              <h4 className="font-semibold mb-3 text-lg border-b pb-2">Categorías de Excepción ({exceptionCategories.length})</h4>
               {exceptionCategories.length === 0 ? (
-                <p className="text-muted-foreground">Sin categorías</p>
+                <p className="text-muted-foreground italic">Sin categorías configuradas</p>
               ) : (
-                <ul className="space-y-1">
+                <div className="space-y-3">
                   {exceptionCategories.map((c) => (
-                    <li key={c.id}>{c.name}</li>
+                    <div key={c.id} className="p-3 bg-muted/30 rounded">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium">{c.name}</span>
+                        <Badge variant={c.active ? "default" : "outline"}>
+                          {c.active ? 'Activo' : 'Inactivo'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-2">{c.description}</p>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span>Día vencimiento:</span>
+                          <Badge variant="outline">
+                            {c.due_day_override ? `Día ${c.due_day_override}` : 'General'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span>Exención mora:</span>
+                          <Badge variant={c.skip_late_fee ? "default" : "outline"}>
+                            {c.skip_late_fee ? 'Sí' : 'No'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span>Pagos parciales:</span>
+                          <Badge variant={c.allow_partial_payments ? "default" : "outline"}>
+                            {c.allow_partial_payments ? 'Sí' : 'No'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span>Exención bloqueo:</span>
+                          <Badge variant={c.skip_blocking ? "default" : "outline"}>
+                            {c.skip_blocking ? 'Sí' : 'No'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
           </div>
