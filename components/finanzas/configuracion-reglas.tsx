@@ -24,14 +24,19 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import {
   getPaymentRules,
+  getCurrentPaymentRule,
   updatePaymentRules,
   createPaymentRule,
   createNotificationRule,
   updateNotificationRule,
   deleteNotificationRule,
+  fetchNotificationRulesByRule,
+  fetchBlockingRulesByRule,
+  createBlockingRule,
+  updateBlockingRule,
+  deleteBlockingRule,
 } from "@/services/finance"
 import { toast } from "@/hooks/use-toast"
-
 
 export function ConfiguracionReglas() {
   const [activeTab, setActiveTab] = useState("general")
@@ -40,16 +45,14 @@ export function ConfiguracionReglas() {
   const [blockingRules, setBlockingRules] = useState<any[]>([])
   const [paymentGateways, setPaymentGateways] = useState<any[]>([])
   const [exceptionCategories, setExceptionCategories] = useState<any[]>([])
-  const [selectedNotifications, setSelectedNotifications] = useState<
-    Set<number>
-  >(new Set())
+  const [selectedNotifications, setSelectedNotifications] = useState<Set<number>>(new Set())
+  const [selectedBlockingRules, setSelectedBlockingRules] = useState<Set<number>>(new Set())
   const [editingNotification, setEditingNotification] = useState<any | null>(null)
+  const [editingBlockingRule, setEditingBlockingRule] = useState<any | null>(null)
   const [showNotificationForm, setShowNotificationForm] = useState(false)
   const [notificationForm, setNotificationForm] = useState({
-    name: '',
     type: 'email',
     triggerDays: 0,
-    active: true,
     message: '',
   })
 
@@ -84,20 +87,123 @@ export function ConfiguracionReglas() {
     },
   })
 
-
   const [showRulesDialog, setShowRulesDialog] = useState(false)
+
+  // *** FUNCIONES DE MAPEO API ⇄ UI ***
+
+  function mapFromApiRule(apiRule: any) {
+    if (!apiRule) return {}
+
+    return {
+      id: apiRule.id,
+      // API -> UI
+      dueDateDay: apiRule.due_day ?? undefined,
+      lateFeeAmount: apiRule.late_fee_amount !== undefined
+        ? Number(apiRule.late_fee_amount)
+        : undefined,
+      blockAfterMonths: apiRule.block_after_months ?? undefined,
+      sendAutomaticReminders: !!apiRule.send_automatic_reminders,
+
+      // Campos que hoy solo existen en UI (mantener estado local sin romper)
+      allowPartialPayments: apiRule.allow_partial_payments ?? false,
+      requireReceiptUpload: apiRule.require_receipt_upload ?? false,
+      autoUnblockAfterPayment: apiRule.auto_unblock_after_payment ?? true,
+
+      // Si en backend metes esto como JSON (gateway_config)
+      paymentGateways: Array.isArray(apiRule.gateway_config)
+        ? apiRule.gateway_config
+        : (apiRule.gateway_config ?? []),
+    }
+  }
+
+  // *** MAPEAR NOTIFICACIONES ***
+  function mapNotificationsFromApi(apiList: any[]) {
+    return (apiList ?? []).map((n: any) => ({
+      id: n.id,
+      type: n.type ?? 'email',
+      triggerDays: Number(n.offset_days ?? 0),
+      message: n.message ?? '',
+      displayName: `${n.type === 'email' ? 'Email' : n.type === 'sms' ? 'SMS' : 'WhatsApp'} - ${
+        n.offset_days === 0 
+          ? 'Día vencimiento' 
+          : n.offset_days < 0 
+            ? `${Math.abs(n.offset_days)} días antes`
+            : `${n.offset_days} días después`
+      }`
+    }))
+  }
+
+  // *** NUEVO: MAPEAR REGLAS DE BLOQUEO ***
+  function mapBlockingRulesFromApi(apiList: any[]) {
+    return (apiList ?? []).map((b: any) => ({
+      id: b.id,
+      name: b.name,
+      description: b.description,
+      daysAfterDue: Number(b.days_after_due),
+      services: b.affected_services || [],
+      active: !!b.active,
+      createdAt: b.created_at,
+      updatedAt: b.updated_at,
+    }))
+  }
+
+  // Envía solo lo que valida tu backend hoy
+  function mapToApiFields(uiData: any) {
+    return {
+      due_day: uiData.dueDateDay,
+      late_fee_amount: uiData.lateFeeAmount,
+      block_after_months: uiData.blockAfterMonths,
+      send_automatic_reminders: uiData.sendAutomaticReminders,
+      gateway_config: uiData.paymentGateways ?? [],
+    }
+  }
+
+  // *** CARGAR AL ENTRAR Y REFRESCAR (ACTUALIZADO) ***
 
   const refreshRules = async () => {
     try {
-      const data = await getPaymentRules()
-      if (data) {
-        const rule = Array.isArray(data) ? data[0] : data
-        setGeneralRules((prev: any) => ({ ...prev, ...rule }))
-        setNotificationRules(rule.notificationRules || [])
-        setBlockingRules(rule.blockingRules || [])
-        setPaymentGateways(rule.paymentGateways || [])
-        setExceptionCategories(rule.exceptionCategories || [])
+      // 1) regla vigente (current) o, si no hay, la de mayor id del listado
+      let rule: any | null = null
+      try {
+        const current = await getCurrentPaymentRule()
+        rule = current ?? null
+      } catch {
+        const list = await getPaymentRules()
+        if (Array.isArray(list) && list.length > 0) {
+          rule = [...list].sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0]
+        } else {
+          rule = null
+        }
       }
+
+      if (!rule) {
+        setGeneralRules({})
+        setNotificationRules([])
+        setBlockingRules([])
+        setPaymentGateways([])
+        setExceptionCategories([])
+        return
+      }
+
+      // 2) mapear regla API -> UI (campos generales)
+      const mapped = mapFromApiRule(rule)
+      setGeneralRules((prev: any) => ({ ...prev, ...mapped }))
+      setPaymentGateways(mapped.paymentGateways ?? [])
+
+      // 3) pedir notificaciones por endpoint dedicado
+      const notifApi = await fetchNotificationRulesByRule(rule.id)
+      notifApi.sort((a: any, b: any) => (a.offset_days ?? 0) - (b.offset_days ?? 0))
+      const notifUi = mapNotificationsFromApi(notifApi)
+      setNotificationRules(notifUi)
+
+      // 4) *** NUEVO: cargar reglas de bloqueo ***
+      const blockingApi = await fetchBlockingRulesByRule(rule.id)
+      blockingApi.sort((a: any, b: any) => (a.days_after_due ?? 0) - (b.days_after_due ?? 0))
+      const blockingUi = mapBlockingRulesFromApi(blockingApi)
+      setBlockingRules(blockingUi)
+
+      // 5) excepciones (por ahora locales)
+      setExceptionCategories(rule.exceptionCategories ?? [])
     } catch (e) {
       toast({ title: 'Error', description: 'No se pudieron cargar las reglas' })
     }
@@ -119,6 +225,41 @@ export function ConfiguracionReglas() {
     refreshRules()
   }, [])
 
+  // Refrescar cada vez que abras el modal de "Ver Reglas"
+  useEffect(() => {
+    if (showRulesDialog) {
+      refreshRules()
+    }
+  }, [showRulesDialog])
+
+  // Recargar cuando entras al tab "Notificaciones"
+  useEffect(() => {
+    if (activeTab === 'notifications' && generalRules?.id) {
+      fetchNotificationRulesByRule(generalRules.id)
+        .then((list) => {
+          list.sort((a: any, b: any) => (a.offset_days ?? 0) - (b.offset_days ?? 0))
+          setNotificationRules(mapNotificationsFromApi(list))
+        })
+        .catch(() =>
+          toast({ title: 'Error', description: 'No se pudieron cargar las notificaciones' })
+        )
+    }
+  }, [activeTab, generalRules?.id])
+
+  // *** NUEVO: Recargar cuando entras al tab "Bloqueos" ***
+  useEffect(() => {
+    if (activeTab === 'blocking' && generalRules?.id) {
+      fetchBlockingRulesByRule(generalRules.id)
+        .then((list) => {
+          list.sort((a: any, b: any) => (a.days_after_due ?? 0) - (b.days_after_due ?? 0))
+          setBlockingRules(mapBlockingRulesFromApi(list))
+        })
+        .catch(() =>
+          toast({ title: 'Error', description: 'No se pudieron cargar las reglas de bloqueo' })
+        )
+    }
+  }, [activeTab, generalRules?.id])
+
   // Función para manejar cambios en las reglas generales
   const handleGeneralRuleChange = (key: string, value: any) => {
     setGeneralRules({
@@ -127,19 +268,21 @@ export function ConfiguracionReglas() {
     })
   }
 
-  // Función para abrir el formulario de notificación
+  // *** FUNCIONES DE NOTIFICACIONES ***
   const openNotificationForm = (notification: any = null) => {
     setEditingNotification(notification)
     if (notification) {
       setNotificationForm({
-        name: notification.name,
         type: notification.type,
         triggerDays: notification.triggerDays,
-        active: notification.active,
         message: notification.message,
       })
     } else {
-      setNotificationForm({ name: '', type: 'email', triggerDays: 0, active: true, message: '' })
+      setNotificationForm({ 
+        type: 'email', 
+        triggerDays: 0, 
+        message: '' 
+      })
     }
     setShowNotificationForm(true)
   }
@@ -156,37 +299,132 @@ export function ConfiguracionReglas() {
     })
   }
 
+  const handleDeleteNotification = async (notificationId: number) => {
+    if (!generalRules?.id) {
+      toast({ title: 'Error', description: 'No hay regla general configurada' })
+      return
+    }
+
+    try {
+      await deleteNotificationRule(generalRules.id, notificationId)
+      toast({ title: 'Notificación eliminada correctamente' })
+      await refreshRules()
+    } catch (error) {
+      toast({ 
+        title: 'Error', 
+        description: 'No se pudo eliminar la notificación' 
+      })
+    }
+  }
+
   const handleDeleteSelected = async () => {
-    if (selectedNotifications.size === 0) return
+    if (selectedNotifications.size === 0 || !generalRules?.id) {
+      if (!generalRules?.id) {
+        toast({ title: 'Error', description: 'Primero guarda la regla general' })
+      }
+      return
+    }
     try {
       await Promise.all(
         Array.from(selectedNotifications).map((id) =>
-          deleteNotificationRule(generalRules.id ?? 1, id),
+          deleteNotificationRule(generalRules.id, id),
         ),
       )
       setSelectedNotifications(new Set())
       toast({ title: 'Notificaciones eliminadas' })
       await refreshRules()
-    } catch (e) {
-      toast({
-        title: 'Error',
-        description: 'No se pudieron eliminar las notificaciones',
+    } catch {
+      toast({ title: 'Error', description: 'No se pudieron eliminar las notificaciones' })
+    }
+  }
+
+  // *** NUEVAS FUNCIONES DE BLOQUEO ***
+  const openBlockingForm = (blockingRule: any = null) => {
+    setEditingBlockingRule(blockingRule)
+    if (blockingRule) {
+      setBlockingForm({
+        name: blockingRule.name,
+        description: blockingRule.description,
+        daysAfterDue: blockingRule.daysAfterDue,
+        services: blockingRule.services,
+        active: blockingRule.active,
+      })
+    } else {
+      setBlockingForm({
+        name: '',
+        description: '',
+        daysAfterDue: 1,
+        services: [],
+        active: true,
+      })
+    }
+    setShowBlockingDialog(true)
+  }
+
+  const toggleBlockingRuleSelection = (id: number, checked: boolean) => {
+    setSelectedBlockingRules((prev) => {
+      const newSet = new Set(prev)
+      if (checked) {
+        newSet.add(id)
+      } else {
+        newSet.delete(id)
+      }
+      return newSet
+    })
+  }
+
+  const handleDeleteBlockingRule = async (blockingRuleId: number) => {
+    if (!generalRules?.id) {
+      toast({ title: 'Error', description: 'No hay regla general configurada' })
+      return
+    }
+
+    try {
+      await deleteBlockingRule(generalRules.id, blockingRuleId)
+      toast({ title: 'Regla de bloqueo eliminada correctamente' })
+      await refreshRules()
+    } catch (error) {
+      toast({ 
+        title: 'Error', 
+        description: 'No se pudo eliminar la regla de bloqueo' 
       })
     }
   }
 
-  const handleCreateBlockingRule = async () => {
+  const handleDeleteSelectedBlockingRules = async () => {
+    if (selectedBlockingRules.size === 0 || !generalRules?.id) {
+      if (!generalRules?.id) {
+        toast({ title: 'Error', description: 'Primero guarda la regla general' })
+      }
+      return
+    }
     try {
+      await Promise.all(
+        Array.from(selectedBlockingRules).map((id) =>
+          deleteBlockingRule(generalRules.id, id),
+        ),
+      )
+      setSelectedBlockingRules(new Set())
+      toast({ title: 'Reglas de bloqueo eliminadas' })
+      await refreshRules()
+    } catch {
+      toast({ title: 'Error', description: 'No se pudieron eliminar las reglas de bloqueo' })
+    }
+  }
 
-      await persistRules({
-
-        ...generalRules,
-        notificationRules,
-        blockingRules: [...blockingRules, blockingForm],
-        paymentGateways,
-        exceptionCategories,
-      })
-      toast({ title: 'Regla de bloqueo creada' })
+  const handleCreateBlockingRule = async () => {
+    if (!generalRules?.id) {
+      toast({ title: 'Error', description: 'Primero guarda la regla general' })
+      return
+    }
+    try {
+      if (editingBlockingRule) {
+        await updateBlockingRule(generalRules.id, editingBlockingRule.id, blockingForm)
+        toast({ title: 'Regla de bloqueo actualizada' })
+      } else {
+        await createBlockingRule(generalRules.id, blockingForm)
+        toast({ title: 'Regla de bloqueo creada' })
+      }
       setShowBlockingDialog(false)
       setBlockingForm({
         name: '',
@@ -199,14 +437,13 @@ export function ConfiguracionReglas() {
     } catch (e) {
       toast({
         title: 'Error',
-        description: 'No se pudo crear la regla de bloqueo',
+        description: 'No se pudo guardar la regla de bloqueo',
       })
     }
   }
 
   const handleCreateGateway = async () => {
     try {
-
       await persistRules({
         ...generalRules,
         notificationRules,
@@ -232,9 +469,7 @@ export function ConfiguracionReglas() {
 
   const handleCreateCategory = async () => {
     try {
-
       await persistRules({
-
         ...generalRules,
         notificationRules,
         blockingRules,
@@ -256,23 +491,6 @@ export function ConfiguracionReglas() {
       await refreshRules()
     } catch (e) {
       toast({ title: 'Error', description: 'No se pudo crear la categoría' })
-    }
-  }
-
-  // Mapea los nombres del frontend a los del backend
-  function mapToApiFields(data: any) {
-    return {
-      due_day: data.dueDateDay,
-      late_fee_amount: data.lateFeeAmount,
-      block_after_months: data.blockAfterMonths,
-      send_automatic_reminders: data.sendAutomaticReminders,
-      // Puedes agregar aquí otros campos si tu backend los espera
-      gateway_config: data.paymentGateways ?? [],
-      // Si tienes más campos, agrégalos aquí
-      // Además, puedes incluir notificationRules, blockingRules, exceptionCategories si tu backend los acepta
-      notification_rules: data.notificationRules ?? [],
-      blocking_rules: data.blockingRules ?? [],
-      exception_categories: data.exceptionCategories ?? [],
     }
   }
 
@@ -337,14 +555,12 @@ export function ConfiguracionReglas() {
                       min="1"
                       max="28"
                       value={generalRules.dueDateDay ?? ""}
-
                       onChange={(e) =>
                         handleGeneralRuleChange(
                           "dueDateDay",
                           e.target.value === "" ? undefined : Number(e.target.value),
                         )
                       }
-
                     />
                     <p className="text-xs text-muted-foreground">Día del mes en que vencen los pagos mensuales</p>
                   </div>
@@ -356,14 +572,12 @@ export function ConfiguracionReglas() {
                       type="number"
                       min="0"
                       value={generalRules.lateFeeAmount ?? ""}
-
                       onChange={(e) =>
                         handleGeneralRuleChange(
                           "lateFeeAmount",
                           e.target.value === "" ? undefined : Number(e.target.value),
                         )
                       }
-
                     />
                     <p className="text-xs text-muted-foreground">
                       Cantidad que se cargará automáticamente por pagos atrasados
@@ -378,14 +592,12 @@ export function ConfiguracionReglas() {
                       min="1"
                       max="12"
                       value={generalRules.blockAfterMonths ?? ""}
-
                       onChange={(e) =>
                         handleGeneralRuleChange(
                           "blockAfterMonths",
                           e.target.value === "" ? undefined : Number(e.target.value),
                         )
                       }
-
                     />
                     <p className="text-xs text-muted-foreground">
                       Número de meses sin pago antes de bloquear la plataforma
@@ -398,26 +610,8 @@ export function ConfiguracionReglas() {
                     <Label htmlFor="sendAutomaticReminders">Enviar recordatorios automáticos</Label>
                     <Switch
                       id="sendAutomaticReminders"
-                      checked={generalRules.sendAutomaticReminders}
+                      checked={!!generalRules.sendAutomaticReminders}
                       onCheckedChange={(checked) => handleGeneralRuleChange("sendAutomaticReminders", checked)}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between space-y-0 pb-2">
-                    <Label htmlFor="allowPartialPayments">Permitir pagos parciales</Label>
-                    <Switch
-                      id="allowPartialPayments"
-                      checked={generalRules.allowPartialPayments}
-                      onCheckedChange={(checked) => handleGeneralRuleChange("allowPartialPayments", checked)}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between space-y-0 pb-2">
-                    <Label htmlFor="requireReceiptUpload">Requerir carga de recibo</Label>
-                    <Switch
-                      id="requireReceiptUpload"
-                      checked={generalRules.requireReceiptUpload}
-                      onCheckedChange={(checked) => handleGeneralRuleChange("requireReceiptUpload", checked)}
                     />
                   </div>
 
@@ -425,7 +619,7 @@ export function ConfiguracionReglas() {
                     <Label htmlFor="autoUnblockAfterPayment">Desbloquear automáticamente después del pago</Label>
                     <Switch
                       id="autoUnblockAfterPayment"
-                      checked={generalRules.autoUnblockAfterPayment}
+                      checked={!!generalRules.autoUnblockAfterPayment}
                       onCheckedChange={(checked) => handleGeneralRuleChange("autoUnblockAfterPayment", checked)}
                     />
                   </div>
@@ -447,7 +641,7 @@ export function ConfiguracionReglas() {
               <Button
                 onClick={async () => {
                   try {
-                await persistRules({
+                    await persistRules({
                       ...generalRules,
                       notificationRules,
                       blockingRules,
@@ -473,20 +667,32 @@ export function ConfiguracionReglas() {
                 <CardTitle>Configuración de Notificaciones</CardTitle>
                 <CardDescription>Administre las notificaciones automáticas para pagos</CardDescription>
               </div>
-              <Button onClick={() => openNotificationForm()} className="mt-4 md:mt-0">
+              <Button 
+                onClick={() => openNotificationForm()} 
+                className="mt-4 md:mt-0"
+                disabled={!generalRules?.id}
+              >
                 <Plus className="mr-2 h-4 w-4" /> Nueva Notificación
               </Button>
             </CardHeader>
             <CardContent>
+              {!generalRules?.id && (
+                <Alert className="mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Información</AlertTitle>
+                  <AlertDescription>
+                    Primero guarde la configuración general para poder administrar las notificaciones.
+                  </AlertDescription>
+                </Alert>
+              )}
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[50px]"></TableHead>
-                    <TableHead>Nombre</TableHead>
+                    <TableHead>Descripción</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead>Días Relativos</TableHead>
                     <TableHead>Mensaje</TableHead>
-                    <TableHead>Estado</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -494,7 +700,7 @@ export function ConfiguracionReglas() {
                   {notificationRules.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center">
-                        Sin datos
+                        {!generalRules?.id ? 'Configure primero las reglas generales' : 'Sin notificaciones configuradas'}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -513,7 +719,7 @@ export function ConfiguracionReglas() {
                               }
                             />
                           </TableCell>
-                          <TableCell className="font-medium">{notification.name}</TableCell>
+                          <TableCell className="font-medium">{notification.displayName}</TableCell>
                           <TableCell>
                             <Badge variant="outline">
                               {notification.type === "email" ? "Email" : notification.type === "sms" ? "SMS" : "WhatsApp"}
@@ -527,15 +733,20 @@ export function ConfiguracionReglas() {
                                 : `${notification.triggerDays} días después`}
                           </TableCell>
                           <TableCell className="max-w-[300px] truncate">{notification.message}</TableCell>
-                          <TableCell>
-                            <Badge variant={notification.active ? "default" : "outline"}>
-                              {notification.active ? "Activo" : "Inactivo"}
-                            </Badge>
-                          </TableCell>
                           <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" onClick={() => openNotificationForm(notification)}>
-                              <Settings className="h-4 w-4 mr-1" /> Editar
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              <Button variant="ghost" size="sm" onClick={() => openNotificationForm(notification)}>
+                                <Settings className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => handleDeleteNotification(notification.id)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       )
@@ -548,7 +759,11 @@ export function ConfiguracionReglas() {
               <div className="text-sm text-muted-foreground">
                 Mostrando {notificationRules.length} notificaciones configuradas
               </div>
-              <Button variant="outline" onClick={handleDeleteSelected}>
+              <Button 
+                variant="outline" 
+                onClick={handleDeleteSelected}
+                disabled={selectedNotifications.size === 0 || !generalRules?.id}
+              >
                 <Trash2 className="mr-2 h-4 w-4" /> Eliminar Seleccionadas
               </Button>
             </CardFooter>
@@ -567,17 +782,6 @@ export function ConfiguracionReglas() {
               <CardContent className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="notification-name">Nombre</Label>
-                    <Input
-                      id="notification-name"
-                      value={notificationForm.name}
-                      onChange={(e) =>
-                        setNotificationForm({ ...notificationForm, name: e.target.value })
-                      }
-                      placeholder="Ej: Recordatorio de pago"
-                    />
-                  </div>
-                  <div className="space-y-2">
                     <Label htmlFor="notification-type">Tipo</Label>
                     <Select
                       value={notificationForm.type}
@@ -595,8 +799,6 @@ export function ConfiguracionReglas() {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-                <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="notification-days">Días Relativos</Label>
                     <Input
@@ -614,26 +816,6 @@ export function ConfiguracionReglas() {
                     <p className="text-xs text-muted-foreground">
                       Número de días antes (-) o después (+) de la fecha de vencimiento
                     </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="notification-active">Estado</Label>
-                    <Select
-                      value={notificationForm.active ? 'active' : 'inactive'}
-                      onValueChange={(val) =>
-                        setNotificationForm({
-                          ...notificationForm,
-                          active: val === 'active',
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccione el estado" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Activo</SelectItem>
-                        <SelectItem value="inactive">Inactivo</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -658,17 +840,28 @@ export function ConfiguracionReglas() {
                 <Button
                   onClick={async () => {
                     try {
+                      if (!generalRules?.id) {
+                        toast({ title: 'Error', description: 'Primero guarda la regla general' })
+                        return
+                      }
+
+                      const apiData = {
+                        type: notificationForm.type,
+                        offset_days: notificationForm.triggerDays,
+                        message: notificationForm.message,
+                      }
+
                       if (editingNotification) {
                         await updateNotificationRule(
-                          generalRules.id ?? 1,
+                          generalRules.id,
                           editingNotification.id,
-                          notificationForm,
+                          apiData,
                         )
                         toast({ title: 'Notificación actualizada' })
                       } else {
                         await createNotificationRule(
-                          generalRules.id ?? 1,
-                          notificationForm,
+                          generalRules.id,
+                          apiData,
                         )
                         toast({ title: 'Notificación creada' })
                       }
@@ -689,16 +882,36 @@ export function ConfiguracionReglas() {
           )}
         </TabsContent>
 
+        {/* *** ACTUALIZADO: Tab de Bloqueos con funcionalidad completa *** */}
         <TabsContent value="blocking" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Reglas de Bloqueo</CardTitle>
-              <CardDescription>Configure las condiciones para bloqueo automático de servicios</CardDescription>
+            <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle>Reglas de Bloqueo</CardTitle>
+                <CardDescription>Configure las condiciones para bloqueo automático de servicios</CardDescription>
+              </div>
+              <Button 
+                onClick={() => openBlockingForm()} 
+                className="mt-4 md:mt-0"
+                disabled={!generalRules?.id}
+              >
+                <Plus className="mr-2 h-4 w-4" /> Nueva Regla de Bloqueo
+              </Button>
             </CardHeader>
             <CardContent>
+              {!generalRules?.id && (
+                <Alert className="mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Información</AlertTitle>
+                  <AlertDescription>
+                    Primero guarde la configuración general para poder administrar las reglas de bloqueo.
+                  </AlertDescription>
+                </Alert>
+              )}
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]"></TableHead>
                     <TableHead>Nombre</TableHead>
                     <TableHead>Descripción</TableHead>
                     <TableHead>Días Después de Vencimiento</TableHead>
@@ -710,56 +923,82 @@ export function ConfiguracionReglas() {
                 <TableBody>
                   {blockingRules.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center">
-                        Sin datos
+                      <TableCell colSpan={7} className="text-center">
+                        {!generalRules?.id ? 'Configure primero las reglas generales' : 'Sin reglas de bloqueo configuradas'}
                       </TableCell>
                     </TableRow>
                   ) : (
-
                     blockingRules.map((rule) => {
                       return (
                         <TableRow key={rule.id}>
-
-                        <TableCell className="font-medium">{rule.name}</TableCell>
-                        <TableCell>{rule.description}</TableCell>
-                        <TableCell>{rule.daysAfterDue}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {rule.services.map((service: string, index: number) => {
-                              return (
-                                <Badge key={index} variant="outline">
-                                  {service === "plataforma"
-                                    ? "Plataforma"
-                                    : service === "evaluaciones"
-                                      ? "Evaluaciones"
-                                      : service === "materiales"
-                                        ? "Materiales"
-                                        : service}
-                                </Badge>
-                              )
-                            })}
-                          </div>
-
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={rule.active ? "default" : "outline"}>
-                          {rule.active ? "Activo" : "Inactivo"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm">
-                          <Settings className="h-4 w-4 mr-1" /> Editar
-                        </Button>
-                      </TableCell>
+                          <TableCell>
+                            <Checkbox
+                              id={`select-blocking-${rule.id}`}
+                              checked={selectedBlockingRules.has(rule.id)}
+                              onCheckedChange={(checked) =>
+                                toggleBlockingRuleSelection(
+                                  rule.id,
+                                  !!checked,
+                                )
+                              }
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">{rule.name}</TableCell>
+                          <TableCell>{rule.description}</TableCell>
+                          <TableCell>{rule.daysAfterDue} días</TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {rule.services.map((service: string, index: number) => {
+                                return (
+                                  <Badge key={index} variant="outline">
+                                    {service === "plataforma"
+                                      ? "Plataforma"
+                                      : service === "evaluaciones"
+                                        ? "Evaluaciones"
+                                        : service === "materiales"
+                                          ? "Materiales"
+                                          : service}
+                                  </Badge>
+                                )
+                              })}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={rule.active ? "default" : "outline"}>
+                              {rule.active ? "Activo" : "Inactivo"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button variant="ghost" size="sm" onClick={() => openBlockingForm(rule)}>
+                                <Settings className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => handleDeleteBlockingRule(rule.id)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       )
-                      }))}
-                  </TableBody>
+                    }))}
+                </TableBody>
               </Table>
             </CardContent>
-            <CardFooter>
-              <Button className="ml-auto" onClick={() => setShowBlockingDialog(true)}>
-                <Plus className="mr-2 h-4 w-4" /> Nueva Regla de Bloqueo
+            <CardFooter className="flex justify-between">
+              <div className="text-sm text-muted-foreground">
+                Mostrando {blockingRules.length} reglas de bloqueo configuradas
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={handleDeleteSelectedBlockingRules}
+                disabled={selectedBlockingRules.size === 0 || !generalRules?.id}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Eliminar Seleccionadas
               </Button>
             </CardFooter>
           </Card>
@@ -792,29 +1031,27 @@ export function ConfiguracionReglas() {
                       </TableCell>
                     </TableRow>
                   ) : (
-
                     paymentGateways.map((gateway) => {
                       return (
                         <TableRow key={gateway.id}>
-
-                      <TableCell className="font-medium">{gateway.name}</TableCell>
-                      <TableCell>{gateway.description}</TableCell>
-                      <TableCell>{gateway.fee}%</TableCell>
-                      <TableCell>{gateway.apiKey || "No configurado"}</TableCell>
-                      <TableCell>{gateway.merchantId || "No configurado"}</TableCell>
-                      <TableCell>
-                        <Badge variant={gateway.active ? "default" : "outline"}>
-                          {gateway.active ? "Activo" : "Inactivo"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm">
-                          <Settings className="h-4 w-4 mr-1" /> Configurar
-                        </Button>
-                      </TableCell>
+                          <TableCell className="font-medium">{gateway.name}</TableCell>
+                          <TableCell>{gateway.description}</TableCell>
+                          <TableCell>{gateway.fee}%</TableCell>
+                          <TableCell>{gateway.apiKey || "No configurado"}</TableCell>
+                          <TableCell>{gateway.merchantId || "No configurado"}</TableCell>
+                          <TableCell>
+                            <Badge variant={gateway.active ? "default" : "outline"}>
+                              {gateway.active ? "Activo" : "Inactivo"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="sm">
+                              <Settings className="h-4 w-4 mr-1" /> Configurar
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       )
-                      }))}
+                    }))}
                 </TableBody>
               </Table>
             </CardContent>
@@ -856,45 +1093,44 @@ export function ConfiguracionReglas() {
                     exceptionCategories.map((category) => {
                       return (
                         <TableRow key={category.id}>
-
-                      <TableCell className="font-medium">{category.name}</TableCell>
-                      <TableCell>{category.description}</TableCell>
-                      <TableCell>
-                        {category.rules.skipLateFee ? (
-                          <Badge variant="default" className="bg-green-500">
-                            Sí
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">No</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>Día {category.rules.extendedDueDate}</TableCell>
-                      <TableCell>
-                        {category.rules.allowPartialPayments ? (
-                          <Badge variant="default" className="bg-green-500">
-                            Permitidos
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">No permitidos</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {category.rules.skipBlocking ? (
-                          <Badge variant="default" className="bg-green-500">
-                            Sí
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">No</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm">
-                          <Settings className="h-4 w-4 mr-1" /> Editar
-                        </Button>
-                        </TableCell>
-                      </TableRow>
+                          <TableCell className="font-medium">{category.name}</TableCell>
+                          <TableCell>{category.description}</TableCell>
+                          <TableCell>
+                            {category.rules.skipLateFee ? (
+                              <Badge variant="default" className="bg-green-500">
+                                Sí
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline">No</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>Día {category.rules.extendedDueDate}</TableCell>
+                          <TableCell>
+                            {category.rules.allowPartialPayments ? (
+                              <Badge variant="default" className="bg-green-500">
+                                Permitidos
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline">No permitidos</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {category.rules.skipBlocking ? (
+                              <Badge variant="default" className="bg-green-500">
+                                Sí
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline">No</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="sm">
+                              <Settings className="h-4 w-4 mr-1" /> Editar
+                            </Button>
+                          </TableCell>
+                        </TableRow>
                       )
-                      }))}
+                    }))}
                 </TableBody>
               </Table>
             </CardContent>
@@ -907,11 +1143,17 @@ export function ConfiguracionReglas() {
         </TabsContent>
       </Tabs>
 
+      {/* *** ACTUALIZADO: Dialog de Reglas de Bloqueo *** */}
       <Dialog open={showBlockingDialog} onOpenChange={setShowBlockingDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nueva Regla de Bloqueo</DialogTitle>
-            <DialogDescription>Configure una regla de bloqueo</DialogDescription>
+            <DialogTitle>{editingBlockingRule ? "Editar Regla de Bloqueo" : "Nueva Regla de Bloqueo"}</DialogTitle>
+            <DialogDescription>
+              {editingBlockingRule 
+                ? "Modifique los detalles de la regla de bloqueo"
+                : "Configure una nueva regla de bloqueo"
+              }
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -922,6 +1164,7 @@ export function ConfiguracionReglas() {
                 onChange={(e) =>
                   setBlockingForm({ ...blockingForm, name: e.target.value })
                 }
+                placeholder="Ej: Bloqueo después de 30 días"
               />
             </div>
             <div className="space-y-2">
@@ -935,6 +1178,7 @@ export function ConfiguracionReglas() {
                     description: e.target.value,
                   })
                 }
+                placeholder="Describe qué hace esta regla de bloqueo"
               />
             </div>
             <div className="space-y-2">
@@ -942,6 +1186,7 @@ export function ConfiguracionReglas() {
               <Input
                 id="block-days"
                 type="number"
+                min="1"
                 value={blockingForm.daysAfterDue}
                 onChange={(e) =>
                   setBlockingForm({
@@ -950,12 +1195,15 @@ export function ConfiguracionReglas() {
                   })
                 }
               />
+              <p className="text-xs text-muted-foreground">
+                Número de días después del vencimiento para aplicar el bloqueo
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Servicios Afectados</Label>
               <div className="flex gap-4">
                 {["plataforma", "evaluaciones", "materiales"].map((svc) => (
-                  <label key={svc} className="flex items-center gap-1">
+                  <label key={svc} className="flex items-center gap-2">
                     <Checkbox
                       checked={blockingForm.services.includes(svc)}
                       onCheckedChange={(checked) => {
@@ -967,13 +1215,18 @@ export function ConfiguracionReglas() {
                         })
                       }}
                     />
-                    {svc.charAt(0).toUpperCase() + svc.slice(1)}
+                    <span className="text-sm">
+                      {svc.charAt(0).toUpperCase() + svc.slice(1)}
+                    </span>
                   </label>
                 ))}
               </div>
+              <p className="text-xs text-muted-foreground">
+                Seleccione los servicios que serán bloqueados cuando se aplique esta regla
+              </p>
             </div>
             <div className="flex items-center justify-between">
-              <Label htmlFor="block-active">Activa</Label>
+              <Label htmlFor="block-active">Regla Activa</Label>
               <Switch
                 id="block-active"
                 checked={blockingForm.active}
@@ -988,12 +1241,14 @@ export function ConfiguracionReglas() {
               Cancelar
             </Button>
             <Button onClick={handleCreateBlockingRule}>
-              <Save className="mr-2 h-4 w-4" /> Guardar
+              <Save className="mr-2 h-4 w-4" /> 
+              {editingBlockingRule ? 'Actualizar' : 'Guardar'} Regla
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* Resto de dialogs permanecen igual... */}
       <Dialog open={showGatewayDialog} onOpenChange={setShowGatewayDialog}>
         <DialogContent>
           <DialogHeader>
@@ -1218,8 +1473,7 @@ export function ConfiguracionReglas() {
                 <ul className="space-y-1">
                   {notificationRules.map((n) => (
                     <li key={n.id}>
-                      {n.name} - {n.triggerDays} días -{' '}
-                      {n.active ? 'Activo' : 'Inactivo'}
+                      {n.displayName}
                     </li>
                   ))}
                 </ul>
@@ -1278,5 +1532,3 @@ export function ConfiguracionReglas() {
     </div>
   )
 }
-
-

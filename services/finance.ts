@@ -57,7 +57,17 @@ export const getPaymentRules = async () => {
   return res.data
 }
 
+export const getCurrentPaymentRule = async () => {
+  // Devuelve la última regla creada (o 404 si no hay)
+  // El backend puede incluir notifications si usas ->load('notifications')
+  const res = await api.get('/payment-rules-current')
+  return res.data
+}
 
+export const getPaymentRuleById = async (id: string | number) => {
+  const res = await api.get(`/payment-rules/${id}`)
+  return res.data
+}
 
 export const updatePaymentRules = async (
   id: string | number,
@@ -71,7 +81,14 @@ export const createNotificationRule = async (
   ruleId: string | number,
   data: any,
 ) => {
-  const res = await api.post(`/payment-rules/${ruleId}/notifications`, data)
+  // map UI -> API
+  const payload = {
+    type: data.type,                         // 'email' | 'sms' | 'whatsapp'
+    offset_days: Number(data.triggerDays),   // requerido por backend
+    message: data.message ?? null,           // opcional
+    // name y active NO existen en el backend que mostraste
+  }
+  const res = await api.post(`/payment-rules/${ruleId}/notifications`, payload)
   return res.data
 }
 
@@ -80,9 +97,15 @@ export const updateNotificationRule = async (
   notificationId: string | number,
   data: any,
 ) => {
+  // map UI -> API (usar 'sometimes' del backend)
+  const payload: any = {}
+  if (data.type !== undefined) payload.type = data.type
+  if (data.triggerDays !== undefined) payload.offset_days = Number(data.triggerDays)
+  if (data.message !== undefined) payload.message = data.message
+
   const res = await api.put(
     `/payment-rules/${ruleId}/notifications/${notificationId}`,
-    data,
+    payload,
   )
   return res.data
 }
@@ -249,4 +272,123 @@ export const createPaymentRule = async (data: any) => {
   return res.data
 }
 
+export const fetchNotificationRulesByRule = async (ruleId: string | number) => {
+  const res = await api.get(`/payment-rules/${ruleId}/notifications`)
+  // backend responde { data: [...] }
+  const list = Array.isArray(res.data) ? res.data : res.data?.data
+  return Array.isArray(list) ? list : []
+}
+
+// --- BLOQUEOS DE SERVICIO (Blocking Rules) ---
+
+export const fetchBlockingRulesByRule = async (ruleId: string | number) => {
+  const res = await api.get(`/payment-rules/${ruleId}/blocking-rules`)
+  // backend responde { data: [...] } o directamente array
+  const list = Array.isArray(res.data) ? res.data : res.data?.data
+  return Array.isArray(list) ? list : []
+}
+
+export const createBlockingRule = async (ruleId: string | number, data: any) => {
+  // Map UI → API
+  const payload = {
+    name: data.name,
+    description: data.description,
+    days_after_due: Number(data.daysAfterDue),
+    affected_services: data.services, // array ["plataforma", ...]
+    active: !!data.active,
+  }
+  const res = await api.post(`/payment-rules/${ruleId}/blocking-rules`, payload)
+  return res.data
+}
+
+export const updateBlockingRule = async (
+  ruleId: string | number,
+  blockingRuleId: string | number,
+  data: any
+) => {
+  const payload: any = {}
+  if (data.name !== undefined) payload.name = data.name
+  if (data.description !== undefined) payload.description = data.description
+  if (data.daysAfterDue !== undefined) payload.days_after_due = Number(data.daysAfterDue)
+  if (data.services !== undefined) payload.affected_services = data.services
+  if (data.active !== undefined) payload.active = !!data.active
+
+  const res = await api.put(
+    `/payment-rules/${ruleId}/blocking-rules/${blockingRuleId}`,
+    payload
+  )
+  return res.data
+}
+
+export const deleteBlockingRule = async (
+  ruleId: string | number,
+  blockingRuleId: string | number,
+) => {
+  const res = await api.delete(
+    `/payment-rules/${ruleId}/blocking-rules/${blockingRuleId}`
+  )
+  return res.data
+}
+
+// --- PAYMENT GATEWAYS ---
+export const getPaymentGateways = async (params?: any) => {
+  const res = await api.get('/payment-gateways', { params })
+  return res.data
+}
+
+export const createPaymentGateway = async (data: any) => {
+  const res = await api.post('/payment-gateways', data)
+  return res.data
+}
+
+export const updatePaymentGateway = async (id: string | number, data: any) => {
+  const res = await api.put(`/payment-gateways/${id}`, data)
+  return res.data
+}
+
+export const deletePaymentGateway = async (id: string | number) => {
+  const res = await api.delete(`/payment-gateways/${id}`)
+  return res.data
+}
+
+export const togglePaymentGatewayStatus = async (id: string | number) => {
+  const res = await api.patch(`/payment-gateways/${id}/toggle-status`)
+  return res.data
+}
+
+export const getActivePaymentGateways = async () => {
+  const res = await api.get('/payment-gateways/active')
+  return res.data
+}
+
+// --- EXCEPTION CATEGORIES ---
+export const getExceptionCategories = async (params?: any) => {
+  const res = await api.get('/payment-exception-categories', { params })
+  return res.data
+}
+
+export const createExceptionCategory = async (data: any) => {
+  const res = await api.post('/payment-exception-categories', data)
+  return res.data
+}
+
+export const updateExceptionCategory = async (id: string | number, data: any) => {
+  const res = await api.put(`/payment-exception-categories/${id}`, data)
+  return res.data
+}
+
+export const deleteExceptionCategory = async (id: string | number) => {
+  const res = await api.delete(`/payment-exception-categories/${id}`)
+  return res.data
+}
+
+export const toggleExceptionCategoryStatus = async (id: string | number) => {
+  const res = await api.patch(`/payment-exception-categories/${id}/toggle-status`)
+  return res.data
+}
+
+export const assignCategoryToStudent = async (categoryId: string | number, data: any) => {
+  const res = await api.post(`/payment-exception-categories/${categoryId}/assign-student`, data)
+  return res.data
+}
 
