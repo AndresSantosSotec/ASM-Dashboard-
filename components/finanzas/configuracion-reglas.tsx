@@ -517,10 +517,10 @@ export function ConfiguracionReglas() {
         active: true,
       })
       await refreshRules()
-    } catch (e) {
+    } catch (e: any) {
       toast({
         title: 'Error',
-        description: 'No se pudo guardar la regla de bloqueo',
+        description: e?.message || 'No se pudo guardar la regla de bloqueo',
       })
     }
   }

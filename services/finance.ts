@@ -288,22 +288,25 @@ export const fetchBlockingRulesByRule = async (ruleId: string | number) => {
 }
 
 export const createBlockingRule = async (ruleId: string | number, data: any) => {
-  console.log('Datos recibidos del form:', data) // Debug
-  
   const payload = {
-    name: data.name,
+    payment_rule_id: ruleId,
+    name: data.name?.trim(),
     description: data.description,
     days_after_due: Number(data.daysAfterDue),
     affected_services: Array.isArray(data.services) ? data.services : [],
     active: !!data.active,
   }
-  
-  console.log('Payload final:', payload) // Debug
-  
-  if (!payload.affected_services || payload.affected_services.length === 0) {
+
+  if (!payload.name) {
+    throw new Error('El nombre es requerido')
+  }
+  if (isNaN(payload.days_after_due) || payload.days_after_due <= 0) {
+    throw new Error('Los días después del vencimiento deben ser mayores a cero')
+  }
+  if (payload.affected_services.length === 0) {
     throw new Error('Debe seleccionar al menos un servicio')
   }
-  
+
   const res = await api.post(`/payment-rules/${ruleId}/blocking-rules`, payload)
   return res.data
 }
