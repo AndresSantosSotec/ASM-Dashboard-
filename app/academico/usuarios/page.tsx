@@ -2,20 +2,13 @@
 
 import type React from "react"
 import { useState, useEffect, useMemo } from "react"
-import { Search, Plus, Mail, MessageSquare, RefreshCw, Filter } from "lucide-react"
+import { Search, Plus, Mail, MessageSquare, RefreshCw, Filter, GraduationCap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
@@ -118,6 +111,10 @@ function getStatusBadgeInfo(
       return { variant: "secondary", label: "Inactivo" };
     case "inscrito":
       return { variant: "default", label: "Inscrito" };
+    case "pendiente aprobacion":
+      return { variant: "outline", label: "Pendiente Aprobación" };
+    case "aprobada":
+      return { variant: "default", label: "Aprobada" };
     default:
       return { variant: "secondary", label: status };
   }
@@ -192,6 +189,8 @@ export default function GestionUsuarios() {
         const token = localStorage.getItem("token") || "";
         const statuses = ["Pendiente Aprobacion", "aprobada"];
 
+        console.log('🔥 [DEBUG] Iniciando fetch con estados:', statuses);
+
         const responses = await Promise.all(
           statuses.map((st) =>
             fetch(`${API_URL}/prospectos/status/${encodeURIComponent(st)}`, {
@@ -206,6 +205,8 @@ export default function GestionUsuarios() {
           )
         );
 
+        console.log('🔥 [DEBUG] Respuestas de la API:', responses);
+
         const combined = responses
           .flatMap((r) => (Array.isArray(r.data) ? r.data : []))
           .reduce<any[]>((acc, p) => {
@@ -213,27 +214,43 @@ export default function GestionUsuarios() {
             return acc;
           }, []);
 
-        const mapped: Student[] = combined.map((raw: any) => ({
-          id: String(raw.id),
-          name: raw.nombre_completo?.split(" ")[0] || "",
-          lastName: raw.nombre_completo?.split(" ").slice(1).join(" ") || "",
-          email: raw.correo_electronico || "",
-          phone: raw.telefono || "",
-          program: raw.nombre_programa || "",
-          idNumber: raw.id || "",
-          birthDate: raw.fecha_nacimiento || "",
-          status: raw.status || "pending",
-          username: raw.username || undefined,
-          institutionalEmail: raw.institutional_email || undefined,
-          password: raw.password || undefined,
-        }));
+        console.log('🔥 [DEBUG] Datos combinados:', combined);
+
+        const mapped: Student[] = combined.map((raw: any) => {
+          console.log('🔥 [DEBUG] Procesando prospecto:', {
+            id: raw.id,
+            nombre: raw.nombre_completo,
+            carnet: raw.carnet,
+            programa: raw.nombre_programa
+          });
+
+          // 🔥 Usar carnet si existe, sino usar ID con prefijo para debugging
+          const displayId = raw.carnet || `ID-${raw.id}`;
+          
+          return {
+            id: String(raw.id),
+            name: raw.nombre_completo?.split(" ")[0] || "",
+            lastName: raw.nombre_completo?.split(" ").slice(1).join(" ") || "",
+            email: raw.correo_electronico || "",
+            phone: raw.telefono || "",
+            program: raw.nombre_programa || "",
+            idNumber: displayId, // 🔥 Mostrar carnet o ID temporal
+            birthDate: raw.fecha_nacimiento || "",
+            status: raw.status || "pending",
+            username: raw.username || undefined,
+            institutionalEmail: raw.institutional_email || undefined,
+            password: raw.password || undefined,
+          };
+        });
+
+        console.log('🔥 [DEBUG] Estudiantes mapeados:', mapped);
 
         setStudents(mapped);
         setFetchError(null);
 
       } catch (err) {
         const error = err as Error;
-        console.error('[DEBUG] Error en fetchStudents:', error.message);
+        console.error('❌ [DEBUG] Error en fetchStudents:', error.message);
         toast({
           title: "Error",
           description: `No se pudieron cargar los estudiantes: ${error.message}`,
@@ -244,7 +261,7 @@ export default function GestionUsuarios() {
       }
     }
 
-    console.log('[DEBUG] Iniciando carga de estudiantes...');
+    console.log('🔥 [DEBUG] Iniciando carga de estudiantes...');
     fetchStudents();
     const interval = setInterval(fetchStudents, 300000); // refresh cada 5 min
     return () => clearInterval(interval);
@@ -257,9 +274,10 @@ export default function GestionUsuarios() {
         student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.idNumber.toLowerCase().includes(searchTerm.toLowerCase())
+        student.idNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        "carnet".includes(searchTerm.toLowerCase())
 
-      const matchesStatus = statusFilter === "all" || student.status === statusFilter
+      const matchesStatus = statusFilter === "all" || student.status.toLowerCase() === statusFilter.toLowerCase()
 
       return matchesSearch && matchesStatus
     })
@@ -330,12 +348,21 @@ export default function GestionUsuarios() {
   const handleGenerateCredentials = async () => {
     if (!selectedStudent) return
 
+    // 🔥 Verificar que el estudiante tenga carnet real antes de generar credenciales
+    if (!selectedStudent.idNumber || selectedStudent.idNumber.startsWith('ID-')) {
+      toast({
+        title: "Error",
+        description: "El estudiante debe tener un carnet asignado antes de generar credenciales.",
+        variant: "destructive"
+      })
+      return
+    }
+
     setIsGeneratingCredentials(true)
 
     try {
       // Generar username base
       const base = `${selectedStudent.name.toLowerCase().trim()}.${selectedStudent.lastName.toLowerCase().trim()}`
-
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/\s+/g, "")
@@ -372,12 +399,16 @@ export default function GestionUsuarios() {
     setIsGeneratingCredentials(true)
 
     try {
+      //payload para la Generacion de las Credenciales aqui es odnde se generan 
+      //en este caso aqui se envia el rol que sera que es etudiante 
+      // 🔥 Agregar el carnet al payload
       const payload = {
         username: credentials.username,
         email: credentials.email,
         password: credentials.password,
         first_name: selectedStudent.name,
         last_name: selectedStudent.lastName,
+        carnet: selectedStudent.idNumber, // 🔥 Enviar el carnet
         is_active: true,
         email_verified: true,
         mfa_enabled: false,
@@ -415,7 +446,7 @@ export default function GestionUsuarios() {
 
       toast({
         title: "Credenciales generadas",
-        description: `Usuario: ${credentials.username}\nCorreo: ${credentials.email}\nContraseña: ${credentials.password}\nEstado actualizado a Inscrito`,
+        description: `Usuario: ${credentials.username}\nCorreo: ${credentials.email}\nContraseña: ${credentials.password}\nCarnet: ${selectedStudent.idNumber}\nEstado actualizado a Inscrito`,
       })
       setIsCredentialsDialogOpen(false)
     } catch (err) {
@@ -486,7 +517,7 @@ export default function GestionUsuarios() {
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
                 <Input
-                  placeholder="Buscar por nombre, correo o ID..."
+                  placeholder="Buscar por nombre, correo, carnet o ID..."
                   className="pl-8"
                   value={searchTerm}
                   onChange={(e) => {
@@ -508,10 +539,9 @@ export default function GestionUsuarios() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos los estados</SelectItem>
-                    <SelectItem value="pending">Pendientes</SelectItem>
-                    <SelectItem value="active">Activos</SelectItem>
-                    <SelectItem value="inactive">Inactivos</SelectItem>
-                    <SelectItem value="Inscrito">Inscritos</SelectItem>
+                    <SelectItem value="Pendiente Aprobacion">Pendiente Aprobación</SelectItem>
+                    <SelectItem value="aprobada">Aprobada</SelectItem>
+                    <SelectItem value="Inscrito">Inscrito</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button variant="outline" size="icon">
@@ -525,7 +555,7 @@ export default function GestionUsuarios() {
         {/* Lista de estudiantes */}
         <Card className="md:col-span-2">
           <CardHeader>
-            <CardTitle>Estudiantes</CardTitle>
+            <CardTitle>Estudiantes ({filteredStudents.length})</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="rounded-md border">
@@ -533,6 +563,7 @@ export default function GestionUsuarios() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nombre</TableHead>
+                    <TableHead>Carnet</TableHead>
                     <TableHead>Programa</TableHead>
                     <TableHead>Estado</TableHead>
                   </TableRow>
@@ -540,7 +571,7 @@ export default function GestionUsuarios() {
                 <TableBody>
                   {filteredStudents.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center py-4 text-gray-500">
+                      <TableCell colSpan={4} className="text-center py-4 text-gray-500">
                         No se encontraron estudiantes
                       </TableCell>
                     </TableRow>
@@ -548,7 +579,7 @@ export default function GestionUsuarios() {
                     paginatedStudents.map((student) => (
                       <TableRow
                         key={student.id}
-                        className={selectedStudent?.id === student.id ? "bg-blue-50" : ""}
+                        className={selectedStudent?.id === student.id ? "bg-blue-50" : "cursor-pointer hover:bg-gray-50"}
                         onClick={() => setSelectedStudent(student)}
                       >
                         <TableCell>
@@ -556,6 +587,29 @@ export default function GestionUsuarios() {
                             {student.name} {student.lastName}
                           </div>
                           <div className="text-sm text-gray-500">{student.email}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {student.idNumber ? (
+                              student.idNumber.startsWith('ASM') ? (
+                                <Badge variant="secondary" className="font-mono text-xs">
+                                  <GraduationCap className="h-3 w-3 mr-1" />
+                                  {student.idNumber}
+                                </Badge>
+                              ) : student.idNumber.startsWith('ID-') ? (
+                                <Badge variant="outline" className="font-mono text-xs text-orange-600">
+                                  ⚠️ {student.idNumber}
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="font-mono text-xs">
+                                  <GraduationCap className="h-3 w-3 mr-1" />
+                                  {student.idNumber}
+                                </Badge>
+                              )
+                            ) : (
+                              <span className="text-gray-400 text-sm">Sin carnet</span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="max-w-[200px] truncate">{student.program}</div>
@@ -566,7 +620,6 @@ export default function GestionUsuarios() {
                             return <Badge variant={variant}>{label}</Badge>
                           })()}
                         </TableCell>
-                        {/* Actions removed */}
                       </TableRow>
                     ))
                   )}
@@ -633,8 +686,20 @@ export default function GestionUsuarios() {
                       </div>
                     </div>
                     <div>
-                      <Label>ID</Label>
-                      <div className="font-medium">{selectedStudent.idNumber}</div>
+                      <Label>Carnet Estudiantil</Label>
+                      <div className={`font-mono font-medium p-2 rounded border flex items-center gap-2 ${
+                        selectedStudent.idNumber?.startsWith('ASM') 
+                          ? 'text-blue-600 bg-blue-50' 
+                          : selectedStudent.idNumber?.startsWith('ID-')
+                            ? 'text-orange-600 bg-orange-50'
+                            : 'text-gray-600 bg-gray-50'
+                      }`}>
+                        <GraduationCap className="h-4 w-4" />
+                        {selectedStudent.idNumber || "Sin asignar"}
+                        {selectedStudent.idNumber?.startsWith('ID-') && (
+                          <span className="text-xs ml-2">(Temporal)</span>
+                        )}
+                      </div>
                     </div>
                     <div>
                       <Label>Correo personal</Label>
@@ -690,7 +755,11 @@ export default function GestionUsuarios() {
 
                   <div className="pt-4 space-y-2">
                     {!selectedStudent.username ? (
-                      <Button className="w-full" onClick={handleGenerateCredentials} disabled={isGeneratingCredentials}>
+                      <Button 
+                        className="w-full" 
+                        onClick={handleGenerateCredentials} 
+                        disabled={isGeneratingCredentials || !selectedStudent.idNumber || selectedStudent.idNumber.startsWith('ID-')}
+                      >
                         {isGeneratingCredentials ? (
                           <>
                             <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
@@ -724,6 +793,14 @@ export default function GestionUsuarios() {
                           </Button>
                         </div>
                       </>
+                    )}
+                    
+                    {selectedStudent.idNumber?.startsWith('ID-') && (
+                      <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                        <p className="text-sm text-orange-800">
+                          ⚠️ Este estudiante necesita un carnet oficial antes de generar credenciales.
+                        </p>
+                      </div>
                     )}
                   </div>
                 </TabsContent>
@@ -829,6 +906,13 @@ export default function GestionUsuarios() {
                   }
                 />
               </div>
+              {selectedStudent && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>Carnet:</strong> {selectedStudent.idNumber}
+                  </p>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
@@ -876,7 +960,7 @@ export default function GestionUsuarios() {
               <Input id="phone" name="phone" value={formData.phone} onChange={handleFormChange} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="idNumber">Número de identificación</Label>
+              <Label htmlFor="idNumber">Carnet Estudiantil</Label>
               <Input id="idNumber" name="idNumber" value={formData.idNumber} onChange={handleFormChange} />
             </div>
             <div className="space-y-2">

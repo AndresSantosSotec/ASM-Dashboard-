@@ -10,6 +10,7 @@ export interface CrearUsuarioPayload {
   password: string
   first_name?: string
   last_name?: string
+  carnet?: string  // 🔥 AGREGAR esta línea (opcional)
   is_active: boolean
   email_verified: boolean
   mfa_enabled: boolean

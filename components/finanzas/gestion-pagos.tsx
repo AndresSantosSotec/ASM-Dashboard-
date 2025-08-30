@@ -146,7 +146,7 @@ export function GestionPagos() {
       case "B2":
         return "secondary"
       case "B3":
-        return "warning"
+        return "default" // Changed from "warning" to "default"
       case "B4":
         return "destructive"
       default:
@@ -385,7 +385,7 @@ export function GestionPagos() {
                       <TableCell>Q{plan.originalDebt.toLocaleString()}</TableCell>
                       <TableCell>Q{plan.currentDebt.toLocaleString()}</TableCell>
                       <TableCell>
-                        {plan.installments.length} ({plan.installments.filter((i) => i.status === "completado").length}{" "}
+                        {plan.installments.length} ({plan.installments.filter((i: any) => i.status === "completado").length}{" "}
                         pagadas)
                       </TableCell>
                       <TableCell>{new Date(plan.startDate).toLocaleDateString()}</TableCell>
