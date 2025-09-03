@@ -526,3 +526,9 @@ export const assignCategoryToStudent = async (categoryId: string | number, data:
   const res = await api.post(`/payment-exception-categories/${categoryId}/assign-student`, data)
   return res.data
 }
+
+//
+export const fetchDashboardFinanciero = async (params?: any) => {
+  const res = await api.get('/dashboard-financiero', { params })
+  return res.data
+}
