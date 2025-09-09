@@ -1,7 +1,9 @@
 "use client"
-
+// Componente de gestión de pagos para estudiantes
+// Permite ver pagos pendientes, historial y subir recibos
+//payments-view.tsx
 import type React from "react"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -9,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AlertCircle, CreditCard, Download, FileText, Upload, Loader2, RefreshCw } from "lucide-react"
+import { AlertCircle, CreditCard, FileText, Upload, Loader2, RefreshCw } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Dialog,
@@ -29,19 +31,27 @@ import {
   type PaymentUploadResponse 
 } from "@/services/payments"
 
+// =====================
+// Componente principal
+// =====================
 export function PaymentsView() {
-  const [activeTab, setActiveTab] = useState("pending")
+  const [activeTab, setActiveTab] = useState("pending-window") // pending-window | all-pending | history
   const [showReceiptUpload, setShowReceiptUpload] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<PendingPayment | null>(null)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   
   // Estados para datos de la API
-  const [pendingPayments, setPendingPayments] = useState<PendingPayment[]>([])
+  const [pendingWindowPayments, setPendingWindowPayments] = useState<PendingPayment[]>([]) // mes actual + próximo
+  const [allPendingPayments, setAllPendingPayments] = useState<PendingPayment[]>([])       // TODOS los pendientes
+  const [overduePaymentsServer, setOverduePaymentsServer] = useState<PendingPayment[]>([])// atrasados del backend (si vienen)
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([])
   const [accountSummary, setAccountSummary] = useState<AccountSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+
+  // Filtro de la pestaña "Todos los Pendientes"
+  const [allPendingFilter, setAllPendingFilter] = useState<"all" | "overdue" | "upcoming">("all")
 
   // Estados del formulario
   const [receiptForm, setReceiptForm] = useState({
@@ -50,43 +60,57 @@ export function PaymentsView() {
     monto: 0
   })
 
-  // 🔥 FUNCIÓN MEJORADA PARA CARGAR DATOS CON REFRESH FORZADO
+  // Helpers de fecha
+  const startOfToday = useMemo(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d
+  }, [])
+
+  const parseDate = (s?: string) => (s ? new Date(s) : null)
+
+  const isOverdue = (p: PendingPayment) => {
+    if (typeof p.is_overdue === "boolean") return p.is_overdue
+    const d = parseDate(p.fecha_vencimiento)
+    return !!(d && d < startOfToday)
+  }
+
+  const isUpcoming = (p: PendingPayment) => !isOverdue(p)
+
+  // Cargar datos con opción de refresh forzado
   const loadPaymentData = useCallback(async (forceRefresh = false) => {
     try {
-      if (forceRefresh) {
-        setRefreshing(true)
-      } else {
-        setLoading(true)
-      }
+      if (forceRefresh) setRefreshing(true)
+      else setLoading(true)
       
       let pending, history, summary
       
       if (forceRefresh) {
-        // Usar el método de refresh forzado que evita cache
         const data = await paymentsService.refreshAllData()
         pending = data.pending
         history = data.history
         summary = data.summary
       } else {
-        // Carga normal
         [pending, history, summary] = await Promise.all([
           paymentsService.getPendingPayments(),
           paymentsService.getPaymentHistory(),
           paymentsService.getAccountStatement()
         ])
       }
-      
-      // 🔥 VALIDAR Y ACTUALIZAR LOS DATOS
-      setPendingPayments(pending?.pagos_mes_actual_proximo || [])
+
+      // Backend esperado:
+      // pending = {
+      //   pagos: [...TODOS pendientes...],
+      //   pagos_mes_actual_proximo: [...],
+      //   pagos_atrasados: [...]
+      //   total_pendiente, total_con_mora, ...
+      // }
+      setAllPendingPayments(pending?.pagos || [])
+      setPendingWindowPayments(pending?.pagos_mes_actual_proximo || [])
+      setOverduePaymentsServer(pending?.pagos_atrasados || [])
       setPaymentHistory(history?.historial_pagos || [])
       setAccountSummary(summary || null)
-      
-      console.log('Datos actualizados:', {
-        pendientes: pending?.pagos_mes_actual_proximo?.length || 0,
-        historial: history?.historial_pagos?.length || 0,
-        resumen: summary?.resumen
-      })
-      
+
     } catch (error) {
       console.error('Error cargando datos de pagos:', error)
       toast({
@@ -100,12 +124,12 @@ export function PaymentsView() {
     }
   }, [])
 
-  // Cargar datos al montar el componente
+  // Cargar datos al montar
   useEffect(() => {
     loadPaymentData()
   }, [loadPaymentData])
 
-  // 🔥 FUNCIÓN PARA REFRESCAR MANUALMENTE
+  // Refresh manual
   const handleManualRefresh = () => {
     loadPaymentData(true)
     toast({
@@ -114,7 +138,7 @@ export function PaymentsView() {
     })
   }
 
-  // Función para iniciar la carga de recibo
+  // Iniciar carga de recibo
   const startReceiptUpload = (payment: PendingPayment) => {
     setSelectedPayment(payment)
     setReceiptForm({
@@ -126,14 +150,14 @@ export function PaymentsView() {
     setShowReceiptUpload(true)
   }
 
-  // Función para manejar la carga de archivos
+  // Manejar archivo
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setUploadFile(e.target.files[0])
     }
   }
 
-  // 🔥 FUNCIÓN MEJORADA PARA CONFIRMAR LA CARGA DE RECIBO
+  // Confirmar carga de recibo
   const confirmReceiptUpload = async () => {
     if (!selectedPayment || !uploadFile) return
 
@@ -148,14 +172,10 @@ export function PaymentsView() {
         comprobante: uploadFile
       })
 
-      console.log('Respuesta del pago:', response)
-
-      // 🔥 VERIFICAR SI EL PAGO FUE PROCESADO AUTOMÁTICAMENTE
       if (response.success || response.estado_cuota === 'pagado') {
         toast({
           title: "¡Pago Procesado Automáticamente!",
           description: "Su pago ha sido procesado exitosamente. La cuota ha sido marcada como pagada.",
-          variant: "default"
         })
       } else {
         toast({
@@ -164,33 +184,15 @@ export function PaymentsView() {
         })
       }
 
-      // Cerrar modal
       setShowReceiptUpload(false)
       setUploadFile(null)
       setSelectedPayment(null)
-      setReceiptForm({
-        numero_boleta: '',
-        banco: '',
-        monto: 0
-      })
+      setReceiptForm({ numero_boleta: '', banco: '', monto: 0 })
       
-      // 🔥 REFRESCAR DATOS MÚLTIPLES VECES PARA ASEGURAR ACTUALIZACIÓN
-      console.log('Refrescando datos después del pago...')
-      
-      // Primer refresh inmediato
+      // Refrescos para asegurar consistencia visual
       await loadPaymentData(true)
-      
-      // Segundo refresh después de 1 segundo
-      setTimeout(async () => {
-        console.log('Segundo refresh...')
-        await loadPaymentData(true)
-      }, 1000)
-      
-      // Tercer refresh después de 3 segundos
-      setTimeout(async () => {
-        console.log('Tercer refresh...')
-        await loadPaymentData(true)
-      }, 3000)
+      setTimeout(async () => { await loadPaymentData(true) }, 1000)
+      setTimeout(async () => { await loadPaymentData(true) }, 3000)
 
     } catch (error) {
       console.error('Error subiendo recibo:', error)
@@ -204,7 +206,6 @@ export function PaymentsView() {
     }
   }
 
-  // 🔥 FUNCIÓN MEJORADA PARA OBTENER EL COLOR DE LA INSIGNIA
   const getBadgeVariant = (status: string) => {
     const normalizedStatus = status?.toLowerCase() || 'pendiente'
     switch (normalizedStatus) {
@@ -223,30 +224,54 @@ export function PaymentsView() {
     }
   }
 
-  // 🔥 FUNCIÓN MEJORADA PARA OBTENER EL TEXTO DEL ESTADO
   const getStatusText = (status: string) => {
     const normalizedStatus = status?.toLowerCase() || 'pendiente'
     switch (normalizedStatus) {
-      case "pagado": 
-        return "Pagado"
-      case "aprobado": 
-        return "Aprobado"
-      case "pendiente": 
-        return "Pendiente"
-      case "en_revision": 
-      case "pendiente_revision": 
-        return "En Revisión"
-      case "rechazado": 
-        return "Rechazado"
-      default: 
-        return "Pendiente"
+      case "pagado": return "Pagado"
+      case "aprobado": return "Aprobado"
+      case "pendiente": return "Pendiente"
+      case "en_revision":
+      case "pendiente_revision": return "En Revisión"
+      case "rechazado": return "Rechazado"
+      default: return "Pendiente"
     }
   }
 
-  // Formatear fecha
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-GT')
   }
+
+  // ---------- Filtro client-side en "Todos los Pendientes" ----------
+  const computedOverdue = useMemo(() => {
+    // Usar los que vienen del server si existen; si no, calcular
+    const base = overduePaymentsServer?.length ? overduePaymentsServer : allPendingPayments
+    return base.filter(isOverdue).sort((a, b) => {
+      return (new Date(a.fecha_vencimiento).getTime()) - (new Date(b.fecha_vencimiento).getTime())
+    })
+  }, [overduePaymentsServer, allPendingPayments])
+
+  const computedUpcoming = useMemo(() => {
+    return allPendingPayments
+      .filter(isUpcoming)
+      .sort((a, b) => (new Date(a.fecha_vencimiento).getTime()) - (new Date(b.fecha_vencimiento).getTime()))
+  }, [allPendingPayments])
+
+  const filteredAllPending = useMemo(() => {
+    switch (allPendingFilter) {
+      case "overdue":  return computedOverdue
+      case "upcoming": return computedUpcoming
+      case "all":
+      default:
+        return [...allPendingPayments].sort((a, b) => 
+          (new Date(a.fecha_vencimiento).getTime()) - (new Date(b.fecha_vencimiento).getTime())
+        )
+    }
+  }, [allPendingFilter, allPendingPayments, computedOverdue, computedUpcoming])
+
+  const overdueCount = computedOverdue.length
+  const upcomingCount = computedUpcoming.length
+
+  // ---------------------------------------------------------------
 
   if (loading) {
     return (
@@ -259,7 +284,7 @@ export function PaymentsView() {
 
   return (
     <div className="space-y-6">
-      {/* 🔥 BOTÓN DE REFRESH MANUAL */}
+      {/* Header + Refresh */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Gestión de Pagos</h2>
         <Button 
@@ -311,20 +336,25 @@ export function PaymentsView() {
         </div>
       )}
 
+      {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="pending">
-            Pagos Pendientes ({pendingPayments.length})
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="pending-window">
+            Pendientes (Mes & Próx) ({pendingWindowPayments.length})
+          </TabsTrigger>
+          <TabsTrigger value="all-pending">
+            Todos los Pendientes ({allPendingPayments.length})
           </TabsTrigger>
           <TabsTrigger value="history">
-            Historial de Pagos ({paymentHistory.length})
+            Historial ({paymentHistory.length})
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="pending" className="space-y-6 mt-6">
-          {pendingPayments.length > 0 ? (
+        {/* Pendientes ventana (mes actual + próximo) */}
+        <TabsContent value="pending-window" className="space-y-6 mt-6">
+          {pendingWindowPayments.length > 0 ? (
             <div className="grid gap-6 md:grid-cols-2">
-              {pendingPayments.map((payment) => (
+              {pendingWindowPayments.map((payment) => (
                 <Card key={payment.id}>
                   <CardHeader className="pb-2">
                     <div className="flex justify-between items-start">
@@ -341,6 +371,13 @@ export function PaymentsView() {
                   </CardHeader>
                   <CardContent className="pb-2">
                     <div className="text-2xl font-bold">Q{payment.monto.toLocaleString()}</div>
+                    {/* Campos opcionales de mora si vienen del backend */}
+                    {typeof (payment as any).total_with_late_fee === "number" && (payment as any).total_with_late_fee > payment.monto && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Con mora: Q{(payment as any).total_with_late_fee.toLocaleString()} 
+                        {typeof (payment as any).months_overdue === "number" ? ` • ${(payment as any).months_overdue} mes(es) atraso` : ''}
+                      </p>
+                    )}
                   </CardContent>
                   <CardFooter className="flex flex-col sm:flex-row gap-2 pt-2">
                     <Button 
@@ -363,15 +400,97 @@ export function PaymentsView() {
                 <CreditCard className="h-12 w-12 mx-auto mb-4" />
               </div>
               <p className="text-gray-500 text-lg font-medium">
-                ¡Excelente! No tiene pagos pendientes en este momento.
+                ¡Excelente! No tiene pagos pendientes en esta ventana.
               </p>
               <p className="text-gray-400 text-sm mt-2">
-                Todas sus cuotas están al día.
+                Revise la pestaña “Todos los Pendientes” para ver cuotas futuras o atrasadas.
               </p>
             </div>
           )}
         </TabsContent>
 
+        {/* TODOS los pendientes con botones de filtro */}
+        <TabsContent value="all-pending" className="space-y-6 mt-6">
+          {/* Botonera de filtro */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-muted-foreground mr-1">Mostrar:</span>
+            <Button 
+              variant={allPendingFilter === "all" ? "default" : "outline"} 
+              onClick={() => setAllPendingFilter("all")}
+              size="sm"
+            >
+              Todos ({allPendingPayments.length})
+            </Button>
+            <Button 
+              variant={allPendingFilter === "overdue" ? "default" : "outline"} 
+              onClick={() => setAllPendingFilter("overdue")}
+              size="sm"
+            >
+              Atrasados ({overdueCount})
+            </Button>
+            <Button 
+              variant={allPendingFilter === "upcoming" ? "default" : "outline"} 
+              onClick={() => setAllPendingFilter("upcoming")}
+              size="sm"
+            >
+              Próximos ({upcomingCount})
+            </Button>
+          </div>
+
+          {filteredAllPending.length > 0 ? (
+            <div className="grid gap-6 md:grid-cols-2">
+              {filteredAllPending.map((payment) => (
+                <Card key={`all-${payment.id}`} className={isOverdue(payment) ? "border-red-200" : ""}>
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                      <CardTitle className="text-lg font-bold">
+                        Cuota {payment.numero_cuota} - {payment.estudiante_programa.programa.nombre_del_programa}
+                      </CardTitle>
+                      <Badge variant={isOverdue(payment) ? "destructive" : getBadgeVariant(payment.estado)}>
+                        {isOverdue(payment) ? "Vencida" : getStatusText(payment.estado)}
+                      </Badge>
+                    </div>
+                    <CardDescription>
+                      Fecha límite: {formatDate(payment.fecha_vencimiento)}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pb-2">
+                    <div className="text-2xl font-bold">Q{payment.monto.toLocaleString()}</div>
+                    {typeof (payment as any).total_with_late_fee === "number" && (payment as any).total_with_late_fee >= payment.monto && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Con mora: Q{(payment as any).total_with_late_fee.toLocaleString()}
+                        {typeof (payment as any).months_overdue === "number" ? ` • ${(payment as any).months_overdue} mes(es)` : ''}
+                        {(payment as any).urgent ? " • URGENTE" : ""}
+                      </p>
+                    )}
+                  </CardContent>
+                  <CardFooter className="flex flex-col sm:flex-row gap-2 pt-2">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => startReceiptUpload(payment)} 
+                      className="w-full sm:w-auto"
+                      disabled={payment.estado === 'en_revision' || payment.estado === 'pagado'}
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      {payment.estado === 'en_revision' ? 'En Revisión' : 
+                       payment.estado === 'pagado' ? 'Pagado' : 'Subir Recibo'}
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-gray-500">
+                {allPendingFilter === "overdue" ? "No hay cuotas atrasadas." :
+                 allPendingFilter === "upcoming" ? "No hay cuotas próximas." :
+                 "No hay cuotas pendientes en este momento."}
+              </p>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Historial */}
         <TabsContent value="history" className="mt-6">
           <Card>
             <CardHeader>
@@ -495,25 +614,14 @@ export function PaymentsView() {
             </Alert>
           </div>
           <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setShowReceiptUpload(false)} 
-              disabled={uploading}
-            >
+            <Button variant="outline" onClick={() => setShowReceiptUpload(false)} disabled={uploading}>
               Cancelar
             </Button>
             <Button 
               onClick={confirmReceiptUpload} 
               disabled={!uploadFile || !receiptForm.numero_boleta || !receiptForm.banco || uploading}
             >
-              {uploading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Procesando Pago...
-                </>
-              ) : (
-                'Procesar Pago'
-              )}
+              {uploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Procesando Pago...</>) : ('Procesar Pago')}
             </Button>
           </DialogFooter>
         </DialogContent>

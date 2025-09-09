@@ -1,3 +1,6 @@
+// ==================
+// services/payments
+// ==================
 import api from '@/services/api'
 
 export interface PendingPayment {
@@ -11,6 +14,12 @@ export interface PendingPayment {
       nombre_del_programa: string
     }
   }
+  // Campos opcionales que puede enviar el backend (mora/urgencia)
+  is_overdue?: boolean
+  months_overdue?: number
+  late_fee_total?: number
+  total_with_late_fee?: number
+  urgent?: boolean
 }
 
 export interface PaymentHistory {
@@ -52,7 +61,6 @@ export interface UploadReceiptData {
   comprobante: File
 }
 
-// 🔥 NUEVA INTERFAZ PARA LA RESPUESTA DEL PAGO
 export interface PaymentUploadResponse {
   message: string
   pago_id: number
@@ -88,28 +96,19 @@ class PaymentsService {
     formData.append('comprobante', data.comprobante)
 
     const response = await api.post('/estudiante/pagos/subir-recibo', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      headers: { 'Content-Type': 'multipart/form-data' },
     })
     return response.data
   }
 
-  // 🔥 NUEVO MÉTODO PARA REFRESCAR DATOS DE FORMA FORZADA
   async refreshAllData() {
-    // Agregar timestamp para evitar cache
     const timestamp = Date.now()
     const [pending, history, summary] = await Promise.all([
       api.get(`/estudiante/pagos/pendientes?_t=${timestamp}`),
       api.get(`/estudiante/pagos/historial?_t=${timestamp}`),
       api.get(`/estudiante/pagos/estado-cuenta?_t=${timestamp}`)
     ])
-    
-    return {
-      pending: pending.data,
-      history: history.data,
-      summary: summary.data
-    }
+    return { pending: pending.data, history: history.data, summary: summary.data }
   }
 }
 
