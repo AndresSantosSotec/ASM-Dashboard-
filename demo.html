@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duplicate Prevention Demo</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .test-section { border: 1px solid #ccc; margin: 20px 0; padding: 15px; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        input, button, select { margin: 5px; padding: 8px; }
+        button { background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:disabled { background: #6c757d; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>Duplicate Bank Receipt Prevention - Demo</h1>
+    
+    <div class="test-section">
+        <h2>1. Verification Test (GET /api/estudiante/pagos/boletas/verify)</h2>
+        <p>Test the preflight verification endpoint to check if a receipt is already in use.</p>
+        
+        <select id="banco">
+            <option value="">Select Bank</option>
+            <option value="Banco Industrial">Banco Industrial</option>
+            <option value="Banrural">Banrural</option>
+            <option value="G&T Continental">G&T Continental</option>
+        </select>
+        
+        <input type="text" id="numero_boleta" placeholder="Receipt Number (e.g. BI123456)">
+        <button onclick="verifyReceipt()">Verify Receipt</button>
+        
+        <div id="verify-result"></div>
+        
+        <h3>Test Cases:</h3>
+        <ul>
+            <li><strong>Existing receipt:</strong> Banco Industrial + BI123456 (should fail)</li>
+            <li><strong>New receipt:</strong> Any bank + NEW12345 (should pass)</li>
+            <li><strong>Normalization:</strong> banco industrial + BI-123 456 (should normalize correctly)</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Upload Test (POST /api/estudiante/pagos/subir-recibo)</h2>
+        <p>Test the receipt upload with duplicate prevention.</p>
+        
+        <form id="upload-form">
+            <div>
+                <input type="text" id="upload_banco" placeholder="Bank Name" required>
+                <input type="text" id="upload_numero_boleta" placeholder="Receipt Number" required>
+            </div>
+            <div>
+                <input type="number" id="upload_monto" placeholder="Amount" required>
+                <input type="date" id="upload_fecha_pago" required>
+            </div>
+            <div>
+                <input type="text" id="upload_estudiante_id" placeholder="Student ID" value="test-student-001" required>
+                <input type="file" id="upload_comprobante" accept=".jpg,.png,.pdf" required>
+            </div>
+            <div>
+                <input type="text" id="upload_numero_autorizacion" placeholder="Authorization Number (optional)">
+                <textarea id="upload_notas" placeholder="Notes (optional)"></textarea>
+            </div>
+            <button type="button" onclick="uploadReceipt()">Upload Receipt</button>
+        </form>
+        
+        <div id="upload-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Expected Behaviors</h2>
+        <div class="warning">
+            <h4>Duplicate Prevention Rules:</h4>
+            <ul>
+                <li><strong>Receipt Number + Bank uniqueness:</strong> No two payments can have the same normalized bank+receipt combination</li>
+                <li><strong>File hash uniqueness:</strong> Same student cannot upload the same file twice</li>
+                <li><strong>Cross-student prevention:</strong> Receipt numbers are globally unique across all students</li>
+                <li><strong>Normalization:</strong> "Banco Industrial" + "BI-123 456" becomes "BANCO INDUSTRIAL:BI123456"</li>
+                <li><strong>No exceptions:</strong> Duplicates blocked regardless of previous payment status</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+        
+        async function verifyReceipt() {
+            const banco = document.getElementById('banco').value;
+            const numero_boleta = document.getElementById('numero_boleta').value;
+            const resultDiv = document.getElementById('verify-result');
+            
+            if (!banco || !numero_boleta) {
+                resultDiv.innerHTML = '<div class="result error">Please select bank and enter receipt number</div>';
+                return;
+            }
+            
+            try {
+                resultDiv.innerHTML = '<div class="result warning">Verifying...</div>';
+                
+                const response = await fetch(`${API_BASE}/estudiante/pagos/boletas/verify?banco=${encodeURIComponent(banco)}&numero_boleta=${encodeURIComponent(numero_boleta)}`);
+                const data = await response.json();
+                
+                const cssClass = data.success ? 'success' : 'error';
+                const status = data.duplicate ? 'DUPLICATE FOUND' : 'AVAILABLE';
+                
+                resultDiv.innerHTML = `
+                    <div class="result ${cssClass}">
+                        <strong>Status:</strong> ${status}<br>
+                        <strong>Message:</strong> ${data.message}<br>
+                        <strong>Normalized:</strong> ${data.data?.bancoNorm}:${data.data?.numeroboletaNorm}<br>
+                        ${data.data?.fechaRegistro ? `<strong>Registered:</strong> ${data.data.fechaRegistro}<br>` : ''}
+                        ${data.data?.estado ? `<strong>Status:</strong> ${data.data.estado}` : ''}
+                    </div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function uploadReceipt() {
+            const resultDiv = document.getElementById('upload-result');
+            
+            try {
+                resultDiv.innerHTML = '<div class="result warning">Uploading...</div>';
+                
+                const formData = new FormData();
+                formData.append('banco', document.getElementById('upload_banco').value);
+                formData.append('numero_boleta', document.getElementById('upload_numero_boleta').value);
+                formData.append('monto', document.getElementById('upload_monto').value);
+                formData.append('fecha_pago', document.getElementById('upload_fecha_pago').value);
+                formData.append('estudiante_id', document.getElementById('upload_estudiante_id').value);
+                formData.append('comprobante', document.getElementById('upload_comprobante').files[0]);
+                
+                const auth = document.getElementById('upload_numero_autorizacion').value;
+                const notas = document.getElementById('upload_notas').value;
+                
+                if (auth) formData.append('numero_autorizacion', auth);
+                if (notas) formData.append('notas', notas);
+                
+                const response = await fetch(`${API_BASE}/estudiante/pagos/subir-recibo`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                const cssClass = data.success ? 'success' : 'error';
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="result ${cssClass}">
+                            <strong>Success!</strong> ${data.message}<br>
+                            <strong>Payment ID:</strong> ${data.payment.id}<br>
+                            <strong>Receipt ID:</strong> ${data.payment.receiptId}<br>
+                            <strong>Status:</strong> ${data.payment.estado}
+                        </div>
+                    `;
+                } else {
+                    let errorDetails = '';
+                    if (data.duplicate_type) {
+                        errorDetails += `<strong>Duplicate Type:</strong> ${data.duplicate_type}<br>`;
+                    }
+                    if (data.existing_payment) {
+                        errorDetails += `<strong>Existing Payment:</strong> ${data.existing_payment.id} (${data.existing_payment.estado})<br>`;
+                    }
+                    if (data.details) {
+                        errorDetails += `<strong>Validation Errors:</strong> ${data.details.join(', ')}<br>`;
+                    }
+                    
+                    resultDiv.innerHTML = `
+                        <div class="result ${cssClass}">
+                            <strong>Error:</strong> ${data.message || data.error}<br>
+                            ${errorDetails}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        // Set today as default date
+        document.getElementById('upload_fecha_pago').valueAsDate = new Date();
+    </script>
+</body>
+</html>

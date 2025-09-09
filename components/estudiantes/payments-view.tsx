@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AlertCircle, CreditCard, Download, FileText, Upload } from "lucide-react"
+import { AlertCircle, CreditCard, Download, FileText, Upload, Shield, CheckCircle2, AlertTriangle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Dialog,
@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { api } from "@/services/api"
 
 // Tipos para los pagos
 type PaymentStatus = "aprobado" | "pendiente" | "rechazado" | "conciliacion"
@@ -42,6 +43,18 @@ export function PaymentsView() {
   const [showReceiptUpload, setShowReceiptUpload] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [receiptForm, setReceiptForm] = useState({
+    receiptNumber: "",
+    bank: "",
+    amount: ""
+  })
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [verificationResult, setVerificationResult] = useState<{
+    verified: boolean
+    message: string
+    type: 'success' | 'error' | 'warning'
+  } | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
 
   // Datos de ejemplo
   const pendingPayments: Payment[] = [
@@ -100,24 +113,149 @@ export function PaymentsView() {
     setShowCardPayment(true)
   }
 
-  // Función para iniciar la carga de recibo
+  // Function to start receipt upload
   const startReceiptUpload = (payment: Payment) => {
     setSelectedPayment(payment)
+    setReceiptForm({
+      receiptNumber: "",
+      bank: "",
+      amount: payment.amount.toString()
+    })
+    setVerificationResult(null)
+    setUploadFile(null)
     setShowReceiptUpload(true)
   }
 
-  // Función para manejar la carga de archivos
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setUploadFile(e.target.files[0])
+  // Function to verify receipt before upload
+  const handleVerifyReceipt = async () => {
+    if (!receiptForm.bank || !receiptForm.receiptNumber) {
+      setVerificationResult({
+        verified: false,
+        message: 'Ingrese banco y número de boleta para verificar',
+        type: 'warning'
+      })
+      return
+    }
+
+    setIsVerifying(true)
+    setVerificationResult(null)
+
+    try {
+      const response = await api.get('/estudiante/pagos/boletas/verify', {
+        params: {
+          banco: receiptForm.bank,
+          numero_boleta: receiptForm.receiptNumber
+        }
+      })
+
+      if (response.data.success && !response.data.duplicate) {
+        setVerificationResult({
+          verified: true,
+          message: 'Esta boleta está disponible para uso.',
+          type: 'success'
+        })
+      } else {
+        setVerificationResult({
+          verified: false,
+          message: response.data.message || 'Esta boleta ya fue utilizada.',
+          type: 'error'
+        })
+      }
+    } catch (error: any) {
+      console.error('Error verifying receipt:', error)
+      setVerificationResult({
+        verified: false,
+        message: error.response?.data?.message || 'Error al verificar la boleta. Intente nuevamente.',
+        type: 'error'
+      })
+    } finally {
+      setIsVerifying(false)
     }
   }
 
-  // Función para confirmar la carga de recibo
-  const confirmReceiptUpload = () => {
-    setShowReceiptUpload(false)
-    setUploadFile(null)
-    // Aquí se implementaría la lógica para subir el recibo al servidor
+  // Function to handle file upload
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      
+      // Validate file size (5MB max)
+      const maxSize = 5 * 1024 * 1024 // 5MB
+      if (file.size > maxSize) {
+        alert('El archivo es demasiado grande. El tamaño máximo permitido es 5MB.')
+        e.target.value = ''
+        return
+      }
+
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf']
+      if (!allowedTypes.includes(file.type)) {
+        alert('Formato de archivo no válido. Solo se permiten JPG, PNG y PDF.')
+        e.target.value = ''
+        return
+      }
+
+      setUploadFile(file)
+    }
+  }
+
+  // Function to confirm receipt upload
+  const confirmReceiptUpload = async () => {
+    if (!selectedPayment || !uploadFile || !receiptForm.receiptNumber || !receiptForm.bank) {
+      alert("Por favor complete todos los campos requeridos.")
+      return
+    }
+
+    // Check verification status
+    if (verificationResult && !verificationResult.verified) {
+      alert("Esta boleta no puede ser utilizada. Verifique el número de boleta.")
+      return
+    }
+
+    // Final verification if not done
+    if (!verificationResult) {
+      await handleVerifyReceipt()
+      if (verificationResult && !verificationResult.verified) {
+        return
+      }
+    }
+
+    setIsUploading(true)
+
+    try {
+      const formData = new FormData()
+      formData.append('banco', receiptForm.bank)
+      formData.append('numero_boleta', receiptForm.receiptNumber)
+      formData.append('monto', receiptForm.amount)
+      formData.append('fecha_pago', new Date().toISOString().split('T')[0])
+      formData.append('estudiante_id', 'current-student-id') // In real app, get from auth context
+      formData.append('comprobante', uploadFile)
+
+      const response = await api.post('/estudiante/pagos/subir-recibo', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+
+      if (response.data.success) {
+        alert("Comprobante cargado exitosamente. Pendiente de conciliación.")
+        setShowReceiptUpload(false)
+        setUploadFile(null)
+        setVerificationResult(null)
+        setReceiptForm({ receiptNumber: "", bank: "", amount: "" })
+      }
+    } catch (error: any) {
+      console.error('Upload error:', error)
+      
+      if (error.response?.data?.duplicate_type) {
+        alert(`Error: ${error.response.data.message}`)
+      } else if (error.response?.data?.details) {
+        alert(`Errores de validación:\n${error.response.data.details.join('\n')}`)
+      } else {
+        alert("Error al cargar el comprobante. Intente nuevamente.")
+      }
+    } finally {
+      setIsUploading(false)
+    }
   }
 
   // Función para obtener el color de la insignia según el estado
@@ -299,30 +437,122 @@ export function PaymentsView() {
           <div className="space-y-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="receipt-number">Número de Boleta/Referencia</Label>
-              <Input id="receipt-number" placeholder="Ej: 123456789" />
+              <div className="flex gap-2">
+                <Input 
+                  id="receipt-number" 
+                  placeholder="Ej: 123456789" 
+                  value={receiptForm.receiptNumber}
+                  onChange={(e) => setReceiptForm({...receiptForm, receiptNumber: e.target.value})}
+                  disabled={isUploading}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleVerifyReceipt}
+                  disabled={!receiptForm.bank || !receiptForm.receiptNumber || isVerifying || isUploading}
+                >
+                  {isVerifying ? (
+                    <>
+                      <div className="animate-spin h-4 w-4 mr-1 border-2 border-current border-t-transparent rounded-full"></div>
+                      Verificando...
+                    </>
+                  ) : (
+                    <>
+                      <Shield className="mr-1 h-4 w-4" />
+                      Verificar
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
+
+            {/* Verification Result */}
+            {verificationResult && (
+              <Alert className={
+                verificationResult.type === 'success' 
+                  ? 'border-green-200 bg-green-50' 
+                  : verificationResult.type === 'error'
+                  ? 'border-red-200 bg-red-50'
+                  : 'border-yellow-200 bg-yellow-50'
+              }>
+                {verificationResult.type === 'success' ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                ) : verificationResult.type === 'error' ? (
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 text-yellow-600" />
+                )}
+                <AlertTitle className={
+                  verificationResult.type === 'success' 
+                    ? 'text-green-800' 
+                    : verificationResult.type === 'error'
+                    ? 'text-red-800'
+                    : 'text-yellow-800'
+                }>
+                  {verificationResult.type === 'success' ? 'Verificación exitosa' 
+                   : verificationResult.type === 'error' ? 'Boleta no disponible'
+                   : 'Verificación pendiente'}
+                </AlertTitle>
+                <AlertDescription className={
+                  verificationResult.type === 'success' 
+                    ? 'text-green-700' 
+                    : verificationResult.type === 'error'
+                    ? 'text-red-700'
+                    : 'text-yellow-700'
+                }>
+                  {verificationResult.message}
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="grid gap-2">
               <Label htmlFor="bank">Banco</Label>
-              <Select>
+              <Select 
+                value={receiptForm.bank}
+                onValueChange={(value) => setReceiptForm({...receiptForm, bank: value})}
+                disabled={isUploading}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccione el banco" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="banrural">Banrural</SelectItem>
-                  <SelectItem value="bi">Banco Industrial</SelectItem>
-                  <SelectItem value="bam">BAM</SelectItem>
-                  <SelectItem value="g&t">G&T Continental</SelectItem>
+                  <SelectItem value="Banrural">Banrural</SelectItem>
+                  <SelectItem value="Banco Industrial">Banco Industrial</SelectItem>
+                  <SelectItem value="BAM">BAM</SelectItem>
+                  <SelectItem value="G&T Continental">G&T Continental</SelectItem>
+                  <SelectItem value="BAC Credomatic">BAC Credomatic</SelectItem>
+                  <SelectItem value="Banco Promerica">Banco Promerica</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="amount">Monto (Q)</Label>
-              <Input id="amount" type="number" defaultValue={selectedPayment?.amount.toString()} />
+              <Input 
+                id="amount" 
+                type="number" 
+                value={receiptForm.amount}
+                onChange={(e) => setReceiptForm({...receiptForm, amount: e.target.value})}
+                disabled={isUploading}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="receipt-upload">Comprobante de Pago</Label>
-              <Input id="receipt-upload" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileUpload} />
-              <p className="text-xs text-gray-500">Formatos aceptados: PDF, JPG, PNG (máx. 5MB)</p>
+              <Input 
+                id="receipt-upload" 
+                type="file" 
+                accept=".pdf,.jpg,.jpeg,.png" 
+                onChange={handleFileUpload}
+                disabled={isUploading || (verificationResult && !verificationResult.verified)}
+              />
+              <p className="text-xs text-gray-500">
+                Formatos aceptados: PDF, JPG, PNG (máx. 5MB)
+                {uploadFile && (
+                  <span className="ml-2 text-green-600 font-medium">
+                    ✓ {uploadFile.name}
+                  </span>
+                )}
+              </p>
             </div>
             {uploadFile && (
               <div className="flex items-center gap-2 text-sm text-green-600">
@@ -332,19 +562,29 @@ export function PaymentsView() {
             )}
             <Alert className="bg-yellow-50 border-yellow-200">
               <AlertCircle className="h-4 w-4 text-yellow-600" />
-              <AlertTitle className="text-yellow-800">Importante</AlertTitle>
+              <AlertTitle className="text-yellow-800">Importante - Prevención de Duplicados</AlertTitle>
               <AlertDescription className="text-yellow-700">
-                La conciliación de su pago puede tomar hasta 48 horas hábiles. Recibirá una notificación cuando su pago
-                sea confirmado.
+                ⚠️ Se verificará que esta boleta no haya sido utilizada anteriormente.<br/>
+                ⚠️ No se permiten boletas duplicadas sin importar el estado del pago anterior.<br/>
+                ℹ️ La conciliación puede tomar hasta 48 horas hábiles. Recibirá una notificación cuando su pago sea confirmado.
               </AlertDescription>
             </Alert>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowReceiptUpload(false)}>
+            <Button variant="outline" onClick={() => setShowReceiptUpload(false)} disabled={isUploading}>
               Cancelar
             </Button>
-            <Button onClick={confirmReceiptUpload} disabled={!uploadFile}>
-              Enviar Recibo
+            <Button 
+              onClick={confirmReceiptUpload} 
+              disabled={
+                !uploadFile || 
+                !receiptForm.receiptNumber || 
+                !receiptForm.bank || 
+                isUploading ||
+                (verificationResult && !verificationResult.verified)
+              }
+            >
+              {isUploading ? 'Enviando...' : 'Enviar Recibo'}
             </Button>
           </DialogFooter>
         </DialogContent>
