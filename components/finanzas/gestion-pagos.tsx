@@ -147,23 +147,24 @@ export function GestionPagos() {
   }
 
   // ----------- abrir ContactProspectDialog desde "Atrasados" -----------
-  // ----------- abrir ContactProspectDialog desde "Atrasados" -----------
-// ---- reemplazar esta función ----
 const openProspectContactFromLate = async (student: LatePaymentStudent) => {
   try {
-    // 1) Traer prospecto_id si viene en el payload
-    let prospectoId: number | undefined =
-      (student as any)?.prospecto_id ?? (student as any)?.prospectoId
+    // 1) Usar directamente el studentId como prospecto_id (basado en el patrón del sistema)
+    let prospectoId: number | undefined = Number(student.studentId) || undefined
 
-    // 2) Si no viene, resolver por EP ID (student.id) usando snapshot
+    // 2) Si no viene studentId, intentar con el prospectoId del objeto
+    if (!prospectoId && student.prospectoId) {
+      prospectoId = student.prospectoId
+    }
+
+    // 3) Fallback: usar snapshot con EP ID si es necesario
     if (!prospectoId && student?.id) {
       try {
-        // Ajusta a la firma real de tu servicio: a veces es fetchStudentSnapshot(epId) o fetchStudentSnapshot({ ep_id: ... })
         const snap = await fetchStudentSnapshot(student.id)
         prospectoId =
           Number(
             snap?.prospecto_id ??
-            snap?.prospecto?.id ??
+            snap?.ep?.prospecto?.id ??
             snap?.prospectId ??
             snap?.prospectoId
           ) || undefined
@@ -172,7 +173,7 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
       }
     }
 
-    // 3) Contexto para plantillas
+    // 4) Contexto para plantillas
     setContactCtx({
       nombre: student.name,
       programa: student.program,
@@ -180,15 +181,18 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
       fecha: undefined,
     })
 
-    // 4) Si logramos resolver prospectoId, lo pasamos; si no, abre igual (permite editar teléfono/correo a mano)
+    // 5) Abrir diálogo con el prospecto ID encontrado
     setContactProspectoId(prospectoId)
     setContactOpen(true)
 
-    // (Opcional) Si quieres avisar que se abrió sin ficha automática:
+    // Log para debugging
+    console.log(`Abriendo contacto para alumno ${student.name} (studentId: ${student.studentId}, prospectoId: ${prospectoId})`)
+
+    // Solo mostrar warning si no se pudo resolver ningún ID
     if (!prospectoId) {
       toast({
         title: "Sin ficha vinculada",
-        description: `No se encontró prospecto para EP-${student.id}. Puedes contactar manualmente.`,
+        description: `No se encontró prospecto para Alumno-${student.studentId}. Puedes contactar manualmente.`,
       })
     }
   } catch (error) {
