@@ -569,29 +569,6 @@ export async function fetchDashboardFinanciero(params: DashboardFinancieroParams
   return res.data as DashboardFinancieroData
 }
 
-
-export async function fetchLatePayments(params: LatePaymentsParams = {}) {
-  const res = await api.get('/collections/late-payments', { params })
-  return res.data as {
-    data: LatePaymentRow[]
-    meta: { current_page:number; per_page:number; total:number; last_page:number }
-    summary: { total_students: number }
-  }
-}
-
-export async function fetchStudentSnapshot(epId: number | string) {
-  const res = await api.get(`/collections/students/${epId}/snapshot`)
-  return res.data as {
-    student: { epId:number; id:number; name:string; carnet?:string; program:string }
-    pending_installments: { id:number; concepto:string; monto:number; fecha_vencimiento:string; days_late:number }[]
-    recent_payments: { id:number; monto_pagado:number; fecha_pago:string; metodo_pago:string }[]
-    contact_history: { type:string; notes?:string; agent?:string; created_at:string; promise_date?:string|null }[]
-  }
-}
-
-export async function fetchPaymentPlansOverview(params?: any) {
-  const res = await api.get('/collections/payment-plans', { params })
-  return res.data // { data, meta }
 // --- COLLECTIONS MODULE (Payment Management) ---
 import type { 
   LatePaymentsResponse, 
