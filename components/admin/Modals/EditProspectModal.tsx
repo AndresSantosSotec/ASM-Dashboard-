@@ -8,6 +8,7 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Loader2 } from "lucide-react"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import {
     Select,
@@ -45,6 +46,7 @@ export default function EditProspectModal({
 }: EditProspectModalProps) {
     const [selectedAsesor, setSelectedAsesor] = useState<string>("")
     const [search, setSearch] = useState<string>("")
+    const [isSaving, setIsSaving] = useState(false)
 
     const visibleAsesores = useMemo(() => {
         const term = search.toLowerCase()
@@ -69,6 +71,8 @@ export default function EditProspectModal({
 
     const handleGuardar = async () => {
         if (!selectedAsesor) return
+
+        setIsSaving(true)
 
         try {
             if (bulkIds && bulkIds.length > 0) {
@@ -117,6 +121,8 @@ export default function EditProspectModal({
         } catch (err) {
             console.error("Error reasignando prospectos:", err)
             alert("No se pudo reasignar. Revisa la consola para más detalles.")
+        } finally {
+            setIsSaving(false)
         }
     }
 
@@ -182,8 +188,15 @@ export default function EditProspectModal({
                     <Button variant="outline" onClick={onClose}>
                         Cancelar
                     </Button>
-                    <Button onClick={handleGuardar} disabled={!selectedAsesor}>
-                        Guardar
+                    <Button onClick={handleGuardar} disabled={!selectedAsesor || isSaving}>
+                        {isSaving ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Guardando...
+                            </>
+                        ) : (
+                            'Guardar'
+                        )}
                     </Button>
                 </DialogFooter>
             </DialogContent>

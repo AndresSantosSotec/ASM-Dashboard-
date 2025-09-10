@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -37,187 +37,15 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import { Separator } from "@/components/ui/separator"
-
-// Datos de ejemplo para el seguimiento de cobros
-const collectionData = {
-  pendingStudents: [
-    {
-      id: "2023-0042",
-      name: "Carlos Méndez",
-      program: "Ingeniería en Sistemas",
-      totalDebt: 2850,
-      lateMonths: 2,
-      latestDueDate: "2025-02-05",
-      daysLate: 45,
-      bucket: "B3", // B1: 0-5 días, B2: 6-10 días, B3: 11-30 días, B4: +30 días
-      status: "bloqueado",
-      lastContact: "2025-03-01",
-      promiseDate: "2025-03-15",
-      score: 85,
-      contactHistory: [
-        { date: "2025-03-01", type: "llamada", notes: "Promete pagar el 15 de marzo", agent: "María López" },
-        { date: "2025-02-20", type: "email", notes: "Se envió recordatorio de pago", agent: "Sistema" },
-        { date: "2025-02-10", type: "sms", notes: "Se envió notificación de vencimiento", agent: "Sistema" },
-      ],
-    },
-    {
-      id: "2023-0078",
-      name: "Ana Lucía Gómez",
-      program: "Administración de Empresas",
-      totalDebt: 1450,
-      lateMonths: 1,
-      latestDueDate: "2025-03-05",
-      daysLate: 15,
-      bucket: "B3",
-      status: "activo",
-      lastContact: "2025-03-08",
-      promiseDate: "2025-03-20",
-      score: 72,
-      contactHistory: [
-        {
-          date: "2025-03-08",
-          type: "llamada",
-          notes: "Indica que realizará el pago el 20 de marzo",
-          agent: "Juan Pérez",
-        },
-        { date: "2025-03-06", type: "email", notes: "Se envió recordatorio de pago", agent: "Sistema" },
-      ],
-    },
-    {
-      id: "2023-0103",
-      name: "Roberto Juárez",
-      program: "Diseño Gráfico",
-      totalDebt: 4200,
-      lateMonths: 3,
-      latestDueDate: "2025-01-05",
-      daysLate: 75,
-      bucket: "B4",
-      status: "bloqueado",
-      lastContact: "2025-03-05",
-      promiseDate: null,
-      score: 92,
-      contactHistory: [
-        { date: "2025-03-05", type: "llamada", notes: "No contesta", agent: "María López" },
-        { date: "2025-02-25", type: "llamada", notes: "Número fuera de servicio", agent: "Juan Pérez" },
-        { date: "2025-02-15", type: "email", notes: "Se envió notificación de bloqueo", agent: "Sistema" },
-        { date: "2025-02-05", type: "sms", notes: "Se envió recordatorio de pago", agent: "Sistema" },
-      ],
-    },
-    {
-      id: "2023-0056",
-      name: "María Fernanda López",
-      program: "Psicología",
-      totalDebt: 1400,
-      lateMonths: 1,
-      latestDueDate: "2025-03-05",
-      daysLate: 5,
-      bucket: "B1",
-      status: "activo",
-      lastContact: null,
-      promiseDate: null,
-      score: 65,
-      contactHistory: [],
-    },
-    {
-      id: "2023-0091",
-      name: "Juan Pablo Herrera",
-      program: "Medicina",
-      totalDebt: 1450,
-      lateMonths: 1,
-      latestDueDate: "2025-03-05",
-      daysLate: 8,
-      bucket: "B2",
-      status: "activo",
-      lastContact: "2025-03-10",
-      promiseDate: "2025-03-13",
-      score: 78,
-      contactHistory: [
-        {
-          date: "2025-03-10",
-          type: "llamada",
-          notes: "Indica que realizará el pago el 13 de marzo",
-          agent: "María López",
-        },
-      ],
-    },
-  ],
-  promisesCalendar: [
-    {
-      id: "prom-001",
-      studentId: "2023-0042",
-      studentName: "Carlos Méndez",
-      promiseDate: "2025-03-15",
-      amount: 2850,
-      status: "pendiente",
-      notes: "Prometió pagar después de recibir su sueldo",
-    },
-    {
-      id: "prom-002",
-      studentId: "2023-0078",
-      studentName: "Ana Lucía Gómez",
-      promiseDate: "2025-03-20",
-      amount: 1450,
-      status: "pendiente",
-      notes: "Esperando transferencia de sus padres",
-    },
-    {
-      id: "prom-003",
-      studentId: "2023-0091",
-      studentName: "Juan Pablo Herrera",
-      promiseDate: "2025-03-13",
-      amount: 1450,
-      status: "pendiente",
-      notes: "Pagará con tarjeta de crédito",
-    },
-    {
-      id: "prom-004",
-      studentId: "2023-0112",
-      studentName: "Lucía Ramírez",
-      promiseDate: "2025-03-12",
-      amount: 1400,
-      status: "cumplida",
-      notes: "Pagó en efectivo en oficina central",
-    },
-    {
-      id: "prom-005",
-      studentId: "2023-0098",
-      studentName: "Pedro Alvarado",
-      promiseDate: "2025-03-10",
-      amount: 1400,
-      status: "incumplida",
-      notes: "No realizó el pago en la fecha acordada",
-    },
-  ],
-  messageTemplates: [
-    {
-      id: "tmpl-001",
-      name: "Recordatorio de promesa",
-      type: "sms",
-      content:
-        "Estimado/a {nombre}, le recordamos que tiene un compromiso de pago para el día {fecha_promesa} por Q{monto}. Gracias.",
-    },
-    {
-      id: "tmpl-002",
-      name: "Seguimiento de mora",
-      type: "email",
-      content:
-        "Estimado/a {nombre}, su cuenta presenta un atraso de {dias_mora} días. Por favor, regularice su situación lo antes posible para evitar recargos adicionales.",
-    },
-    {
-      id: "tmpl-003",
-      name: "Aviso de bloqueo",
-      type: "sms",
-      content:
-        "Estimado/a {nombre}, su cuenta será bloqueada en 5 días si no realiza el pago pendiente de Q{monto}. Contáctenos para resolver su situación.",
-    },
-  ],
-}
+import { fetchCollectionData } from "@/services/finance"
 
 export function SeguimientoCobros() {
   const [activeTab, setActiveTab] = useState("pending-students")
   const [showContactDialog, setShowContactDialog] = useState(false)
   const [showMessageDialog, setShowMessageDialog] = useState(false)
   const [showPromiseDialog, setShowPromiseDialog] = useState(false)
+  const [collectionData, setCollectionData] = useState<any | null>(null)
+  const [loading, setLoading] = useState(true)
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null)
   const [selectedPromise, setSelectedPromise] = useState<any | null>(null)
   const [contactType, setContactType] = useState<string>("llamada")
@@ -229,6 +57,20 @@ export function SeguimientoCobros() {
     from: new Date(),
     to: new Date(new Date().setDate(new Date().getDate() + 7)),
   })
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const data = await fetchCollectionData()
+        setCollectionData(data)
+      } catch (e) {
+        console.error('Error fetching collection data', e)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [])
 
   // Función para abrir el diálogo de contacto
   const openContactDialog = (student: any) => {
@@ -256,7 +98,7 @@ export function SeguimientoCobros() {
   // Función para manejar la selección de plantilla
   const handleTemplateChange = (templateId: string) => {
     setSelectedTemplate(templateId)
-    const template = collectionData.messageTemplates.find((t) => t.id === templateId)
+    const template = collectionData?.messageTemplates.find((t) => t.id === templateId)
     if (template && selectedStudent) {
       let content = template.content
         .replace("{nombre}", selectedStudent.name)
@@ -335,6 +177,14 @@ export function SeguimientoCobros() {
       default:
         return <MessageSquare className="h-4 w-4" />
     }
+  }
+
+  if (loading || !collectionData) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <p>Cargando datos...</p>
+      </div>
+    )
   }
 
   return (

@@ -30,6 +30,7 @@ interface Prospecto {
   nombre: string;
   email: string;
   telefono: string;
+  ultimoCambio: string;
   estado: "Contactado" | "Interesado" | "En proceso";
   asesor: string;
 }
@@ -56,8 +57,17 @@ export default function SeguimientoPage() {
   const [interactionNotes, setInteractionNotes] = useState<string>("");
 
   // Estados para citas
+  const toLocalInputValue = (date: Date) => {
+    const off = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - off).toISOString().slice(0, 16);
+  };
+  const getDefaultAppointmentDate = () => {
+    const d = new Date();
+    d.setHours(9, 0, 0, 0);
+    return toLocalInputValue(d);
+  };
   const [citas, setCitas] = useState<any[]>([]);
-  const [appointmentDate, setAppointmentDate] = useState<string>("");
+  const [appointmentDate, setAppointmentDate] = useState<string>(getDefaultAppointmentDate());
   const [appointmentDescription, setAppointmentDescription] = useState<string>("");
 
   // Estado para almacenar actividades
@@ -135,14 +145,23 @@ export default function SeguimientoPage() {
         const res = await api.get("/prospectos");
         const json = res.data;
         console.log("Respuesta completa de prospectos:", json);
-        const prospectosTransformados: Prospecto[] = json.data.map((item: any) => ({
-          id: String(item.id),
-          nombre: item.nombre_completo,
-          email: item.correo_electronico,
-          telefono: item.telefono,
-          estado: item.status,
-          asesor: item.asesor || "Sin asignar",
-        }));
+        const prospectosTransformados: Prospecto[] = json.data
+          .map((item: any) => ({
+            id: String(item.id),
+            nombre: item.nombre_completo,
+            email: item.correo_electronico,
+            telefono: item.telefono,
+            estado: item.status,
+            asesor: item.asesor || "Sin asignar",
+            ultimoCambio: item.updated_at ?? "N/A",
+          }))
+          .sort((a, b) => {
+            const getTime = (d: string) => {
+              const t = new Date(d).getTime();
+              return isNaN(t) ? 0 : t;
+            };
+            return getTime(b.ultimoCambio) - getTime(a.ultimoCambio);
+          });
         setProspectos(prospectosTransformados);
       } catch (err: any) {
         console.error("Error en fetchProspectos:", JSON.stringify(err, null, 2));
@@ -290,11 +309,11 @@ export default function SeguimientoPage() {
 
   // Manejo para agregar cita
   const handleAddCita = async () => {
-    if (!appointmentDate || !appointmentDescription.trim()) {
+    if (!appointmentDate) {
       Swal.fire({
         icon: "warning",
         title: "Campos incompletos",
-        text: "Completa la fecha y la descripción para la cita.",
+        text: "Selecciona la fecha para la cita.",
       });
       return;
     }
@@ -307,23 +326,30 @@ export default function SeguimientoPage() {
       });
       return;
     }
-    const formattedDate = appointmentDate;
+    const date = new Date(appointmentDate);
+    if (isNaN(date.getTime())) {
+      Swal.fire({
+        icon: "error",
+        title: "Fecha inválida",
+        text: "Selecciona una fecha válida",
+      });
+      return;
+    }
+    const formattedDate = date.toISOString();
     const newCita = {
       datecita: formattedDate,
-      descricita: appointmentDescription,
+      descricita: appointmentDescription.trim(),
     };
 
     console.log("Enviando cita:", JSON.stringify(newCita, null, 2));
 
     try {
-      const response = await api.post(
-        "/citas",
-        newCita
-      );
+      const response = await api.post("/citas", newCita);
+      const saved = response.data?.data ?? response.data;
       console.log("✅ Cita guardada:", response.data);
-      setCitas((prev) => Array.isArray(prev) ? [...prev, response.data] : [response.data]);
+      setCitas((prev) => [...prev, saved]);
       setAppointmentDescription("");
-      setAppointmentDate("");
+      setAppointmentDate(getDefaultAppointmentDate());
       Swal.fire({
         icon: "success",
         title: "¡Cita Agendada!",

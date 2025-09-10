@@ -81,14 +81,19 @@ export interface DatosFinancieros {
   aceptaTerminos: boolean;
   tieneConvenio: boolean;
   convenioId?: number;
+  /** Nombre del convenio asociado, si aplica */
+  convenioNombre?: string;
 }
 
 export interface Documento {
-  id: string;
+  id: string | number;
   nombre: string;
   descripcion: string;
   estado: "pendiente" | "cargado";
-  archivo?: File | null;
+  archivos: File[];
+  optional?: boolean;
+  /** URL para descarga del documento */
+  url?: string;
 }
 
 /** Ficha de inscripción del estudiante */

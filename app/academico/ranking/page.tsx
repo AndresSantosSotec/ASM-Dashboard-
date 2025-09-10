@@ -41,14 +41,16 @@ export default function RankingAcademico() {
     const getStudents = async () => {
       setLoadingStudents(true)
       try {
-        const { data, total } = await fetchRankingStudents({
+        const { data } = await fetchRankingStudents({
           search: debouncedSearch || undefined,
           program: programFilter !== 'all' ? programFilter : undefined,
           semester: semesterFilter !== 'all' ? Number(semesterFilter) : undefined,
           sortBy,
         })
-        setStudents(data)
-        setTotalStudents(total)
+
+        const withCourses = data.filter((s) => s.totalCourses > 0)
+        setStudents(withCourses)
+        setTotalStudents(withCourses.length)
       } catch (err) {
         console.error(err)
       } finally {
@@ -75,13 +77,25 @@ export default function RankingAcademico() {
   }, [])
 
   // Obtener programas únicos para el filtro
-  const uniquePrograms = Array.from(new Set(students.map((s) => s.program)))
+  const uniquePrograms = Array.from(
+    new Set(
+      students
+        .map((s) => s.program)
+        .filter((program) => program !== undefined && program !== null && program !== "")
+    )
+  )
 
   // Obtener semestres únicos para el filtro
-  const uniqueSemesters = Array.from(new Set(students.map((s) => s.semester))).sort((a, b) => a - b)
+  const uniqueSemesters = Array.from(
+    new Set(
+      students
+        .map((s) => s.semester)
+        .filter((semester) => semester !== undefined && semester !== null)
+    )
+  ).sort((a, b) => Number(a) - Number(b))
 
-  // Filtrar estudiantes
-  const filteredStudents = students.filter(student => {
+// Filtrar estudiantes
+const filteredStudents = students.filter(student => {
     const search = searchTerm.toLowerCase()
     const nameMatch = student.name
       ? student.name.toLowerCase().includes(search)
@@ -476,16 +490,26 @@ export default function RankingAcademico() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      courses.map((course) => (
-                        <TableRow key={course.id}>
+                      courses.map((course, idx) => (
+                        <TableRow key={course.id ?? idx}>
                           <TableCell>{course.name}</TableCell>
                           <TableCell>{course.code}</TableCell>
                           <TableCell>{course.period}</TableCell>
                           <TableCell>{course.students}</TableCell>
-                          <TableCell>{course.averageGrade.toFixed(1)}</TableCell>
-                          <TableCell>{Math.round(course.passingRate * 100)}%</TableCell>
                           <TableCell>
-                            {course.topStudent.name} ({course.topStudent.grade.toFixed(1)})
+                            {course.averageGrade !== undefined && course.averageGrade !== null
+                              ? course.averageGrade.toFixed(1)
+                              : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {course.passingRate !== undefined && course.passingRate !== null
+                              ? `${Math.round(course.passingRate * 100)}%`
+                              : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {course.topStudent && course.topStudent.name
+                              ? `${course.topStudent.name} (${course.topStudent.grade?.toFixed(1) ?? "-"})`
+                              : "-"}
                           </TableCell>
                         </TableRow>
                       ))

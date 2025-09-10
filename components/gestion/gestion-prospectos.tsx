@@ -19,6 +19,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import DetallesProspecto from "./detalles-prospecto"
 import EditarProspecto from "./editar-prospecto"
 import CambiarEstado from "./cambiar-estado"
@@ -34,6 +40,7 @@ interface Prospecto {
   departamento: string
   puesto: string
   estado: string
+  origen?: string
   observaciones?: string
   ultimoCambio: string
 }
@@ -52,6 +59,7 @@ export default function GestionProspectos() {
   const [estadoFilter, setEstadoFilter] = useState<string>("todos")
   const [departamentoFilter, setDepartamentoFilter] = useState<string>("todos")
   const [puestoFilter, setPuestoFilter] = useState<string>("todos")
+  const [origenFilter, setOrigenFilter] = useState<string>("todos")
   const [pageSize, setPageSize] = useState<string>("5")
   const [currentPage, setCurrentPage] = useState<number>(1)
 
@@ -59,11 +67,36 @@ export default function GestionProspectos() {
 
   // Datos únicos para filtros dinámicos
   const departamentos = useMemo(
-    () => Array.from(new Set(prospectos.map((p) => p.departamento))),
+    () =>
+      Array.from(
+        new Set(
+          prospectos
+            .map((p) => p.departamento)
+            .filter((d) => d && d.trim() !== "")
+        )
+      ),
     [prospectos]
   )
   const puestos = useMemo(
-    () => Array.from(new Set(prospectos.map((p) => p.puesto))),
+    () =>
+      Array.from(
+        new Set(
+          prospectos
+            .map((p) => p.puesto)
+            .filter((p) => p && p.trim() !== "")
+        )
+      ),
+    [prospectos]
+  )
+  const origenes = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          prospectos
+            .map((p) => p.origen)
+            .filter((o) => o && o.trim() !== "")
+        )
+      ),
     [prospectos]
   )
 
@@ -90,12 +123,20 @@ export default function GestionProspectos() {
             telefono: item.telefono,
             departamento:
               item.empresa_donde_labora_actualmente ?? "Sin Departamento",
-            puesto: item.puesto ?? "—",
+            puesto: item.puesto ?? "N/A",
             estado: item.status || "No contactado",
+            origen: item.medio_conocimiento_institucion ?? "—",
             observaciones: item.observaciones ?? "",
             ultimoCambio: item.updated_at ?? "N/A",
           }))
           .filter((p: any) => p.estado.toLowerCase() !== "preinscripción")
+          .sort((a: Prospecto, b: Prospecto) => {
+            const getTime = (d: string) => {
+              const t = new Date(d).getTime()
+              return isNaN(t) ? 0 : t
+            }
+            return getTime(b.ultimoCambio) - getTime(a.ultimoCambio)
+          })
         setProspectos(list)
       } catch (err: any) {
         setError(err.message || "Error inesperado")
@@ -147,11 +188,14 @@ export default function GestionProspectos() {
         departamentoFilter === "todos" || p.departamento === departamentoFilter
       const matchesPuesto =
         puestoFilter === "todos" || p.puesto === puestoFilter
+      const matchesOrigen =
+        origenFilter === "todos" || p.origen === origenFilter
       return (
         matchesSearch &&
         matchesEstado &&
         matchesDepartamento &&
-        matchesPuesto
+        matchesPuesto &&
+        matchesOrigen
       )
     })
   }, [
@@ -160,6 +204,7 @@ export default function GestionProspectos() {
     estadoFilter,
     departamentoFilter,
     puestoFilter,
+    origenFilter,
   ])
 
   // Paginación
@@ -343,6 +388,25 @@ export default function GestionProspectos() {
             ))}
           </SelectContent>
         </Select>
+        <Select
+          value={origenFilter}
+          onValueChange={(v) => {
+            setOrigenFilter(v)
+            setCurrentPage(1)
+          }}
+        >
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Origen" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos</SelectItem>
+            {origenes.map((o) => (
+              <SelectItem key={o} value={o}>
+                {o}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         <Button variant="outline">
           <Filter className="h-4 w-4 mr-2" />
@@ -378,6 +442,7 @@ export default function GestionProspectos() {
               <th className="py-3 px-4 text-left">Teléfono</th>
               <th className="py-3 px-4 text-left">Empresa</th>
               <th className="py-3 px-4 text-left">Puesto</th>
+              <th className="py-3 px-4 text-left">Origen</th>
               <th className="py-3 px-4 text-left">Estado</th>
               <th className="py-3 px-4 text-left">Acciones</th>
             </tr>
@@ -393,10 +458,11 @@ export default function GestionProspectos() {
                 </td>
                 <td className="py-3 px-4">{p.nombre}</td>
                 <td className="py-3 px-4">{p.email}</td>
-                <td className="py-3 px-4">{p.telefono}</td>
-                <td className="py-3 px-4">{p.departamento}</td>
-                <td className="py-3 px-4">{p.puesto}</td>
-                <td className="py-3 px-4">
+              <td className="py-3 px-4">{p.telefono}</td>
+              <td className="py-3 px-4">{p.departamento}</td>
+              <td className="py-3 px-4">{p.puesto}</td>
+              <td className="py-3 px-4">{p.origen}</td>
+              <td className="py-3 px-4">
                   <div className="flex flex-col">
                     <span
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getEstadoColor(
@@ -411,103 +477,134 @@ export default function GestionProspectos() {
                   </div>
                 </td>
                 <td className="py-3 px-4">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setSelectedProspecto(p)
-                        setModalType("detalles")
-                      }}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={async () => {
-                        try {
-                          const token = localStorage.getItem("token")
-                          const res = await fetch(
-                            `${API_URL}/prospectos/${p.id}`,
-                            {
-                              headers: {
-                                Authorization: `Bearer ${token}`,
-                                "Content-Type": "application/json",
-                              },
-                            }
-                          )
-                          if (!res.ok)
-                            throw new Error("No se pudo cargar datos de edición")
-                          const { data } = await res.json()
-                          setSelectedProspecto({
-                            id: String(data.id),
-                            nombre: data.nombre_completo,
-                            email: data.correo_electronico,
-                            telefono: data.telefono,
-                            departamento:
-                              data.empresa_donde_labora_actualmente ??
-                              "Sin Departamento",
-                            puesto: data.puesto ?? "—",
-                            estado: data.status,
-                            observaciones: data.observaciones ?? "",
-                            ultimoCambio: data.updated_at ?? "N/A",
-                          })
-                          setModalType("editar")
-                        } catch (e: any) {
-                          Swal.fire("Error", e.message, "error")
-                        }
-                      }}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    {currentUser?.rol === "administrador" && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setSelectedProspecto(p)
-                          setModalType("editar")
-                        }}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Button variant="ghost" size="icon">
-                      <UserPlus className="h-4 w-4" />
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setSelectedProspecto(p)
-                            setModalType("editar")
-                          }}
-                        >
-                          Actualizar Prospecto
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setSelectedProspecto(p)
-                            setShowEstadoMenu(true)
-                          }}
-                        >
-                          Cambiar Estado
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>Enviar Email</DropdownMenuItem>
-                        <DropdownMenuItem>Enviar Mensaje</DropdownMenuItem>
-                        <DropdownMenuItem>Llamar</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleInscribir(p.id)}>
-                          Inscribir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+                  <TooltipProvider>
+                    <div className="flex items-center gap-2">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setSelectedProspecto(p)
+                              setModalType("detalles")
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Ver prospecto</TooltipContent>
+                      </Tooltip>
+
+                      {currentUser?.rol !== "asesor" && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={async () => {
+                                try {
+                                  const token = localStorage.getItem("token")
+
+                                  const res = await fetch(`${API_URL}/prospectos/${p.id}` , {
+                                    headers: {
+                                      Authorization: `Bearer ${token}`,
+                                      "Content-Type": "application/json",
+                                    },
+                                  })
+                                  if (!res.ok)
+                                    throw new Error("No se pudo cargar datos de edición")
+                                  const { data } = await res.json()
+                                  setSelectedProspecto({
+                                    id: String(data.id),
+                                    nombre: data.nombre_completo,
+                                    email: data.correo_electronico,
+                                    telefono: data.telefono,
+                                    departamento:
+
+                                      data.empresa_donde_labora_actualmente ?? "Sin Departamento",
+                                    puesto: data.puesto ?? "N/A",
+                                    estado: data.status,
+                                    observaciones: data.observaciones ?? "",
+                                    ultimoCambio: data.updated_at ?? "N/A",
+                                  })
+                                  setModalType("editar")
+                                } catch (e: any) {
+                                  Swal.fire("Error", e.message, "error")
+                                }
+                              }}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Editar</TooltipContent>
+                        </Tooltip>
+                      )}
+
+                      {currentUser?.rol === "administrador" && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setSelectedProspecto(p)
+                                setModalType("editar")
+                              }}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Editar</TooltipContent>
+                        </Tooltip>
+                      )}
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleInscribir(p.id)}
+                          >
+                            <UserPlus className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Inscribir</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <DropdownMenu>
+                          <TooltipTrigger asChild>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                          </TooltipTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedProspecto(p)
+                                setModalType("editar")
+                              }}
+                            >
+                              Actualizar Prospecto
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedProspecto(p)
+                                setShowEstadoMenu(true)
+                              }}
+                            >
+                              Cambiar Estado
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleInscribir(p.id)}>
+                              Inscribir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <TooltipContent>Más acciones</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </TooltipProvider>
                 </td>
               </tr>
             ))}

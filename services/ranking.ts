@@ -22,12 +22,13 @@ export interface CoursePerformance {
   code: string
   period: string
   students: number
-  averageGrade: number
-  passingRate: number
-  topStudent: {
-    id: string
-    name: string
-    grade: number
+  averageGrade?: number | null
+  passingRate?: number | null
+  topStudent?: {
+    id?: string
+    name?: string
+    grade?: number | null
+
   }
 }
 
@@ -42,8 +43,17 @@ export interface RankingParams {
 
 // Fetch ranking of students from backend
 // Requires an endpoint like GET /ranking/students
-export const fetchRankingStudents = async (params: RankingParams) => {
-  const res = await api.get('/ranking/students', { params })
+
+export const fetchRankingStudents = async (
+  params: RankingParams & { onlyEnrolled?: boolean } = { onlyEnrolled: true },
+) => {
+  const res = await api.get('/ranking/students', {
+    params: {
+      status: params.onlyEnrolled ? 'Inscrito' : undefined,
+      ...params,
+    },
+  })
+
   const data = Array.isArray(res.data.data) ? res.data : { data: res.data, total: res.data.length }
   return { data: data.data as RankingStudent[], total: data.total as number }
 }
@@ -62,3 +72,4 @@ export const downloadRankingReport = async (params: RankingParams) => {
   const res = await api.get('/ranking/report', { params, responseType: 'blob' })
   return res.data as Blob
 }
+

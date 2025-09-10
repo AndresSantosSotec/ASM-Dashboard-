@@ -12,12 +12,17 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { CheckCircle2, XCircle, Send } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { CheckCircle2, XCircle, Send, Download } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
 import { FichaEstudiante } from "../types"
 import { API_BASE_URL } from "@/utils/apiConfig"
+import fetchFicha from "@/services/fichas"
+import fetchDocumentosRevision from "@/services/documentos"
+import { formatDate } from "@/utils/formatDate"
+import { resolveBackendUrl } from "@/utils/resolveBackendUrl" // ⬅️ NUEVO
 
 interface Props {
   ficha: FichaEstudiante
@@ -45,9 +50,6 @@ export default function FichaDetalleModal({
   const [financieros, setFinancieros] = useState<any>({})
   const [programasInscritos, setProgramasInscritos] = useState<any[]>([])
   const [documentos, setDocumentos] = useState<any[]>([])
-  const [catalogoProgramas, setCatalogoProgramas] = useState<
-    { id: number; abreviatura: string; nombre_del_programa: string }[]
-  >([])
 
   // Campos para mostrar
   const camposPersonales: [string, any][] = [
@@ -58,15 +60,15 @@ export default function FichaDetalleModal({
     ["DPI", personales.dpi],
     ["Email personal", personales.emailPersonal],
     ["Email corporativo", personales.emailCorporativo],
-    ["Fecha Nac.", personales.fechaNacimiento],
+    ["Fecha Nac.", formatDate(personales.fechaNacimiento)],
     ["Dirección", personales.direccion],
   ]
 
   const camposAcademicos: [string, any][] = [
     ["Modalidad", academicos.modalidad],
-    ["Inicio específico", academicos.fechaInicioEspecifica],
-    ["Taller inducción", academicos.tallerInduccion],
-    ["Taller integración", academicos.tallerIntegracion],
+    ["Inicio específico", formatDate(academicos.fechaInicioEspecifica)],
+    ["Taller inducción", formatDate(academicos.fechaTallerInduccion)],
+    ["Taller integración", formatDate(academicos.fechaTallerIntegracion)],
     ["Institución anterior", academicos.institucionAnterior],
     ["Año graduación", academicos.añoGraduacion],
     ["Medio conoció", academicos.medioConocio],
@@ -78,13 +80,12 @@ export default function FichaDetalleModal({
     ["Empresa", laborales.empresa],
     ["Puesto", laborales.puesto],
     ["Teléfono corp.", laborales.telefonoCorporativo],
-    ["Departamento", laborales.departamento],
     ["Dirección empresa", laborales.direccionEmpresa],
   ]
 
   const camposFinancieros: [string, any][] = [
     ["Método de pago", financieros.formaPago],
-    ["Convenio ID", financieros.convenioId],
+    ["Convenio", financieros.convenioNombre],
     ["Inscripción", financieros.inscripcion],
     ["Cuota mensual", financieros.cuotaMensual],
     ["Inversión total", financieros.inversionTotal],
@@ -94,29 +95,102 @@ export default function FichaDetalleModal({
   const [isRevisada, setIsRevisada] = useState(false)
   const [correctionMode, setCorrectionMode] = useState(false)
 
-  // Carga inicial
+  // ===== Helpers =====
+
+  // ⬇️ Reemplazado: versión estricta que ignora d.url y siempre genera URL en el mismo origen que API_BASE_URL
+  const getDocUrl = (d: any) =>
+    resolveBackendUrl(
+      d?.ruta_archivo ? `/storage/${d.ruta_archivo}` : `/api/documentos/${d.id}/file`,
+      API_BASE_URL
+    )
+
+  const normalizeType = (t?: string) => (t || "otros").trim().toLowerCase()
+  const prettyType = (tipo: string) => {
+    const n = normalizeType(tipo)
+    const map: Record<string, string> = {
+      dpi: "DPI",
+      inscripcion: "Inscripción",
+      recibo: "Recibo",
+      foto: "Foto",
+      otros: "Otros",
+    }
+    return map[n] ?? (n.charAt(0).toUpperCase() + n.slice(1))
+  }
+
+  const estadoToVariant = (estado?: string) => {
+    const e = (estado || "").toLowerCase()
+    if (e === "aprobado") return "default" as const
+    if (e === "rechazado") return "destructive" as const
+    return "secondary" as const
+  }
+
+  const fileNameFromPath = (ruta?: string) =>
+    (ruta || "").split("/").pop() || "archivo.pdf"
+
+  // elige el doc más reciente (por updated_at o subida_at)
+  const pickMostRecent = (a: any, b: any) => {
+    const tsA = new Date(a?.updated_at || a?.subida_at || 0).getTime()
+    const tsB = new Date(b?.updated_at || b?.subida_at || 0).getTime()
+    return tsB > tsA ? b : a
+  }
+
+  // dedupe: deja 1 doc (el más nuevo) por tipo_documento
+  const dedupeLatestByType = (docs: any[]) => {
+    const byType: Record<string, any> = {}
+    for (const d of docs) {
+      const k = normalizeType(d?.tipo_documento)
+      byType[k] = byType[k] ? pickMostRecent(byType[k], d) : d
+    }
+    return Object.entries(byType)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, doc]) => doc)
+  }
+
+  // ===== Carga inicial =====
   useEffect(() => {
     if (!isOpen) return
     ;(async () => {
       try {
-        const token = localStorage.getItem("token") ?? ""
-        const resFicha = await fetch(
-          `${API_BASE_URL}/api/fichas/${ficha.id}`,
-          { headers: { Authorization: `Bearer ${token}` } }
+        const data = await fetchFicha(ficha.id)
+        console.log("[FichaDetalleModal] detalle:", data)
+
+        const fromFicha = Array.isArray((data as any)?.documentos)
+          ? (data as any).documentos
+          : []
+
+        let fromRevision: any[] = []
+        try {
+          const res = await fetchDocumentosRevision(ficha.id)
+          fromRevision = Array.isArray(res) ? res : []
+        } catch {
+          fromRevision = []
+        }
+
+        const byId = new Map<number, any>()
+        for (const d of fromFicha) byId.set(d.id, d)
+        for (const d of fromRevision) {
+          const existing = byId.get(d.id)
+          byId.set(d.id, existing ? pickMostRecent(existing, d) : d)
+        }
+        const merged = Array.from(byId.values())
+        const latestByType = dedupeLatestByType(merged)
+
+        setPersonales(data.personales || {})
+        setLaborales(data.laborales || {})
+        setAcademicos(data.academicos || {})
+        setFinancieros(data.financieros || {})
+        setProgramasInscritos(data.programas || [])
+        setDocumentos(latestByType)
+
+        if (data.financieros?.convenioId && !data.financieros?.convenioNombre) {
+          console.warn(
+            `[FichaDetalleModal] convenio ${data.financieros.convenioId} sin nombre. Revisar GET /api/convenios/${data.financieros.convenioId}`,
+          )
+        }
+
+        setIsRevisada(
+          localStorage.getItem(`ficha-${ficha.id}-revisada`) === "true",
         )
-        const json = await resFicha.json()
-        setPersonales(json.personales)
-        setLaborales(json.laborales)
-        setAcademicos(json.academicos)
-        setFinancieros(json.financieros)
-        setProgramasInscritos(json.programas ?? [])
-        setDocumentos(json.documentos ?? [])
-
-        const resProg = await fetch(`${API_BASE_URL}/api/programas`)
-        setCatalogoProgramas(await resProg.json())
-
-        // Leer estado 'revisada' de localStorage
-        setIsRevisada(localStorage.getItem(`ficha-${ficha.id}-revisada`) === "true")
       } catch (err) {
         console.error("Error al cargar detalle de ficha:", err)
       }
@@ -131,6 +205,15 @@ export default function FichaDetalleModal({
   }
 
   if (!ficha) return null
+
+  // (Opcional) Agrupar por tipo para encabezados "DPI, Recibo, ..."
+  const docsByType: Record<string, any[]> = (Array.isArray(documentos) ? documentos : [])
+    .reduce((acc, d) => {
+      const tipo = normalizeType(d?.tipo_documento)
+      if (!acc[tipo]) acc[tipo] = []
+      acc[tipo].push(d)
+      return acc
+    }, {} as Record<string, any[]>)
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -161,7 +244,9 @@ export default function FichaDetalleModal({
               {camposPersonales.map(([label, val], i) => (
                 <div key={i} className="p-2 border rounded">
                   <Label>{label}</Label>
-                  <p className="mt-1">{val ?? "—"}</p>
+                  <p className="mt-1">
+                    {val === null || val === undefined || val === "" ? "—" : val}
+                  </p>
                 </div>
               ))}
             </TabsContent>
@@ -172,7 +257,9 @@ export default function FichaDetalleModal({
                 {camposAcademicos.map(([label, val], i) => (
                   <div key={i} className="p-2 border rounded">
                     <Label>{label}</Label>
-                    <p className="mt-1">{val ?? "—"}</p>
+                    <p className="mt-1">
+                      {val === null || val === undefined || val === "" ? "—" : val}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -186,7 +273,9 @@ export default function FichaDetalleModal({
               {camposLaborales.map(([label, val], i) => (
                 <div key={i} className="p-2 border rounded">
                   <Label>{label}</Label>
-                  <p className="mt-1">{val ?? "—"}</p>
+                  <p className="mt-1">
+                    {val === null || val === undefined || val === "" ? "—" : val}
+                  </p>
                 </div>
               ))}
             </TabsContent>
@@ -199,7 +288,9 @@ export default function FichaDetalleModal({
               {camposFinancieros.map(([label, val], i) => (
                 <div key={i} className="p-2 border rounded">
                   <Label>{label}</Label>
-                  <p className="mt-1">{val ?? "—"}</p>
+                  <p className="mt-1">
+                    {val === null || val === undefined || val === "" ? "—" : val}
+                  </p>
                 </div>
               ))}
             </TabsContent>
@@ -209,51 +300,89 @@ export default function FichaDetalleModal({
               {programasInscritos.length === 0 ? (
                 <p>Sin programas inscritos.</p>
               ) : (
-                programasInscritos.map((p) => {
-                  const meta = catalogoProgramas.find((c) => c.id === p.programa_id)
-                  return (
-                    <Card key={p.id} className="p-2 border rounded">
-                      <CardContent className="space-y-1">
-                        <p>
-                          <strong>
-                            {meta?.abreviatura} – {meta?.nombre_del_programa}
-                          </strong>
-                        </p>
-                        <p>
-                          <strong>Inicio:</strong> {p.fecha_inicio} |{" "}
-                          <strong>Fin:</strong> {p.fecha_fin}
-                        </p>
-                        <p>
-                          <strong>Duración:</strong> {p.duracion_meses} meses
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )
-                })
+                programasInscritos.map((p) => (
+                  <Card key={p.id} className="p-2 border rounded">
+                    <CardContent className="space-y-1">
+                      <p>
+                        <strong>
+                          {p.programa?.abreviatura} – {p.programa?.nombre_del_programa}
+                        </strong>
+                      </p>
+                      <p>
+                        <strong>Inicio:</strong> {formatDate(p.fecha_inicio)} |{" "}
+                        <strong>Fin:</strong> {formatDate(p.fecha_fin)}
+                      </p>
+                      <p>
+                        <strong>Duración:</strong> {p.duracion_meses} meses
+                      </p>
+                      <p>
+                        <strong>Inscripción:</strong> {p.inscripcion ?? "—"}
+                      </p>
+                      <p>
+                        <strong>Cuota mensual:</strong> {p.cuota_mensual ?? "—"}
+                      </p>
+                      <p>
+                        <strong>Inversión total:</strong> {p.inversion_total ?? "—"}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))
               )}
             </TabsContent>
 
-            {/* DOCUMENTOS ADJUNTOS */}
-            <TabsContent value="documentos" className="mt-4 space-y-4">
-              {documentos.length === 0 ? (
+            {/* DOCUMENTOS ADJUNTOS (1 por tipo, el más reciente) */}
+            <TabsContent value="documentos" className="mt-4 space-y-6">
+              {!Array.isArray(documentos) || documentos.length === 0 ? (
                 <p>No hay documentos adjuntos.</p>
               ) : (
-                documentos.map((d) => (
-                  <Card key={d.id} className="p-2 border rounded">
-                    <CardContent className="space-y-1">
-                      <p>
-                        <strong>{d.nombre}</strong>
-                      </p>
-                      <a
-                        href={d.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm underline"
-                      >
-                        Ver archivo
-                      </a>
-                    </CardContent>
-                  </Card>
+                Object.entries(docsByType).map(([tipo, list]) => (
+                  <div key={tipo} className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-base font-semibold">
+                        {prettyType(tipo)}
+                      </h4>
+                      <Badge variant="outline">{list.length}</Badge>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {list.map((d) => {
+                        const url = getDocUrl(d)
+                        const filename = fileNameFromPath(d.ruta_archivo)
+                        return (
+                          <Card key={d.id} className="p-3 border rounded">
+                            <CardContent className="space-y-2 p-0">
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium truncate">
+                                  {filename}
+                                </span>
+                                <Badge variant={estadoToVariant(d.estado)}>
+                                  {d.estado ?? "—"}
+                                </Badge>
+                              </div>
+
+                              <div className="text-xs text-muted-foreground">
+                                Subido: {formatDate(d.subida_at)}
+                              </div>
+
+                              <div className="flex gap-2 pt-1">
+                                <Button asChild size="sm">
+                                  <a href={url} target="_blank" rel="noreferrer">
+                                    Ver
+                                  </a>
+                                </Button>
+                                <Button asChild size="sm" variant="outline">
+                                  <a href={url} download={filename}>
+                                    <Download className="w-4 h-4 mr-1" />
+                                    Descargar
+                                  </a>
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  </div>
                 ))
               )}
             </TabsContent>
@@ -269,11 +398,13 @@ export default function FichaDetalleModal({
             </div>
             <div className="flex items-center gap-2 text-sm">
               <XCircle className="text-red-600" />
-              <span>{programasInscritos.length + documentos.length} campos</span>
+              <span>
+                {programasInscritos.length + (Array.isArray(documentos) ? documentos.length : 0)} documentos
+              </span>
             </div>
           </div>
 
-          {/* Comentario de revisión */}
+          {/* Comentario de Revisión */}
           <div>
             <Label>Comentario de Revisión</Label>
             <Textarea
@@ -296,7 +427,7 @@ export default function FichaDetalleModal({
               <Send className="mr-1" /> Solicitar Corrección
             </Button>
             <Button onClick={marcarRevisada} disabled={isRevisada}>
-              <CheckCircle2 className="mr-1" />{" "}
+              <CheckCircle2 className="mr-1" />
               {isRevisada ? "Revisada" : "Marcar como Revisada"}
             </Button>
           </div>

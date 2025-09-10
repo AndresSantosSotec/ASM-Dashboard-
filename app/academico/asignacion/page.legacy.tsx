@@ -440,7 +440,7 @@ export default function AsignacionPage() {
               className="border rounded p-2 text-sm"
               value={courseArea}
               onChange={(e) => {
-                setCourseArea(e.target.value)
+                setCourseArea(e.target.value as 'all' | 'common' | 'specialty' | 'closure')
                 setCoursePage(1)
               }}
             >

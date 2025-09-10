@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -37,105 +37,14 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import { Separator } from "@/components/ui/separator"
+import {
+  getPendingReconciliation,
+  uploadReconciliation,
+  processReconciliation,
+} from "@/services/finance"
+import { toast } from "@/hooks/use-toast"
 
-// Datos de ejemplo para la conciliación bancaria
-const conciliacionData = {
-  pendingReceipts: [
-    {
-      id: "rec-001",
-      studentId: "2023-0042",
-      studentName: "Carlos Méndez",
-      bank: "Banco Industrial",
-      receiptNumber: "BI-123456",
-      amount: 750,
-      date: "2025-03-10",
-      authNumber: "AUTH-987654",
-      status: "pendiente",
-      uploadDate: "2025-03-10",
-      program: "Desarrollo Web Full Stack",
-    },
-    {
-      id: "rec-002",
-      studentId: "2023-0078",
-      studentName: "Ana Lucía Gómez",
-      bank: "Banrural",
-      receiptNumber: "BR-654321",
-      amount: 750,
-      date: "2025-03-09",
-      authNumber: "AUTH-123456",
-      status: "pendiente",
-      uploadDate: "2025-03-09",
-      program: "Diseño UX/UI",
-    },
-    {
-      id: "rec-003",
-      studentId: "2023-0091",
-      studentName: "Juan Pablo Herrera",
-      bank: "Banco G&T",
-      receiptNumber: "GT-789456",
-      amount: 750,
-      date: "2025-03-08",
-      authNumber: "AUTH-456789",
-      status: "pendiente",
-      uploadDate: "2025-03-08",
-      program: "Medicina",
-    },
-  ],
-  reconciliationHistory: [
-    {
-      id: "recon-001",
-      date: "2025-03-09",
-      totalReceipts: 15,
-      totalAmount: 11250,
-      status: "completada",
-      processedBy: "María López",
-      receipts: [
-        {
-          id: "rec-004",
-          studentId: "2023-0056",
-          studentName: "María Fernanda López",
-          bank: "Banco Industrial",
-          receiptNumber: "BI-789123",
-          amount: 750,
-          date: "2025-03-05",
-          authNumber: "AUTH-321654",
-          status: "conciliado",
-          uploadDate: "2025-03-05",
-          program: "Psicología",
-        },
-        {
-          id: "rec-005",
-          studentId: "2023-0112",
-          studentName: "Lucía Ramírez",
-          bank: "Banrural",
-          receiptNumber: "BR-456789",
-          amount: 750,
-          date: "2025-03-05",
-          authNumber: "AUTH-987321",
-          status: "conciliado",
-          uploadDate: "2025-03-05",
-          program: "Administración de Empresas",
-        },
-      ],
-    },
-    {
-      id: "recon-002",
-      date: "2025-03-08",
-      totalReceipts: 12,
-      totalAmount: 9000,
-      status: "completada",
-      processedBy: "Juan Pérez",
-      receipts: [],
-    },
-  ],
-  banks: [
-    { id: "bank-001", name: "Banco Industrial" },
-    { id: "bank-002", name: "Banrural" },
-    { id: "bank-003", name: "Banco G&T" },
-    { id: "bank-004", name: "BAC Credomatic" },
-    { id: "bank-005", name: "Banco Promerica" },
-  ],
-}
+// Datos cargados desde la API de conciliación
 
 export function ConciliacionBancaria() {
   const [activeTab, setActiveTab] = useState("pending-receipts")
@@ -148,6 +57,10 @@ export function ConciliacionBancaria() {
     from: new Date(new Date().setDate(new Date().getDate() - 7)),
     to: new Date(),
   })
+  const [pendingReceipts, setPendingReceipts] = useState<any[]>([])
+  const [reconciliationHistory, setReconciliationHistory] = useState<any[]>([])
+  const [banks, setBanks] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [uploadForm, setUploadForm] = useState({
     studentId: "",
     bank: "",
@@ -157,6 +70,28 @@ export function ConciliacionBancaria() {
     authNumber: "",
   })
   const [selectedReceipts, setSelectedReceipts] = useState<string[]>([])
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true)
+      try {
+        const data = await getPendingReconciliation()
+        if (Array.isArray(data)) {
+          setPendingReceipts(data)
+        } else if (data) {
+          setPendingReceipts(data.pendingReceipts || [])
+          setReconciliationHistory(data.reconciliationHistory || [])
+          setBanks(data.banks || [])
+        }
+
+      } catch (e) {
+        toast({ title: 'Error', description: 'No se pudieron cargar los recibos' })
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
 
   // Función para abrir el diálogo de detalles de recibo
   const openReceiptDetailsDialog = (receipt: any) => {
@@ -189,33 +124,49 @@ export function ConciliacionBancaria() {
   // Función para seleccionar todos los recibos
   const handleSelectAllReceipts = (checked: boolean) => {
     if (checked) {
-      setSelectedReceipts(conciliacionData.pendingReceipts.map((receipt) => receipt.id))
+      setSelectedReceipts(pendingReceipts.map((receipt) => receipt.id))
     } else {
       setSelectedReceipts([])
     }
   }
 
   // Función para realizar la conciliación
-  const handleReconciliation = () => {
-    // Aquí iría la lógica real de conciliación
-    setShowReconcileDialog(false)
-    setSelectedReceipts([])
-    alert("Conciliación completada correctamente")
+  const handleReconciliation = async () => {
+    try {
+      await processReconciliation()
+      toast({ title: 'Conciliación completada' })
+      setShowReconcileDialog(false)
+      setSelectedReceipts([])
+    } catch (e) {
+      toast({ title: 'Error', description: 'No se pudo conciliar' })
+    }
   }
 
   // Función para subir un recibo
-  const handleUploadReceipt = () => {
-    // Aquí iría la lógica real de carga de recibo
-    setShowUploadDialog(false)
-    setUploadForm({
-      studentId: "",
-      bank: "",
-      receiptNumber: "",
-      amount: "",
-      date: "",
-      authNumber: "",
-    })
-    alert("Recibo cargado correctamente")
+  const handleUploadReceipt = async () => {
+    const formData = new FormData()
+    formData.append('student_id', uploadForm.studentId)
+    formData.append('bank', uploadForm.bank)
+    formData.append('receipt_number', uploadForm.receiptNumber)
+    formData.append('amount', uploadForm.amount)
+    formData.append('date', uploadForm.date)
+    formData.append('auth_number', uploadForm.authNumber)
+
+    try {
+      await uploadReconciliation(formData)
+      toast({ title: 'Recibo cargado correctamente' })
+      setShowUploadDialog(false)
+      setUploadForm({
+        studentId: '',
+        bank: '',
+        receiptNumber: '',
+        amount: '',
+        date: '',
+        authNumber: '',
+      })
+    } catch (e) {
+      toast({ title: 'Error', description: 'No se pudo cargar el recibo' })
+    }
   }
 
   return (
@@ -266,7 +217,7 @@ export function ConciliacionBancaria() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos los bancos</SelectItem>
-                      {conciliacionData.banks.map((bank) => (
+                      {banks.map((bank) => (
                         <SelectItem key={bank.id} value={bank.id}>
                           {bank.name}
                         </SelectItem>
@@ -284,8 +235,8 @@ export function ConciliacionBancaria() {
                       <Checkbox
                         id="select-all"
                         checked={
-                          selectedReceipts.length === conciliacionData.pendingReceipts.length &&
-                          conciliacionData.pendingReceipts.length > 0
+                          selectedReceipts.length === pendingReceipts.length &&
+                          pendingReceipts.length > 0
                         }
                         onCheckedChange={handleSelectAllReceipts}
                       />
@@ -301,7 +252,14 @@ export function ConciliacionBancaria() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {conciliacionData.pendingReceipts.map((receipt) => (
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-4">
+                        Cargando...
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    pendingReceipts.map((receipt) => (
                     <TableRow key={receipt.id}>
                       <TableCell>
                         <Checkbox
@@ -328,13 +286,14 @@ export function ConciliacionBancaria() {
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
             <CardFooter className="flex justify-between">
               <div className="text-sm text-muted-foreground">
-                Mostrando {conciliacionData.pendingReceipts.length} recibos pendientes
+                Mostrando {pendingReceipts.length} recibos pendientes
               </div>
               <div className="flex gap-2">
                 <Button variant="outline">
@@ -372,7 +331,7 @@ export function ConciliacionBancaria() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {conciliacionData.reconciliationHistory.map((reconciliation) => (
+                  {reconciliationHistory.map((reconciliation) => (
                     <TableRow key={reconciliation.id}>
                       <TableCell>
                         <div className="flex items-center gap-1">
@@ -432,7 +391,7 @@ export function ConciliacionBancaria() {
                   <SelectValue placeholder="Seleccione el banco" />
                 </SelectTrigger>
                 <SelectContent>
-                  {conciliacionData.banks.map((bank) => (
+                  {banks.map((bank) => (
                     <SelectItem key={bank.id} value={bank.id}>
                       {bank.name}
                     </SelectItem>
@@ -519,9 +478,9 @@ export function ConciliacionBancaria() {
                   <span className="text-sm text-muted-foreground">Monto total:</span>
                   <span className="text-sm font-medium">
                     Q
-                    {conciliacionData.pendingReceipts
+                    {pendingReceipts
                       .filter((receipt) => selectedReceipts.includes(receipt.id))
-                      .reduce((sum, receipt) => sum + receipt.amount, 0)
+                      .reduce((sum, receipt) => sum + Number(receipt.amount), 0)
                       .toLocaleString()}
                   </span>
                 </div>

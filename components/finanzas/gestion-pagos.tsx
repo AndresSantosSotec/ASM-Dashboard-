@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -34,142 +34,19 @@ import {
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
+import {
+  getInvoices,
+  getPayments,
+  createPayment,
+  
+  getPaymentPlans,
+  createPaymentPlan,
+  getCollectionLogs,
+  createCollectionLog,
+} from "@/services/finance"
+import { toast } from "@/hooks/use-toast"
 
-// Datos de ejemplo para la gestión de pagos
-const paymentsData = {
-  lateStudents: [
-    {
-      id: "2023-0042",
-      name: "Carlos Méndez",
-      program: "Ingeniería en Sistemas",
-      totalDebt: 2850,
-      lateMonths: 2,
-      latestDueDate: "2025-02-05",
-      daysLate: 45,
-      bucket: "B3", // B1: 0-5 días, B2: 6-10 días, B3: 11-30 días, B4: +30 días
-      status: "bloqueado",
-      lastContact: "2025-03-01",
-      promiseDate: "2025-03-15",
-      contactHistory: [
-        { date: "2025-03-01", type: "llamada", notes: "Promete pagar el 15 de marzo", agent: "María López" },
-        { date: "2025-02-20", type: "email", notes: "Se envió recordatorio de pago", agent: "Sistema" },
-        { date: "2025-02-10", type: "sms", notes: "Se envió notificación de vencimiento", agent: "Sistema" },
-      ],
-    },
-    {
-      id: "2023-0078",
-      name: "Ana Lucía Gómez",
-      program: "Administración de Empresas",
-      totalDebt: 1450,
-      lateMonths: 1,
-      latestDueDate: "2025-03-05",
-      daysLate: 15,
-      bucket: "B3",
-      status: "activo",
-      lastContact: "2025-03-08",
-      promiseDate: "2025-03-20",
-      contactHistory: [
-        {
-          date: "2025-03-08",
-          type: "llamada",
-          notes: "Indica que realizará el pago el 20 de marzo",
-          agent: "Juan Pérez",
-        },
-        { date: "2025-03-06", type: "email", notes: "Se envió recordatorio de pago", agent: "Sistema" },
-      ],
-    },
-    {
-      id: "2023-0103",
-      name: "Roberto Juárez",
-      program: "Diseño Gráfico",
-      totalDebt: 4200,
-      lateMonths: 3,
-      latestDueDate: "2025-01-05",
-      daysLate: 75,
-      bucket: "B4",
-      status: "bloqueado",
-      lastContact: "2025-03-05",
-      promiseDate: null,
-      contactHistory: [
-        { date: "2025-03-05", type: "llamada", notes: "No contesta", agent: "María López" },
-        { date: "2025-02-25", type: "llamada", notes: "Número fuera de servicio", agent: "Juan Pérez" },
-        { date: "2025-02-15", type: "email", notes: "Se envió notificación de bloqueo", agent: "Sistema" },
-        { date: "2025-02-05", type: "sms", notes: "Se envió recordatorio de pago", agent: "Sistema" },
-      ],
-    },
-    {
-      id: "2023-0056",
-      name: "María Fernanda López",
-      program: "Psicología",
-      totalDebt: 1400,
-      lateMonths: 1,
-      latestDueDate: "2025-03-05",
-      daysLate: 5,
-      bucket: "B1",
-      status: "activo",
-      lastContact: null,
-      promiseDate: null,
-      contactHistory: [],
-    },
-    {
-      id: "2023-0091",
-      name: "Juan Pablo Herrera",
-      program: "Medicina",
-      totalDebt: 1450,
-      lateMonths: 1,
-      latestDueDate: "2025-03-05",
-      daysLate: 8,
-      bucket: "B2",
-      status: "activo",
-      lastContact: "2025-03-10",
-      promiseDate: "2025-03-13",
-      contactHistory: [
-        {
-          date: "2025-03-10",
-          type: "llamada",
-          notes: "Indica que realizará el pago el 13 de marzo",
-          agent: "María López",
-        },
-      ],
-    },
-  ],
-  paymentPlans: [
-    {
-      id: "PLAN-001",
-      studentId: "2023-0042",
-      studentName: "Carlos Méndez",
-      originalDebt: 2850,
-      currentDebt: 2850,
-      installments: [
-        { number: 1, amount: 950, dueDate: "2025-03-15", status: "pendiente" },
-        { number: 2, amount: 950, dueDate: "2025-04-15", status: "pendiente" },
-        { number: 3, amount: 950, dueDate: "2025-05-15", status: "pendiente" },
-      ],
-      startDate: "2025-03-10",
-      endDate: "2025-05-15",
-      status: "activo",
-      createdBy: "María López",
-      notes: "Plan de pago especial por situación económica. Documentado con carta de compromiso.",
-    },
-    {
-      id: "PLAN-002",
-      studentId: "2023-0103",
-      studentName: "Roberto Juárez",
-      originalDebt: 4200,
-      currentDebt: 2800,
-      installments: [
-        { number: 1, amount: 1400, dueDate: "2025-03-01", status: "completado" },
-        { number: 2, amount: 1400, dueDate: "2025-04-01", status: "pendiente" },
-        { number: 3, amount: 1400, dueDate: "2025-05-01", status: "pendiente" },
-      ],
-      startDate: "2025-02-20",
-      endDate: "2025-05-01",
-      status: "activo",
-      createdBy: "Juan Pérez",
-      notes: "Se desbloquea acceso después del primer pago. Debe mantenerse al día con las cuotas.",
-    },
-  ],
-}
+
 
 export function GestionPagos() {
   const [activeTab, setActiveTab] = useState("late-payments")
@@ -185,6 +62,37 @@ export function GestionPagos() {
     from: new Date(),
     to: new Date(new Date().setMonth(new Date().getMonth() + 1)),
   })
+  const [invoices, setInvoices] = useState<any[]>([])
+  const [payments, setPayments] = useState<any[]>([])
+  const [paymentPlans, setPaymentPlans] = useState<any[]>([])
+  const [collectionLogs, setCollectionLogs] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true)
+      try {
+        const [inv, pay, plans, logs] = await Promise.all([
+          getInvoices({}),
+          getPayments({}),
+          getPaymentPlans({}),
+          getCollectionLogs({}),
+        ])
+        setInvoices(inv)
+        setPayments(pay)
+        setPaymentPlans(plans)
+        setCollectionLogs(Array.isArray(logs.data) ? logs.data : logs)
+      } catch (e) {
+        toast({
+          title: 'Error',
+          description: 'No se pudieron cargar los datos de pagos',
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
 
   // Función para abrir el diálogo de contacto
   const openContactDialog = (student: any) => {
@@ -238,7 +146,7 @@ export function GestionPagos() {
       case "B2":
         return "secondary"
       case "B3":
-        return "warning"
+        return "default" // Changed from "warning" to "default"
       case "B4":
         return "destructive"
       default:
@@ -350,7 +258,14 @@ export function GestionPagos() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paymentsData.lateStudents.map((student) => (
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-4">
+                        Cargando...
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    invoices.map((student) => (
                     <TableRow key={student.id}>
                       <TableCell>
                         <Checkbox id={`select-${student.id}`} />
@@ -403,13 +318,14 @@ export function GestionPagos() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
             <CardFooter className="flex justify-between">
               <div className="text-sm text-muted-foreground">
-                Mostrando {paymentsData.lateStudents.length} alumnos con pagos atrasados
+                Mostrando {invoices.length} alumnos con pagos atrasados
               </div>
               <div className="flex gap-2">
                 <Button variant="outline">
@@ -452,7 +368,14 @@ export function GestionPagos() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paymentsData.paymentPlans.map((plan) => (
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-4">
+                        Cargando...
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paymentPlans.map((plan) => (
                     <TableRow key={plan.id}>
                       <TableCell className="font-medium">{plan.id}</TableCell>
                       <TableCell>
@@ -462,7 +385,7 @@ export function GestionPagos() {
                       <TableCell>Q{plan.originalDebt.toLocaleString()}</TableCell>
                       <TableCell>Q{plan.currentDebt.toLocaleString()}</TableCell>
                       <TableCell>
-                        {plan.installments.length} ({plan.installments.filter((i) => i.status === "completado").length}{" "}
+                        {plan.installments.length} ({plan.installments.filter((i: any) => i.status === "completado").length}{" "}
                         pagadas)
                       </TableCell>
                       <TableCell>{new Date(plan.startDate).toLocaleDateString()}</TableCell>
@@ -478,7 +401,8 @@ export function GestionPagos() {
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -641,7 +565,19 @@ export function GestionPagos() {
             <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>
               Cancelar
             </Button>
-            <Button>Registrar Pago</Button>
+            <Button
+              onClick={async () => {
+                try {
+                  await createPayment({ student_id: selectedStudent?.id })
+                  toast({ title: 'Pago registrado correctamente' })
+                  setShowPaymentDialog(false)
+                } catch (e) {
+                  toast({ title: 'Error', description: 'No se pudo registrar el pago' })
+                }
+              }}
+            >
+              Registrar Pago
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -773,7 +709,21 @@ export function GestionPagos() {
             <Button variant="outline" onClick={() => setShowPaymentPlanDialog(false)}>
               {selectedPlan ? "Cerrar" : "Cancelar"}
             </Button>
-            {!selectedPlan && <Button>Crear Plan de Pago</Button>}
+            {!selectedPlan && (
+              <Button
+                onClick={async () => {
+                  try {
+                    await createPaymentPlan({ prospecto_id: selectedStudent?.id })
+                    toast({ title: 'Plan de pago creado' })
+                    setShowPaymentPlanDialog(false)
+                  } catch (e) {
+                    toast({ title: 'Error', description: 'No se pudo crear el plan' })
+                  }
+                }}
+              >
+                Crear Plan de Pago
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
