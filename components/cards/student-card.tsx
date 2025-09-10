@@ -41,8 +41,10 @@ export function StudentCard({
             <span className="font-medium">Programa:</span> {student.program}
           </div>
           <div>
+
             <span className="font-medium">Especialidad:</span>{" "}
             {student.specialty}
+
           </div>
         </div>
 

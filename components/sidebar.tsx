@@ -16,6 +16,7 @@ import {
   ClipboardList,
   Activity,
   UserCheck,
+  Ban,
   Plus,
   FileSignature,
   BarChart,
@@ -210,9 +211,11 @@ export default function Sidebar({ open, className }: SidebarProps) {
                     <BookOpen size={16} className="mr-2" />
                     Programas Académicos
                   </Link>
+
                   <Link href="/academico/migrar-estudiantes" className={linkClass("/academico/migrar-estudiantes")}> 
                     <Database size={16} className="mr-2" />
                     Migrar Estudiantes
+
                   </Link>
                 </div>
               )}

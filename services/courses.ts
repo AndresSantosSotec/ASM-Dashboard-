@@ -56,11 +56,23 @@ const mapCourseToApi = (data: Partial<CourseInput> & { status?: Course['status']
 }
 
 export const fetchCourses = async (programId?: number) => {
-  const res = await api.get('/courses', {
-    params: programId ? { program_id: programId } : undefined,
-  })
-  const data = Array.isArray(res.data) ? res.data : res.data.data
-  return data.map(mapCourseFromApi)
+  const perPage = 200
+  let page = 1
+  const courses: Course[] = []
+  const baseParams = programId ? { program_id: programId } : {}
+
+  while (true) {
+    const res = await api.get('/courses', {
+      params: { ...baseParams, per_page: perPage, page },
+    })
+    const data = Array.isArray(res.data) ? res.data : res.data.data
+    courses.push(...data.map(mapCourseFromApi))
+
+    if (data.length < perPage) break
+    page++
+  }
+
+  return courses
 }
 
 export const fetchProgramCourses = async (programId: number) => {
