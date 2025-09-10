@@ -246,56 +246,6 @@ export function DashboardFinanciero() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Tendencia de Ingresos</CardTitle>
-            <CardDescription>Análisis de ingresos de los últimos 6 meses</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {dashboardData.tendenciaIngresos.length === 0 ? (
-              <div className="text-sm text-muted-foreground">Sin datos</div>
-            ) : (
-              <div className="space-y-2">
-                {dashboardData.tendenciaIngresos.map((item) => (
-                  <div key={item.mes} className="flex justify-between text-sm">
-                    <span>{item.mes_nombre}</span>
-                    <span className="font-medium">Q {Number(item.ingresos ?? 0).toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Morosidad por Programa</CardTitle>
-            <CardDescription>Porcentaje de morosidad por programa académico</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {morosidadPorPrograma.length === 0 ? (
-                <div className="text-muted-foreground text-sm">Sin datos</div>
-              ) : (
-                morosidadPorPrograma.map((item) => (
-                  <div key={item.programa} className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span>{item.programa}</span>
-                      <span className="font-medium">{item.porcentaje}%</span>
-                    </div>
-                    <Progress value={item.porcentaje} className="h-2" />
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>{item.estudiantes_morosos}/{item.total_estudiantes} morosos</span>
-                      <span>Vencido: {formatCurrency(item.monto_total_vencido)}</span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>

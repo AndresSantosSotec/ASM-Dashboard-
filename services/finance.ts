@@ -11,6 +11,30 @@ export interface DashboardSummary {
   estudiantesActivosAnterior: number
 }
 
+
+type LatePaymentsParams = {
+  q?: string
+  bucket?: 'all'|'b1'|'b2'|'b3'|'b4'
+  programa_id?: number | string
+  page?: number
+  per_page?: number
+}
+
+export type LatePaymentRow = {
+  id: number              // EP id (row id)
+  studentId: number
+  name: string
+  program: string
+  totalDebt: number
+  lateMonths: number
+  daysLate: number
+  bucket: 'B1'|'B2'|'B3'|'B4'
+  status: 'activo'|'bloqueado'
+  lastContact?: string | null
+  promiseDate?: string | null
+}
+
+
 export const fetchDashboardSummary = async (): Promise<DashboardSummary> => {
   const res = await api.get('/reports/summary')
   return Array.isArray(res.data) ? res.data[0] : res.data
@@ -543,4 +567,29 @@ export async function fetchDashboardFinanciero(params: DashboardFinancieroParams
     params: { fecha_inicio, fecha_fin, limit_pagos, limit_alertas },
   })
   return res.data as DashboardFinancieroData
+}
+
+
+export async function fetchLatePayments(params: LatePaymentsParams = {}) {
+  const res = await api.get('/collections/late-payments', { params })
+  return res.data as {
+    data: LatePaymentRow[]
+    meta: { current_page:number; per_page:number; total:number; last_page:number }
+    summary: { total_students: number }
+  }
+}
+
+export async function fetchStudentSnapshot(epId: number | string) {
+  const res = await api.get(`/collections/students/${epId}/snapshot`)
+  return res.data as {
+    student: { epId:number; id:number; name:string; carnet?:string; program:string }
+    pending_installments: { id:number; concepto:string; monto:number; fecha_vencimiento:string; days_late:number }[]
+    recent_payments: { id:number; monto_pagado:number; fecha_pago:string; metodo_pago:string }[]
+    contact_history: { type:string; notes?:string; agent?:string; created_at:string; promise_date?:string|null }[]
+  }
+}
+
+export async function fetchPaymentPlansOverview(params?: any) {
+  const res = await api.get('/collections/payment-plans', { params })
+  return res.data // { data, meta }
 }

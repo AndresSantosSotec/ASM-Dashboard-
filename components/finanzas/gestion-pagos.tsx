@@ -35,92 +35,107 @@ import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import {
-  getInvoices,
+  // existentes
   getPayments,
   createPayment,
-  
   getPaymentPlans,
   createPaymentPlan,
   getCollectionLogs,
   createCollectionLog,
+  // nuevos
+  fetchLatePayments,
+  fetchStudentSnapshot,
+  fetchPaymentPlansOverview,
 } from "@/services/finance"
 import { toast } from "@/hooks/use-toast"
 
-
-
 export function GestionPagos() {
   const [activeTab, setActiveTab] = useState("late-payments")
+
+  // dialogs
   const [showContactDialog, setShowContactDialog] = useState(false)
   const [showPaymentPlanDialog, setShowPaymentPlanDialog] = useState(false)
   const [showPaymentDialog, setShowPaymentDialog] = useState(false)
+
+  // selections
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null)
   const [selectedPlan, setSelectedPlan] = useState<any | null>(null)
+
+  // contact / payment local state
   const [contactType, setContactType] = useState<string>("llamada")
   const [contactNotes, setContactNotes] = useState<string>("")
+  const [paymentMethod, setPaymentMethod] = useState<string>("cash")
+
+  // filters
   const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [bucket, setBucket] = useState<"all" | "b1" | "b2" | "b3" | "b4">("all")
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(25)
+
+  // optional: date range (no usado aún aquí)
   const [dateRange, setDateRange] = useState({
     from: new Date(),
     to: new Date(new Date().setMonth(new Date().getMonth() + 1)),
   })
-  const [invoices, setInvoices] = useState<any[]>([])
+
+  // data
+  const [invoices, setInvoices] = useState<any[]>([]) // alumnos con pagos atrasados
+  const [totalRows, setTotalRows] = useState(0)
   const [payments, setPayments] = useState<any[]>([])
   const [paymentPlans, setPaymentPlans] = useState<any[]>([])
   const [collectionLogs, setCollectionLogs] = useState<any[]>([])
+
   const [loading, setLoading] = useState(true)
 
+  // --- debounce de búsqueda ---
   useEffect(() => {
-    const load = async () => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 400)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
+  // --- carga de datos principales ---
+  const loadLatePayments = async () => {
+    const late = await fetchLatePayments({
+      q: debouncedSearch || undefined,
+      bucket,
+      page,
+      per_page: perPage,
+    })
+    setInvoices(late.data)
+    setTotalRows(late.meta.total)
+  }
+
+  const loadOthers = async () => {
+    const [pay, plans, logs] = await Promise.all([
+      getPayments({}),
+      fetchPaymentPlansOverview({}), // usa collections/payment-plans (devuelve vacío si no lo implementas todavía)
+      getCollectionLogs({}),
+    ])
+    setPayments(pay)
+    setPaymentPlans(plans?.data ?? [])
+    setCollectionLogs(Array.isArray(logs.data) ? logs.data : logs)
+  }
+
+  useEffect(() => {
+    const loadAll = async () => {
       setLoading(true)
       try {
-        const [inv, pay, plans, logs] = await Promise.all([
-          getInvoices({}),
-          getPayments({}),
-          getPaymentPlans({}),
-          getCollectionLogs({}),
-        ])
-        setInvoices(inv)
-        setPayments(pay)
-        setPaymentPlans(plans)
-        setCollectionLogs(Array.isArray(logs.data) ? logs.data : logs)
+        await Promise.all([loadLatePayments(), loadOthers()])
       } catch (e) {
         toast({
-          title: 'Error',
-          description: 'No se pudieron cargar los datos de pagos',
+          title: "Error",
+          description: "No se pudieron cargar los datos de pagos",
         })
       } finally {
         setLoading(false)
       }
     }
-    load()
-  }, [])
+    loadAll()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, bucket, page, perPage])
 
-  // Función para abrir el diálogo de contacto
-  const openContactDialog = (student: any) => {
-    setSelectedStudent(student)
-    setContactType("llamada")
-    setContactNotes("")
-    setShowContactDialog(true)
-  }
-
-  // Función para abrir el diálogo de plan de pago
-  const openPaymentPlanDialog = (student: any) => {
-    setSelectedStudent(student)
-    setShowPaymentPlanDialog(true)
-  }
-
-  // Función para abrir el diálogo de registro de pago
-  const openPaymentDialog = (student: any) => {
-    setSelectedStudent(student)
-    setShowPaymentDialog(true)
-  }
-
-  // Función para abrir el diálogo de detalles de plan de pago
-  const openPlanDetailsDialog = (plan: any) => {
-    setSelectedPlan(plan)
-    setShowPaymentPlanDialog(true)
-  }
-
-  // Función para obtener el color de la insignia según el estado
+  // --- helpers UI ---
   const getBadgeVariant = (status: string) => {
     switch (status) {
       case "activo":
@@ -138,15 +153,14 @@ export function GestionPagos() {
     }
   }
 
-  // Función para obtener el color de la insignia según el bucket
-  const getBucketVariant = (bucket: string) => {
-    switch (bucket) {
+  const getBucketVariant = (b: string) => {
+    switch (b) {
       case "B1":
         return "outline"
       case "B2":
         return "secondary"
       case "B3":
-        return "default" // Changed from "warning" to "default"
+        return "default"
       case "B4":
         return "destructive"
       default:
@@ -154,9 +168,8 @@ export function GestionPagos() {
     }
   }
 
-  // Función para obtener el texto del bucket
-  const getBucketText = (bucket: string) => {
-    switch (bucket) {
+  const getBucketText = (b: string) => {
+    switch (b) {
       case "B1":
         return "0-5 días"
       case "B2":
@@ -170,7 +183,6 @@ export function GestionPagos() {
     }
   }
 
-  // Función para obtener el icono según el tipo de contacto
   const getContactIcon = (type: string) => {
     switch (type) {
       case "llamada":
@@ -181,6 +193,90 @@ export function GestionPagos() {
         return <MessageSquare className="h-4 w-4" />
       default:
         return <MessageSquare className="h-4 w-4" />
+    }
+  }
+
+  // --- handlers de diálogos ---
+  const openContactDialog = async (student: any) => {
+    setSelectedStudent(student)
+    setContactType("llamada")
+    setContactNotes("")
+
+    try {
+      const snap = await fetchStudentSnapshot(student.id) // student.id = EP id
+      const mappedHistory = (snap?.contact_history ?? []).map((c: any) => ({
+        type: c.type,
+        notes: c.notes,
+        agent: c.agent,
+        date: c.created_at, // adaptamos al render
+      }))
+      setSelectedStudent((prev: any) => ({
+        ...prev,
+        contactHistory: mappedHistory,
+      }))
+    } catch {
+      // si falla, abrimos igual con lo que tengamos
+    } finally {
+      setShowContactDialog(true)
+    }
+  }
+
+  const openPaymentPlanDialog = (student: any) => {
+    setSelectedStudent(student)
+    setShowPaymentPlanDialog(true)
+  }
+
+  const openPaymentDialog = async (student: any) => {
+    setSelectedStudent(student)
+    setPaymentMethod("cash")
+    setShowPaymentDialog(true)
+  }
+
+  const openPlanDetailsDialog = (plan: any) => {
+    setSelectedPlan(plan)
+    setShowPaymentPlanDialog(true)
+  }
+
+  // --- acciones ---
+  const saveContact = async () => {
+    try {
+      const promise = (document.getElementById("promise-date") as HTMLInputElement)?.value || null
+      await createCollectionLog({
+        estudiante_programa_id: selectedStudent?.id, // EP id
+        type: contactType,
+        notes: contactNotes,
+        promise_date: promise || null,
+      })
+      toast({ title: "Contacto registrado" })
+      setShowContactDialog(false)
+      await loadLatePayments()
+    } catch {
+      toast({ title: "Error", description: "No se pudo registrar el contacto" })
+    }
+  }
+
+  const savePayment = async () => {
+    try {
+      const amount = Number((document.getElementById("payment-amount") as HTMLInputElement)?.value ?? 0)
+      const reference = (document.getElementById("payment-reference") as HTMLInputElement)?.value ?? ""
+      const paymentDate = (document.getElementById("payment-date") as HTMLInputElement)?.value ?? ""
+      const notes = (document.getElementById("payment-notes") as HTMLTextAreaElement)?.value ?? ""
+
+      await createPayment({
+        estudiante_programa_id: selectedStudent?.id, // EP id
+        monto_pagado: amount,
+        metodo_pago: paymentMethod,
+        referencia: reference,
+        fecha_pago: paymentDate,
+        notas: notes,
+        estado_pago: "aprobado",
+      })
+
+      toast({ title: "Pago registrado correctamente" })
+      setShowPaymentDialog(false)
+      await loadLatePayments()
+    } catch {
+      toast({ title: "Error", description: "No se pudo registrar el pago" })
     }
   }
 
@@ -208,6 +304,7 @@ export function GestionPagos() {
           <TabsTrigger value="follow-up">Seguimiento</TabsTrigger>
         </TabsList>
 
+        {/* --- Pagos atrasados --- */}
         <TabsContent value="late-payments" className="space-y-4">
           <Card>
             <CardHeader>
@@ -221,13 +318,23 @@ export function GestionPagos() {
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                       type="search"
-                      placeholder="Buscar alumno..."
+                      placeholder="Buscar alumno, carnet o EP ID..."
                       className="pl-8 w-full md:w-[250px]"
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value)
+                        setPage(1)
+                      }}
                     />
                   </div>
-                  <Select defaultValue="all">
+
+                  <Select
+                    value={bucket}
+                    onValueChange={(v: "all" | "b1" | "b2" | "b3" | "b4") => {
+                      setBucket(v)
+                      setPage(1)
+                    }}
+                  >
                     <SelectTrigger className="w-full md:w-[180px]">
                       <SelectValue placeholder="Bucket de mora" />
                     </SelectTrigger>
@@ -242,6 +349,7 @@ export function GestionPagos() {
                 </div>
               </div>
             </CardHeader>
+
             <CardContent>
               <Table>
                 <TableHeader>
@@ -260,85 +368,114 @@ export function GestionPagos() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-4">
+                      <TableCell colSpan={9} className="text-center py-4">
                         Cargando...
+                      </TableCell>
+                    </TableRow>
+                  ) : invoices.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                        Sin resultados
                       </TableCell>
                     </TableRow>
                   ) : (
                     invoices.map((student) => (
-                    <TableRow key={student.id}>
-                      <TableCell>
-                        <Checkbox id={`select-${student.id}`} />
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">{student.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {student.id} - {student.program}
-                        </div>
-                      </TableCell>
-                      <TableCell>Q{student.totalDebt.toLocaleString()}</TableCell>
-                      <TableCell>{student.lateMonths}</TableCell>
-                      <TableCell>{student.daysLate}</TableCell>
-                      <TableCell>
-                        <Badge variant={getBucketVariant(student.bucket)}>
-                          {student.bucket} ({getBucketText(student.bucket)})
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getBadgeVariant(student.status)}>
-                          {student.status === "activo" ? "Activo" : "Bloqueado"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {student.lastContact ? (
-                          <div className="text-sm">
-                            {new Date(student.lastContact).toLocaleDateString()}
-                            {student.promiseDate && (
-                              <div className="text-xs text-green-600 flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                <span>Promesa: {new Date(student.promiseDate).toLocaleDateString()}</span>
-                              </div>
-                            )}
+                      <TableRow key={student.id}>
+                        <TableCell>
+                          <Checkbox id={`select-${student.id}`} />
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{student.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            EP #{student.id} • {student.program}
                           </div>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">Sin contacto</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="outline" size="sm" onClick={() => openContactDialog(student)}>
-                            <Phone className="h-4 w-4 mr-1" /> Contactar
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => openPaymentPlanDialog(student)}>
-                            <Calendar className="h-4 w-4 mr-1" /> Plan
-                          </Button>
-                          <Button size="sm" onClick={() => openPaymentDialog(student)}>
-                            <DollarSign className="h-4 w-4 mr-1" /> Pago
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                        </TableCell>
+                        <TableCell>Q{Number(student.totalDebt || 0).toLocaleString()}</TableCell>
+                        <TableCell>{student.lateMonths}</TableCell>
+                        <TableCell>{student.daysLate}</TableCell>
+                        <TableCell>
+                          <Badge variant={getBucketVariant(student.bucket)}>
+                            {student.bucket} ({getBucketText(student.bucket)})
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getBadgeVariant(student.status)}>
+                            {student.status === "activo" ? "Activo" : "Bloqueado"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {student.lastContact ? (
+                            <div className="text-sm">
+                              {new Date(student.lastContact).toLocaleDateString()}
+                              {student.promiseDate && (
+                                <div className="text-xs text-green-600 flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  <span>Promesa: {new Date(student.promiseDate).toLocaleDateString()}</span>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">Sin contacto</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button variant="outline" size="sm" onClick={() => openContactDialog(student)} disabled={loading}>
+                              <Phone className="h-4 w-4 mr-1" /> Contactar
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => openPaymentPlanDialog(student)}>
+                              <Calendar className="h-4 w-4 mr-1" /> Plan
+                            </Button>
+                            <Button size="sm" onClick={() => openPaymentDialog(student)}>
+                              <DollarSign className="h-4 w-4 mr-1" /> Pago
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
                 </TableBody>
               </Table>
             </CardContent>
-            <CardFooter className="flex justify-between">
+
+            <CardFooter className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div className="text-sm text-muted-foreground">
-                Mostrando {invoices.length} alumnos con pagos atrasados
+                Mostrando {invoices.length} de {totalRows} alumnos con pagos atrasados
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline">
-                  <Mail className="mr-2 h-4 w-4" /> Enviar Recordatorios
-                </Button>
-                <Button variant="outline">
-                  <MessageSquare className="mr-2 h-4 w-4" /> Enviar SMS
-                </Button>
+              <div className="flex items-center gap-2">
+                <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(1) }}>
+                  <SelectTrigger className="w-[110px]"><SelectValue placeholder="Filas" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1 || loading}>
+                    Anterior
+                  </Button>
+                  <span className="text-sm">Página {page}</span>
+                  <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} disabled={invoices.length < perPage || loading}>
+                    Siguiente
+                  </Button>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button variant="outline">
+                    <Mail className="mr-2 h-4 w-4" /> Enviar Recordatorios
+                  </Button>
+                  <Button variant="outline">
+                    <MessageSquare className="mr-2 h-4 w-4" /> Enviar SMS
+                  </Button>
+                </div>
               </div>
             </CardFooter>
           </Card>
         </TabsContent>
 
+        {/* --- Planes de pago --- */}
         <TabsContent value="payment-plans" className="space-y-4">
           <Card>
             <CardHeader>
@@ -347,7 +484,7 @@ export function GestionPagos() {
                   <CardTitle>Planes de Pago Especiales</CardTitle>
                   <CardDescription>Acuerdos de pago y convenios con alumnos</CardDescription>
                 </div>
-                <Button>
+                <Button onClick={() => setShowPaymentPlanDialog(true)}>
                   <Calendar className="mr-2 h-4 w-4" /> Crear Nuevo Plan
                 </Button>
               </div>
@@ -374,33 +511,39 @@ export function GestionPagos() {
                         Cargando...
                       </TableCell>
                     </TableRow>
-                  ) : (
-                    paymentPlans.map((plan) => (
-                    <TableRow key={plan.id}>
-                      <TableCell className="font-medium">{plan.id}</TableCell>
-                      <TableCell>
-                        <div>{plan.studentName}</div>
-                        <div className="text-xs text-muted-foreground">{plan.studentId}</div>
-                      </TableCell>
-                      <TableCell>Q{plan.originalDebt.toLocaleString()}</TableCell>
-                      <TableCell>Q{plan.currentDebt.toLocaleString()}</TableCell>
-                      <TableCell>
-                        {plan.installments.length} ({plan.installments.filter((i: any) => i.status === "completado").length}{" "}
-                        pagadas)
-                      </TableCell>
-                      <TableCell>{new Date(plan.startDate).toLocaleDateString()}</TableCell>
-                      <TableCell>{new Date(plan.endDate).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <Badge variant={getBadgeVariant(plan.status)}>
-                          {plan.status === "activo" ? "Activo" : "Completado"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="outline" size="sm" onClick={() => openPlanDetailsDialog(plan)}>
-                          <FileText className="h-4 w-4 mr-1" /> Detalles
-                        </Button>
+                  ) : paymentPlans.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                        No hay planes de pago
                       </TableCell>
                     </TableRow>
+                  ) : (
+                    paymentPlans.map((plan) => (
+                      <TableRow key={plan.id}>
+                        <TableCell className="font-medium">{plan.id}</TableCell>
+                        <TableCell>
+                          <div>{plan.studentName}</div>
+                          <div className="text-xs text-muted-foreground">{plan.studentId}</div>
+                        </TableCell>
+                        <TableCell>Q{plan.originalDebt.toLocaleString()}</TableCell>
+                        <TableCell>Q{plan.currentDebt.toLocaleString()}</TableCell>
+                        <TableCell>
+                          {plan.installments.length} (
+                          {plan.installments.filter((i: any) => i.status === "completado").length} pagadas)
+                        </TableCell>
+                        <TableCell>{new Date(plan.startDate).toLocaleDateString()}</TableCell>
+                        <TableCell>{new Date(plan.endDate).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                          <Badge variant={getBadgeVariant(plan.status)}>
+                            {plan.status === "activo" ? "Activo" : "Completado"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="outline" size="sm" onClick={() => openPlanDetailsDialog(plan)}>
+                            <FileText className="h-4 w-4 mr-1" /> Detalles
+                          </Button>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
                 </TableBody>
@@ -409,6 +552,7 @@ export function GestionPagos() {
           </Card>
         </TabsContent>
 
+        {/* --- Seguimiento --- */}
         <TabsContent value="follow-up" className="space-y-4">
           <Card>
             <CardHeader>
@@ -429,7 +573,7 @@ export function GestionPagos() {
         </TabsContent>
       </Tabs>
 
-      {/* Diálogo de contacto con alumno */}
+      {/* --- Diálogo de contacto --- */}
       <Dialog open={showContactDialog} onOpenChange={setShowContactDialog}>
         <DialogContent>
           <DialogHeader>
@@ -481,7 +625,7 @@ export function GestionPagos() {
                 rows={4}
               />
             </div>
-            {selectedStudent && selectedStudent.contactHistory.length > 0 && (
+            {selectedStudent && Array.isArray(selectedStudent.contactHistory) && selectedStudent.contactHistory.length > 0 && (
               <div className="mt-4">
                 <h4 className="text-sm font-medium mb-2">Historial de Contactos Previos</h4>
                 <div className="space-y-2 max-h-[150px] overflow-y-auto border rounded-md p-2">
@@ -505,12 +649,12 @@ export function GestionPagos() {
             <Button variant="outline" onClick={() => setShowContactDialog(false)}>
               Cancelar
             </Button>
-            <Button>Guardar Contacto</Button>
+            <Button onClick={saveContact}>Guardar Contacto</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Diálogo de registro de pago */}
+      {/* --- Diálogo de pago --- */}
       <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
         <DialogContent>
           <DialogHeader>
@@ -522,11 +666,11 @@ export function GestionPagos() {
           <div className="space-y-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="payment-amount">Monto</Label>
-              <Input id="payment-amount" type="number" defaultValue={selectedStudent?.totalDebt.toString()} />
+              <Input id="payment-amount" type="number" defaultValue={selectedStudent?.totalDebt?.toString() ?? "0"} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="payment-method">Método de Pago</Label>
-              <Select defaultValue="cash">
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccione el método" />
                 </SelectTrigger>
@@ -565,24 +709,12 @@ export function GestionPagos() {
             <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>
               Cancelar
             </Button>
-            <Button
-              onClick={async () => {
-                try {
-                  await createPayment({ student_id: selectedStudent?.id })
-                  toast({ title: 'Pago registrado correctamente' })
-                  setShowPaymentDialog(false)
-                } catch (e) {
-                  toast({ title: 'Error', description: 'No se pudo registrar el pago' })
-                }
-              }}
-            >
-              Registrar Pago
-            </Button>
+            <Button onClick={savePayment}>Registrar Pago</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Diálogo de plan de pago */}
+      {/* --- Diálogo de plan de pago --- */}
       <Dialog open={showPaymentPlanDialog} onOpenChange={setShowPaymentPlanDialog}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
@@ -713,11 +845,12 @@ export function GestionPagos() {
               <Button
                 onClick={async () => {
                   try {
-                    await createPaymentPlan({ prospecto_id: selectedStudent?.id })
-                    toast({ title: 'Plan de pago creado' })
+                    await createPaymentPlan({ prospecto_id: selectedStudent?.studentId ?? selectedStudent?.id })
+                    toast({ title: "Plan de pago creado" })
                     setShowPaymentPlanDialog(false)
+                    // puedes recargar lista de planes si quieres
                   } catch (e) {
-                    toast({ title: 'Error', description: 'No se pudo crear el plan' })
+                    toast({ title: "Error", description: "No se pudo crear el plan" })
                   }
                 }}
               >
@@ -730,4 +863,3 @@ export function GestionPagos() {
     </div>
   )
 }
-
