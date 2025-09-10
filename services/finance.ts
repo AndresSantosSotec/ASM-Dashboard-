@@ -592,4 +592,43 @@ export async function fetchStudentSnapshot(epId: number | string) {
 export async function fetchPaymentPlansOverview(params?: any) {
   const res = await api.get('/collections/payment-plans', { params })
   return res.data // { data, meta }
+// --- COLLECTIONS MODULE (Payment Management) ---
+import type { 
+  LatePaymentsResponse, 
+  StudentSnapshot, 
+  PaymentPlansOverviewResponse,
+  PaymentPlanPreviewResponse,
+  PaymentPlanCreateRequest,
+  PaymentPlanPreviewRequest
+} from '@/types/collections'
+
+export async function fetchLatePayments(params?: {
+  q?: string
+  bucket?: 'all' | 'b1' | 'b2' | 'b3' | 'b4'
+  programa_id?: number | string
+  per_page?: number
+  page?: number
+}): Promise<LatePaymentsResponse> {
+  const res = await api.get('/collections/late-payments', { params })
+  return res.data as LatePaymentsResponse
+}
+
+export async function fetchStudentSnapshot(epId: number | string): Promise<StudentSnapshot> {
+  const res = await api.get(`/collections/students/${epId}/snapshot`)
+  return res.data as StudentSnapshot
+}
+
+export async function fetchPaymentPlansOverview(params?: any): Promise<PaymentPlansOverviewResponse> {
+  const res = await api.get('/collections/payment-plans', { params })
+  return res.data as PaymentPlansOverviewResponse
+}
+
+export async function previewPaymentPlan(body: PaymentPlanPreviewRequest): Promise<PaymentPlanPreviewResponse> {
+  const res = await api.post('/collections/payment-plans/preview', body)
+  return res.data as PaymentPlanPreviewResponse
+}
+
+export async function createCollectionsPaymentPlan(body: PaymentPlanCreateRequest): Promise<PaymentPlanPreviewResponse> {
+  const res = await api.post('/collections/payment-plans', body)
+  return res.data as PaymentPlanPreviewResponse
 }

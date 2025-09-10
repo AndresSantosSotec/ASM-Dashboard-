@@ -42,11 +42,8 @@ import {
   createPaymentPlan,
   getCollectionLogs,
   createCollectionLog,
-  // nuevos
-  fetchLatePayments,
-  fetchStudentSnapshot,
-  fetchPaymentPlansOverview,
 } from "@/services/finance"
+import type { LatePaymentStudent, PaymentPlanPreview } from "@/types/collections"
 import { toast } from "@/hooks/use-toast"
 
 export function GestionPagos() {
@@ -56,86 +53,79 @@ export function GestionPagos() {
   const [showContactDialog, setShowContactDialog] = useState(false)
   const [showPaymentPlanDialog, setShowPaymentPlanDialog] = useState(false)
   const [showPaymentDialog, setShowPaymentDialog] = useState(false)
-
-  // selections
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null)
   const [selectedPlan, setSelectedPlan] = useState<any | null>(null)
-
-  // contact / payment local state
   const [contactType, setContactType] = useState<string>("llamada")
   const [contactNotes, setContactNotes] = useState<string>("")
   const [paymentMethod, setPaymentMethod] = useState<string>("cash")
 
   // filters
   const [searchQuery, setSearchQuery] = useState("")
-  const [debouncedSearch, setDebouncedSearch] = useState("")
-  const [bucket, setBucket] = useState<"all" | "b1" | "b2" | "b3" | "b4">("all")
-  const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(25)
-
-  // optional: date range (no usado aún aquí)
   const [dateRange, setDateRange] = useState({
     from: new Date(),
     to: new Date(new Date().setMonth(new Date().getMonth() + 1)),
   })
-
-  // data
-  const [invoices, setInvoices] = useState<any[]>([]) // alumnos con pagos atrasados
-  const [totalRows, setTotalRows] = useState(0)
+  const [invoices, setInvoices] = useState<any[]>([])
   const [payments, setPayments] = useState<any[]>([])
   const [paymentPlans, setPaymentPlans] = useState<any[]>([])
   const [collectionLogs, setCollectionLogs] = useState<any[]>([])
 
   const [loading, setLoading] = useState(true)
 
-  // --- debounce de búsqueda ---
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 400)
-    return () => clearTimeout(t)
-  }, [searchQuery])
-
-  // --- carga de datos principales ---
-  const loadLatePayments = async () => {
-    const late = await fetchLatePayments({
-      q: debouncedSearch || undefined,
-      bucket,
-      page,
-      per_page: perPage,
-    })
-    setInvoices(late.data)
-    setTotalRows(late.meta.total)
-  }
-
-  const loadOthers = async () => {
-    const [pay, plans, logs] = await Promise.all([
-      getPayments({}),
-      fetchPaymentPlansOverview({}), // usa collections/payment-plans (devuelve vacío si no lo implementas todavía)
-      getCollectionLogs({}),
-    ])
-    setPayments(pay)
-    setPaymentPlans(plans?.data ?? [])
-    setCollectionLogs(Array.isArray(logs.data) ? logs.data : logs)
-  }
-
   useEffect(() => {
     const loadAll = async () => {
       setLoading(true)
       try {
-        await Promise.all([loadLatePayments(), loadOthers()])
+        const [inv, pay, plans, logs] = await Promise.all([
+          getInvoices({}),
+          getPayments({}),
+          getPaymentPlans({}),
+          getCollectionLogs({}),
+        ])
+        setInvoices(inv)
+        setPayments(pay)
+        setPaymentPlans(plans)
+        setCollectionLogs(Array.isArray(logs.data) ? logs.data : logs)
       } catch (e) {
+        console.error('Error loading payment data:', e)
         toast({
-          title: "Error",
-          description: "No se pudieron cargar los datos de pagos",
+          title: 'Error',
+          description: 'No se pudieron cargar los datos de pagos',
         })
       } finally {
         setLoading(false)
       }
     }
-    loadAll()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, bucket, page, perPage])
+    load()
+  }, [])
 
-  // --- helpers UI ---
+  // Función para abrir el diálogo de contacto
+  const openContactDialog = (student: any) => {
+    setSelectedStudent(student)
+    setContactType("llamada")
+    setContactNotes("")
+    setShowContactDialog(true)
+  }
+
+  // Función para abrir el diálogo de plan de pago
+  const openPaymentPlanDialog = (student: any) => {
+    setSelectedStudent(student)
+    setShowPaymentPlanDialog(true)
+  }
+
+  // Función para abrir el diálogo de registro de pago
+  const openPaymentDialog = (student: any) => {
+    setSelectedStudent(student)
+    setShowPaymentDialog(true)
+  }
+
+  // Función para abrir el diálogo de detalles de plan de pago
+  const openPlanDetailsDialog = (plan: any) => {
+    setSelectedPlan(plan)
+    setShowPaymentPlanDialog(true)
+  }
+
+  // Función para obtener el color de la insignia según el estado
   const getBadgeVariant = (status: string) => {
     switch (status) {
       case "activo":
@@ -327,14 +317,7 @@ export function GestionPagos() {
                       }}
                     />
                   </div>
-
-                  <Select
-                    value={bucket}
-                    onValueChange={(v: "all" | "b1" | "b2" | "b3" | "b4") => {
-                      setBucket(v)
-                      setPage(1)
-                    }}
-                  >
+                  <Select defaultValue="all">
                     <SelectTrigger className="w-full md:w-[180px]">
                       <SelectValue placeholder="Bucket de mora" />
                     </SelectTrigger>
@@ -372,66 +355,60 @@ export function GestionPagos() {
                         Cargando...
                       </TableCell>
                     </TableRow>
-                  ) : invoices.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                        Sin resultados
-                      </TableCell>
-                    </TableRow>
                   ) : (
                     invoices.map((student) => (
-                      <TableRow key={student.id}>
-                        <TableCell>
-                          <Checkbox id={`select-${student.id}`} />
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-medium">{student.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            EP #{student.id} • {student.program}
+                    <TableRow key={student.id}>
+                      <TableCell>
+                        <Checkbox id={`select-${student.id}`} />
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium">{student.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {student.id} - {student.program}
+                        </div>
+                      </TableCell>
+                      <TableCell>Q{student.totalDebt.toLocaleString()}</TableCell>
+                      <TableCell>{student.lateMonths}</TableCell>
+                      <TableCell>{student.daysLate}</TableCell>
+                      <TableCell>
+                        <Badge variant={getBucketVariant(student.bucket)}>
+                          {student.bucket} ({getBucketText(student.bucket)})
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getBadgeVariant(student.status)}>
+                          {student.status === "activo" ? "Activo" : "Bloqueado"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {student.lastContact ? (
+                          <div className="text-sm">
+                            {new Date(student.lastContact).toLocaleDateString()}
+                            {student.promiseDate && (
+                              <div className="text-xs text-green-600 flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                <span>Promesa: {new Date(student.promiseDate).toLocaleDateString()}</span>
+                              </div>
+                            )}
                           </div>
-                        </TableCell>
-                        <TableCell>Q{Number(student.totalDebt || 0).toLocaleString()}</TableCell>
-                        <TableCell>{student.lateMonths}</TableCell>
-                        <TableCell>{student.daysLate}</TableCell>
-                        <TableCell>
-                          <Badge variant={getBucketVariant(student.bucket)}>
-                            {student.bucket} ({getBucketText(student.bucket)})
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getBadgeVariant(student.status)}>
-                            {student.status === "activo" ? "Activo" : "Bloqueado"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {student.lastContact ? (
-                            <div className="text-sm">
-                              {new Date(student.lastContact).toLocaleDateString()}
-                              {student.promiseDate && (
-                                <div className="text-xs text-green-600 flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  <span>Promesa: {new Date(student.promiseDate).toLocaleDateString()}</span>
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">Sin contacto</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={() => openContactDialog(student)} disabled={loading}>
-                              <Phone className="h-4 w-4 mr-1" /> Contactar
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => openPaymentPlanDialog(student)}>
-                              <Calendar className="h-4 w-4 mr-1" /> Plan
-                            </Button>
-                            <Button size="sm" onClick={() => openPaymentDialog(student)}>
-                              <DollarSign className="h-4 w-4 mr-1" /> Pago
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">Sin contacto</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={() => openContactDialog(student)}>
+                            <Phone className="h-4 w-4 mr-1" /> Contactar
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => openPaymentPlanDialog(student)}>
+                            <Calendar className="h-4 w-4 mr-1" /> Plan
+                          </Button>
+                          <Button size="sm" onClick={() => openPaymentDialog(student)}>
+                            <DollarSign className="h-4 w-4 mr-1" /> Pago
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
                     ))
                   )}
                 </TableBody>
@@ -440,7 +417,7 @@ export function GestionPagos() {
 
             <CardFooter className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div className="text-sm text-muted-foreground">
-                Mostrando {invoices.length} de {totalRows} alumnos con pagos atrasados
+                Mostrando {invoices.length} alumnos con pagos atrasados
               </div>
               <div className="flex items-center gap-2">
                 <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(1) }}>
@@ -625,11 +602,11 @@ export function GestionPagos() {
                 rows={4}
               />
             </div>
-            {selectedStudent && Array.isArray(selectedStudent.contactHistory) && selectedStudent.contactHistory.length > 0 && (
+            {selectedStudent && selectedStudent.contactHistory.length > 0 && (
               <div className="mt-4">
                 <h4 className="text-sm font-medium mb-2">Historial de Contactos Previos</h4>
                 <div className="space-y-2 max-h-[150px] overflow-y-auto border rounded-md p-2">
-                  {selectedStudent.contactHistory.map((contact: any, index: number) => (
+                  {(selectedStudent as any).contactHistory.map((contact: any, index: number) => (
                     <div key={index} className="text-sm border-b pb-2 last:border-0 last:pb-0">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1">
@@ -716,18 +693,142 @@ export function GestionPagos() {
 
       {/* --- Diálogo de plan de pago --- */}
       <Dialog open={showPaymentPlanDialog} onOpenChange={setShowPaymentPlanDialog}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{selectedPlan ? "Detalles del Plan de Pago" : "Crear Plan de Pago"}</DialogTitle>
             <DialogDescription>
               {selectedPlan
                 ? `Plan de pago ${selectedPlan.id} para ${selectedPlan.studentName}`
-                : selectedStudent && `Configure un plan de pago especial para ${selectedStudent.name}`}
+                : selectedStudent && `Configure un plan de pago especial para ${selectedStudent.name} (EP-${selectedStudent.id})`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4">
-            {selectedPlan ? (
+            {!selectedPlan && selectedStudent && (
               <>
+                {/* Form para configurar el plan */}
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-medium">Configuración del Plan</h3>
+                    
+                    <div className="grid gap-2">
+                      <Label htmlFor="plan-months">Número de Cuotas (opcional)</Label>
+                      <Input
+                        id="plan-months"
+                        type="number"
+                        min="1"
+                        max="24"
+                        placeholder="Dejar vacío para cálculo automático"
+                        value={planMonths || ""}
+                        onChange={(e) => setPlanMonths(e.target.value ? parseInt(e.target.value) : undefined)}
+                      />
+                    </div>
+                    
+                    <div className="grid gap-2">
+                      <Label htmlFor="plan-start-date">Fecha de Inicio (opcional)</Label>
+                      <Input
+                        id="plan-start-date"
+                        type="date"
+                        value={planStartDate}
+                        onChange={(e) => setPlanStartDate(e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="include-late-fees" 
+                        checked={includLateFees}
+                        onCheckedChange={(checked) => setIncludLateFees(!!checked)}
+                      />
+                      <Label htmlFor="include-late-fees">Incluir recargos por mora</Label>
+                    </div>
+                    
+                    <Button 
+                      onClick={() => generatePaymentPlanPreview(selectedStudent.id, planMonths, planStartDate)}
+                      disabled={loadingPreview}
+                    >
+                      {loadingPreview ? "Generando..." : "Actualizar Vista Previa"}
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-medium">Vista Previa del Plan</h3>
+                    {loadingPreview ? (
+                      <div className="text-center py-8">
+                        <div className="text-muted-foreground">Generando vista previa...</div>
+                      </div>
+                    ) : previewPlan ? (
+                      <div className="border rounded-lg p-4 space-y-3">
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div className="font-medium">Deuda Original:</div>
+                          <div>Q{previewPlan.originalDebt.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</div>
+                          
+                          <div className="font-medium">Recargos por Mora:</div>
+                          <div className={previewPlan.lateFeeTotal > 0 ? "text-orange-600" : ""}>
+                            Q{previewPlan.lateFeeTotal.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                          </div>
+                          
+                          <div className="font-medium">Total a Pagar:</div>
+                          <div className="font-bold">Q{previewPlan.total.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</div>
+                          
+                          <div className="font-medium">Número de Cuotas:</div>
+                          <div>{previewPlan.months}</div>
+                          
+                          <div className="font-medium">Fecha de Inicio:</div>
+                          <div>{new Date(previewPlan.startDate).toLocaleDateString('es-GT')}</div>
+                          
+                          <div className="font-medium">Día de Vencimiento:</div>
+                          <div>Día {previewPlan.dueDay} de cada mes</div>
+                          
+                          <div className="font-medium">Cuota Mensual:</div>
+                          <div className="font-bold">Q{previewPlan.installmentAmount.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</div>
+                        </div>
+                        
+                        {previewPlan.installments.length > 0 && (
+                          <div className="mt-4">
+                            <h4 className="text-sm font-medium mb-2">Cronograma de Pagos</h4>
+                            <div className="border rounded-md max-h-60 overflow-y-auto">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>No.</TableHead>
+                                    <TableHead>Monto</TableHead>
+                                    <TableHead>Vencimiento</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {previewPlan.installments.slice(0, 10).map((installment) => (
+                                    <TableRow key={installment.number}>
+                                      <TableCell>{installment.number}</TableCell>
+                                      <TableCell>Q{installment.amount.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</TableCell>
+                                      <TableCell>{new Date(installment.dueDate).toLocaleDateString('es-GT')}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                  {previewPlan.installments.length > 10 && (
+                                    <TableRow>
+                                      <TableCell colSpan={3} className="text-center text-sm text-muted-foreground">
+                                        ... y {previewPlan.installments.length - 10} cuotas más
+                                      </TableCell>
+                                    </TableRow>
+                                  )}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        Haga clic en "Actualizar Vista Previa" para ver los detalles del plan
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+            
+            {selectedPlan && (
+              <>
+                {/* Vista de plan existente - mantener código existente */}
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div>
@@ -742,24 +843,8 @@ export function GestionPagos() {
                           <div className="text-sm">{selectedPlan.studentName}</div>
                         </div>
                         <div className="grid grid-cols-2">
-                          <div className="text-sm font-medium">ID del Alumno:</div>
-                          <div className="text-sm">{selectedPlan.studentId}</div>
-                        </div>
-                        <div className="grid grid-cols-2">
                           <div className="text-sm font-medium">Deuda Original:</div>
                           <div className="text-sm">Q{selectedPlan.originalDebt.toLocaleString()}</div>
-                        </div>
-                        <div className="grid grid-cols-2">
-                          <div className="text-sm font-medium">Deuda Actual:</div>
-                          <div className="text-sm">Q{selectedPlan.currentDebt.toLocaleString()}</div>
-                        </div>
-                        <div className="grid grid-cols-2">
-                          <div className="text-sm font-medium">Fecha de Inicio:</div>
-                          <div className="text-sm">{new Date(selectedPlan.startDate).toLocaleDateString()}</div>
-                        </div>
-                        <div className="grid grid-cols-2">
-                          <div className="text-sm font-medium">Fecha de Fin:</div>
-                          <div className="text-sm">{new Date(selectedPlan.endDate).toLocaleDateString()}</div>
                         </div>
                         <div className="grid grid-cols-2">
                           <div className="text-sm font-medium">Estado:</div>
@@ -769,15 +854,7 @@ export function GestionPagos() {
                             </Badge>
                           </div>
                         </div>
-                        <div className="grid grid-cols-2">
-                          <div className="text-sm font-medium">Creado por:</div>
-                          <div className="text-sm">{selectedPlan.createdBy}</div>
-                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-medium text-muted-foreground mb-2">Notas</h3>
-                      <div className="text-sm p-3 bg-muted rounded-md">{selectedPlan.notes}</div>
                     </div>
                   </div>
                   <div>
@@ -808,31 +885,7 @@ export function GestionPagos() {
                         </TableBody>
                       </Table>
                     </div>
-                    <div className="mt-4">
-                      <Progress
-                        value={
-                          (selectedPlan.installments.filter((i: any) => i.status === "completado").length /
-                            selectedPlan.installments.length) *
-                          100
-                        }
-                        className="h-2"
-                      />
-                      <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-                        <span>Progreso del Plan</span>
-                        <span>
-                          {selectedPlan.installments.filter((i: any) => i.status === "completado").length} de{" "}
-                          {selectedPlan.installments.length} cuotas pagadas
-                        </span>
-                      </div>
-                    </div>
                   </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="text-center py-8 text-muted-foreground">
-                  Formulario para crear un nuevo plan de pago con opciones para definir cuotas, fechas de vencimiento y
-                  condiciones especiales
                 </div>
               </>
             )}
@@ -845,12 +898,11 @@ export function GestionPagos() {
               <Button
                 onClick={async () => {
                   try {
-                    await createPaymentPlan({ prospecto_id: selectedStudent?.studentId ?? selectedStudent?.id })
-                    toast({ title: "Plan de pago creado" })
+                    await createPaymentPlan({ prospecto_id: selectedStudent?.id })
+                    toast({ title: 'Plan de pago creado' })
                     setShowPaymentPlanDialog(false)
-                    // puedes recargar lista de planes si quieres
                   } catch (e) {
-                    toast({ title: "Error", description: "No se pudo crear el plan" })
+                    toast({ title: 'Error', description: 'No se pudo crear el plan' })
                   }
                 }}
               >
