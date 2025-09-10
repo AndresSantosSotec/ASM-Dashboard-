@@ -1,6 +1,7 @@
 export interface LatePaymentStudent {
-  id: number // EP id
+  id: number
   studentId: number
+  prospectoId?: number // ← opcional
   name: string
   program: string
   totalDebt: number
@@ -11,6 +12,7 @@ export interface LatePaymentStudent {
   lastContact: string | null
   promiseDate: string | null
 }
+
 
 export interface LatePaymentsResponse {
   data: LatePaymentStudent[]
@@ -45,6 +47,7 @@ export interface RecentPayment {
 }
 
 export interface StudentSnapshot {
+  prospecto_id: any
   ep: {
     id: number
     prospecto: {

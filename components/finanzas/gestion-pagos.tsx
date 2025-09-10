@@ -1,137 +1,92 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Download,
   Search,
-  FileText,
-  AlertCircle,
-  Calendar,
-  DollarSign,
   Phone,
   Mail,
   MessageSquare,
-  Clock,
 } from "lucide-react"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+
+// servicios
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Progress } from "@/components/ui/progress"
-import { Textarea } from "@/components/ui/textarea"
-import { DatePickerWithRange } from "@/components/ui/date-range-picker"
-import {
-  // existentes
   getPayments,
-  createPayment,
-  getPaymentPlans,
-  createPaymentPlan,
-  getCollectionLogs,
-  createCollectionLog,
-  // nuevos - collections endpoints
   fetchLatePayments,
   fetchStudentSnapshot,
-  fetchPaymentPlansOverview,
-  previewPaymentPlan,
-  createCollectionsPaymentPlan,
 } from "@/services/finance"
-import type { LatePaymentStudent, PaymentPlanPreview } from "@/types/collections"
+
+import type { LatePaymentStudent } from "@/types/collections"
 import { toast } from "@/hooks/use-toast"
-
+import ContactProspectDialog from "@/components/finanzas/ContactProspectDialog"
 export function GestionPagos() {
-  const [activeTab, setActiveTab] = useState("late-payments")
+  const [activeTab, setActiveTab] = useState<"late-payments" | "upcoming-payments" | "recent-payments">("late-payments")
 
-  // dialogs
-  const [showContactDialog, setShowContactDialog] = useState(false)
-  const [showPaymentPlanDialog, setShowPaymentPlanDialog] = useState(false)
-  const [showPaymentDialog, setShowPaymentDialog] = useState(false)
-
-  // selections
-  const [selectedStudent, setSelectedStudent] = useState<LatePaymentStudent | null>(null)
-  const [selectedPlan, setSelectedPlan] = useState<any | null>(null)
-  const [previewPlan, setPreviewPlan] = useState<PaymentPlanPreview | null>(null)
-
-  // contact / payment local state
-  const [contactType, setContactType] = useState<string>("llamada")
-  const [contactNotes, setContactNotes] = useState<string>("")
-  const [paymentMethod, setPaymentMethod] = useState<string>("cash")
-
-  // filters - combinando ambas versiones
+  // filtros (atrasados)
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [bucketFilter, setBucketFilter] = useState<"all" | "b1" | "b2" | "b3" | "b4">("all")
-  const [bucket, setBucket] = useState<"all" | "b1" | "b2" | "b3" | "b4">("all")
   const [programaFilter, setProgramaFilter] = useState("")
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(25)
 
-  // date range
-  const [dateRange, setDateRange] = useState({
-    from: new Date(),
-    to: new Date(new Date().setMonth(new Date().getMonth() + 1)),
-  })
-
-  // data - usando nombres consistentes
+  // datos
   const [latePayments, setLatePayments] = useState<LatePaymentStudent[]>([])
-  const [invoices, setInvoices] = useState<any[]>([]) // mantenemos para compatibilidad
   const [totalRows, setTotalRows] = useState(0)
-  const [payments, setPayments] = useState<any[]>([])
-  const [paymentPlans, setPaymentPlans] = useState<any[]>([])
-  const [collectionLogs, setCollectionLogs] = useState<any[]>([])
+  const [payments, setPayments] = useState<any[]>([]) // listado general (para "siguientes pagos")
 
   const [loading, setLoading] = useState(true)
-  const [loadingPreview, setLoadingPreview] = useState(false)
-  
-  // Payment plan form state
-  const [planMonths, setPlanMonths] = useState<number | undefined>(undefined)
-  const [planStartDate, setPlanStartDate] = useState<string>("")
-  const [includLateFees, setIncludLateFees] = useState(true)
 
-  // --- debounce de búsqueda ---
+  // ---------- estado para ContactProspectDialog ----------
+  const [contactOpen, setContactOpen] = useState(false)
+  const [contactProspectoId, setContactProspectoId] = useState<number | undefined>(undefined)
+  const [contactCtx, setContactCtx] = useState<{ nombre: string; programa?: string; fecha?: string; monto?: number } | undefined>(undefined)
+
+  // ---------- filtros + paginación para "Pagos recientes" ----------
+  const [rpQ, setRpQ] = useState("")
+  const [rpStatus, setRpStatus] = useState<'aprobado' | 'pendiente' | 'rechazado' | 'all'>('aprobado')
+  const [rpMethod, setRpMethod] = useState<'all' | 'cash' | 'card' | 'transfer' | 'deposit' | 'check'>('all')
+  const [rpProgramId, setRpProgramId] = useState<string>('all')
+
+  const [rpPage, setRpPage] = useState(1)
+  const [rpPerPage, setRpPerPage] = useState(10)
+  const [rpTotal, setRpTotal] = useState(0)
+  const [rpRows, setRpRows] = useState<any[]>([])
+  const [rpLoading, setRpLoading] = useState(false)
+  const [rpProgramOptions, setRpProgramOptions] = useState<Array<{ id: string; name: string }>>([])
+
+  // debounce
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 400)
     return () => clearTimeout(t)
   }, [searchQuery])
 
-  // --- carga de datos principales ---
+  // carga - atrasados + otros
   const loadLatePayments = async () => {
     const latePaymentsParams = {
       q: debouncedSearch || searchQuery || undefined,
-      bucket: bucketFilter !== 'all' ? bucketFilter : bucket !== 'all' ? bucket : undefined,
+      bucket: bucketFilter !== 'all' ? bucketFilter : undefined,
       programa_id: programaFilter || undefined,
       page,
       per_page: perPage,
     }
-    
+
     const late = await fetchLatePayments(latePaymentsParams)
     setLatePayments(late.data)
-    setInvoices(late.data) // mantener compatibilidad
     setTotalRows(late.meta?.total || late.data.length)
   }
 
   const loadOthers = async () => {
-    const [pay, plansRes, logs] = await Promise.all([
-      getPayments({}),
-      fetchPaymentPlansOverview({}),
-      getCollectionLogs({}),
-    ])
-    setPayments(pay)
-    setPaymentPlans(plansRes?.data ?? [])
-    setCollectionLogs(Array.isArray(logs.data) ? logs.data : logs)
+    const pay = await getPayments({})
+    setPayments(Array.isArray(pay) ? pay : (pay?.data ?? []))
   }
 
   useEffect(() => {
@@ -151,21 +106,21 @@ export function GestionPagos() {
       }
     }
     loadAll()
-  }, [debouncedSearch, searchQuery, bucketFilter, bucket, programaFilter, page, perPage])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, searchQuery, bucketFilter, programaFilter, page, perPage])
 
-  // --- helpers UI ---
+  // UI helpers
   const getBadgeVariant = (status: string) => {
     switch (status) {
       case "activo":
-        return "default"
-      case "bloqueado":
-        return "destructive"
-      case "advertencia":
-        return "outline"
+      case "aprobado":
       case "completado":
         return "default"
+      case "bloqueado":
+      case "rechazado":
+        return "destructive"
       case "pendiente":
-        return "outline"
+      case "advertencia":
       default:
         return "outline"
     }
@@ -173,222 +128,205 @@ export function GestionPagos() {
 
   const getBucketVariant = (b: string) => {
     switch (b) {
-      case "B1":
-        return "outline"
-      case "B2":
-        return "secondary"
-      case "B3":
-        return "default"
-      case "B4":
-        return "destructive"
-      default:
-        return "outline"
+      case "B1": return "outline"
+      case "B2": return "secondary"
+      case "B3": return "default"
+      case "B4": return "destructive"
+      default: return "outline"
     }
   }
 
   const getBucketText = (b: string) => {
     switch (b) {
-      case "B1":
-        return "0-5 días"
-      case "B2":
-        return "6-10 días"
-      case "B3":
-        return "11-30 días"
-      case "B4":
-        return "+30 días"
-      default:
-        return ""
+      case "B1": return "0-5 días"
+      case "B2": return "6-10 días"
+      case "B3": return "11-30 días"
+      case "B4": return "+30 días"
+      default: return ""
     }
   }
 
-  const getContactIcon = (type: string) => {
-    switch (type) {
-      case "llamada":
-        return <Phone className="h-4 w-4" />
-      case "email":
-        return <Mail className="h-4 w-4" />
-      case "sms":
-        return <MessageSquare className="h-4 w-4" />
-      default:
-        return <MessageSquare className="h-4 w-4" />
-    }
-  }
+  // ----------- abrir ContactProspectDialog desde "Atrasados" -----------
+  // ----------- abrir ContactProspectDialog desde "Atrasados" -----------
+// ---- reemplazar esta función ----
+const openProspectContactFromLate = async (student: LatePaymentStudent) => {
+  try {
+    // 1) Traer prospecto_id si viene en el payload
+    let prospectoId: number | undefined =
+      (student as any)?.prospecto_id ?? (student as any)?.prospectoId
 
-  // --- handlers de diálogos ---
-  const openContactDialog = async (student: LatePaymentStudent) => {
-    setSelectedStudent(student)
-    setContactType("llamada")
-    setContactNotes("")
+    // 2) Si no viene, resolver por EP ID (student.id) usando snapshot
+    if (!prospectoId && student?.id) {
+      try {
+        // Ajusta a la firma real de tu servicio: a veces es fetchStudentSnapshot(epId) o fetchStudentSnapshot({ ep_id: ... })
+        const snap = await fetchStudentSnapshot(student.id)
+        prospectoId =
+          Number(
+            snap?.prospecto_id ??
+            snap?.prospecto?.id ??
+            snap?.prospectId ??
+            snap?.prospectoId
+          ) || undefined
+      } catch (e) {
+        console.warn("No se pudo resolver prospecto desde snapshot:", e)
+      }
+    }
+
+    // 3) Contexto para plantillas
+    setContactCtx({
+      nombre: student.name,
+      programa: student.program,
+      monto: Number(student.totalDebt ?? 0),
+      fecha: undefined,
+    })
+
+    // 4) Si logramos resolver prospectoId, lo pasamos; si no, abre igual (permite editar teléfono/correo a mano)
+    setContactProspectoId(prospectoId)
+    setContactOpen(true)
+
+    // (Opcional) Si quieres avisar que se abrió sin ficha automática:
+    if (!prospectoId) {
+      toast({
+        title: "Sin ficha vinculada",
+        description: `No se encontró prospecto para EP-${student.id}. Puedes contactar manualmente.`,
+      })
+    }
+  } catch (error) {
+    console.error("Error opening contact dialog:", error)
+    toast({
+      title: "Error",
+      description: "No se pudo abrir el diálogo de contacto",
+      variant: "destructive",
+    })
+  }
+}
+
+  // ----------- datasets derivados de `payments` para "Siguientes pagos" -----------
+  const { upcomingPayments } = useMemo(() => {
+    const now = new Date()
+    const in30d = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+
+    const normDate = (v: any) => (v ? new Date(v) : null)
+    const list = (Array.isArray(payments) ? payments : []).map((p: any) => ({
+      ...p,
+      fecha_pago: normDate(p.fecha_pago),
+      due_date: normDate(p.due_date ?? p.fecha_vencimiento ?? p.vencimiento),
+      estado: p.estado_pago ?? p.estado ?? "pendiente",
+      monto: Number(p.monto_pagado ?? p.monto ?? p.importe ?? 0),
+      alumno: p.studentName ?? p.alumno ?? p.estudiante ?? "-",
+      carnet: p.carnet ?? p.studentId ?? "-",
+      programa: p.programa?.nombre_del_programa ?? p.programa ?? "-",
+    }))
+
+    const upcoming = list
+      .filter(p => p.estado === "pendiente" && p.due_date && p.due_date > now)
+      .sort((a, b) => (a.due_date as any) - (b.due_date as any))
+
+    const upcoming30 = upcoming.filter(p => p.due_date! <= in30d)
+
+    return { upcomingPayments: upcoming30 }
+  }, [payments])
+
+  // fuente para atrasados
+  const studentsData = latePayments
+
+  // ----------- cargar "Pagos recientes" con filtros + paginación -----------
+  const loadRecentPayments = async () => {
+    setRpLoading(true)
+
+    const to = new Date()
+    const from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000)
 
     try {
-      const snap = await fetchStudentSnapshot(student.id) // student.id = EP id
-      const rawHistory = (snap as any)?.contact_history ?? (snap as any)?.contactHistory ?? []
-      const mappedHistory = (rawHistory as any[]).map((c: any) => ({
-        type: c.type,
-        notes: c.notes,
-        agent: c.agent,
-        date: c.created_at ?? c.createdAt, // adaptamos al render
-      }))
-      setSelectedStudent((prev) => ({
-        ...prev!,
-        contactHistory: mappedHistory,
-      } as any))
-    } catch {
-      // si falla, abrimos igual con lo que tengamos
+      const { data, meta } = await getPayments({
+        status: rpStatus === 'all' ? undefined : rpStatus,
+        method: rpMethod === 'all' ? undefined : rpMethod,
+        program_id: rpProgramId === 'all' ? undefined : rpProgramId,
+        q: rpQ || undefined,
+        fecha_inicio: from.toISOString(),
+        fecha_fin: to.toISOString(),
+        page: rpPage,
+        per_page: rpPerPage,
+        sort: '-fecha_pago',
+      })
+
+      setRpRows(Array.isArray(data) ? data : (data?.data ?? []))
+      setRpTotal(meta?.total ?? (Array.isArray(data) ? data.length : (data?.data?.length ?? 0)))
+
+      // Derivar opciones de programa de la página actual
+      const map = new Map<string, string>()
+      const current = Array.isArray(data) ? data : (data?.data ?? [])
+      for (const r of current) {
+        const pid = String(r?.program_id ?? r?.programId ?? '')
+        const pname = r?.programa?.nombre_del_programa ?? r?.program_name ?? r?.programa ?? ''
+        if (pid && pname && !map.has(pid)) map.set(pid, pname)
+      }
+      setRpProgramOptions(Array.from(map.entries()).map(([id, name]) => ({ id, name })))
+    } catch (e) {
+      toast({ title: "Error", description: "No se pudieron cargar los pagos recientes", variant: "destructive" })
     } finally {
-      setShowContactDialog(true)
+      setRpLoading(false)
     }
   }
 
-  const openPaymentDialog = async (student: LatePaymentStudent) => {
-    setSelectedStudent(student)
-    setPaymentMethod("cash")
-    setShowPaymentDialog(true)
+  useEffect(() => {
+    if (activeTab !== 'recent-payments') return
+    loadRecentPayments()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, rpQ, rpStatus, rpMethod, rpProgramId, rpPage, rpPerPage])
+
+  // ----------- abrir ContactProspectDialog desde fila de "Pagos recientes" -----------
+  const openProspectContactFromPayment = (row: any) => {
+    const pid = Number(row?.prospecto_id ?? row?.prospectId ?? row?.prospecto?.id ?? row?.id)
+    setContactProspectoId(Number.isFinite(pid) ? pid : undefined)
+
+    setContactCtx({
+      nombre: row?.studentName ?? row?.alumno ?? 'Estudiante',
+      programa: row?.programa?.nombre_del_programa ?? row?.programa ?? row?.program_name,
+      fecha: row?.fecha_pago ? new Date(row.fecha_pago).toLocaleDateString('es-GT') : undefined,
+      monto: Number(row?.monto_pagado ?? row?.monto ?? row?.importe ?? 0),
+    })
+
+    setContactOpen(true)
   }
 
-  const openPaymentPlanDialog = async (student: LatePaymentStudent) => {
-    setSelectedStudent(student)
-    setPreviewPlan(null)
-    setPlanMonths(undefined)
-    setPlanStartDate("")
-    setIncludLateFees(true)
-    setShowPaymentPlanDialog(true)
-    
-    // Auto-generate preview with default values
-    await generatePaymentPlanPreview(student.id)
+  // ----------- abrir ContactProspectDialog desde "Siguientes pagos" -----------
+  const openProspectContactFromUpcoming = (payment: any) => {
+    const pid = Number(payment?.prospecto_id ?? payment?.prospectId ?? payment?.id)
+    setContactProspectoId(Number.isFinite(pid) ? pid : undefined)
+
+    setContactCtx({
+      nombre: payment.alumno,
+      programa: payment.programa,
+      fecha: payment.due_date ? new Date(payment.due_date).toLocaleDateString('es-GT') : undefined,
+      monto: Number(payment.monto ?? 0),
+    })
+
+    setContactOpen(true)
   }
-
-  const openPlanDetailsDialog = (plan: any) => {
-    setSelectedPlan(plan)
-    setShowPaymentPlanDialog(true)
-  }
-
-  // Función para generar preview del plan de pago
-  const generatePaymentPlanPreview = async (epId: number, customMonths?: number, customStartDate?: string) => {
-    if (!epId) return
-    
-    setLoadingPreview(true)
-    try {
-      const previewData = await previewPaymentPlan({
-        ep_id: epId,
-        months: customMonths || planMonths,
-        start_date: customStartDate || planStartDate || undefined,
-        include_late_fees: includLateFees,
-      })
-      setPreviewPlan(previewData.plan)
-    } catch (error) {
-      console.error('Error generating preview:', error)
-      toast({
-        title: 'Error',
-        description: 'No se pudo generar la vista previa del plan de pago',
-        variant: 'destructive',
-      })
-    } finally {
-      setLoadingPreview(false)
-    }
-  }
-
-  // Función para crear el plan de pago
-  const handleCreatePaymentPlan = async () => {
-    if (!selectedStudent || !previewPlan) return
-    
-    try {
-      const result = await createCollectionsPaymentPlan({
-        ep_id: selectedStudent.id,
-        months: previewPlan.months,
-        start_date: previewPlan.startDate,
-        include_late_fees: includLateFees,
-      })
-      
-      toast({
-        title: 'Éxito',
-        description: `Plan de pago ${result.plan.id} creado correctamente`,
-      })
-      
-      setShowPaymentPlanDialog(false)
-      
-      // Refresh payment plans list
-      const plansRes = await fetchPaymentPlansOverview({})
-      setPaymentPlans(plansRes.data)
-      
-    } catch (error) {
-      console.error('Error creating payment plan:', error)
-      toast({
-        title: 'Error', 
-        description: 'No se pudo crear el plan de pago',
-        variant: 'destructive',
-      })
-    }
-  }
-
-  // --- acciones ---
-  const saveContact = async () => {
-    try {
-      const promise = (document.getElementById("promise-date") as HTMLInputElement)?.value || null
-      await createCollectionLog({
-        estudiante_programa_id: selectedStudent?.id, // EP id
-        type: contactType,
-        notes: contactNotes,
-        promise_date: promise || null,
-      })
-      toast({ title: "Contacto registrado" })
-      setShowContactDialog(false)
-      await loadLatePayments()
-    } catch {
-      toast({ title: "Error", description: "No se pudo registrar el contacto", variant: 'destructive' })
-    }
-  }
-
-  const savePayment = async () => {
-    try {
-      const amount = Number((document.getElementById("payment-amount") as HTMLInputElement)?.value ?? 0)
-      const reference = (document.getElementById("payment-reference") as HTMLInputElement)?.value ?? ""
-      const paymentDate = (document.getElementById("payment-date") as HTMLInputElement)?.value ?? ""
-      const notes = (document.getElementById("payment-notes") as HTMLTextAreaElement)?.value ?? ""
-
-      await createPayment({
-        estudiante_programa_id: selectedStudent?.id, // EP id
-        monto_pagado: amount,
-        metodo_pago: paymentMethod,
-        referencia: reference,
-        fecha_pago: paymentDate,
-        notas: notes,
-        estado_pago: "aprobado",
-      })
-
-      toast({ title: "Pago registrado correctamente" })
-      setShowPaymentDialog(false)
-      await loadLatePayments()
-    } catch {
-      toast({ title: "Error", description: "No se pudo registrar el pago", variant: 'destructive' })
-    }
-  }
-
-  // Usar latePayments como fuente principal, invoices como fallback
-  const studentsData = latePayments.length > 0 ? latePayments : invoices
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Gestión de Pagos</h2>
-          <p className="text-muted-foreground">Control de morosidad y seguimiento de pagos</p>
+          <p className="text-muted-foreground">Dashboard para contactar y enviar recordatorios de pagos</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline">
             <Download className="mr-2 h-4 w-4" /> Exportar Listado
           </Button>
           <Button>
-            <Phone className="mr-2 h-4 w-4" /> Campaña de Cobro
+            <Mail className="mr-2 h-4 w-4" /> Enviar Recordatorios
           </Button>
         </div>
       </div>
 
-      <Tabs defaultValue="late-payments" className="space-y-4" onValueChange={setActiveTab}>
+      <Tabs defaultValue="late-payments" className="space-y-4" onValueChange={(v) => setActiveTab(v as any)}>
         <TabsList>
           <TabsTrigger value="late-payments">Pagos Atrasados</TabsTrigger>
-          <TabsTrigger value="payment-plans">Planes de Pago</TabsTrigger>
-          <TabsTrigger value="follow-up">Seguimiento</TabsTrigger>
+          <TabsTrigger value="upcoming-payments">Siguientes pagos</TabsTrigger>
+          <TabsTrigger value="recent-payments">Pagos recientes</TabsTrigger>
         </TabsList>
 
         {/* --- Pagos atrasados --- */}
@@ -398,7 +336,7 @@ export function GestionPagos() {
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                   <CardTitle>Alumnos con Pagos Atrasados</CardTitle>
-                  <CardDescription>Listado de alumnos con cuotas pendientes</CardDescription>
+                  <CardDescription>Listado de alumnos con cuotas pendientes para contactar</CardDescription>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <div className="relative">
@@ -414,11 +352,10 @@ export function GestionPagos() {
                       }}
                     />
                   </div>
-                  <Select 
-                    value={bucketFilter} 
+                  <Select
+                    value={bucketFilter}
                     onValueChange={(v) => {
-                      setBucketFilter(v as "all" | "b1" | "b2" | "b3" | "b4")
-                      setBucket(v as "all" | "b1" | "b2" | "b3" | "b4")
+                      setBucketFilter(v as any)
                       setPage(1)
                     }}
                   >
@@ -448,36 +385,33 @@ export function GestionPagos() {
                     <TableHead>Días Atraso</TableHead>
                     <TableHead>Bucket</TableHead>
                     <TableHead>Estado</TableHead>
-                    <TableHead>Último Contacto</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-4">
-                        Cargando...
-                      </TableCell>
+                      <TableCell colSpan={8} className="text-center py-4">Cargando...</TableCell>
                     </TableRow>
                   ) : studentsData.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         No hay alumnos con pagos atrasados
                       </TableCell>
                     </TableRow>
                   ) : (
                     studentsData.map((student) => (
                       <TableRow key={student.id}>
-                        <TableCell>
-                          <Checkbox id={`select-${student.id}`} />
-                        </TableCell>
+                        <TableCell><Checkbox id={`select-${student.id}`} /></TableCell>
                         <TableCell>
                           <div className="font-medium">{student.name}</div>
                           <div className="text-xs text-muted-foreground">
                             EP-{student.id} | Alumno-{student.studentId} - {student.program}
                           </div>
                         </TableCell>
-                        <TableCell>Q{(student.totalDebt || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</TableCell>
+                        <TableCell>
+                          Q{(student.totalDebt || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                        </TableCell>
                         <TableCell>{student.lateMonths}</TableCell>
                         <TableCell>{student.daysLate}</TableCell>
                         <TableCell>
@@ -490,33 +424,10 @@ export function GestionPagos() {
                             {student.status === "activo" ? "Activo" : student.status === "bloqueado" ? "Bloqueado" : student.status}
                           </Badge>
                         </TableCell>
-                        <TableCell>
-                          {student.lastContact ? (
-                            <div className="text-sm">
-                              {new Date(student.lastContact).toLocaleDateString('es-GT')}
-                              {student.promiseDate && (
-                                <div className="text-xs text-green-600 flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  <span>Promesa: {new Date(student.promiseDate).toLocaleDateString('es-GT')}</span>
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">Sin contacto</span>
-                          )}
-                        </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={() => openContactDialog(student)} disabled={loading}>
-                              <Phone className="h-4 w-4 mr-1" /> Contactar
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => openPaymentPlanDialog(student)}>
-                              <Calendar className="h-4 w-4 mr-1" /> Plan
-                            </Button>
-                            <Button size="sm" onClick={() => openPaymentDialog(student)}>
-                              <DollarSign className="h-4 w-4 mr-1" /> Pago
-                            </Button>
-                          </div>
+                          <Button variant="outline" size="sm" onClick={() => openProspectContactFromLate(student)} disabled={loading}>
+                            <Phone className="h-4 w-4 mr-1" /> Contactar
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))
@@ -562,72 +473,48 @@ export function GestionPagos() {
           </Card>
         </TabsContent>
 
-        {/* --- Planes de pago --- */}
-        <TabsContent value="payment-plans" className="space-y-4">
+        {/* --- Siguientes pagos --- */}
+        <TabsContent value="upcoming-payments" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Planes de Pago Especiales</CardTitle>
-                  <CardDescription>Acuerdos de pago y convenios con alumnos</CardDescription>
+                  <CardTitle>Siguientes pagos (próximos 30 días)</CardTitle>
+                  <CardDescription>Cuotas pendientes con vencimiento cercano para recordar</CardDescription>
                 </div>
-                <Button onClick={() => setShowPaymentPlanDialog(true)}>
-                  <Calendar className="mr-2 h-4 w-4" /> Crear Nuevo Plan
-                </Button>
               </div>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>ID</TableHead>
                     <TableHead>Alumno</TableHead>
-                    <TableHead>Deuda Original</TableHead>
-                    <TableHead>Deuda Actual</TableHead>
-                    <TableHead>Cuotas</TableHead>
-                    <TableHead>Fecha Inicio</TableHead>
-                    <TableHead>Fecha Fin</TableHead>
+                    <TableHead>Programa</TableHead>
+                    <TableHead>Monto</TableHead>
+                    <TableHead>Vence</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-4">
-                        Cargando...
-                      </TableCell>
-                    </TableRow>
-                  ) : paymentPlans.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                        No hay planes de pago
-                      </TableCell>
-                    </TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-4">Cargando...</TableCell></TableRow>
+                  ) : upcomingPayments.length === 0 ? (
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin vencimientos próximos</TableCell></TableRow>
                   ) : (
-                    paymentPlans.map((plan) => (
-                      <TableRow key={plan.id}>
-                        <TableCell className="font-medium">{plan.id}</TableCell>
+                    upcomingPayments.map((p: any, idx: number) => (
+                      <TableRow key={idx}>
                         <TableCell>
-                          <div>{plan.studentName}</div>
-                          <div className="text-xs text-muted-foreground">{plan.studentId}</div>
+                          <div className="font-medium">{p.alumno}</div>
+                          <div className="text-xs text-muted-foreground">{p.carnet}</div>
                         </TableCell>
-                        <TableCell>Q{plan.originalDebt.toLocaleString()}</TableCell>
-                        <TableCell>Q{plan.currentDebt.toLocaleString()}</TableCell>
-                        <TableCell>
-                          {plan.installments.length} (
-                          {plan.installments.filter((i: any) => i.status === "completado").length} pagadas)
-                        </TableCell>
-                        <TableCell>{new Date(plan.startDate).toLocaleDateString()}</TableCell>
-                        <TableCell>{new Date(plan.endDate).toLocaleDateString()}</TableCell>
-                        <TableCell>
-                          <Badge variant={getBadgeVariant(plan.status)}>
-                            {plan.status === "activo" ? "Activo" : "Completado"}
-                          </Badge>
-                        </TableCell>
+                        <TableCell className="text-sm">{p.programa}</TableCell>
+                        <TableCell>Q{p.monto.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</TableCell>
+                        <TableCell>{p.due_date ? new Date(p.due_date).toLocaleDateString('es-GT') : "-"}</TableCell>
+                        <TableCell><Badge variant={getBadgeVariant(p.estado)}>{p.estado}</Badge></TableCell>
                         <TableCell className="text-right">
-                          <Button variant="outline" size="sm" onClick={() => openPlanDetailsDialog(plan)}>
-                            <FileText className="h-4 w-4 mr-1" /> Detalles
+                          <Button variant="outline" size="sm" onClick={() => openProspectContactFromUpcoming(p)}>
+                            <Phone className="h-4 w-4 mr-1" /> Recordar
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -639,379 +526,136 @@ export function GestionPagos() {
           </Card>
         </TabsContent>
 
-        {/* --- Seguimiento --- */}
-        <TabsContent value="follow-up" className="space-y-4">
+        {/* --- Pagos recientes (con filtros + paginación + Contactar) --- */}
+        <TabsContent value="recent-payments" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
                 <div>
-                  <CardTitle>Seguimiento de Promesas de Pago</CardTitle>
-                  <CardDescription>Compromisos de pago pendientes de cumplimiento</CardDescription>
+                  <CardTitle>Pagos recientes (últimos 30 días)</CardTitle>
+                  <CardDescription>Pagos registrados con opción de contacto de seguimiento</CardDescription>
                 </div>
-                <DatePickerWithRange className="w-auto" />
+                <div className="flex flex-col md:flex-row gap-2">
+                  <Input
+                    placeholder="Buscar estudiante / carnet / boleta"
+                    value={rpQ}
+                    onChange={(e) => { setRpQ(e.target.value); setRpPage(1) }}
+                  />
+                  <Select value={rpStatus} onValueChange={(v: any) => { setRpStatus(v); setRpPage(1) }}>
+                    <SelectTrigger className="w-[160px]"><SelectValue placeholder="Estado" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="aprobado">Aprobado</SelectItem>
+                      <SelectItem value="pendiente">Pendiente</SelectItem>
+                      <SelectItem value="rechazado">Rechazado</SelectItem>
+                      <SelectItem value="all">Todos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={rpMethod} onValueChange={(v: any) => { setRpMethod(v); setRpPage(1) }}>
+                    <SelectTrigger className="w-[160px]"><SelectValue placeholder="Método" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="cash">Efectivo</SelectItem>
+                      <SelectItem value="card">Tarjeta</SelectItem>
+                      <SelectItem value="transfer">Transferencia</SelectItem>
+                      <SelectItem value="deposit">Depósito</SelectItem>
+                      <SelectItem value="check">Cheque</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardHeader>
+
             <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                Calendario y listado de promesas de pago con opciones de seguimiento y recordatorios
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Alumno</TableHead>
+                    <TableHead>Programa</TableHead>
+                    <TableHead>Método</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead className="text-right">Monto</TableHead>
+                    <TableHead className="text-right">Estado</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rpLoading ? (
+                    <TableRow><TableCell colSpan={7} className="text-center py-4">Cargando...</TableCell></TableRow>
+                  ) : rpRows.length === 0 ? (
+                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No hay pagos recientes</TableCell></TableRow>
+                  ) : (
+                    rpRows.map((r) => (
+                      <TableRow key={r.id}>
+                        <TableCell className="font-medium">
+                          <div>{r.studentName ?? r.alumno ?? '—'}</div>
+                          <div className="text-xs text-muted-foreground">{r.carnet ?? r.studentId ?? ''}</div>
+                        </TableCell>
+                        <TableCell>{r.programa?.nombre_del_programa ?? r.program_name ?? r.programa ?? '—'}</TableCell>
+                        <TableCell className="text-sm">{r.metodo_pago ?? r.method ?? '—'}</TableCell>
+                        <TableCell>{r.fecha_pago ? new Date(r.fecha_pago).toLocaleDateString('es-GT') : "—"}</TableCell>
+                        <TableCell className="text-right">
+                          Q{Number(r.monto_pagado ?? r.monto ?? r.importe ?? 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={getBadgeVariant(r.estado_pago ?? r.estado ?? 'pendiente')}>
+                            {r.estado_pago ?? r.estado ?? '—'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="outline" size="sm" onClick={() => openProspectContactFromPayment(r)}>
+                            Contactar
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+
+              {/* Paginación */}
+              <div className="flex flex-col md:flex-row items-center justify-between gap-3 mt-4">
+                <div className="text-sm text-muted-foreground">
+                  Mostrando {rpRows.length} de {rpTotal} pagos
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select value={String(rpPerPage)} onValueChange={(v) => { setRpPerPage(Number(v)); setRpPage(1) }}>
+                    <SelectTrigger className="w-[110px]"><SelectValue placeholder="Filas" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setRpPage(p => Math.max(1, p - 1))} disabled={rpPage <= 1 || rpLoading}>
+                      Anterior
+                    </Button>
+                    <span className="text-sm">
+                      Página {rpPage}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRpPage(p => p + 1)}
+                      disabled={rpLoading || (rpRows.length < rpPerPage && rpRows.length < rpTotal)}
+                    >
+                      Siguiente
+                    </Button>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
 
-      {/* --- Diálogo de contacto --- */}
-      <Dialog open={showContactDialog} onOpenChange={setShowContactDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Registrar Contacto</DialogTitle>
-            <DialogDescription>
-              {selectedStudent && `Registre la interacción con ${selectedStudent.name} (${selectedStudent.id})`}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="contact-type">Tipo de Contacto</Label>
-              <Select value={contactType} onValueChange={setContactType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione el tipo de contacto" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="llamada">Llamada Telefónica</SelectItem>
-                  <SelectItem value="email">Correo Electrónico</SelectItem>
-                  <SelectItem value="sms">Mensaje SMS</SelectItem>
-                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="contact-result">Resultado</Label>
-              <Select defaultValue="contacted">
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione el resultado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="contacted">Contactado</SelectItem>
-                  <SelectItem value="no-answer">No Contesta</SelectItem>
-                  <SelectItem value="wrong-number">Número Equivocado</SelectItem>
-                  <SelectItem value="message">Se Dejó Mensaje</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="promise-date">Fecha de Promesa de Pago (opcional)</Label>
-              <Input type="date" id="promise-date" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="contact-notes">Notas</Label>
-              <Textarea
-                id="contact-notes"
-                placeholder="Ingrese los detalles de la conversación..."
-                value={contactNotes}
-                onChange={(e) => setContactNotes(e.target.value)}
-                rows={4}
-              />
-            </div>
-            {selectedStudent && (selectedStudent as any).contactHistory && (selectedStudent as any).contactHistory.length > 0 && (
-              <div className="mt-4">
-                <h4 className="text-sm font-medium mb-2">Historial de Contactos Previos</h4>
-                <div className="space-y-2 max-h-[150px] overflow-y-auto border rounded-md p-2">
-                  {(selectedStudent as any).contactHistory.map((contact: any, index: number) => (
-                    <div key={index} className="text-sm border-b pb-2 last:border-0 last:pb-0">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1">
-                          {getContactIcon(contact.type)}
-                          <span className="font-medium">{new Date(contact.date).toLocaleDateString()}</span>
-                        </div>
-                        <span className="text-xs text-muted-foreground">{contact.agent}</span>
-                      </div>
-                      <p className="mt-1 text-muted-foreground">{contact.notes}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowContactDialog(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={saveContact}>Guardar Contacto</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* --- Diálogo de pago --- */}
-      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Registrar Pago</DialogTitle>
-            <DialogDescription>
-              {selectedStudent && `Ingrese los datos del pago para ${selectedStudent.name} (${selectedStudent.id})`}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="payment-amount">Monto</Label>
-              <Input id="payment-amount" type="number" defaultValue={selectedStudent?.totalDebt?.toString() ?? "0"} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="payment-method">Método de Pago</Label>
-              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione el método" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Efectivo</SelectItem>
-                  <SelectItem value="card">Tarjeta</SelectItem>
-                  <SelectItem value="transfer">Transferencia</SelectItem>
-                  <SelectItem value="deposit">Depósito</SelectItem>
-                  <SelectItem value="check">Cheque</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="payment-reference">Referencia / No. de Boleta</Label>
-              <Input id="payment-reference" placeholder="Ej: 123456789" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="payment-date">Fecha de Pago</Label>
-              <Input type="date" id="payment-date" defaultValue={new Date().toISOString().split("T")[0]} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="payment-notes">Notas</Label>
-              <Textarea id="payment-notes" placeholder="Observaciones adicionales..." rows={2} />
-            </div>
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Importante</AlertTitle>
-              <AlertDescription>
-                {selectedStudent && selectedStudent.status === "bloqueado"
-                  ? "Al registrar este pago, se desbloqueará automáticamente el acceso del alumno a la plataforma."
-                  : "Verifique los datos antes de registrar el pago."}
-              </AlertDescription>
-            </Alert>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={savePayment}>Registrar Pago</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* --- Diálogo de plan de pago --- */}
-      <Dialog open={showPaymentPlanDialog} onOpenChange={setShowPaymentPlanDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{selectedPlan ? "Detalles del Plan de Pago" : "Crear Plan de Pago"}</DialogTitle>
-            <DialogDescription>
-              {selectedPlan
-                ? `Plan de pago ${selectedPlan.id} para ${selectedPlan.studentName}`
-                : selectedStudent && `Configure un plan de pago especial para ${selectedStudent.name} (EP-${selectedStudent.id})`}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            {!selectedPlan && selectedStudent && (
-              <>
-                {/* Form para configurar el plan */}
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium">Configuración del Plan</h3>
-                    
-                    <div className="grid gap-2">
-                      <Label htmlFor="plan-months">Número de Cuotas (opcional)</Label>
-                      <Input
-                        id="plan-months"
-                        type="number"
-                        min="1"
-                        max="24"
-                        placeholder="Dejar vacío para cálculo automático"
-                        value={planMonths || ""}
-                        onChange={(e) => setPlanMonths(e.target.value ? parseInt(e.target.value) : undefined)}
-                      />
-                    </div>
-                    
-                    <div className="grid gap-2">
-                      <Label htmlFor="plan-start-date">Fecha de Inicio (opcional)</Label>
-                      <Input
-                        id="plan-start-date"
-                        type="date"
-                        value={planStartDate}
-                        onChange={(e) => setPlanStartDate(e.target.value)}
-                      />
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Checkbox 
-                        id="include-late-fees" 
-                        checked={includLateFees}
-                        onCheckedChange={(checked) => setIncludLateFees(!!checked)}
-                      />
-                      <Label htmlFor="include-late-fees">Incluir recargos por mora</Label>
-                    </div>
-                    
-                    <Button 
-                      onClick={() => generatePaymentPlanPreview(selectedStudent.id, planMonths, planStartDate)}
-                      disabled={loadingPreview}
-                    >
-                      {loadingPreview ? "Generando..." : "Actualizar Vista Previa"}
-                    </Button>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium">Vista Previa del Plan</h3>
-                    {loadingPreview ? (
-                      <div className="text-center py-8">
-                        <div className="text-muted-foreground">Generando vista previa...</div>
-                      </div>
-                    ) : previewPlan ? (
-                      <div className="border rounded-lg p-4 space-y-3">
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div className="font-medium">Deuda Original:</div>
-                          <div>Q{previewPlan.originalDebt.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</div>
-                          
-                          <div className="font-medium">Recargos por Mora:</div>
-                          <div className={previewPlan.lateFeeTotal > 0 ? "text-orange-600" : ""}>
-                            Q{previewPlan.lateFeeTotal.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
-                          </div>
-                          
-                          <div className="font-medium">Total a Pagar:</div>
-                          <div className="font-bold">Q{previewPlan.total.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</div>
-                          
-                          <div className="font-medium">Número de Cuotas:</div>
-                          <div>{previewPlan.months}</div>
-                          
-                          <div className="font-medium">Fecha de Inicio:</div>
-                          <div>{new Date(previewPlan.startDate).toLocaleDateString('es-GT')}</div>
-                          
-                          <div className="font-medium">Día de Vencimiento:</div>
-                          <div>Día {previewPlan.dueDay} de cada mes</div>
-                          
-                          <div className="font-medium">Cuota Mensual:</div>
-                          <div className="font-bold">Q{previewPlan.installmentAmount.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</div>
-                        </div>
-                        
-                        {previewPlan.installments && previewPlan.installments.length > 0 && (
-                          <div className="mt-4">
-                            <h4 className="text-sm font-medium mb-2">Cronograma de Pagos</h4>
-                            <div className="border rounded-md max-h-60 overflow-y-auto">
-                              <Table>
-                                <TableHeader>
-                                  <TableRow>
-                                    <TableHead>No.</TableHead>
-                                    <TableHead>Monto</TableHead>
-                                    <TableHead>Vencimiento</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {previewPlan.installments.slice(0, 10).map((installment) => (
-                                    <TableRow key={installment.number}>
-                                      <TableCell>{installment.number}</TableCell>
-                                      <TableCell>Q{installment.amount.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</TableCell>
-                                      <TableCell>{new Date(installment.dueDate).toLocaleDateString('es-GT')}</TableCell>
-                                    </TableRow>
-                                  ))}
-                                  {previewPlan.installments.length > 10 && (
-                                    <TableRow>
-                                      <TableCell colSpan={3} className="text-center text-sm text-muted-foreground">
-                                        ... y {previewPlan.installments.length - 10} cuotas más
-                                      </TableCell>
-                                    </TableRow>
-                                  )}
-                                </TableBody>
-                              </Table>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-muted-foreground">
-                        Haga clic en "Actualizar Vista Previa" para ver los detalles del plan
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-            
-            {selectedPlan && (
-              <>
-                {/* Vista de plan existente */}
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-sm font-medium text-muted-foreground mb-2">Información del Plan</h3>
-                      <div className="space-y-2">
-                        <div className="grid grid-cols-2">
-                          <div className="text-sm font-medium">ID del Plan:</div>
-                          <div className="text-sm">{selectedPlan.id}</div>
-                        </div>
-                        <div className="grid grid-cols-2">
-                          <div className="text-sm font-medium">Alumno:</div>
-                          <div className="text-sm">{selectedPlan.studentName}</div>
-                        </div>
-                        <div className="grid grid-cols-2">
-                          <div className="text-sm font-medium">Deuda Original:</div>
-                          <div className="text-sm">Q{selectedPlan.originalDebt.toLocaleString()}</div>
-                        </div>
-                        <div className="grid grid-cols-2">
-                          <div className="text-sm font-medium">Estado:</div>
-                          <div className="text-sm">
-                            <Badge variant={getBadgeVariant(selectedPlan.status)}>
-                              {selectedPlan.status === "activo" ? "Activo" : "Completado"}
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-2">Cuotas del Plan</h3>
-                    <div className="border rounded-md">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>No.</TableHead>
-                            <TableHead>Monto</TableHead>
-                            <TableHead>Vencimiento</TableHead>
-                            <TableHead>Estado</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {selectedPlan.installments?.map((installment: any) => (
-                            <TableRow key={installment.number}>
-                              <TableCell>{installment.number}</TableCell>
-                              <TableCell>Q{installment.amount.toLocaleString()}</TableCell>
-                              <TableCell>{new Date(installment.dueDate).toLocaleDateString()}</TableCell>
-                              <TableCell>
-                                <Badge variant={getBadgeVariant(installment.status)}>
-                                  {installment.status === "completado" ? "Pagado" : "Pendiente"}
-                                </Badge>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPaymentPlanDialog(false)}>
-              {selectedPlan ? "Cerrar" : "Cancelar"}
-            </Button>
-            {!selectedPlan && previewPlan && (
-              <Button onClick={handleCreatePaymentPlan}>
-                Crear Plan de Pago
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* -------- ContactProspectDialog (WhatsApp / Email) -------- */}
+      <ContactProspectDialog
+        open={contactOpen}
+        onOpenChange={setContactOpen}
+        prospectoId={contactProspectoId}
+        contextoPago={contactCtx}
+      />
     </div>
   )
 }
