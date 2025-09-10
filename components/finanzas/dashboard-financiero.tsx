@@ -150,8 +150,12 @@ export function DashboardFinanciero() {
         <div className="flex items-center gap-2">
           <DatePickerWithRange
             className="w-auto"
-            value={dateRange}
-            onChange={handleDateRangeChange}
+            value={
+              dateRange
+                ? { from: dateRange.from ?? new Date(), to: dateRange.to ?? new Date() }
+                : undefined
+            }
+            onChange={(r) => handleDateRangeChange(r as unknown as DateRange)}
           />
           <Button variant="outline" size="icon" onClick={handleRefresh} title="Actualizar">
             <RefreshCw className="h-4 w-4" />
