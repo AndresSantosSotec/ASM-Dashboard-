@@ -1,6 +1,8 @@
 "use client"
 
+
 import { useState, useMemo } from "react"
+
 import Swal from "sweetalert2"
 import type { Student } from "@/services/students"
 import type { Course } from "@/services/courses"
@@ -239,6 +241,7 @@ export function BulkAssignmentPanel({
             <Calendar className="h-4 w-4 mr-2" />
             Cursos del Mes Actual ({monthCourses.length})
           </h4>
+
           {isLoading ? (
             <div className="flex justify-center py-6">
               <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
@@ -295,6 +298,7 @@ export function BulkAssignmentPanel({
               </div>
             </>
           )}
+
         </div>
 
         <div className="flex space-x-2 pt-4">

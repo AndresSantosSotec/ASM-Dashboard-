@@ -3,6 +3,7 @@ import type { Program } from './programs'
 import type { Course } from './courses'
 
 export interface Student {
+
   id: string;
   name: string;
   carnet: string;
@@ -27,6 +28,7 @@ export const fetchStudentPrograms = async (
   })
   const data = Array.isArray(res.data) ? res.data : res.data.data
   return Array.isArray(data) ? data : []
+
 }
 
 export const fetchStudentProgram = async (
@@ -45,6 +47,7 @@ export const fetchStudentProgram = async (
 }
 
 export const fetchEnrolledStudents = async (): Promise<Student[]> => {
+
   const res = await api.get('/prospectos/status/Inscrito', {
     params: { per_page: 9999 },
   })
@@ -85,6 +88,7 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
       }
     }),
   )
+
 
   return students
 }
@@ -159,3 +163,4 @@ export const bulkAssignCourses = async (
     course_ids: courseIds.map(Number),
   })
 }
+

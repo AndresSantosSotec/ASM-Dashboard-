@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -222,6 +223,7 @@ export default function Sidebar({ open, className }: { open?: boolean; className
             </div>
           );
         })}
+
       </div>
 
       {/* Footer */}
