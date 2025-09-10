@@ -1,6 +1,3 @@
-// ==================
-// services/payments
-// ==================
 import api from '@/services/api'
 
 export interface PendingPayment {
@@ -62,13 +59,43 @@ export interface UploadReceiptData {
 }
 
 export interface PaymentUploadResponse {
+  success: boolean
+  code: string
   message: string
-  pago_id: number
+  pago_id?: number
   cuota_id?: number
   estado_cuota?: string
   estado_pago?: string
   fecha_procesamiento?: string
-  success?: boolean
+  error_details?: {
+    tipo_error: string
+    boleta_original?: {
+      numero_boleta: string
+      banco: string
+      fecha_uso: string
+      monto_original: number
+      estado: string
+      cuota_numero: string
+      programa: string
+    }
+    archivo_original?: {
+      fecha_uso: string
+      boleta_numero: string
+      monto_original: number
+    }
+  }
+  user_message?: string
+}
+
+export interface PrevalidationResponse {
+  duplicate: boolean
+  existing_payment?: {
+    fecha_pago: string
+    monto_pagado: number
+    estado_pago: string
+    cuota_numero: string
+    programa: string
+  }
 }
 
 class PaymentsService {
@@ -87,6 +114,14 @@ class PaymentsService {
     return response.data
   }
 
+  async prevalidateReceipt(numero_boleta: string, banco: string): Promise<PrevalidationResponse> {
+    const response = await api.post('/estudiante/pagos/prevalidar-recibo', {
+      numero_boleta,
+      banco
+    })
+    return response.data
+  }
+
   async uploadReceipt(data: UploadReceiptData): Promise<PaymentUploadResponse> {
     const formData = new FormData()
     formData.append('cuota_id', data.cuota_id.toString())
@@ -95,10 +130,20 @@ class PaymentsService {
     formData.append('monto', data.monto.toString())
     formData.append('comprobante', data.comprobante)
 
-    const response = await api.post('/estudiante/pagos/subir-recibo', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
-    return response.data
+    try {
+      const response = await api.post('/estudiante/pagos/subir-recibo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return response.data
+    } catch (error: any) {
+      // Manejar errores específicos del servidor
+      if (error.response?.data) {
+        // El servidor devolvió una respuesta estructurada
+        throw new PaymentError(error.response.data)
+      }
+      // Error genérico
+      throw error
+    }
   }
 
   async refreshAllData() {
@@ -109,6 +154,21 @@ class PaymentsService {
       api.get(`/estudiante/pagos/estado-cuenta?_t=${timestamp}`)
     ])
     return { pending: pending.data, history: history.data, summary: summary.data }
+  }
+}
+
+// Error personalizado para pagos
+export class PaymentError extends Error {
+  public code: string
+  public details?: any
+  public userMessage?: string
+
+  constructor(errorData: PaymentUploadResponse) {
+    super(errorData.message || 'Error en el pago')
+    this.name = 'PaymentError'
+    this.code = errorData.code || 'UNKNOWN_ERROR'
+    this.details = errorData.error_details
+    this.userMessage = errorData.user_message
   }
 }
 

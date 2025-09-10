@@ -1,7 +1,4 @@
 "use client"
-// Componente de gestión de pagos para estudiantes
-// Permite ver pagos pendientes, historial y subir recibos
-//payments-view.tsx
 import type React from "react"
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AlertCircle, CreditCard, FileText, Upload, Loader2, RefreshCw } from "lucide-react"
+import { AlertCircle, CreditCard, FileText, Upload, Loader2, RefreshCw, AlertTriangle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Dialog,
@@ -28,27 +25,46 @@ import {
   type PendingPayment, 
   type PaymentHistory, 
   type AccountSummary,
-  type PaymentUploadResponse 
+  type PaymentUploadResponse,
+  PaymentError
 } from "@/services/payments"
 
-// =====================
-// Componente principal
-// =====================
+// ⬅️ NUEVO: tipos y helpers para el modal de duplicado
+type DuplicateInfo = {
+  fechaUso?: string
+  cuotaNumero?: number | string
+  programa?: string
+  monto?: number
+}
+
+const formatDateGT = (d: string | Date) =>
+  new Date(d).toLocaleDateString("es-GT")
+
+const formatCurrencyGT = (n?: number) =>
+  typeof n === "number" ? `Q${n.toLocaleString("es-GT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"
+
 export function PaymentsView() {
-  const [activeTab, setActiveTab] = useState("pending-window") // pending-window | all-pending | history
+  const [activeTab, setActiveTab] = useState("pending-window")
   const [showReceiptUpload, setShowReceiptUpload] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<PendingPayment | null>(null)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   
   // Estados para datos de la API
-  const [pendingWindowPayments, setPendingWindowPayments] = useState<PendingPayment[]>([]) // mes actual + próximo
-  const [allPendingPayments, setAllPendingPayments] = useState<PendingPayment[]>([])       // TODOS los pendientes
-  const [overduePaymentsServer, setOverduePaymentsServer] = useState<PendingPayment[]>([])// atrasados del backend (si vienen)
+  const [pendingWindowPayments, setPendingWindowPayments] = useState<PendingPayment[]>([])
+  const [allPendingPayments, setAllPendingPayments] = useState<PendingPayment[]>([])
+  const [overduePaymentsServer, setOverduePaymentsServer] = useState<PendingPayment[]>([])
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([])
   const [accountSummary, setAccountSummary] = useState<AccountSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+
+  // Estados de validación
+  const [isValidating, setIsValidating] = useState(false)
+  const [validationError, setValidationError] = useState<string | null>(null)
+
+  // ⬅️ NUEVO // LIMITE DE MONTO
+  const [amountError, setAmountError] = useState<string | null>(null)
 
   // Filtro de la pestaña "Todos los Pendientes"
   const [allPendingFilter, setAllPendingFilter] = useState<"all" | "overdue" | "upcoming">("all")
@@ -59,6 +75,10 @@ export function PaymentsView() {
     banco: '',
     monto: 0
   })
+
+  // ⬅️ NUEVO: modal gráfico para boleta/archivo duplicado
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false)
+  const [duplicateInfo, setDuplicateInfo] = useState<DuplicateInfo | null>(null)
 
   // Helpers de fecha
   const startOfToday = useMemo(() => {
@@ -98,21 +118,13 @@ export function PaymentsView() {
         ])
       }
 
-      // Backend esperado:
-      // pending = {
-      //   pagos: [...TODOS pendientes...],
-      //   pagos_mes_actual_proximo: [...],
-      //   pagos_atrasados: [...]
-      //   total_pendiente, total_con_mora, ...
-      // }
       setAllPendingPayments(pending?.pagos || [])
       setPendingWindowPayments(pending?.pagos_mes_actual_proximo || [])
       setOverduePaymentsServer(pending?.pagos_atrasados || [])
       setPaymentHistory(history?.historial_pagos || [])
       setAccountSummary(summary || null)
 
-    } catch (error) {
-      console.error('Error cargando datos de pagos:', error)
+    } catch {
       toast({
         title: "Error",
         description: "No se pudieron cargar los datos de pagos",
@@ -138,15 +150,65 @@ export function PaymentsView() {
     })
   }
 
+  // Validación en tiempo real de boleta
+  const validateReceiptNumber = useCallback(async (numero: string, banco: string) => {
+    if (!numero.trim() || !banco.trim()) {
+      setValidationError(null)
+      return
+    }
+
+    setIsValidating(true)
+    setValidationError(null)
+
+    try {
+      const result = await paymentsService.prevalidateReceipt(numero, banco)
+      if (result.duplicate && result.existing_payment) {
+        const existing = result.existing_payment
+        setValidationError(
+          `Esta boleta ya fue utilizada el ${new Date(existing.fecha_pago).toLocaleDateString('es-GT')} ` +
+          `para la cuota ${existing.cuota_numero} del programa ${existing.programa} ` +
+          `por un monto de Q${existing.monto_pagado.toLocaleString()}.`
+        )
+      }
+    } catch {
+      // silencioso
+    } finally {
+      setIsValidating(false)
+    }
+  }, [])
+
+  // Efecto para validar cuando cambia la boleta o banco
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      validateReceiptNumber(receiptForm.numero_boleta, receiptForm.banco)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [receiptForm.numero_boleta, receiptForm.banco, validateReceiptNumber])
+
+  // ⬅️ NUEVO // LIMITE DE MONTO: calcula el máximo permitido (con mora si existe)
+  const allowedMax = useMemo(() => {
+    if (!selectedPayment) return 0
+    const anyP = selectedPayment as any
+    const withLate = typeof anyP.total_with_late_fee === "number" ? anyP.total_with_late_fee : null
+    return Number(withLate ?? selectedPayment.monto) || 0
+  }, [selectedPayment])
+
   // Iniciar carga de recibo
   const startReceiptUpload = (payment: PendingPayment) => {
     setSelectedPayment(payment)
+    // ⬅️ Monto arranca en el máximo permitido (se puede bajar, nunca subir)
+    const anyP = payment as any
+    const withLate = typeof anyP.total_with_late_fee === "number" ? anyP.total_with_late_fee : null
+    const startAmount = Number(withLate ?? payment.monto) || 0
+
     setReceiptForm({
       numero_boleta: '',
       banco: '',
-      monto: payment.monto
+      monto: startAmount
     })
     setUploadFile(null)
+    setValidationError(null)
+    setAmountError(null)
     setShowReceiptUpload(true)
   }
 
@@ -157,9 +219,51 @@ export function PaymentsView() {
     }
   }
 
+  // ⬅️ NUEVO // LIMITE DE MONTO: clamp y mensajes
+  const clampAmount = (raw: number) => {
+    const safe = Math.max(0, raw || 0)
+    if (allowedMax > 0 && safe > allowedMax) {
+      setAmountError(`El monto no puede superar el saldo a pagar (${formatCurrencyGT(allowedMax)}).`)
+      return allowedMax
+    }
+    setAmountError(null)
+    return safe
+  }
+
+  // Actualizar campos del formulario
+  const updateReceiptForm = (field: string, value: string | number) => {
+    if (field === "monto") {
+      const num = typeof value === "number" ? value : Number(value)
+      const clamped = clampAmount(num)
+      setReceiptForm(prev => ({ ...prev, monto: clamped }))
+      return
+    }
+    setReceiptForm(prev => ({ ...prev, [field]: value }))
+  }
+
   // Confirmar carga de recibo
   const confirmReceiptUpload = async () => {
     if (!selectedPayment || !uploadFile) return
+
+    // Validaciones previas
+    if (validationError) {
+      toast({
+        title: "Error de Validación",
+        description: "No puede usar una boleta que ya fue utilizada anteriormente",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // ⬅️ NUEVO // LIMITE DE MONTO: bloquear si por alguna razón excede
+    if (allowedMax > 0 && receiptForm.monto > allowedMax) {
+      toast({
+        title: "Monto inválido",
+        description: `El monto no puede superar ${formatCurrencyGT(allowedMax)}.`,
+        variant: "destructive"
+      })
+      return
+    }
 
     try {
       setUploading(true)
@@ -188,19 +292,57 @@ export function PaymentsView() {
       setUploadFile(null)
       setSelectedPayment(null)
       setReceiptForm({ numero_boleta: '', banco: '', monto: 0 })
+      setValidationError(null)
+      setAmountError(null)
       
-      // Refrescos para asegurar consistencia visual
       await loadPaymentData(true)
       setTimeout(async () => { await loadPaymentData(true) }, 1000)
       setTimeout(async () => { await loadPaymentData(true) }, 3000)
 
-    } catch (error) {
-      console.error('Error subiendo recibo:', error)
-      toast({
-        title: "Error",
-        description: "No se pudo enviar el recibo. Intente nuevamente.",
-        variant: "destructive"
-      })
+    } catch (error: unknown) {
+      if (error instanceof PaymentError) {
+        if (error.code === "DUPLICATE_RECEIPT_NUMBER" || error.code === "DUPLICATE_RECEIPT_FILE") {
+          const d = (error as any).details || {}
+          const original = d.boleta_original || d.matched_payment || d.original || {}
+          const fechaUso = original.fecha_uso || original.fecha_pago || original.fecha || d.fecha_uso || d.fecha_pago
+          const cuotaNumero = original.cuota_numero || original.cuota || d.cuota_numero
+          const programa = original.programa || d.programa
+          const monto = original.monto_original ?? original.monto_pagado ?? original.monto ?? d.monto
+
+          setDuplicateInfo({
+            fechaUso: fechaUso ? String(fechaUso) : undefined,
+            cuotaNumero: typeof cuotaNumero !== "undefined" ? cuotaNumero : undefined,
+            programa: programa ? String(programa) : undefined,
+            monto: typeof monto === "number" ? monto : (typeof monto === "string" ? Number(monto) : undefined),
+          })
+          setShowDuplicateModal(true)
+          setValidationError(
+            fechaUso && cuotaNumero && programa && (typeof monto === "number" || typeof monto === "string")
+              ? `Esta boleta ya fue utilizada el ${formatDateGT(fechaUso)} para la cuota ${cuotaNumero} del programa ${programa} por un monto de ${formatCurrencyGT(Number(monto))}.`
+              : (error.userMessage || "Esta boleta/archivo ya fue utilizado anteriormente.")
+          )
+        } else if (error.code === "CUOTA_ALREADY_PAID") {
+          toast({
+            title: "Cuota ya Pagada",
+            description: "Esta cuota ya fue pagada anteriormente",
+            variant: "destructive"
+          })
+          await loadPaymentData(true)
+          setShowReceiptUpload(false)
+        } else {
+          toast({
+            title: "Error en el Pago",
+            description: error.message || "Ocurrió un error procesando el pago",
+            variant: "destructive"
+          })
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: "No se pudo enviar el recibo. Intente nuevamente.",
+          variant: "destructive"
+        })
+      }
     } finally {
       setUploading(false)
     }
@@ -241,9 +383,8 @@ export function PaymentsView() {
     return new Date(dateString).toLocaleDateString('es-GT')
   }
 
-  // ---------- Filtro client-side en "Todos los Pendientes" ----------
+  // Filtro client-side en "Todos los Pendientes"
   const computedOverdue = useMemo(() => {
-    // Usar los que vienen del server si existen; si no, calcular
     const base = overduePaymentsServer?.length ? overduePaymentsServer : allPendingPayments
     return base.filter(isOverdue).sort((a, b) => {
       return (new Date(a.fecha_vencimiento).getTime()) - (new Date(b.fecha_vencimiento).getTime())
@@ -271,7 +412,18 @@ export function PaymentsView() {
   const overdueCount = computedOverdue.length
   const upcomingCount = computedUpcoming.length
 
-  // ---------------------------------------------------------------
+  // Check if form is valid for submission
+  const isFormValid = useMemo(() => {
+    return (
+      uploadFile &&
+      receiptForm.numero_boleta.trim() &&
+      receiptForm.banco.trim() &&
+      receiptForm.monto > 0 &&
+      !validationError &&
+      !isValidating &&
+      !amountError // ⬅️ NUEVO // LIMITE DE MONTO
+    )
+  }, [uploadFile, receiptForm, validationError, isValidating, amountError])
 
   if (loading) {
     return (
@@ -350,7 +502,7 @@ export function PaymentsView() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Pendientes ventana (mes actual + próximo) */}
+        {/* Pendientes ventana */}
         <TabsContent value="pending-window" className="space-y-6 mt-6">
           {pendingWindowPayments.length > 0 ? (
             <div className="grid gap-6 md:grid-cols-2">
@@ -371,7 +523,6 @@ export function PaymentsView() {
                   </CardHeader>
                   <CardContent className="pb-2">
                     <div className="text-2xl font-bold">Q{payment.monto.toLocaleString()}</div>
-                    {/* Campos opcionales de mora si vienen del backend */}
                     {typeof (payment as any).total_with_late_fee === "number" && (payment as any).total_with_late_fee > payment.monto && (
                       <p className="text-sm text-muted-foreground mt-2">
                         Con mora: Q{(payment as any).total_with_late_fee.toLocaleString()} 
@@ -403,15 +554,14 @@ export function PaymentsView() {
                 ¡Excelente! No tiene pagos pendientes en esta ventana.
               </p>
               <p className="text-gray-400 text-sm mt-2">
-                Revise la pestaña “Todos los Pendientes” para ver cuotas futuras o atrasadas.
+                Revise la pestaña "Todos los Pendientes" para ver cuotas futuras o atrasadas.
               </p>
             </div>
           )}
         </TabsContent>
 
-        {/* TODOS los pendientes con botones de filtro */}
+        {/* TODOS los pendientes */}
         <TabsContent value="all-pending" className="space-y-6 mt-6">
-          {/* Botonera de filtro */}
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-muted-foreground mr-1">Mostrar:</span>
             <Button 
@@ -549,7 +699,7 @@ export function PaymentsView() {
 
       {/* Diálogo de carga de recibo */}
       <Dialog open={showReceiptUpload} onOpenChange={setShowReceiptUpload}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Subir Recibo de Pago</DialogTitle>
             <DialogDescription>
@@ -563,16 +713,24 @@ export function PaymentsView() {
                 id="receipt-number" 
                 placeholder="Ej: 123456789"
                 value={receiptForm.numero_boleta}
-                onChange={(e) => setReceiptForm(prev => ({ ...prev, numero_boleta: e.target.value }))}
+                onChange={(e) => updateReceiptForm('numero_boleta', e.target.value)}
+                className={validationError ? "border-red-500" : ""}
               />
+              {isValidating && (
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>Validando boleta...</span>
+                </div>
+              )}
             </div>
+            
             <div className="grid gap-2">
               <Label htmlFor="bank">Banco</Label>
               <Select 
                 value={receiptForm.banco} 
-                onValueChange={(value) => setReceiptForm(prev => ({ ...prev, banco: value }))}
+                onValueChange={(value) => updateReceiptForm('banco', value)}
               >
-                <SelectTrigger>
+                <SelectTrigger className={validationError ? "border-red-500" : ""}>
                   <SelectValue placeholder="Seleccione el banco" />
                 </SelectTrigger>
                 <SelectContent>
@@ -584,44 +742,123 @@ export function PaymentsView() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Mostrar error de validación inline */}
+            {validationError && (
+              <Alert className="border-red-200 bg-red-50">
+                <AlertTriangle className="h-4 w-4 text-red-600" />
+                <AlertTitle className="text-red-800">Boleta ya utilizada</AlertTitle>
+                <AlertDescription className="text-red-700 text-sm">
+                  {validationError}
+                </AlertDescription>
+              </Alert>
+            )}
+            
             <div className="grid gap-2">
               <Label htmlFor="amount">Monto (Q)</Label>
               <Input 
                 id="amount" 
                 type="number" 
+                step="0.01"
+                min={0}
+                // ⬅️ NUEVO // LIMITE DE MONTO: tope visual del input
+                max={allowedMax || undefined}
                 value={receiptForm.monto}
-                onChange={(e) => setReceiptForm(prev => ({ ...prev, monto: Number(e.target.value) }))}
+                onChange={(e) => updateReceiptForm('monto', Number(e.target.value))}
+                onBlur={(e) => updateReceiptForm('monto', Number(e.target.value))} // re-clamp al salir
+                className={amountError ? "border-red-500" : ""}
               />
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">
+                  Máximo permitido: <strong>{formatCurrencyGT(allowedMax)}</strong>
+                </span>
+                {amountError && <span className="text-red-600">{amountError}</span>}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                * Puede pagar un monto menor (pago parcial). No puede exceder el saldo.
+              </p>
             </div>
+            
             <div className="grid gap-2">
               <Label htmlFor="receipt-upload">Comprobante de Pago</Label>
-              <Input id="receipt-upload" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileUpload} />
+              <Input 
+                id="receipt-upload" 
+                type="file" 
+                accept=".pdf,.jpg,.jpeg,.png" 
+                onChange={handleFileUpload} 
+              />
               <p className="text-xs text-gray-500">Formatos aceptados: PDF, JPG, PNG (máx. 5MB)</p>
             </div>
+            
             {uploadFile && (
               <div className="flex items-center gap-2 text-sm text-green-600">
                 <FileText className="h-4 w-4" />
                 <span>Archivo seleccionado: {uploadFile.name}</span>
               </div>
             )}
+            
             <Alert className="bg-blue-50 border-blue-200">
               <AlertCircle className="h-4 w-4 text-blue-600" />
               <AlertTitle className="text-blue-800">Procesamiento Automático</AlertTitle>
               <AlertDescription className="text-blue-700">
                 Su pago será procesado automáticamente una vez que suba el comprobante. 
-                La cuota se marcará como pagada inmediatamente.
+                La cuota se marcará como pagada inmediatamente si el monto coincide.
               </AlertDescription>
             </Alert>
           </div>
+          
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowReceiptUpload(false)} disabled={uploading}>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowReceiptUpload(false)
+                setValidationError(null)
+                setAmountError(null)
+              }} 
+              disabled={uploading}
+            >
               Cancelar
             </Button>
             <Button 
               onClick={confirmReceiptUpload} 
-              disabled={!uploadFile || !receiptForm.numero_boleta || !receiptForm.banco || uploading}
+              disabled={!isFormValid || uploading}
             >
-              {uploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Procesando Pago...</>) : ('Procesar Pago')}
+              {uploading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Procesando Pago...
+                </>
+              ) : (
+                'Procesar Pago'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal duplicado */}
+      <Dialog open={showDuplicateModal} onOpenChange={setShowDuplicateModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              <DialogTitle>Boleta ya utilizada</DialogTitle>
+            </div>
+            <DialogDescription>
+              {duplicateInfo?.fechaUso && duplicateInfo?.cuotaNumero && duplicateInfo?.programa && typeof duplicateInfo?.monto !== "undefined"
+                ? (
+                  <>
+                    Esta boleta ya fue utilizada el <strong>{formatDateGT(duplicateInfo.fechaUso)}</strong> para la cuota <strong>{duplicateInfo.cuotaNumero}</strong> del programa <strong>{duplicateInfo.programa}</strong> por un monto de <strong>{formatCurrencyGT(duplicateInfo.monto)}</strong>.
+                  </>
+                ) : (
+                  <>Este comprobante ya fue presentado anteriormente.</>
+                )
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDuplicateModal(false)}>
+              Entendido
             </Button>
           </DialogFooter>
         </DialogContent>
