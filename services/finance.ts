@@ -527,8 +527,20 @@ export const assignCategoryToStudent = async (categoryId: string | number, data:
   return res.data
 }
 
-//
-export const fetchDashboardFinanciero = async (params?: any) => {
-  const res = await api.get('/dashboard-financiero', { params })
-  return res.data
+// Dashboard Financiero with date range and limits support
+import type { DashboardFinancieroData } from '@/types/dashboard'
+
+type DashboardFinancieroParams = {
+  fecha_inicio: string // ISO
+  fecha_fin: string    // ISO
+  limit_pagos?: number
+  limit_alertas?: number
+}
+
+export async function fetchDashboardFinanciero(params: DashboardFinancieroParams): Promise<DashboardFinancieroData> {
+  const { fecha_inicio, fecha_fin, limit_pagos = 10, limit_alertas = 20 } = params
+  const res = await api.get('/dashboard-financiero', {
+    params: { fecha_inicio, fecha_fin, limit_pagos, limit_alertas },
+  })
+  return res.data as DashboardFinancieroData
 }
