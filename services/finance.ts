@@ -518,3 +518,64 @@ export async function sendEmailToProspect(payload: {
   })
   return res.data
 }
+
+
+
+export const getKardexPendientes = async (params: {
+  from?: string; // YYYY-MM-DD
+  to?: string;   // YYYY-MM-DD
+  banco?: string;
+} = {}) => {
+  const res = await api.get("/conciliacion/pendientes-desde-kardex", { params })
+  return res.data
+}
+
+export const previewConciliacion = async (rows: any[]) => {
+  const res = await api.post("/conciliacion/preview", { rows })
+  return res.data
+}
+
+export const confirmConciliacion = async (payload: {
+  index: number; carnet: string; banco: string; recibo: string; monto: number; fechaPago?: string;
+}) => {
+  const res = await api.post("/conciliacion/confirm", payload)
+  return res.data
+}
+
+export const rejectConciliacion = async (payload: {
+  index: number; motivo: string;
+}) => {
+  const res = await api.post("/conciliacion/reject", payload)
+  return res.data
+}
+
+
+
+export const importConciliacion = async (file: File) => {
+  const form = new FormData()
+  form.append("file", file)
+  const res = await api.post("/conciliacion/import", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  })
+  return res.data // { ok, message, summary: { created, updated, skipped, errors } }
+}
+
+export const downloadConciliacionTemplate = async () => {
+  const res = await api.get("/conciliacion/template", { responseType: "blob" })
+  return res.data as Blob
+}
+
+export const exportConciliacionXlsx = async (params: {
+  from?: string; to?: string; bank?: string; status?: string
+}) => {
+  const res = await api.get("/conciliacion/export", { params, responseType: "blob" })
+  return res.data as Blob
+}
+
+// services/finance.ts
+export const getKardexConciliados = async (params: {
+  from?: string; to?: string; banco?: string;
+} = {}) => {
+  const res = await api.get("/conciliacion/conciliados-desde-kardex", { params })
+  return res.data
+}
