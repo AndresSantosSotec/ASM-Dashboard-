@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowUpDown, ArrowUp, ArrowDown, Download, Search, Filter } from "lucide-react"
 import { fetchProspectos, type ProspectoRow } from "@/services/estudiantes"
 import StudentAccountModal from "./StudentAccountModal"
@@ -14,6 +15,7 @@ import * as pdfGenerator from "@/lib/pdf-generator"
 
 type SortField = 'nombre' | 'monto_pagado' | 'balance' | 'fecha_pago'
 type SortOrder = 'asc' | 'desc'
+type PriorityMode = 'none' | 'balance' | 'pagado'
 
 export default function GestionEstadosCuenta() {
   const [q, setQ] = useState("")
@@ -35,10 +37,13 @@ export default function GestionEstadosCuenta() {
   const [maxBalance, setMaxBalance] = useState("")
   const [programa, setPrograma] = useState("all")
 
+  // NUEVO: Prioridad (balance/pagado) y filtro “solo > 0”
+  const [priority, setPriority] = useState<PriorityMode>('none')
+  const [onlyPositive, setOnlyPositive] = useState(false)
+
   const load = async () => {
     setLoading(true)
     try {
-      // build params dynamically and type as any to allow extra optional filters
       const params: any = {
         q: q.trim() || undefined,
         status: status === 'all' ? undefined : status,
@@ -53,25 +58,45 @@ export default function GestionEstadosCuenta() {
       if (maxBalance) params.max_balance = parseFloat(maxBalance)
 
       const { data, meta } = await fetchProspectos(params)
-      
-      setRows(data)
-      setTotal(meta?.total ?? data.length)
-      setTotalPages(Math.ceil((meta?.total ?? data.length) / perPage))
+
+      // === Post-proceso en cliente: prioridad y filtro de “solo > 0” ===
+      let processed = [...data]
+
+      if (priority === 'balance') {
+        if (onlyPositive) processed = processed.filter(e => Number(e.balance) > 0)
+        processed.sort((a, b) => Number(b.balance) - Number(a.balance))
+      } else if (priority === 'pagado') {
+        if (onlyPositive) processed = processed.filter(e => Number(e.monto_pagado) > 0)
+        processed.sort((a, b) => Number(b.monto_pagado) - Number(a.monto_pagado))
+      }
+      // Si priority === 'none', respetamos el orden que vino del backend (sortField/sortOrder)
+
+      setRows(processed)
+
+      // Si aplicamos “onlyPositive” con prioridad, el total visual debe reflejar lo mostrado
+      const baseTotal = meta?.total ?? data.length
+      const visualTotal = (priority !== 'none' && onlyPositive) ? processed.length : baseTotal
+      setTotal(visualTotal)
+      setTotalPages(Math.ceil(visualTotal / perPage))
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { 
+  // Cuando cambian filtros “globales”, resetea a página 1 y carga
+  useEffect(() => {
     setPage(1)
-    load() 
-  }, [q, status, sortField, sortOrder, perPage, minBalance, maxBalance, programa])
+    load()
+  }, [q, status, sortField, sortOrder, perPage, minBalance, maxBalance, programa, priority, onlyPositive])
 
-  useEffect(() => { 
-    load() 
+  // Cambios de página
+  useEffect(() => {
+    load()
   }, [page])
 
   const handleSort = (field: SortField) => {
+    // Si estamos priorizando, ignora clicks de sort para no confundir
+    if (priority !== 'none') return
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
     } else {
@@ -81,6 +106,7 @@ export default function GestionEstadosCuenta() {
   }
 
   const getSortIcon = (field: SortField) => {
+    if (priority !== 'none') return <ArrowUpDown className="w-4 h-4" />
     if (sortField !== field) return <ArrowUpDown className="w-4 h-4" />
     return sortOrder === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
   }
@@ -88,8 +114,6 @@ export default function GestionEstadosCuenta() {
   const handleGeneratePDF = async (prospecto: ProspectoRow) => {
     try {
       const gen: any = pdfGenerator as any
-
-      // Try a few possible export names to be resilient to how the module exports the generator
       if (typeof gen.generateAccountStatePDF === 'function') {
         await gen.generateAccountStatePDF(prospecto)
       } else if (typeof gen.generateStudentAccountPDF === 'function') {
@@ -114,6 +138,8 @@ export default function GestionEstadosCuenta() {
     setMaxBalance("")
     setSortField('monto_pagado')
     setSortOrder('desc')
+    setPriority('none')
+    setOnlyPositive(false)
     setPage(1)
   }
 
@@ -121,78 +147,35 @@ export default function GestionEstadosCuenta() {
     const startPage = Math.max(1, page - 2)
     const endPage = Math.min(totalPages, page + 2)
     const pages = []
-
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(i)
-    }
+    for (let i = startPage; i <= endPage; i++) pages.push(i)
 
     return (
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
           Mostrando {((page - 1) * perPage) + 1} - {Math.min(page * perPage, total)} de {total} resultados
         </div>
-        
         <div className="flex items-center space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage(1)}
-            disabled={page <= 1 || loading}
-          >
-            Primera
-          </Button>
-          
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page <= 1 || loading}
-          >
-            Anterior
-          </Button>
-
+          <Button variant="outline" size="sm" onClick={() => setPage(1)} disabled={page <= 1 || loading}>Primera</Button>
+          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1 || loading}>Anterior</Button>
           {startPage > 1 && (
             <>
               <Button variant="outline" size="sm" onClick={() => setPage(1)}>1</Button>
               {startPage > 2 && <span className="px-2">...</span>}
             </>
           )}
-
           {pages.map(p => (
-            <Button
-              key={p}
-              variant={p === page ? "default" : "outline"}
-              size="sm"
-              onClick={() => setPage(p)}
-            >
+            <Button key={p} variant={p === page ? "default" : "outline"} size="sm" onClick={() => setPage(p)}>
               {p}
             </Button>
           ))}
-
           {endPage < totalPages && (
             <>
               {endPage < totalPages - 1 && <span className="px-2">...</span>}
               <Button variant="outline" size="sm" onClick={() => setPage(totalPages)}>{totalPages}</Button>
             </>
           )}
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages || loading}
-          >
-            Siguiente
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage(totalPages)}
-            disabled={page >= totalPages || loading}
-          >
-            Última
-          </Button>
+          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages || loading}>Siguiente</Button>
+          <Button variant="outline" size="sm" onClick={() => setPage(totalPages)} disabled={page >= totalPages || loading}>Última</Button>
         </div>
       </div>
     )
@@ -207,7 +190,7 @@ export default function GestionEstadosCuenta() {
             <Badge variant="secondary">{total} estudiantes</Badge>
           </CardTitle>
         </CardHeader>
-        
+
         <CardContent className="space-y-4">
           {/* Filtros principales */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -232,18 +215,24 @@ export default function GestionEstadosCuenta() {
               </SelectContent>
             </Select>
 
-            <Select value={programa} onValueChange={setPrograma}>
-              <SelectTrigger>
-                <SelectValue placeholder="Programa" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los programas</SelectItem>
-                <SelectItem value="bba">Bachelor of Business Administration</SelectItem>
-                <SelectItem value="ingenieria">Ingeniería</SelectItem>
-                <SelectItem value="medicina">Medicina</SelectItem>
-                {/* Agregar más programas según necesites */}
-              </SelectContent>
-            </Select>
+            {/* NUEVO: Prioridad + Solo > 0 */}
+            <div className="flex items-center gap-2">
+              <Select value={priority} onValueChange={(v: PriorityMode) => setPriority(v)}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Priorizar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin prioridad</SelectItem>
+                  <SelectItem value="pagado">Priorizar Pagado</SelectItem>
+                  <SelectItem value="balance">Priorizar Balance</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="flex items-center gap-2">
+                <Checkbox id="onlyPositive" checked={onlyPositive} onCheckedChange={(v) => setOnlyPositive(Boolean(v))} />
+                <label htmlFor="onlyPositive" className="text-sm text-muted-foreground">Solo &gt; 0</label>
+              </div>
+            </div>
 
             <div className="flex items-center gap-2">
               <Select value={String(perPage)} onValueChange={(v) => setPerPage(Number(v))}>
@@ -257,7 +246,7 @@ export default function GestionEstadosCuenta() {
                   <SelectItem value="100">100 filas</SelectItem>
                 </SelectContent>
               </Select>
-              
+
               <Button variant="outline" size="sm" onClick={clearFilters}>
                 <Filter className="w-4 h-4 mr-1" />
                 Limpiar
@@ -368,13 +357,9 @@ export default function GestionEstadosCuenta() {
                       </TableCell>
                       <TableCell>
                         {r.bloqueado ? (
-                          <Badge variant="destructive" className="text-xs">
-                            Bloqueado
-                          </Badge>
+                          <Badge variant="destructive" className="text-xs">Bloqueado</Badge>
                         ) : (
-                          <Badge className="bg-green-500 hover:bg-green-600 text-xs">
-                            Al día
-                          </Badge>
+                          <Badge className="bg-green-500 hover:bg-green-600 text-xs">Al día</Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
