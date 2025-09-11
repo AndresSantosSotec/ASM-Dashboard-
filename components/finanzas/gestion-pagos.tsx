@@ -80,8 +80,15 @@ export function GestionPagos() {
     }
 
     const late = await fetchLatePayments(latePaymentsParams)
-    setLatePayments(late.data)
-    setTotalRows(late.meta?.total || late.data.length)
+    // Normalize rows so they conform to LatePaymentStudent (ensure lastContact is string | null)
+    const normalizedLate = Array.isArray(late.data)
+      ? late.data.map((r: any) => ({
+          ...r,
+          lastContact: r.lastContact ?? null,
+        }))
+      : []
+    setLatePayments(normalizedLate as LatePaymentStudent[])
+    setTotalRows(late.meta?.total || (Array.isArray(late.data) ? late.data.length : 0))
   }
 
   const loadOthers = async () => {
@@ -162,12 +169,12 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
       try {
         const snap = await fetchStudentSnapshot(student.id)
         prospectoId =
-          Number(
-            snap?.prospecto_id ??
-            snap?.ep?.prospecto?.id ??
-            snap?.prospectId ??
-            snap?.prospectoId
-          ) || undefined
+            Number(
+              (snap as any)?.prospecto_id ??
+              snap?.ep?.prospecto?.id ??
+              snap?.prospectId ??
+              snap?.prospectoId
+            ) || undefined
       } catch (e) {
         console.warn("No se pudo resolver prospecto desde snapshot:", e)
       }
@@ -315,14 +322,6 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Gestión de Pagos</h2>
           <p className="text-muted-foreground">Dashboard para contactar y enviar recordatorios de pagos</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline">
-            <Download className="mr-2 h-4 w-4" /> Exportar Listado
-          </Button>
-          <Button>
-            <Mail className="mr-2 h-4 w-4" /> Enviar Recordatorios
-          </Button>
         </div>
       </div>
 
