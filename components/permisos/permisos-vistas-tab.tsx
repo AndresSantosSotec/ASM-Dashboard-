@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "@/utils/apiConfig";
 import Swal from "sweetalert2";
@@ -33,7 +33,6 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 
-// Interfaces actualizadas para incluir más datos del usuario
 interface Usuario {
   id: string;
   nombre: string;
@@ -65,27 +64,25 @@ interface ModuleView {
 }
 
 export default function PermisosVistasTab() {
-  // Estados para usuarios y permisos
   const [selectedUsuario, setSelectedUsuario] = useState<string | null>(null);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [userSearch, setUserSearch] = useState<string>(""); // filtro de usuarios
   const [modules, setModules] = useState<Module[]>([]);
   const [selectedModule, setSelectedModule] = useState<string>("todos");
-  const [selectedPermisos, setSelectedPermisos] = useState<number[]>([]);
+  const [selectedPermisos, setSelectedPermisos] = useState<number[]>([]); // siempre moduleview_id
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedModules, setExpandedModules] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  // Cargar usuarios desde la API
   useEffect(() => {
     const fetchUsuarios = async () => {
       try {
         const response = await axios.get(`${API_BASE_URL}/api/users`);
-        console.log("Respuesta de usuarios:", response.data);
-        // Si la respuesta viene en response.data.data, ajusta aquí
-        const usuariosTransformados = response.data.map((user: any) => ({
+        const usuariosRaw = Array.isArray(response.data) ? response.data : response.data?.data ?? [];
+        const usuariosTransformados = usuariosRaw.map((user: any) => ({
           id: String(user.id),
-          nombre: user.username,
+          nombre: user.username ?? `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim(),
           email: user.email,
           first_name: user.first_name,
           last_name: user.last_name,
@@ -94,25 +91,23 @@ export default function PermisosVistasTab() {
         setUsuarios(usuariosTransformados);
       } catch (error) {
         console.error("Error al obtener usuarios:", error);
+        Swal.fire("Error", "No se pudieron cargar los usuarios.", "error");
       }
     };
     fetchUsuarios();
   }, []);
 
-  // Cargar módulos y sus vistas
   useEffect(() => {
     const fetchModulesWithViews = async () => {
       try {
-          const modulesRes = await axios.get(`${API_BASE_URL}/api/modules`);
-        const modulesData: Module[] = modulesRes.data;
+        const modulesRes = await axios.get(`${API_BASE_URL}/api/modules`);
+        const modulesRaw = Array.isArray(modulesRes.data) ? modulesRes.data : modulesRes.data?.data ?? [];
         const modulesWithViews = await Promise.all(
-          modulesData.map(async (module) => {
+          modulesRaw.map(async (module: any) => {
             try {
-                const viewsRes = await axios.get(
-                  `${API_BASE_URL}/api/modules/${module.id}/views`
-                );
-              const views: ModuleView[] = viewsRes.data.data;
-              return { ...module, views };
+              const viewsRes = await axios.get(`${API_BASE_URL}/api/modules/${module.id}/views`);
+              const viewsRaw = Array.isArray(viewsRes.data) ? viewsRes.data : viewsRes.data?.data ?? [];
+              return { ...module, views: viewsRaw as ModuleView[] };
             } catch (error) {
               console.error(`Error al obtener vistas del módulo ${module.id}:`, error);
               return { ...module, views: [] };
@@ -122,33 +117,57 @@ export default function PermisosVistasTab() {
         setModules(modulesWithViews);
       } catch (error) {
         console.error("Error al obtener módulos:", error);
+        Swal.fire("Error", "No se pudieron cargar los módulos.", "error");
       }
     };
     fetchModulesWithViews();
   }, []);
 
-  // Opciones para el selector de módulos
   const moduleOptions = ["todos", ...modules.map((m) => m.name)];
-  const filteredModules =
-    selectedModule === "todos" ? modules : modules.filter((m) => m.name === selectedModule);
+  const filteredModules = selectedModule === "todos" ? modules : modules.filter((m) => m.name === selectedModule);
 
-  // Cuando se selecciona un usuario, cargar sus permisos asignados
+  // Filtro de usuarios por nombre, correo o cargo
+  const filteredUsuarios = useMemo(() => {
+    const q = userSearch.trim().toLowerCase();
+    if (!q) return usuarios;
+    return usuarios.filter((u) => {
+      const fullName = `${u.first_name ?? ""} ${u.last_name ?? ""} ${u.nombre ?? ""}`.toLowerCase();
+      return (
+        fullName.includes(q) ||
+        (u.email ?? "").toLowerCase().includes(q) ||
+        (u.cargo ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [usuarios, userSearch]);
+
   useEffect(() => {
     const fetchUserPermissions = async () => {
       if (!selectedUsuario) return;
       setIsLoading(true);
       try {
-          const response = await axios.get(
-            `${API_BASE_URL}/api/userpermissions?user_id=${selectedUsuario}`
-          );
-        if (response.data.success) {
-          const permisosIds = response.data.data.map((perm: any) => perm.permission_id);
-          setSelectedPermisos(permisosIds);
+        const response = await axios.get(
+          `${API_BASE_URL}/api/userpermissions?user_id=${selectedUsuario}`
+        );
+        if (response.data?.success) {
+          const rows: any[] = Array.isArray(response.data.data) ? response.data.data : [];
+          const moduleViewIds = rows
+            .map((row) => {
+              return (
+                row?.permission?.module_view?.id ??
+                row?.permission?.moduleView?.id ??
+                row?.permission?.module_view_id ??
+                null
+              );
+            })
+            .filter((id: any) => typeof id === "number");
+          setSelectedPermisos(moduleViewIds as number[]);
         } else {
           setSelectedPermisos([]);
         }
       } catch (error) {
         console.error("Error al cargar permisos del usuario:", error);
+        Swal.fire("Error", "No se pudieron cargar los permisos del usuario.", "error");
+        setSelectedPermisos([]);
       } finally {
         setIsLoading(false);
       }
@@ -156,14 +175,13 @@ export default function PermisosVistasTab() {
     fetchUserPermissions();
   }, [selectedUsuario]);
 
-  // Manejo de selección/deselección de vistas
   const handleTogglePermiso = (id: number) => {
     setSelectedPermisos((prev) =>
       prev.includes(id) ? prev.filter((permId) => permId !== id) : [...prev, id]
     );
   };
 
-  const handleSelectAllModule = (moduleId: number, views: ModuleView[], checked: boolean) => {
+  const handleSelectAllModule = (moduleId: number, views: ModuleView[] = [], checked: boolean) => {
     const viewsIds = views.map((v) => v.id);
     if (checked) {
       setSelectedPermisos((prev) => [...new Set([...prev, ...viewsIds])]);
@@ -178,7 +196,6 @@ export default function PermisosVistasTab() {
     );
   };
 
-  // Guardar permisos y mostrar feedback con SweetAlert
   const handleSavePermisos = async () => {
     if (!selectedUsuario) {
       Swal.fire("Error", "No hay usuario seleccionado para guardar permisos", "error");
@@ -187,33 +204,40 @@ export default function PermisosVistasTab() {
     setIsSaving(true);
     try {
       const payload = {
-        user_id: selectedUsuario,
-        permissions: selectedPermisos,
+        user_id: Number(selectedUsuario),
+        permissions: selectedPermisos, // siempre moduleview_id
       };
-      const response = await axios.post(
-        `${API_BASE_URL}/api/userpermissions`,
-        payload
-      );
-      if (response.data.success) {
+      const response = await axios.post(`${API_BASE_URL}/api/userpermissions`, payload);
+      if (response.data?.success) {
         Swal.fire("Éxito", "Permisos actualizados correctamente", "success");
       } else {
-        Swal.fire("Error", response.data.message || "Error desconocido", "error");
+        Swal.fire("Error", response.data?.message || "Error desconocido", "error");
       }
     } catch (error: any) {
       console.error("Error al guardar permisos:", error);
-      Swal.fire("Error", "Ocurrió un error al guardar los permisos", "error");
+      if (axios.isAxiosError(error) && error.response?.status === 422) {
+        const errors = error.response.data?.errors;
+        const messages =
+          typeof errors === "object"
+            ? Object.values(errors).flat().join("\n")
+            : error.response.data?.message || "Datos inválidos";
+        Swal.fire("Validación", messages, "warning");
+      } else {
+        Swal.fire("Error", "Ocurrió un error al guardar los permisos", "error");
+      }
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Renderizado de vistas para cada módulo
   const renderModuleViews = (module: Module) => {
     if (!module.views || module.views.length === 0) return null;
-    const filteredViews = module.views.filter((view) =>
-      view.menu.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (view.submenu && view.submenu.toLowerCase().includes(searchTerm.toLowerCase()))
+    const filteredViews = module.views.filter(
+      (view) =>
+        view.menu.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (view.submenu && view.submenu.toLowerCase().includes(searchTerm.toLowerCase()))
     );
+    const allChecked = module.views.every((v) => selectedPermisos.includes(v.id));
     return (
       <>
         <div
@@ -224,7 +248,7 @@ export default function PermisosVistasTab() {
             <Checkbox
               id={`module-${module.id}-select-all`}
               className="border-white data-[state=checked]:bg-white data-[state=checked]:text-blue-600"
-              checked={module.views.every((v) => selectedPermisos.includes(v.id))}
+              checked={allChecked}
               onCheckedChange={(checked) => handleSelectAllModule(module.id, module.views!, !!checked)}
               onClick={(e) => e.stopPropagation()}
             />
@@ -239,7 +263,7 @@ export default function PermisosVistasTab() {
             <Table>
               <TableHeader className="bg-gray-100">
                 <TableRow>
-                  <TableHead className="w-[50px]">{/* Columna de selección */}</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
                   <TableHead className="w-[50px]">#</TableHead>
                   <TableHead>Menú</TableHead>
                   <TableHead>Submenú</TableHead>
@@ -277,7 +301,6 @@ export default function PermisosVistasTab() {
 
   return (
     <div className="space-y-6">
-      {/* Información de usuario */}
       <Card>
         <CardHeader>
           <CardTitle>Información de usuario</CardTitle>
@@ -286,18 +309,31 @@ export default function PermisosVistasTab() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-sm text-muted-foreground">Nombre de usuario</label>
-              <Select value={selectedUsuario || ""} onValueChange={setSelectedUsuario}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Seleccionar usuario" />
-                </SelectTrigger>
-                <SelectContent>
-                  {usuarios.map((usuario) => (
-                    <SelectItem key={usuario.id} value={usuario.id}>
-                      {usuario.nombre} - {usuario.cargo}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex flex-col gap-2 mt-1">
+                {/* Buscador de usuarios */}
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar usuario por nombre, correo o cargo..."
+                    className="pl-8"
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                  />
+                </div>
+                {/* Selector de usuario filtrado */}
+                <Select value={selectedUsuario || ""} onValueChange={setSelectedUsuario}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar usuario" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredUsuarios.map((usuario) => (
+                      <SelectItem key={usuario.id} value={usuario.id}>
+                        {usuario.nombre} - {usuario.cargo} ({usuario.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             {selectedUsuario && (
               <div className="space-y-1">
@@ -308,8 +344,7 @@ export default function PermisosVistasTab() {
                   {usuarios.find((u) => u.id === selectedUsuario)?.last_name}
                 </p>
                 <p className="text-sm">
-                  <strong>Correo:</strong>{" "}
-                  {usuarios.find((u) => u.id === selectedUsuario)?.email}
+                  <strong>Correo:</strong> {usuarios.find((u) => u.id === selectedUsuario)?.email}
                 </p>
               </div>
             )}
@@ -324,7 +359,6 @@ export default function PermisosVistasTab() {
         </CardContent>
       </Card>
 
-      {/* Permisos (módulos y vistas) */}
       <Card>
         <CardHeader>
           <CardTitle>Permisos disponibles</CardTitle>
@@ -344,7 +378,7 @@ export default function PermisosVistasTab() {
             <div className="flex items-center space-x-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
               <Select value={selectedModule} onValueChange={setSelectedModule}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[220px]">
                   <SelectValue placeholder="Filtrar por módulo" />
                 </SelectTrigger>
                 <SelectContent>

@@ -33,21 +33,6 @@ const usuarioSchema = z.object({
 
 type Usuario = z.infer<typeof usuarioSchema>
 
-// Datos de ejemplo (mientras se obtienen los datos reales)
-const initialUsuarios = [
-  {
-    id: 1,
-    username: "juanperez",
-    email: "juan.perez@ejemplo.com",
-    rol: "Administrador",
-    is_active: false,
-    last_login: "2023-05-15 10:30",
-    first_name: "Juan",
-    last_name: "Pérez",
-    created_at: "2023-05-15T10:30:00Z",
-  },
-]
-
 export default function GestionUsuarios() {
   // Estados para usuarios, roles y filtros
   const [usuarios, setUsuarios] = useState<any[]>([])
@@ -102,12 +87,16 @@ export default function GestionUsuarios() {
     },
   })
 
+  // Util: extrae siempre la lista desde .data o .data.data
+  const getPayload = (res: any) => (Array.isArray(res?.data) ? res.data : res?.data?.data ?? res?.data ?? [])
+
   // Obtener roles desde la API
   useEffect(() => {
     const fetchRoles = async () => {
       try {
         const response = await axios.get(`${API_BASE_URL}/api/roles`)
-        setRoles(response.data)
+        const rolesData = getPayload(response)
+        setRoles(Array.isArray(rolesData) ? rolesData : [])
       } catch (error) {
         console.error("Error fetching roles:", error)
       }
@@ -120,7 +109,8 @@ export default function GestionUsuarios() {
     const fetchUsuarios = async () => {
       try {
         const response = await axios.get(`${API_BASE_URL}/api/users`)
-        setUsuarios(response.data)
+        const usersData = getPayload(response)
+        setUsuarios(Array.isArray(usersData) ? usersData : [])
       } catch (error) {
         console.error("Error fetching users:", error)
       }
@@ -128,30 +118,35 @@ export default function GestionUsuarios() {
     fetchUsuarios()
   }, [])
 
-  // Filtrar usuarios con múltiples criterios
+  // Filtrar usuarios con múltiples criterios (con defaults seguros)
   const filteredUsuarios = usuarios.filter((usuario) => {
-    const matchesSearch =
-      usuario.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      usuario.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      usuario.rol.toLowerCase().includes(searchTerm.toLowerCase())
+    const uname = String(usuario?.username ?? "").toLowerCase()
+    const email = String(usuario?.email ?? "").toLowerCase()
+    const role = String(usuario?.rol ?? usuario?.role ?? "").toLowerCase()
+    const search = searchTerm.toLowerCase()
 
-    const fullName = `${usuario.first_name || ""} ${usuario.last_name || ""}`.trim().toLowerCase()
+    const matchesSearch =
+      uname.includes(search) ||
+      email.includes(search) ||
+      role.includes(search)
+
+    const fullName = `${usuario?.first_name ?? ""} ${usuario?.last_name ?? ""}`.trim().toLowerCase()
     const matchesFullName = fullName.includes(fullNameFilter.toLowerCase())
 
     const matchesTab =
       activeTab === "todos" ||
-      (activeTab === "activos" && usuario.is_active) ||
-      (activeTab === "inactivos" && !usuario.is_active)
+      (activeTab === "activos" && Boolean(usuario?.is_active)) ||
+      (activeTab === "inactivos" && !Boolean(usuario?.is_active))
 
+    const roleFilterLower = roleFilter.toLowerCase()
     const matchesRole =
-      roleFilter === "todos" ||
-      usuario.rol.toLowerCase() === roleFilter.toLowerCase()
+      roleFilterLower === "todos" || role === roleFilterLower
 
     let matchesDate = true
-    if (startDate && usuario.created_at) {
+    if (startDate && usuario?.created_at) {
       matchesDate = matchesDate && new Date(usuario.created_at) >= new Date(startDate)
     }
-    if (endDate && usuario.created_at) {
+    if (endDate && usuario?.created_at) {
       matchesDate = matchesDate && new Date(usuario.created_at) <= new Date(endDate)
     }
 
@@ -172,7 +167,9 @@ export default function GestionUsuarios() {
   const handleUserSubmit = async (data: Usuario) => {
     try {
       const response = await axios.post(`${API_BASE_URL}/api/users`, data)
-      setUsuarios((prev) => [...prev, response.data])
+      // Agrega solo el usuario creado, no el wrapper completo
+      const createdUser = response?.data?.data ?? response?.data
+      setUsuarios((prev) => [...prev, createdUser])
       setIsUserDialogOpen(false)
       userForm.reset()
       Swal.fire({
@@ -186,7 +183,7 @@ export default function GestionUsuarios() {
       if (error.response && error.response.data) {
         if (error.response.data.errors) {
           errorMessage = Object.entries(error.response.data.errors)
-            .map(([field, messages]: [string, any]) => `${field}: ${messages.join(", ")}`)
+            .map(([field, messages]: [string, any]) => `${field}: ${Array.isArray(messages) ? messages.join(", ") : messages}`)
             .join("\n")
         } else if (error.response.data.message) {
           errorMessage = error.response.data.message
@@ -204,15 +201,15 @@ export default function GestionUsuarios() {
   const handleEditUser = (usuario: any) => {
     setSelectedUser(usuario)
     editForm.reset({
-      username: usuario.username,
-      email: usuario.email,
+      username: usuario?.username ?? "",
+      email: usuario?.email ?? "",
       password: "", // Dejar vacío para no cambiar la contraseña
-      first_name: usuario.first_name || "",
-      last_name: usuario.last_name || "",
-      rol: usuario.rol_id ? usuario.rol_id.toString() : "",
-      is_active: usuario.is_active,
-      email_verified: usuario.email_verified,
-      mfa_enabled: usuario.mfa_enabled,
+      first_name: usuario?.first_name ?? "",
+      last_name: usuario?.last_name ?? "",
+      rol: (usuario?.rol_id ?? usuario?.rol ?? "").toString(),
+      is_active: Boolean(usuario?.is_active),
+      email_verified: Boolean(usuario?.email_verified),
+      mfa_enabled: Boolean(usuario?.mfa_enabled),
     })
     setIsEditDialogOpen(true)
   }
@@ -222,22 +219,23 @@ export default function GestionUsuarios() {
     if (!selectedUser) return
     try {
       const response = await axios.put(`${API_BASE_URL}/api/users/${selectedUser.id}`, data)
+      const updatedUser = response?.data?.data ?? response?.data
       setUsuarios((prev) =>
-        prev.map((u) => (u.id === selectedUser.id ? response.data : u))
+        prev.map((u) => (u.id === selectedUser.id ? updatedUser : u))
       )
       setIsEditDialogOpen(false)
       Swal.fire({
         icon: "success",
         title: "Usuario actualizado",
         text: "El usuario se ha actualizado correctamente.",
-      }).then(() => window.location.reload())
+      })
     } catch (error: any) {
       console.error("Error editing user:", error)
       let errorMessage = "Ocurrió un error al actualizar el usuario."
       if (error.response && error.response.data) {
         if (error.response.data.errors) {
           errorMessage = Object.entries(error.response.data.errors)
-            .map(([field, messages]: [string, any]) => `${field}: ${messages.join(", ")}`)
+            .map(([field, messages]: [string, any]) => `${field}: ${Array.isArray(messages) ? messages.join(", ") : messages}`)
             .join("\n")
         } else if (error.response.data.message) {
           errorMessage = error.response.data.message
@@ -267,21 +265,20 @@ export default function GestionUsuarios() {
         try {
           const updatedData = { is_active: false }
           const response = await axios.put(`${API_BASE_URL}/api/users/${usuario.id}`, updatedData)
-          setUsuarios((prev) =>
-            prev.map((u) => (u.id === usuario.id ? response.data : u))
-          )
+          const updatedUser = response?.data?.data ?? response?.data
+          setUsuarios((prev) => prev.map((u) => (u.id === usuario.id ? updatedUser : u)))
           Swal.fire({
             icon: "success",
             title: "Usuario inactivado",
             text: "El usuario ha sido marcado como inactivo.",
-          }).then(() => window.location.reload())
+          })
         } catch (error: any) {
           console.error("Error inactivating user:", error)
           let errorMessage = "Ocurrió un error al inactivar el usuario."
           if (error.response && error.response.data) {
             if (error.response.data.errors) {
               errorMessage = Object.entries(error.response.data.errors)
-                .map(([field, messages]: [string, any]) => `${field}: ${messages.join(", ")}`)
+                .map(([field, messages]: [string, any]) => `${field}: ${Array.isArray(messages) ? messages.join(", ") : messages}`)
                 .join("\n")
             } else if (error.response.data.message) {
               errorMessage = error.response.data.message
@@ -307,21 +304,20 @@ export default function GestionUsuarios() {
       if (result.isConfirmed) {
         try {
           const response = await axios.put(`${API_BASE_URL}/api/users/${usuario.id}`, { is_active: true })
-          setUsuarios((prev) =>
-            prev.map((u) => (u.id === usuario.id ? response.data : u))
-          )
+          const updatedUser = response?.data?.data ?? response?.data
+          setUsuarios((prev) => prev.map((u) => (u.id === usuario.id ? updatedUser : u)))
           Swal.fire({
             icon: "success",
             title: "Usuario reactivado",
             text: "El usuario ha sido reactivado correctamente.",
-          }).then(() => window.location.reload())
+          })
         } catch (error: any) {
           console.error("Error reactivating user:", error)
           let errorMessage = "Ocurrió un error al reactivar el usuario."
           if (error.response && error.response.data) {
             if (error.response.data.errors) {
               errorMessage = Object.entries(error.response.data.errors)
-                .map(([field, messages]: [string, any]) => `${field}: ${messages.join(", ")}`)
+                .map(([field, messages]: [string, any]) => `${field}: ${Array.isArray(messages) ? messages.join(", ") : messages}`)
                 .join("\n")
             } else if (error.response.data.message) {
               errorMessage = error.response.data.message
@@ -371,18 +367,22 @@ export default function GestionUsuarios() {
             })
           )
         )
+        // Refresca lista
+        const response = await axios.get(`${API_BASE_URL}/api/users`)
+        const usersData = getPayload(response)
+        setUsuarios(Array.isArray(usersData) ? usersData : [])
         Swal.fire({
           icon: "success",
           title: action === "inactivate" ? "Usuarios inactivados" : "Usuarios reactivados",
           text: `Los usuarios seleccionados han sido ${action === "inactivate" ? "inactivados" : "reactivados"} correctamente.`,
-        }).then(() => window.location.reload())
+        })
       } catch (error: any) {
         console.error("Error en acción masiva:", error)
         let errorMessage = "Ocurrió un error al realizar la acción masiva."
         if (error.response && error.response.data) {
           if (error.response.data.errors) {
             errorMessage = Object.entries(error.response.data.errors)
-              .map(([field, messages]: [string, any]) => `${field}: ${messages.join(", ")}`)
+              .map(([field, messages]: [string, any]) => `${field}: ${Array.isArray(messages) ? messages.join(", ") : messages}`)
               .join("\n")
           } else if (error.response.data.message) {
             errorMessage = error.response.data.message
@@ -439,7 +439,7 @@ export default function GestionUsuarios() {
                 <Shield className="h-8 w-8 text-green-600 mr-3" />
                 <div>
                   <p className="text-sm text-gray-500">Usuarios Activos</p>
-                  <p className="text-2xl font-bold">{usuarios.filter((u) => u.is_active).length}</p>
+                  <p className="text-2xl font-bold">{usuarios.filter((u) => Boolean(u?.is_active)).length}</p>
                 </div>
               </div>
             </div>
@@ -448,7 +448,7 @@ export default function GestionUsuarios() {
                 <Shield className="h-8 w-8 text-red-600 mr-3" />
                 <div>
                   <p className="text-sm text-gray-500">Usuarios Inactivos</p>
-                  <p className="text-2xl font-bold">{usuarios.filter((u) => !u.is_active).length}</p>
+                  <p className="text-2xl font-bold">{usuarios.filter((u) => !Boolean(u?.is_active)).length}</p>
                 </div>
               </div>
             </div>
@@ -457,7 +457,7 @@ export default function GestionUsuarios() {
                 <Shield className="h-8 w-8 text-purple-600 mr-3" />
                 <div>
                   <p className="text-sm text-gray-500">Roles Asignados</p>
-                  <p className="text-2xl font-bold">{new Set(usuarios.map((u) => u.rol)).size}</p>
+                  <p className="text-2xl font-bold">{new Set(usuarios.map((u) => String(u?.rol ?? u?.role ?? ""))).size}</p>
                 </div>
               </div>
             </div>
@@ -468,13 +468,16 @@ export default function GestionUsuarios() {
       {/* Filtros y configuración */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
         <div className="flex items-center gap-4">
-          <Input
-            type="search"
-            placeholder="Buscar usuarios..."
-            className="pl-8 w-[300px]"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+          <div className="relative">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Buscar usuarios..."
+              className="pl-8 w-[300px]"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
           <Input
             type="text"
             placeholder="Buscar por nombre completo..."
@@ -489,8 +492,8 @@ export default function GestionUsuarios() {
             <SelectContent>
               <SelectItem value="todos">Todos</SelectItem>
               {roles.map((role) => (
-                <SelectItem key={role.id} value={role.name}>
-                  {role.name}
+                <SelectItem key={role.id} value={String(role.name ?? role.slug ?? role.id)}>
+                  {role.name ?? role.slug ?? role.id}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -573,20 +576,20 @@ export default function GestionUsuarios() {
                       checked={selectedUserIds.includes(usuario.id)}
                     />
                   </TableCell>
-                  <TableCell className="font-medium">{usuario.username}</TableCell>
-                  <TableCell>{usuario.email}</TableCell>
-                  <TableCell>{usuario.rol}</TableCell>
+                  <TableCell className="font-medium">{usuario?.username ?? ""}</TableCell>
+                  <TableCell>{usuario?.email ?? ""}</TableCell>
+                  <TableCell>{usuario?.rol ?? usuario?.role ?? ""}</TableCell>
                   <TableCell>
-                    <Badge variant={usuario.is_active ? "default" : "destructive"}>
-                      {usuario.is_active ? "Activo" : "Inactivo"}
+                    <Badge variant={usuario?.is_active ? "default" : "destructive"}>
+                      {usuario?.is_active ? "Activo" : "Inactivo"}
                     </Badge>
                   </TableCell>
-                  <TableCell>{usuario.last_login || "N/A"}</TableCell>
+                  <TableCell>{usuario?.last_login || "N/A"}</TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon" onClick={() => handleEditUser(usuario)}>
                       <Edit className="h-4 w-4" />
                     </Button>
-                    {usuario.is_active ? (
+                    {usuario?.is_active ? (
                       <Button variant="ghost" size="icon" onClick={() => handleToggleActiveUser(usuario)}>
                         <XCircle className="h-4 w-4 text-red-600" />
                       </Button>
@@ -711,8 +714,8 @@ export default function GestionUsuarios() {
                         </SelectTrigger>
                         <SelectContent>
                           {roles.map((role) => (
-                            <SelectItem key={role.id} value={role.id.toString()}>
-                              {role.name}
+                            <SelectItem key={role.id} value={String(role.id)}>
+                              {role.name ?? role.slug ?? role.id}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -826,8 +829,8 @@ export default function GestionUsuarios() {
                         </SelectTrigger>
                         <SelectContent>
                           {roles.map((role) => (
-                            <SelectItem key={role.id} value={role.id.toString()}>
-                              {role.name}
+                            <SelectItem key={role.id} value={String(role.id)}>
+                              {role.name ?? role.slug ?? role.id}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -844,7 +847,7 @@ export default function GestionUsuarios() {
                 </Button>
                 {/* Si el usuario está inactivo se muestra botón para reactivar, de lo contrario el de actualizar */}
                 {!selectedUser?.is_active ? (
-                  <Button type="button" className="bg-green-600 hover:bg-green-700" onClick={() => handleReactivateUser(selectedUser)}>
+                  <Button type="button" className="bg-green-600 hover:bg-green-700" onClick={() => handleToggleActiveUser({ ...selectedUser, is_active: false })}>
                     <CheckCircle className="mr-2 h-4 w-4" />
                     Reactivar Usuario
                   </Button>
@@ -861,111 +864,4 @@ export default function GestionUsuarios() {
       </Dialog>
     </div>
   )
-}
-
-// Función para inactivar o reactivar un usuario individual
-const handleToggleActiveUser = async (usuario: any) => {
-  if (usuario.is_active) {
-    // Inactivar usuario
-    const result = await Swal.fire({
-      icon: "warning",
-      title: "¿Inactivar usuario?",
-      text: "¿Estás seguro de que deseas inactivar este usuario?",
-      showCancelButton: true,
-      confirmButtonText: "Sí, inactivar",
-      cancelButtonText: "Cancelar"
-    })
-    if (result.isConfirmed) {
-      try {
-        const updatedData = { is_active: false }
-        const response = await axios.put(`${API_BASE_URL}/api/users/${usuario.id}`, updatedData)
-        window.location.reload()
-      } catch (error: any) {
-        console.error("Error inactivating user:", error)
-        let errorMessage = "Ocurrió un error al inactivar el usuario."
-        if (error.response && error.response.data) {
-          if (error.response.data.errors) {
-            errorMessage = Object.entries(error.response.data.errors)
-              .map(([field, messages]: [string, any]) => `${field}: ${messages.join(", ")}`)
-              .join("\n")
-          } else if (error.response.data.message) {
-            errorMessage = error.response.data.message
-          }
-        }
-        Swal.fire({
-          icon: "error",
-          title: "Error",
-          text: errorMessage,
-        })
-      }
-    }
-  } else {
-    // Reactivar usuario
-    const result = await Swal.fire({
-      icon: "question",
-      title: "¿Reactivar usuario?",
-      text: "¿Estás seguro de que deseas reactivar este usuario?",
-      showCancelButton: true,
-      confirmButtonText: "Sí, reactivar",
-      cancelButtonText: "Cancelar"
-    })
-    if (result.isConfirmed) {
-      try {
-        const response = await axios.put(`${API_BASE_URL}/api/users/${usuario.id}`, { is_active: true })
-        window.location.reload()
-      } catch (error: any) {
-        console.error("Error reactivating user:", error)
-        let errorMessage = "Ocurrió un error al reactivar el usuario."
-        if (error.response && error.response.data) {
-          if (error.response.data.errors) {
-            errorMessage = Object.entries(error.response.data.errors)
-              .map(([field, messages]: [string, any]) => `${field}: ${messages.join(", ")}`)
-              .join("\n")
-          } else if (error.response.data.message) {
-            errorMessage = error.response.data.message
-          }
-        }
-        Swal.fire({
-          icon: "error",
-          title: "Error",
-          text: errorMessage,
-        })
-      }
-    }
-  }
-}
-
-// Función para reactivar un usuario (desde el modal de edición)
-const handleReactivateUser = async (usuario: any) => {
-  const result = await Swal.fire({
-    icon: "question",
-    title: "¿Reactivar usuario?",
-    text: "¿Estás seguro de que deseas reactivar este usuario?",
-    showCancelButton: true,
-    confirmButtonText: "Sí, reactivar",
-    cancelButtonText: "Cancelar"
-  })
-  if (result.isConfirmed) {
-    try {
-      const response = await axios.put(`${API_BASE_URL}/api/users/${usuario.id}`, { is_active: true })
-      window.location.reload()
-    } catch (error: any) {
-      console.error("Error reactivating user:", error)
-      let errorMessage = "Ocurrió un error al reactivar el usuario."
-      if (error.response && error.response.data) {
-        if (error.response.data.errors) {
-          errorMessage = Object.entries(error.response.data.errors)
-            .map(([field, messages]: [string, any]) => `${field}: ${messages.join(", ")}`)
-            .join("\n")
-        } else if (error.response.data.message) {
-          errorMessage = error.response.data.message
-        }
-      }
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: errorMessage,
-      })
-    }
-  }
 }
