@@ -20,10 +20,10 @@ import {
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "@/hooks/use-toast"
-import { 
-  paymentsService, 
-  type PendingPayment, 
-  type PaymentHistory, 
+import {
+  paymentsService,
+  type PendingPayment,
+  type PaymentHistory,
   type AccountSummary,
   type PaymentUploadResponse,
   PaymentError
@@ -48,7 +48,7 @@ export function PaymentsView() {
   const [showReceiptUpload, setShowReceiptUpload] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<PendingPayment | null>(null)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
-  
+
   // Estados para datos de la API
   const [pendingWindowPayments, setPendingWindowPayments] = useState<PendingPayment[]>([])
   const [allPendingPayments, setAllPendingPayments] = useState<PendingPayment[]>([])
@@ -73,7 +73,8 @@ export function PaymentsView() {
   const [receiptForm, setReceiptForm] = useState({
     numero_boleta: '',
     banco: '',
-    monto: 0
+    monto: 0,
+    fecha_recibo: new Date().toISOString().slice(0, 10), // YYYY-MM-DD, no editable
   })
 
   // ⬅️ NUEVO: modal gráfico para boleta/archivo duplicado
@@ -102,9 +103,9 @@ export function PaymentsView() {
     try {
       if (forceRefresh) setRefreshing(true)
       else setLoading(true)
-      
+
       let pending, history, summary
-      
+
       if (forceRefresh) {
         const data = await paymentsService.refreshAllData()
         pending = data.pending
@@ -204,7 +205,8 @@ export function PaymentsView() {
     setReceiptForm({
       numero_boleta: '',
       banco: '',
-      monto: startAmount
+      monto: startAmount,
+      fecha_recibo: '' // ⬅️ NUEVO
     })
     setUploadFile(null)
     setValidationError(null)
@@ -267,13 +269,14 @@ export function PaymentsView() {
 
     try {
       setUploading(true)
-      
+
       const response: PaymentUploadResponse = await paymentsService.uploadReceipt({
         cuota_id: selectedPayment.id,
         numero_boleta: receiptForm.numero_boleta,
         banco: receiptForm.banco,
         monto: receiptForm.monto,
-        comprobante: uploadFile
+        comprobante: uploadFile,
+        fecha_recibo: receiptForm.fecha_recibo 
       })
 
       if (response.success || response.estado_cuota === 'pagado') {
@@ -291,10 +294,10 @@ export function PaymentsView() {
       setShowReceiptUpload(false)
       setUploadFile(null)
       setSelectedPayment(null)
-      setReceiptForm({ numero_boleta: '', banco: '', monto: 0 })
+      setReceiptForm({ numero_boleta: '', banco: '', monto: 0, fecha_recibo: new Date().toISOString().slice(0, 10) })
       setValidationError(null)
       setAmountError(null)
-      
+
       await loadPaymentData(true)
       setTimeout(async () => { await loadPaymentData(true) }, 1000)
       setTimeout(async () => { await loadPaymentData(true) }, 3000)
@@ -351,17 +354,17 @@ export function PaymentsView() {
   const getBadgeVariant = (status: string) => {
     const normalizedStatus = status?.toLowerCase() || 'pendiente'
     switch (normalizedStatus) {
-      case "pagado": 
-      case "aprobado": 
+      case "pagado":
+      case "aprobado":
         return "default"
-      case "pendiente": 
+      case "pendiente":
         return "outline"
-      case "en_revision": 
-      case "pendiente_revision": 
+      case "en_revision":
+      case "pendiente_revision":
         return "secondary"
-      case "rechazado": 
+      case "rechazado":
         return "destructive"
-      default: 
+      default:
         return "outline"
     }
   }
@@ -399,11 +402,11 @@ export function PaymentsView() {
 
   const filteredAllPending = useMemo(() => {
     switch (allPendingFilter) {
-      case "overdue":  return computedOverdue
+      case "overdue": return computedOverdue
       case "upcoming": return computedUpcoming
       case "all":
       default:
-        return [...allPendingPayments].sort((a, b) => 
+        return [...allPendingPayments].sort((a, b) =>
           (new Date(a.fecha_vencimiento).getTime()) - (new Date(b.fecha_vencimiento).getTime())
         )
     }
@@ -439,8 +442,8 @@ export function PaymentsView() {
       {/* Header + Refresh */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Gestión de Pagos</h2>
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           onClick={handleManualRefresh}
           disabled={refreshing}
           className="flex items-center gap-2"
@@ -525,21 +528,21 @@ export function PaymentsView() {
                     <div className="text-2xl font-bold">Q{payment.monto.toLocaleString()}</div>
                     {typeof (payment as any).total_with_late_fee === "number" && (payment as any).total_with_late_fee > payment.monto && (
                       <p className="text-sm text-muted-foreground mt-2">
-                        Con mora: Q{(payment as any).total_with_late_fee.toLocaleString()} 
+                        Con mora: Q{(payment as any).total_with_late_fee.toLocaleString()}
                         {typeof (payment as any).months_overdue === "number" ? ` • ${(payment as any).months_overdue} mes(es) atraso` : ''}
                       </p>
                     )}
                   </CardContent>
                   <CardFooter className="flex flex-col sm:flex-row gap-2 pt-2">
-                    <Button 
-                      variant="outline" 
-                      onClick={() => startReceiptUpload(payment)} 
+                    <Button
+                      variant="outline"
+                      onClick={() => startReceiptUpload(payment)}
                       className="w-full sm:w-auto"
                       disabled={payment.estado === 'en_revision' || payment.estado === 'pagado'}
                     >
                       <Upload className="mr-2 h-4 w-4" />
-                      {payment.estado === 'en_revision' ? 'En Revisión' : 
-                       payment.estado === 'pagado' ? 'Pagado' : 'Subir Recibo'}
+                      {payment.estado === 'en_revision' ? 'En Revisión' :
+                        payment.estado === 'pagado' ? 'Pagado' : 'Subir Recibo'}
                     </Button>
                   </CardFooter>
                 </Card>
@@ -564,22 +567,22 @@ export function PaymentsView() {
         <TabsContent value="all-pending" className="space-y-6 mt-6">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-muted-foreground mr-1">Mostrar:</span>
-            <Button 
-              variant={allPendingFilter === "all" ? "default" : "outline"} 
+            <Button
+              variant={allPendingFilter === "all" ? "default" : "outline"}
               onClick={() => setAllPendingFilter("all")}
               size="sm"
             >
               Todos ({allPendingPayments.length})
             </Button>
-            <Button 
-              variant={allPendingFilter === "overdue" ? "default" : "outline"} 
+            <Button
+              variant={allPendingFilter === "overdue" ? "default" : "outline"}
               onClick={() => setAllPendingFilter("overdue")}
               size="sm"
             >
               Atrasados ({overdueCount})
             </Button>
-            <Button 
-              variant={allPendingFilter === "upcoming" ? "default" : "outline"} 
+            <Button
+              variant={allPendingFilter === "upcoming" ? "default" : "outline"}
               onClick={() => setAllPendingFilter("upcoming")}
               size="sm"
             >
@@ -615,15 +618,15 @@ export function PaymentsView() {
                     )}
                   </CardContent>
                   <CardFooter className="flex flex-col sm:flex-row gap-2 pt-2">
-                    <Button 
-                      variant="outline" 
-                      onClick={() => startReceiptUpload(payment)} 
+                    <Button
+                      variant="outline"
+                      onClick={() => startReceiptUpload(payment)}
                       className="w-full sm:w-auto"
                       disabled={payment.estado === 'en_revision' || payment.estado === 'pagado'}
                     >
                       <Upload className="mr-2 h-4 w-4" />
-                      {payment.estado === 'en_revision' ? 'En Revisión' : 
-                       payment.estado === 'pagado' ? 'Pagado' : 'Subir Recibo'}
+                      {payment.estado === 'en_revision' ? 'En Revisión' :
+                        payment.estado === 'pagado' ? 'Pagado' : 'Subir Recibo'}
                     </Button>
                   </CardFooter>
                 </Card>
@@ -633,8 +636,8 @@ export function PaymentsView() {
             <div className="text-center py-8">
               <p className="text-gray-500">
                 {allPendingFilter === "overdue" ? "No hay cuotas atrasadas." :
-                 allPendingFilter === "upcoming" ? "No hay cuotas próximas." :
-                 "No hay cuotas pendientes en este momento."}
+                  allPendingFilter === "upcoming" ? "No hay cuotas próximas." :
+                    "No hay cuotas pendientes en este momento."}
               </p>
             </div>
           )}
@@ -709,8 +712,8 @@ export function PaymentsView() {
           <div className="space-y-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="receipt-number">Número de Boleta/Referencia</Label>
-              <Input 
-                id="receipt-number" 
+              <Input
+                id="receipt-number"
                 placeholder="Ej: 123456789"
                 value={receiptForm.numero_boleta}
                 onChange={(e) => updateReceiptForm('numero_boleta', e.target.value)}
@@ -723,11 +726,11 @@ export function PaymentsView() {
                 </div>
               )}
             </div>
-            
+
             <div className="grid gap-2">
               <Label htmlFor="bank">Banco</Label>
-              <Select 
-                value={receiptForm.banco} 
+              <Select
+                value={receiptForm.banco}
                 onValueChange={(value) => updateReceiptForm('banco', value)}
               >
                 <SelectTrigger className={validationError ? "border-red-500" : ""}>
@@ -753,12 +756,12 @@ export function PaymentsView() {
                 </AlertDescription>
               </Alert>
             )}
-            
+
             <div className="grid gap-2">
               <Label htmlFor="amount">Monto (Q)</Label>
-              <Input 
-                id="amount" 
-                type="number" 
+              <Input
+                id="amount"
+                type="number"
                 step="0.01"
                 min={0}
                 // ⬅️ NUEVO // LIMITE DE MONTO: tope visual del input
@@ -778,49 +781,62 @@ export function PaymentsView() {
                 * Puede pagar un monto menor (pago parcial). No puede exceder el saldo.
               </p>
             </div>
-            
+
+            <div className="grid gap-2">
+              <Label htmlFor="receipt-date">Fecha del Recibo</Label>
+              <Input
+                id="receipt-date"
+                type="date"
+                value={receiptForm.fecha_recibo}
+                onChange={(e) => updateReceiptForm("fecha_recibo", e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Seleccione la fecha en que fue emitido el recibo o boleta.
+              </p>
+            </div>
+
             <div className="grid gap-2">
               <Label htmlFor="receipt-upload">Comprobante de Pago</Label>
-              <Input 
-                id="receipt-upload" 
-                type="file" 
-                accept=".pdf,.jpg,.jpeg,.png" 
-                onChange={handleFileUpload} 
+              <Input
+                id="receipt-upload"
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={handleFileUpload}
               />
               <p className="text-xs text-gray-500">Formatos aceptados: PDF, JPG, PNG (máx. 5MB)</p>
             </div>
-            
+
             {uploadFile && (
               <div className="flex items-center gap-2 text-sm text-green-600">
                 <FileText className="h-4 w-4" />
                 <span>Archivo seleccionado: {uploadFile.name}</span>
               </div>
             )}
-            
+
             <Alert className="bg-blue-50 border-blue-200">
               <AlertCircle className="h-4 w-4 text-blue-600" />
               <AlertTitle className="text-blue-800">Procesamiento Automático</AlertTitle>
               <AlertDescription className="text-blue-700">
-                Su pago será procesado automáticamente una vez que suba el comprobante. 
+                Su pago será procesado automáticamente una vez que suba el comprobante.
                 La cuota se marcará como pagada inmediatamente si el monto coincide.
               </AlertDescription>
             </Alert>
           </div>
-          
+
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setShowReceiptUpload(false)
                 setValidationError(null)
                 setAmountError(null)
-              }} 
+              }}
               disabled={uploading}
             >
               Cancelar
             </Button>
-            <Button 
-              onClick={confirmReceiptUpload} 
+            <Button
+              onClick={confirmReceiptUpload}
               disabled={!isFormValid || uploading}
             >
               {uploading ? (
