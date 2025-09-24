@@ -101,8 +101,11 @@ const normalizeBank = (bank: string) => {
 const formatQ = (n?: number) =>
   typeof n === "number" ? `Q${n.toLocaleString("es-GT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"
 
-const formatDate = (s?: string) => (s ? new Date(s).toLocaleDateString("es-GT") : "-")
-
+const formatDate = (s?: string) => {
+  if (!s) return "-"
+  const [y, m, d] = s.split("-").map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString("es-GT")
+}
 const classNames = (...xs: (string | false | null | undefined)[]) => xs.filter(Boolean).join(" ")
 
 /** Paginación local */
