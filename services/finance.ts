@@ -60,6 +60,8 @@ export interface LatePaymentsResponse {
   meta: PaginationMeta
 }
 export interface StudentSnapshot {
+  prospectoId: any
+  ep: any
   epId: number
   studentId: number
   studentName: string
