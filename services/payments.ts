@@ -17,6 +17,8 @@ export interface PendingPayment {
   late_fee_total?: number
   total_with_late_fee?: number
   urgent?: boolean
+  // Campo opcional para indicar si la cuota fue auto-generada durante importación
+  auto_generated?: boolean
 }
 
 export interface PaymentHistory {

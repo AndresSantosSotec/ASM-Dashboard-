@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AlertCircle, CreditCard, FileText, Upload, Loader2, RefreshCw, AlertTriangle } from "lucide-react"
+import { AlertCircle, CreditCard, FileText, Upload, Loader2, RefreshCw, AlertTriangle, Info } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Dialog,
@@ -510,9 +510,17 @@ export function PaymentsView() {
                 <Card key={payment.id}>
                   <CardHeader className="pb-2">
                     <div className="flex justify-between items-start">
-                      <CardTitle className="text-lg font-bold">
-                        Cuota {payment.numero_cuota} - {payment.estudiante_programa.programa.nombre_del_programa}
-                      </CardTitle>
+                      <div className="flex-1">
+                        <CardTitle className="text-lg font-bold">
+                          Cuota {payment.numero_cuota} - {payment.estudiante_programa.programa.nombre_del_programa}
+                        </CardTitle>
+                        {payment.auto_generated && (
+                          <Badge variant="secondary" className="mt-1 text-xs">
+                            <Info className="w-3 h-3 mr-1" />
+                            Cuota generada automáticamente
+                          </Badge>
+                        )}
+                      </div>
                       <Badge variant={getBadgeVariant(payment.estado)}>
                         {getStatusText(payment.estado)}
                       </Badge>
@@ -593,9 +601,17 @@ export function PaymentsView() {
                 <Card key={`all-${payment.id}`} className={isOverdue(payment) ? "border-red-200" : ""}>
                   <CardHeader className="pb-2">
                     <div className="flex justify-between items-start">
-                      <CardTitle className="text-lg font-bold">
-                        Cuota {payment.numero_cuota} - {payment.estudiante_programa.programa.nombre_del_programa}
-                      </CardTitle>
+                      <div className="flex-1">
+                        <CardTitle className="text-lg font-bold">
+                          Cuota {payment.numero_cuota} - {payment.estudiante_programa.programa.nombre_del_programa}
+                        </CardTitle>
+                        {payment.auto_generated && (
+                          <Badge variant="secondary" className="mt-1 text-xs">
+                            <Info className="w-3 h-3 mr-1" />
+                            Cuota generada automáticamente
+                          </Badge>
+                        )}
+                      </div>
                       <Badge variant={isOverdue(payment) ? "destructive" : getBadgeVariant(payment.estado)}>
                         {isOverdue(payment) ? "Vencida" : getStatusText(payment.estado)}
                       </Badge>
