@@ -532,3 +532,24 @@ export const fetchDashboardFinanciero = async (params?: any) => {
   const res = await api.get('/dashboard-financiero', { params })
   return res.data
 }
+
+// --- KARDEX SIN CUOTAS ---
+export const getKardexSinCuotas = async (params?: any) => {
+  const res = await api.get('/kardex-pagos/sin-cuotas', { params })
+  return res.data
+}
+
+export const createCuotasForStudent = async (estudianteProgramaId: string | number, data: any) => {
+  const res = await api.post(`/estudiante-programa/${estudianteProgramaId}/cuotas`, data)
+  return res.data
+}
+
+export const linkKardexToCuota = async (kardexId: string | number, cuotaId: string | number) => {
+  const res = await api.patch(`/kardex-pagos/${kardexId}/link-cuota`, { cuota_id: cuotaId })
+  return res.data
+}
+
+export const getCuotasDisponibles = async (estudianteProgramaId: string | number, params?: any) => {
+  const res = await api.get(`/estudiante-programa/${estudianteProgramaId}/cuotas-disponibles`, { params })
+  return res.data
+}

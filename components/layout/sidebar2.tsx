@@ -4,7 +4,7 @@ import React, { useEffect, useState, type ReactNode } from "react"
 import {
   BarChart2, Calendar, ChevronDown, ChevronRight, FileText, Home, Mail, Settings, Shield, Users, DollarSign,
   BookOpen, ClipboardList, Activity, Copy, UserCheck, Plus, FileSignature, BarChart, LayoutDashboard, GraduationCapIcon,
-  CreditCard, Bell, Award, Medal, PieChart, RefreshCw, Phone, FileCheck, Send, Key, LogIn, Database, Clock, LogOut
+  CreditCard, Bell, Award, Medal, PieChart, RefreshCw, Phone, FileCheck, Send, Key, LogIn, Database, Clock, LogOut, AlertTriangle
 } from "lucide-react"
 import Link from "next/link"
 import axios from "axios"
@@ -659,6 +659,14 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 >
                   <RefreshCw size={16} className="mr-2" />
                   <span>Conciliación Bancaria</span>
+                </Link>
+                <Link
+                  href="/finanzas/kardex-sin-cuotas"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/kardex-sin-cuotas" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <AlertTriangle size={16} className="mr-2" />
+                  <span>Kardex sin Cuotas</span>
                 </Link>
                 <Link
                   href="/finanzas/seguimiento-cobros"
