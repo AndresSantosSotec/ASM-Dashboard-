@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/dialog"
 import {
   AlertCircle,
-  CheckCircle,
   Link2,
   Plus,
   Search,
