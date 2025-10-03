@@ -225,6 +225,19 @@ export const createKardexPago = async (data: any) => {
   return res.data
 }
 
+export const importKardexPagos = async (file: File, tipoArchivo: string = 'cardex_directo') => {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('tipo_archivo', tipoArchivo)
+  
+  const res = await api.post('/importar-pagos-kardex', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+  return res.data
+}
+
 
 export const getCuotasByProspecto = async (
   prospectoId: string | number,
