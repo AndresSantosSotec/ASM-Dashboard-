@@ -133,12 +133,36 @@ export function ConciliacionBancaria() {
   // Función para realizar la conciliación
   const handleReconciliation = async () => {
     try {
-      await processReconciliation()
-      toast({ title: 'Conciliación completada' })
+      const result = await processReconciliation()
+      
+      // Verificar si hay resultados parciales
+      if (result?.parcial) {
+        toast({ 
+          title: 'Conciliación parcial', 
+          description: `${result.exitosos || 0} recibos procesados, ${result.errores || 0} con errores`
+        })
+      } else {
+        toast({ title: 'Conciliación completada exitosamente' })
+      }
+      
       setShowReconcileDialog(false)
       setSelectedReceipts([])
-    } catch (e) {
-      toast({ title: 'Error', description: 'No se pudo conciliar' })
+      
+      // Recargar datos
+      const data = await getPendingReconciliation()
+      if (Array.isArray(data)) {
+        setPendingReceipts(data)
+      } else if (data) {
+        setPendingReceipts(data.pendingReceipts || [])
+        setReconciliationHistory(data.reconciliationHistory || [])
+      }
+    } catch (e: any) {
+      const errorMsg = e.response?.data?.message || e.message || 'No se pudo completar la conciliación'
+      toast({ 
+        title: 'Error en conciliación', 
+        description: errorMsg,
+        variant: 'destructive' 
+      })
     }
   }
 
@@ -153,8 +177,13 @@ export function ConciliacionBancaria() {
     formData.append('auth_number', uploadForm.authNumber)
 
     try {
-      await uploadReconciliation(formData)
-      toast({ title: 'Recibo cargado correctamente' })
+      const result = await uploadReconciliation(formData)
+      
+      toast({ 
+        title: 'Recibo cargado correctamente',
+        description: result?.message || 'El recibo se ha registrado y está pendiente de conciliación'
+      })
+      
       setShowUploadDialog(false)
       setUploadForm({
         studentId: '',
@@ -164,8 +193,21 @@ export function ConciliacionBancaria() {
         date: '',
         authNumber: '',
       })
-    } catch (e) {
-      toast({ title: 'Error', description: 'No se pudo cargar el recibo' })
+      
+      // Recargar datos
+      const data = await getPendingReconciliation()
+      if (Array.isArray(data)) {
+        setPendingReceipts(data)
+      } else if (data) {
+        setPendingReceipts(data.pendingReceipts || [])
+      }
+    } catch (e: any) {
+      const errorMsg = e.response?.data?.message || e.message || 'No se pudo cargar el recibo'
+      toast({ 
+        title: 'Error al cargar recibo', 
+        description: errorMsg,
+        variant: 'destructive' 
+      })
     }
   }
 

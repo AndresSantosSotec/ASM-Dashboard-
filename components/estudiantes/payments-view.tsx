@@ -301,6 +301,7 @@ export function PaymentsView() {
 
     } catch (error: unknown) {
       if (error instanceof PaymentError) {
+        // Manejo específico según tipo de error
         if (error.code === "DUPLICATE_RECEIPT_NUMBER" || error.code === "DUPLICATE_RECEIPT_FILE") {
           const d = (error as any).details || {}
           const original = d.boleta_original || d.matched_payment || d.original || {}
@@ -324,15 +325,27 @@ export function PaymentsView() {
         } else if (error.code === "CUOTA_ALREADY_PAID") {
           toast({
             title: "Cuota ya Pagada",
-            description: "Esta cuota ya fue pagada anteriormente",
-            variant: "destructive"
+            description: "Esta cuota ya fue pagada anteriormente. Los datos se han actualizado.",
           })
           await loadPaymentData(true)
           setShowReceiptUpload(false)
+        } else if (error.code === "CUOTA_NOT_FOUND") {
+          toast({
+            title: "Cuota no Encontrada",
+            description: "No se encontró una cuota pendiente para este pago. Verifique los datos.",
+            variant: "destructive"
+          })
+        } else if (error.isRecoverable) {
+          // Error recuperable - mostrar mensaje pero no es crítico
+          toast({
+            title: "Advertencia",
+            description: error.userMessage || error.message || "Ocurrió un problema procesando el pago",
+          })
         } else {
+          // Error no recuperable - crítico
           toast({
             title: "Error en el Pago",
-            description: error.message || "Ocurrió un error procesando el pago",
+            description: error.userMessage || error.message || "Ocurrió un error procesando el pago",
             variant: "destructive"
           })
         }

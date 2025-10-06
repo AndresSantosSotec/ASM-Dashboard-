@@ -139,16 +139,34 @@ export default function ImportarKardexPage() {
         warnings: response.advertencias || [],
       })
 
-      if (response.success !== false) {
+      // Mejorar mensajes según resultado
+      const exitosos = response.exitosos || 0
+      const errores = response.errores || 0
+      
+      if (response.success !== false && errores === 0) {
+        // Éxito total
         toast({
           title: "Importación exitosa",
-          description: `Se procesaron ${response.exitosos || 0} registros correctamente`,
+          description: `Se procesaron ${exitosos} registros correctamente`
+        })
+      } else if (exitosos > 0 && errores > 0) {
+        // Éxito parcial
+        toast({
+          title: "Importación parcial",
+          description: `${exitosos} registros procesados exitosamente, ${errores} con errores. Se insertaron solo los válidos.`
+        })
+      } else if (exitosos === 0 && errores > 0) {
+        // Todos fallaron
+        toast({
+          title: "Importación fallida",
+          description: `No se pudo procesar ningún registro. Revise los errores.`,
+          variant: "destructive",
         })
       } else {
+        // Sin datos
         toast({
-          title: "Importación completada con errores",
-          description: response.message || "Revise los detalles a continuación",
-          variant: "destructive",
+          title: "Sin datos",
+          description: "No se encontraron registros para procesar",
         })
       }
     } catch (error: unknown) {
@@ -288,19 +306,31 @@ export default function ImportarKardexPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                {result.success ? (
+                {result.success && (result.errors?.length || 0) === 0 ? (
                   <>
                     <CheckCircle2 className="h-5 w-5 text-green-600" />
                     Importación Exitosa
                   </>
+                ) : (result.data?.exitosos || 0) > 0 ? (
+                  <>
+                    <CheckCircle2 className="h-5 w-5 text-yellow-600" />
+                    Importación Parcial
+                  </>
                 ) : (
                   <>
                     <XCircle className="h-5 w-5 text-red-600" />
-                    Importación con Errores
+                    Importación Fallida
                   </>
                 )}
               </CardTitle>
-              <CardDescription>{result.message}</CardDescription>
+              <CardDescription>
+                {result.message}
+                {(result.data?.exitosos || 0) > 0 && (result.data?.errores || 0) > 0 && (
+                  <span className="block mt-1 text-green-600">
+                    ✓ Los registros válidos fueron insertados correctamente
+                  </span>
+                )}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {result.data && (
@@ -345,13 +375,20 @@ export default function ImportarKardexPage() {
                 <div className="space-y-2 pt-4 border-t">
                   <h4 className="font-semibold flex items-center gap-2">
                     <AlertCircle className="h-4 w-4 text-red-600" />
-                    Errores Encontrados
+                    Registros con Errores (omitidos)
                   </h4>
+                  <Alert variant="default" className="bg-blue-50 border-blue-200">
+                    <Info className="h-4 w-4 text-blue-600" />
+                    <AlertDescription className="text-blue-800">
+                      Los registros que se muestran a continuación fueron omitidos debido a errores. 
+                      Los registros válidos ya fueron procesados e insertados en el sistema.
+                    </AlertDescription>
+                  </Alert>
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Tipo de Error</TableHead>
-                        <TableHead>Cantidad</TableHead>
+                        <TableHead>Cantidad Omitida</TableHead>
                         <TableHead>Ejemplos</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -428,11 +465,15 @@ export default function ImportarKardexPage() {
               <div>
                 <h4 className="font-medium mb-2">Errores comunes:</h4>
                 <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                  <li>Estudiante no encontrado: El carnet no existe en el sistema</li>
-                  <li>Programa no identificado: No se pudo determinar el programa del estudiante</li>
-                  <li>Datos incompletos: Faltan columnas o valores requeridos</li>
-                  <li>Error de tipo: Se pasó un objeto Collection en lugar de un array</li>
+                  <li>Estudiante no encontrado: El carnet no existe en el sistema (se omite el registro)</li>
+                  <li>Programa no identificado: No se pudo determinar el programa del estudiante (se omite)</li>
+                  <li>Cuota no encontrada: No existe una cuota pendiente para este pago (se omite)</li>
+                  <li>Datos incompletos: Faltan columnas o valores requeridos (se omite)</li>
+                  <li>Formato inválido: Fechas o montos en formato incorrecto (se omite)</li>
                 </ul>
+                <p className="text-sm text-green-600 font-medium mt-2">
+                  ℹ️ Los registros con errores se omiten automáticamente. Solo se procesan e insertan los registros válidos.
+                </p>
               </div>
             </div>
           </CardContent>

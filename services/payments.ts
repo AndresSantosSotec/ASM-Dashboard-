@@ -162,6 +162,7 @@ export class PaymentError extends Error {
   public code: string
   public details?: any
   public userMessage?: string
+  public isRecoverable: boolean
 
   constructor(errorData: PaymentUploadResponse) {
     super(errorData.message || 'Error en el pago')
@@ -169,6 +170,22 @@ export class PaymentError extends Error {
     this.code = errorData.code || 'UNKNOWN_ERROR'
     this.details = errorData.error_details
     this.userMessage = errorData.user_message
+    
+    // Categorizar si el error es recuperable (no crítico)
+    // Errores recuperables: problemas con un pago específico que no afectan otros
+    this.isRecoverable = this.categorizeError(this.code)
+  }
+
+  private categorizeError(code: string): boolean {
+    const recoverableErrors = [
+      'CUOTA_NOT_FOUND',           // Cuota no encontrada - skip y continuar
+      'CUOTA_ALREADY_PAID',        // Cuota ya pagada - skip
+      'DUPLICATE_RECEIPT_NUMBER',  // Boleta duplicada - skip
+      'DUPLICATE_RECEIPT_FILE',    // Archivo duplicado - skip
+      'INVALID_AMOUNT',            // Monto inválido - skip
+      'STUDENT_NOT_FOUND',         // Estudiante no encontrado - skip
+    ]
+    return recoverableErrors.includes(code)
   }
 }
 

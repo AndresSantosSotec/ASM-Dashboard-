@@ -294,35 +294,20 @@ export const fetchNotificationRulesByRule = async (ruleId: string | number) => {
 // --- BLOQUEOS DE SERVICIO (Blocking Rules) ---
 
 export const fetchBlockingRulesByRule = async (ruleId: string | number) => {
-  console.log('🔍 [DEBUG] fetchBlockingRulesByRule - ruleId:', ruleId)
-  
   try {
     const res = await api.get(`/payment-rules/${ruleId}/blocking-rules`)
-    console.log('✅ [DEBUG] fetchBlockingRulesByRule - respuesta exitosa:', res.data)
     
     // backend responde { data: [...] } o directamente array
     const list = Array.isArray(res.data) ? res.data : res.data?.data
     return Array.isArray(list) ? list : []
   } catch (error: any) {
-    console.error('❌ [DEBUG] fetchBlockingRulesByRule - Error:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-      url: error.config?.url
-    })
     throw error
   }
 }
 
 export const createBlockingRule = async (ruleId: string | number, data: any) => {
-  // 🚨 DEBUGGING - Ver datos iniciales
-  console.log('🔍 [DEBUG] createBlockingRule - Datos iniciales:')
-  console.log('  ruleId:', ruleId)
-  console.log('  data recibido:', data)
-  
   // Validación del ruleId
   if (!ruleId || isNaN(Number(ruleId))) {
-    console.error('❌ [DEBUG] createBlockingRule - ruleId inválido:', ruleId)
     throw new Error('ID de regla de pago inválido')
   }
 
@@ -334,22 +319,16 @@ export const createBlockingRule = async (ruleId: string | number, data: any) => 
     active: !!data.active,
   }
 
-  // 🚨 DEBUGGING - Ver payload construido
-  console.log('🔍 [DEBUG] createBlockingRule - Payload construido:', payload)
-
-  // Validaciones frontend con logging
+  // Validaciones frontend
   if (!payload.name) {
-    console.error('❌ [DEBUG] createBlockingRule - Nombre vacío')
     throw new Error('El nombre es requerido')
   }
   
   if (isNaN(payload.days_after_due) || payload.days_after_due <= 0) {
-    console.error('❌ [DEBUG] createBlockingRule - Días inválidos:', payload.days_after_due)
     throw new Error('Los días después del vencimiento deben ser mayores a cero')
   }
   
   if (payload.affected_services.length === 0) {
-    console.error('❌ [DEBUG] createBlockingRule - Sin servicios seleccionados')
     throw new Error('Debe seleccionar al menos un servicio')
   }
 
@@ -357,39 +336,15 @@ export const createBlockingRule = async (ruleId: string | number, data: any) => 
   const validServices = ['plataforma', 'evaluaciones', 'materiales']
   const invalidServices = payload.affected_services.filter((s: string) => !validServices.includes(s))
   if (invalidServices.length > 0) {
-    console.error('❌ [DEBUG] createBlockingRule - Servicios inválidos:', invalidServices)
     throw new Error(`Servicios inválidos: ${invalidServices.join(', ')}`)
   }
 
-  // URL que se va a llamar
   const url = `/payment-rules/${ruleId}/blocking-rules`
-  console.log('🔍 [DEBUG] createBlockingRule - URL:', url)
 
   try {
-    console.log('📤 [DEBUG] createBlockingRule - Enviando request...')
     const res = await api.post(url, payload)
-    
-    console.log('✅ [DEBUG] createBlockingRule - Respuesta exitosa:')
-    console.log('  status:', res.status)
-    console.log('  data:', res.data)
-    
     return res.data
   } catch (error: any) {
-    console.error('❌ [DEBUG] createBlockingRule - Error completo:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      url: error.config?.url,
-      method: error.config?.method,
-      sentData: error.config?.data
-    })
-
-    // Si hay errores de validación del backend, mostrarlos
-    if (error.response?.status === 422 && error.response?.data?.errors) {
-      console.error('📋 [DEBUG] Errores de validación del backend:', error.response.data.errors)
-    }
-
     throw error
   }
 }
@@ -399,12 +354,6 @@ export const updateBlockingRule = async (
   blockingRuleId: string | number,
   data: any
 ) => {
-  console.log('🔍 [DEBUG] updateBlockingRule:', {
-    ruleId,
-    blockingRuleId,
-    data
-  })
-
   const payload: any = {}
   if (data.name !== undefined) payload.name = data.name
   if (data.description !== undefined) payload.description = data.description
@@ -412,21 +361,13 @@ export const updateBlockingRule = async (
   if (data.services !== undefined) payload.affected_services = data.services
   if (data.active !== undefined) payload.active = !!data.active
 
-  console.log('📤 [DEBUG] updateBlockingRule - payload:', payload)
-
   try {
     const res = await api.put(
       `/payment-rules/${ruleId}/blocking-rules/${blockingRuleId}`,
       payload
     )
-    console.log('✅ [DEBUG] updateBlockingRule - éxito:', res.data)
     return res.data
   } catch (error: any) {
-    console.error('❌ [DEBUG] updateBlockingRule - error:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status
-    })
     throw error
   }
 }
@@ -435,20 +376,12 @@ export const deleteBlockingRule = async (
   ruleId: string | number,
   blockingRuleId: string | number,
 ) => {
-  console.log('🔍 [DEBUG] deleteBlockingRule:', { ruleId, blockingRuleId })
-
   try {
     const res = await api.delete(
       `/payment-rules/${ruleId}/blocking-rules/${blockingRuleId}`
     )
-    console.log('✅ [DEBUG] deleteBlockingRule - éxito')
     return res.data
   } catch (error: any) {
-    console.error('❌ [DEBUG] deleteBlockingRule - error:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status
-    })
     throw error
   }
 }
