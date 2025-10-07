@@ -5,32 +5,17 @@ import React from "react"
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Calendar, ChevronLeft, ChevronRight, Plus, Loader2 } from "lucide-react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Calendar, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import { fetchProgramacionCursos, getUniqueMonths, type ProgramacionCurso } from "@/services/programacionCursos"
 
 export default function ProgramacionCursosPage() {
   const [currentMonth, setCurrentMonth] = useState<string>("")
   const [currentView, setCurrentView] = useState<"month" | "week">("month")
-  const [showNewSessionDialog, setShowNewSessionDialog] = useState(false)
   const [courses, setCourses] = useState<ProgramacionCurso[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [availableMonths, setAvailableMonths] = useState<string[]>([])
   const [currentMonthIndex, setCurrentMonthIndex] = useState(0)
-
-  const weekDays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 
   // Fetch courses from backend
   useEffect(() => {
@@ -47,9 +32,9 @@ export default function ProgramacionCursosPage() {
           setCurrentMonth(months[0])
           setCurrentMonthIndex(0)
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error('Error loading courses:', err)
-        setError(err.message || 'Error al cargar los cursos')
+        setError((err as Error).message || 'Error al cargar los cursos')
       } finally {
         setLoading(false)
       }
