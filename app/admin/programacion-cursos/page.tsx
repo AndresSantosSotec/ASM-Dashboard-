@@ -2,66 +2,89 @@
 
 import React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Calendar, ChevronLeft, ChevronRight, Plus } from "lucide-react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Calendar, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
+import { fetchProgramacionCursos, getUniqueMonths, type ProgramacionCurso } from "@/services/programacionCursos"
 
 export default function ProgramacionCursosPage() {
-  const [currentMonth, setCurrentMonth] = useState<string>("Marzo 2025")
+  const [currentMonth, setCurrentMonth] = useState<string>("")
   const [currentView, setCurrentView] = useState<"month" | "week">("month")
-  const [showNewSessionDialog, setShowNewSessionDialog] = useState(false)
+  const [courses, setCourses] = useState<ProgramacionCurso[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [availableMonths, setAvailableMonths] = useState<string[]>([])
+  const [currentMonthIndex, setCurrentMonthIndex] = useState(0)
 
-  // Datos de ejemplo para el calendario
-  const calendarDays = Array.from({ length: 31 }, (_, i) => i + 1)
-  const weekDays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+  // Fetch courses from backend
+  useEffect(() => {
+    const loadCourses = async () => {
+      try {
+        setLoading(true)
+        const data = await fetchProgramacionCursos()
+        setCourses(data)
+        
+        // Get unique months and set the first one as current
+        const months = getUniqueMonths(data)
+        setAvailableMonths(months)
+        if (months.length > 0) {
+          setCurrentMonth(months[0])
+          setCurrentMonthIndex(0)
+        }
+      } catch (err) {
+        console.error('Error loading courses:', err)
+        setError((err as Error).message || 'Error al cargar los cursos')
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    loadCourses()
+  }, [])
 
-  // Datos de ejemplo para cursos
-  const courses = [
-    {
-      id: 1,
-      name: "Introducción a la Programación",
-      instructor: "Juan Pérez",
-      room: "Aula 101",
-      time: "09:00 - 11:00",
-      days: [2, 4, 6, 9, 11, 13, 16, 18, 20, 23, 25, 27, 30],
-    },
-    {
-      id: 2,
-      name: "Matemáticas Avanzadas",
-      instructor: "María Rodríguez",
-      room: "Aula 203",
-      time: "14:00 - 16:00",
-      days: [1, 3, 5, 8, 10, 12, 15, 17, 19, 22, 24, 26, 29, 31],
-    },
-    {
-      id: 3,
-      name: "Diseño Gráfico",
-      instructor: "Carlos Gómez",
-      room: "Lab 3",
-      time: "16:00 - 18:00",
-      days: [1, 3, 5, 8, 10, 12, 15, 17, 19, 22, 24, 26, 29, 31],
-    },
-  ]
+  // Filter courses for the current month
+  const currentMonthCourses = courses.filter(course => {
+    const courseMonth = `${course.mes} ${course.anio}`
+    return courseMonth === currentMonth
+  })
 
   const handlePreviousMonth = () => {
-    setCurrentMonth("Febrero 2025") // Simulado, en una implementación real calcularíamos el mes anterior
+    if (currentMonthIndex > 0) {
+      const newIndex = currentMonthIndex - 1
+      setCurrentMonthIndex(newIndex)
+      setCurrentMonth(availableMonths[newIndex])
+    }
   }
 
   const handleNextMonth = () => {
-    setCurrentMonth("Abril 2025") // Simulado, en una implementación real calcularíamos el mes siguiente
+    if (currentMonthIndex < availableMonths.length - 1) {
+      const newIndex = currentMonthIndex + 1
+      setCurrentMonthIndex(newIndex)
+      setCurrentMonth(availableMonths[newIndex])
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">Cargando programación de cursos...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <h3 className="text-red-800 font-medium mb-2">Error al cargar los cursos</h3>
+          <p className="text-red-600">{error}</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -75,107 +98,6 @@ export default function ProgramacionCursosPage() {
           <Button variant="outline" size="sm" onClick={() => setCurrentView("week")}>
             Semanal
           </Button>
-          <Dialog open={showNewSessionDialog} onOpenChange={setShowNewSessionDialog}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                Nueva Sesión
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Programar Nueva Sesión</DialogTitle>
-                <DialogDescription>Complete los detalles para programar una nueva sesión de clase.</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="course" className="text-right">
-                    Curso
-                  </Label>
-                  <Select>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Seleccionar curso" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="prog">Introducción a la Programación</SelectItem>
-                      <SelectItem value="math">Matemáticas Avanzadas</SelectItem>
-                      <SelectItem value="design">Diseño Gráfico</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="instructor" className="text-right">
-                    Docente
-                  </Label>
-                  <Select>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Seleccionar docente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="juan">Juan Pérez</SelectItem>
-                      <SelectItem value="maria">María Rodríguez</SelectItem>
-                      <SelectItem value="carlos">Carlos Gómez</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="date" className="text-right">
-                    Fecha
-                  </Label>
-                  <Input id="date" type="date" className="col-span-3" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="startTime" className="text-right">
-                    Hora Inicio
-                  </Label>
-                  <Input id="startTime" type="time" className="col-span-3" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="endTime" className="text-right">
-                    Hora Fin
-                  </Label>
-                  <Input id="endTime" type="time" className="col-span-3" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="room" className="text-right">
-                    Aula
-                  </Label>
-                  <Select>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Seleccionar aula" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="101">Aula 101</SelectItem>
-                      <SelectItem value="203">Aula 203</SelectItem>
-                      <SelectItem value="lab3">Laboratorio 3</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="repeat" className="text-right">
-                    Repetir
-                  </Label>
-                  <Select>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="No repetir" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No repetir</SelectItem>
-                      <SelectItem value="daily">Diariamente</SelectItem>
-                      <SelectItem value="weekly">Semanalmente</SelectItem>
-                      <SelectItem value="biweekly">Cada dos semanas</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setShowNewSessionDialog(false)}>
-                  Cancelar
-                </Button>
-                <Button onClick={() => setShowNewSessionDialog(false)}>Guardar</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
 
@@ -183,99 +105,86 @@ export default function ProgramacionCursosPage() {
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <Button variant="outline" size="icon" onClick={handlePreviousMonth}>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={handlePreviousMonth}
+                disabled={currentMonthIndex === 0}
+              >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <CardTitle>{currentMonth}</CardTitle>
-              <Button variant="outline" size="icon" onClick={handleNextMonth}>
+              <CardTitle>{currentMonth || 'Seleccione un mes'}</CardTitle>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={handleNextMonth}
+                disabled={currentMonthIndex === availableMonths.length - 1}
+              >
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-            <div className="flex items-center space-x-2">
-              <Select>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Todos los programas" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los programas</SelectItem>
-                  <SelectItem value="informatica">Informática</SelectItem>
-                  <SelectItem value="administracion">Administración</SelectItem>
-                  <SelectItem value="diseno">Diseño</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="text-sm text-gray-600">
+              Total de cursos: {currentMonthCourses.length}
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {currentView === "month" ? (
-            <div className="border rounded-md">
-              <div className="grid grid-cols-7 gap-px bg-gray-200">
-                {weekDays.map((day) => (
-                  <div key={day} className="bg-white p-2 text-center font-medium">
-                    {day}
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-7 gap-px bg-gray-200">
-                {calendarDays.map((day) => (
-                  <div key={day} className="bg-white p-2 min-h-[100px]">
-                    <div className="font-medium text-sm mb-1">{day}</div>
-                    {courses.map((course) =>
-                      course.days.includes(day) ? (
+            <div className="space-y-6">
+              {/* Group courses by day of the week */}
+              {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(day => {
+                const dayCourses = currentMonthCourses.filter(course => course.dia_semana === day)
+                
+                if (dayCourses.length === 0) return null
+                
+                return (
+                  <div key={day} className="border rounded-lg p-4">
+                    <h3 className="font-semibold text-lg mb-3 flex items-center">
+                      <Calendar className="h-5 w-5 mr-2 text-blue-500" />
+                      {day}
+                      <span className="ml-2 text-sm text-gray-500 font-normal">
+                        ({dayCourses.length} {dayCourses.length === 1 ? 'curso' : 'cursos'})
+                      </span>
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {dayCourses.map((course) => (
                         <div
-                          key={`${course.id}-${day}`}
-                          className="text-xs p-1 mb-1 rounded bg-blue-100 text-blue-800 cursor-pointer"
-                          title={`${course.name} - ${course.instructor} - ${course.room}`}
+                          key={course.courseid}
+                          className="p-3 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors cursor-pointer"
+                          title={`${course.coursename}\nInicio: ${course.fecha_inicio}\nFin: ${course.fecha_fin}`}
                         >
-                          {course.name.length > 15 ? `${course.name.substring(0, 15)}...` : course.name}
-                          <div className="text-xs text-blue-600">{course.time}</div>
+                          <div className="font-medium text-sm text-blue-900 mb-1 line-clamp-2">
+                            {course.coursename}
+                          </div>
+                          <div className="text-xs text-blue-700 space-y-1">
+                            <div className="flex items-center">
+                              <span className="font-medium">Inicio:</span>
+                              <span className="ml-1">{course.fecha_inicio ? new Date(course.fecha_inicio).toLocaleDateString('es-GT') : 'N/A'}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <span className="font-medium">Fin:</span>
+                              <span className="ml-1">{course.fecha_fin ? new Date(course.fecha_fin).toLocaleDateString('es-GT') : 'N/A'}</span>
+                            </div>
+                          </div>
                         </div>
-                      ) : null,
-                    )}
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
+                )
+              })}
+              
+              {currentMonthCourses.length === 0 && (
+                <div className="text-center py-12 text-gray-500">
+                  <Calendar className="h-12 w-12 mx-auto mb-3 text-gray-400" />
+                  <p>No hay cursos programados para este mes</p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="border rounded-md">
-              <div className="grid grid-cols-8 gap-px bg-gray-200">
-                <div className="bg-white p-2 text-center font-medium">Hora</div>
-                {weekDays.map((day) => (
-                  <div key={day} className="bg-white p-2 text-center font-medium">
-                    {day}
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-8 gap-px bg-gray-200">
-                {["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"].map(
-                  (hour) => (
-                    <React.Fragment key={hour}>
-                      <div className="bg-white p-2 text-center font-medium text-sm">{hour}</div>
-                      {weekDays.map((day, index) => (
-                        <div key={`${day}-${hour}`} className="bg-white p-2 min-h-[60px]">
-                          {courses.some(
-                            (course) => course.time.startsWith(hour) && course.days.includes(index + 1),
-                          ) && (
-                            <div className="text-xs p-1 rounded bg-blue-100 text-blue-800 cursor-pointer h-full">
-                              {
-                                courses.find(
-                                  (course) => course.time.startsWith(hour) && course.days.includes(index + 1),
-                                )?.name
-                              }
-                              <div className="text-xs text-blue-600">
-                                {
-                                  courses.find(
-                                    (course) => course.time.startsWith(hour) && course.days.includes(index + 1),
-                                  )?.room
-                                }
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </React.Fragment>
-                  ),
-                )}
+              <div className="text-center py-12 text-gray-500">
+                <Calendar className="h-12 w-12 mx-auto mb-3 text-gray-400" />
+                <p>Vista semanal en desarrollo</p>
               </div>
             </div>
           )}
@@ -289,79 +198,71 @@ export default function ProgramacionCursosPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-start p-3 bg-blue-50 rounded-md">
-                <Calendar className="h-5 w-5 text-blue-500 mr-3 mt-0.5" />
-                <div>
-                  <h4 className="font-medium">Desarrollo Web Frontend</h4>
-                  <p className="text-sm text-gray-600">Inicia: 15 de Marzo, 2025</p>
-                  <p className="text-sm text-gray-600">Docente: Carlos Gómez</p>
+              {currentMonthCourses.slice(0, 5).map((course, index) => {
+                const colors = [
+                  { bg: 'bg-blue-50', text: 'text-blue-500' },
+                  { bg: 'bg-green-50', text: 'text-green-500' },
+                  { bg: 'bg-purple-50', text: 'text-purple-500' },
+                  { bg: 'bg-orange-50', text: 'text-orange-500' },
+                  { bg: 'bg-pink-50', text: 'text-pink-500' },
+                ]
+                const color = colors[index % colors.length]
+                
+                return (
+                  <div key={course.courseid} className={`flex items-start p-3 ${color.bg} rounded-md`}>
+                    <Calendar className={`h-5 w-5 ${color.text} mr-3 mt-0.5 flex-shrink-0`} />
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium truncate">{course.coursename}</h4>
+                      <p className="text-sm text-gray-600">
+                        Inicia: {course.fecha_inicio ? new Date(course.fecha_inicio).toLocaleDateString('es-GT', { 
+                          day: 'numeric', 
+                          month: 'long', 
+                          year: 'numeric' 
+                        }) : 'Fecha no disponible'}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Día: {course.dia_semana}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+              
+              {currentMonthCourses.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No hay próximos inicios</p>
                 </div>
-              </div>
-
-              <div className="flex items-start p-3 bg-green-50 rounded-md">
-                <Calendar className="h-5 w-5 text-green-500 mr-3 mt-0.5" />
-                <div>
-                  <h4 className="font-medium">Marketing Digital</h4>
-                  <p className="text-sm text-gray-600">Inicia: 20 de Marzo, 2025</p>
-                  <p className="text-sm text-gray-600">Docente: Ana Martínez</p>
-                </div>
-              </div>
-
-              <div className="flex items-start p-3 bg-purple-50 rounded-md">
-                <Calendar className="h-5 w-5 text-purple-500 mr-3 mt-0.5" />
-                <div>
-                  <h4 className="font-medium">Contabilidad Básica</h4>
-                  <p className="text-sm text-gray-600">Inicia: 1 de Abril, 2025</p>
-                  <p className="text-sm text-gray-600">Docente: Roberto Sánchez</p>
-                </div>
-              </div>
+              )}
             </div>
           </CardContent>
         </Card>
 
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Disponibilidad de Aulas</CardTitle>
+            <CardTitle>Resumen por Día de la Semana</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="p-3 bg-green-50 rounded-md text-center">
-                  <h4 className="font-medium">Aula 101</h4>
-                  <p className="text-sm text-green-600">Disponible</p>
-                </div>
-                <div className="p-3 bg-red-50 rounded-md text-center">
-                  <h4 className="font-medium">Aula 102</h4>
-                  <p className="text-sm text-red-600">Ocupada</p>
-                </div>
-                <div className="p-3 bg-green-50 rounded-md text-center">
-                  <h4 className="font-medium">Aula 103</h4>
-                  <p className="text-sm text-green-600">Disponible</p>
-                </div>
-                <div className="p-3 bg-green-50 rounded-md text-center">
-                  <h4 className="font-medium">Aula 201</h4>
-                  <p className="text-sm text-green-600">Disponible</p>
-                </div>
-                <div className="p-3 bg-green-50 rounded-md text-center">
-                  <h4 className="font-medium">Aula 202</h4>
-                  <p className="text-sm text-green-600">Disponible</p>
-                </div>
-                <div className="p-3 bg-red-50 rounded-md text-center">
-                  <h4 className="font-medium">Aula 203</h4>
-                  <p className="text-sm text-red-600">Ocupada</p>
-                </div>
-                <div className="p-3 bg-red-50 rounded-md text-center">
-                  <h4 className="font-medium">Lab 1</h4>
-                  <p className="text-sm text-red-600">Ocupada</p>
-                </div>
-                <div className="p-3 bg-green-50 rounded-md text-center">
-                  <h4 className="font-medium">Lab 2</h4>
-                  <p className="text-sm text-green-600">Disponible</p>
-                </div>
-                <div className="p-3 bg-red-50 rounded-md text-center">
-                  <h4 className="font-medium">Lab 3</h4>
-                  <p className="text-sm text-red-600">Ocupada</p>
-                </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(day => {
+                  const count = currentMonthCourses.filter(c => c.dia_semana === day).length
+                  const hasClasses = count > 0
+                  
+                  return (
+                    <div 
+                      key={day} 
+                      className={`p-3 rounded-md text-center ${hasClasses ? 'bg-green-50' : 'bg-gray-50'}`}
+                    >
+                      <h4 className="font-medium text-sm">{day}</h4>
+                      <p className={`text-lg font-bold ${hasClasses ? 'text-green-600' : 'text-gray-400'}`}>
+                        {count}
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        {count === 1 ? 'curso' : 'cursos'}
+                      </p>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </CardContent>
