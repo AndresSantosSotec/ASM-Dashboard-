@@ -11,7 +11,6 @@ import { Bell, BookOpen, Calendar, Clock, CreditCard, FileText, GraduationCap, M
 import { MainDashboard } from "./main-dashboard"
 import { DocumentsView } from "./documents-view"
 import { PaymentsView } from "./payments-view"
-import { ChatBot } from "./chat-bot"
 
 export function StudentDashboard() {
   const [activeTab, setActiveTab] = useState("dashboard")
@@ -315,8 +314,6 @@ export function StudentDashboard() {
           </div>
         </TabsContent>
       </Tabs>
-
-      <ChatBot />
     </div>
   )
 }

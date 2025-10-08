@@ -599,14 +599,6 @@ export default function Sidebar({ open, className }: SidebarProps) {
                   <CreditCard size={16} className="mr-2" />
                   <span>Estado de Cuenta</span>
                 </Link>
-                <Link
-                  href="/estudiantes/chat-docente" // Cambiar la ruta a la correcta si es necesario
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/chat-docente" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
-                    } transition-colors duration-200`}
-                >
-                  <Mail size={16} className="mr-2" /> {/* Puedes cambiar el ícono si lo consideras necesario */}
-                  <span>Chat Docente</span>
-                </Link>
               </div>
             )}
           </div>
