@@ -172,7 +172,6 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
             Number(
               (snap as any)?.prospecto_id ??
               snap?.ep?.prospecto?.id ??
-              snap?.prospectId ??
               snap?.prospectoId
             ) || undefined
       } catch (e) {

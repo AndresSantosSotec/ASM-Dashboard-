@@ -108,9 +108,22 @@ async function buildFromProspecto(
       añoGraduacion: prospecto.anio_graduacion,
       medioConocio: prospecto.medio_conocimiento_institucion,
       cursosAprobados: prospecto.cantidad_cursos_aprobados,
-      diaEstudio: prospecto.dia_estudio
-        ? String(prospecto.dia_estudio).toLowerCase()
-        : undefined,
+      diaEstudio: (() => {
+        const diasValidos = [
+          "lunes",
+          "martes",
+          "miercoles",
+          "jueves",
+          "viernes",
+          "sabado",
+        ] as const
+        const dia = prospecto.dia_estudio
+          ? String(prospecto.dia_estudio).toLowerCase()
+          : undefined
+        return diasValidos.includes(dia as typeof diasValidos[number])
+          ? (dia as typeof diasValidos[number])
+          : undefined
+      })(),
     },
     financieros: {
       formaPago: prospecto.metodo_pago,
