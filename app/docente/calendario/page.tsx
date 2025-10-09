@@ -1,3 +1,6 @@
+"use client"
+
+import { useState, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -5,11 +8,57 @@ import { CalendarIcon, Plus, ChevronLeft, ChevronRight } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function CalendarioPage() {
-  // Datos de ejemplo para el calendario
-  const currentMonth = "Mayo 2024"
+  // Estado para el mes y año actual
+  const [currentDate, setCurrentDate] = useState(new Date())
+  
+  // Calcular información del calendario dinámicamente
+  const calendarInfo = useMemo(() => {
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth()
+    
+    // Nombres de meses en español
+    const monthNames = [
+      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ]
+    
+    // Obtener el primer día del mes (0 = Domingo, 1 = Lunes, etc.)
+    const firstDayOfMonth = new Date(year, month, 1).getDay()
+    // Ajustar para que Lunes sea 0 (0 = Lunes, 6 = Domingo)
+    const firstDayOffset = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1
+    
+    // Obtener el total de días en el mes
+    const totalDays = new Date(year, month + 1, 0).getDate()
+    
+    // Obtener el día actual
+    const today = new Date()
+    const isCurrentMonth = today.getMonth() === month && today.getFullYear() === year
+    const todayDay = isCurrentMonth ? today.getDate() : null
+    
+    return {
+      monthName: `${monthNames[month]} ${year}`,
+      firstDayOffset,
+      totalDays,
+      todayDay,
+      month,
+      year
+    }
+  }, [currentDate])
+  
   const daysOfWeek = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
-  const totalDays = 31
-  const firstDayOffset = 3 // Miércoles es el primer día del mes (0-6)
+
+  // Funciones para navegar entre meses
+  const goToPreviousMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
+  }
+  
+  const goToNextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
+  }
+  
+  const goToToday = () => {
+    setCurrentDate(new Date())
+  }
 
   // Eventos de ejemplo
   const events = [
@@ -51,7 +100,7 @@ export default function CalendarioPage() {
             <p className="text-muted-foreground">Gestiona tus eventos, clases y actividades académicas</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={goToToday}>
               <CalendarIcon className="h-4 w-4 mr-2" />
               Hoy
             </Button>
@@ -68,11 +117,11 @@ export default function CalendarioPage() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <Button variant="ghost" size="sm">
+                    <Button variant="ghost" size="sm" onClick={goToPreviousMonth}>
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <h3 className="text-lg font-medium px-2">{currentMonth}</h3>
-                    <Button variant="ghost" size="sm">
+                    <h3 className="text-lg font-medium px-2">{calendarInfo.monthName}</h3>
+                    <Button variant="ghost" size="sm" onClick={goToNextMonth}>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
@@ -103,15 +152,15 @@ export default function CalendarioPage() {
                 {/* Días del mes */}
                 <div className="grid grid-cols-7 gap-1">
                   {/* Espacios vacíos para el offset del primer día */}
-                  {Array.from({ length: firstDayOffset }).map((_, index) => (
+                  {Array.from({ length: calendarInfo.firstDayOffset }).map((_, index) => (
                     <div key={`empty-${index}`} className="h-24 p-1 border rounded-md bg-gray-50"></div>
                   ))}
 
                   {/* Días del mes */}
-                  {Array.from({ length: totalDays }).map((_, index) => {
+                  {Array.from({ length: calendarInfo.totalDays }).map((_, index) => {
                     const day = index + 1
                     const dayEvents = getEventsForDay(day)
-                    const isToday = day === 15 // Simulamos que hoy es el día 15
+                    const isToday = day === calendarInfo.todayDay
 
                     return (
                       <div
@@ -157,25 +206,34 @@ export default function CalendarioPage() {
               <CardContent>
                 <div className="space-y-4">
                   {events
-                    .filter((event) => event.day >= 15 && event.day <= 22)
+                    .filter((event) => {
+                      const today = calendarInfo.todayDay || 1
+                      return event.day >= today && event.day <= today + 7
+                    })
                     .sort((a, b) => a.day - b.day)
-                    .map((event, index) => (
-                      <div
-                        key={index}
-                        className="border-l-4 pl-3 py-1"
-                        style={{ borderColor: getEventColorClass(event.type).replace("bg-", "border-") }}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="font-medium text-sm">{event.title}</h4>
-                            {event.course && <p className="text-xs text-muted-foreground">{event.course}</p>}
+                    .map((event, index) => {
+                      const monthNames = [
+                        "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+                        "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"
+                      ]
+                      return (
+                        <div
+                          key={index}
+                          className="border-l-4 pl-3 py-1"
+                          style={{ borderColor: getEventColorClass(event.type).replace("bg-", "border-") }}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="font-medium text-sm">{event.title}</h4>
+                              {event.course && <p className="text-xs text-muted-foreground">{event.course}</p>}
+                            </div>
+                            <Badge variant="outline" className="text-xs">
+                              {event.day} {monthNames[calendarInfo.month]}
+                            </Badge>
                           </div>
-                          <Badge variant="outline" className="text-xs">
-                            {event.day} Mayo
-                          </Badge>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                 </div>
               </CardContent>
             </Card>
