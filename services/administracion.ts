@@ -93,9 +93,70 @@ export const fetchAdministracionDashboard = async (): Promise<AdministracionDash
   return data as AdministracionDashboardResponse
 }
 
-export const exportAdministracionDashboard = async (): Promise<Blob> => {
-  const response = await api.get("/administracion/dashboard/exportar", {
-    responseType: "blob",
-  })
-  return response.data as Blob
+export const exportAdministracionDashboard = async (formato: 'xlsx' | 'csv' | 'json' = 'xlsx'): Promise<void> => {
+  try {
+    // Usar la ruta API proxy de Next.js
+    const apiUrl = `/api/administracion/dashboard/exportar?formato=${formato}`
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        // Incluir token de autenticación si existe
+        ...(typeof window !== 'undefined' && localStorage.getItem('token')
+          ? { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          : {}),
+      },
+    })
+
+    if (!response.ok) {
+      let errorMessage = `Export failed with status ${response.status}`
+      try {
+        const errorData = await response.json()
+        errorMessage = errorData.error || errorData.message || errorMessage
+        if (errorData.details) {
+          errorMessage += ` - Details: ${errorData.details}`
+        }
+      } catch (parseError) {
+        const textResponse = await response.text()
+        errorMessage += ` - Response: ${textResponse.substring(0, 200)}`
+      }
+      throw new Error(errorMessage)
+    }
+
+    // Crear blob y descargar
+    const blob = await response.blob()
+
+    // Verificar que el blob tiene contenido
+    if (blob.size === 0) {
+      throw new Error('El archivo exportado está vacío')
+    }
+
+    const url = window.URL.createObjectURL(blob)
+
+    // Obtener nombre del archivo desde headers o usar default
+    const contentDisposition = response.headers.get('content-disposition')
+    let filename = `dashboard_export.${formato}`
+
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+      if (filenameMatch && filenameMatch[1]) {
+        filename = filenameMatch[1].replace(/['"]/g, '')
+      }
+    }
+
+    // Crear enlace de descarga y hacer click
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    link.style.display = 'none'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    // Limpiar URL del objeto
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('Error exporting dashboard:', error)
+    throw error
+  }
 }

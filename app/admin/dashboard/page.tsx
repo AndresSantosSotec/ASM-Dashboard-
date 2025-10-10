@@ -309,15 +309,7 @@ export default function AdminDashboardPage() {
   const handleExport = useCallback(async () => {
     try {
       setExporting(true)
-      const blob = await exportAdministracionDashboard()
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = url
-      link.download = `dashboard-administracion-${new Date().toISOString().slice(0, 10)}.xlsx`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
+      await exportAdministracionDashboard('xlsx')
 
       toast({
         title: "Exportación lista",
