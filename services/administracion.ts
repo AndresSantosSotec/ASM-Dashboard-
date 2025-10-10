@@ -95,47 +95,28 @@ export const fetchAdministracionDashboard = async (): Promise<AdministracionDash
 
 export const exportAdministracionDashboard = async (formato: 'xlsx' | 'csv' | 'json' = 'xlsx'): Promise<void> => {
   try {
-    // Usar la ruta API proxy de Next.js
-    const apiUrl = `/api/administracion/dashboard/exportar?formato=${formato}`
-
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: {
-        // Incluir token de autenticación si existe
-        ...(typeof window !== 'undefined' && localStorage.getItem('token')
-          ? { Authorization: `Bearer ${localStorage.getItem('token')}` }
-          : {}),
-      },
+    // Usar axios directamente con el backend, similar a exportFinancialReport
+    const response = await api.get('/administracion/dashboard/exportar', {
+      params: { formato },
+      responseType: 'blob', // Importante: especificar que esperamos un blob
     })
 
-    if (!response.ok) {
-      let errorMessage = `Export failed with status ${response.status}`
-      try {
-        const errorData = await response.json()
-        errorMessage = errorData.error || errorData.message || errorMessage
-        if (errorData.details) {
-          errorMessage += ` - Details: ${errorData.details}`
-        }
-      } catch (parseError) {
-        const textResponse = await response.text()
-        errorMessage += ` - Response: ${textResponse.substring(0, 200)}`
-      }
-      throw new Error(errorMessage)
-    }
-
-    // Crear blob y descargar
-    const blob = await response.blob()
+    // Crear blob del response
+    const blob = new Blob([response.data], { 
+      type: response.headers['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    })
 
     // Verificar que el blob tiene contenido
     if (blob.size === 0) {
       throw new Error('El archivo exportado está vacío')
     }
 
+    // Crear URL del blob
     const url = window.URL.createObjectURL(blob)
 
     // Obtener nombre del archivo desde headers o usar default
-    const contentDisposition = response.headers.get('content-disposition')
-    let filename = `dashboard_export.${formato}`
+    const contentDisposition = response.headers['content-disposition']
+    let filename = `dashboard_administrativo_${new Date().toISOString().split('T')[0]}.${formato}`
 
     if (contentDisposition) {
       const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
