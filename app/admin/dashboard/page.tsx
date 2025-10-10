@@ -366,7 +366,7 @@ export default function AdminDashboardPage() {
   )
 
   const totalDistribution = useMemo(
-    () => distributionData.reduce((acc, item) => acc + (item.total ?? 0), 0),
+    () => distributionData.reduce((acc, item) => acc + (item.totalEstudiantes ?? 0), 0),
     [distributionData]
   )
 
@@ -573,7 +573,7 @@ export default function AdminDashboardPage() {
                         programa.porcentaje !== null && programa.porcentaje !== undefined
                           ? Math.max(Math.min(programa.porcentaje, 100), 0)
                           : totalDistribution > 0
-                            ? Math.min((programa.total / totalDistribution) * 100, 100)
+                            ? Math.min((programa.totalEstudiantes / totalDistribution) * 100, 100)
                             : 0
 
                       return (
@@ -584,7 +584,7 @@ export default function AdminDashboardPage() {
                           </div>
                           <Progress value={percent} className="h-2" />
                           <p className="text-xs text-muted-foreground">
-                            Estudiantes: {formatNumber(programa.total)}
+                            {programa.abreviatura}: {formatNumber(programa.totalEstudiantes)} estudiantes
                           </p>
                         </div>
                       )
