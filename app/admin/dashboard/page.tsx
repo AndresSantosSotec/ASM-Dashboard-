@@ -458,7 +458,7 @@ export default function AdminDashboardPage() {
               subtitle={getTrendLabel(dashboardData.matriculas?.porcentajeCambio)}
               description={
                 dashboardData.matriculas?.mesAnterior !== undefined &&
-                dashboardData.matriculas?.mesAnterior !== null
+                  dashboardData.matriculas?.mesAnterior !== null
                   ? `Mes anterior: ${formatNumber(dashboardData.matriculas?.mesAnterior)}`
                   : undefined
               }
@@ -526,12 +526,12 @@ export default function AdminDashboardPage() {
               <CardContent>
                 {evolutionData.length > 0 ? (
                   <div className="space-y-4">
-                    {evolutionData.map((point) => {
+                    {evolutionData.map((point, index) => {
                       const percentage =
                         maxEvolutionValue > 0 ? Math.min((point.total / maxEvolutionValue) * 100, 100) : 0
 
                       return (
-                        <div key={point.periodo} className="space-y-2">
+                        <div key={`${point.periodo}-${index}`} className="space-y-2">
                           <div className="flex items-center justify-between text-sm">
                             <span className="font-medium">{point.periodo}</span>
                             <span className="font-semibold">{formatNumber(point.total)}</span>
@@ -702,7 +702,7 @@ export default function AdminDashboardPage() {
                           {formatNumber(multiplesProgramas?.total)}
                         </p>
                         {multiplesProgramas?.porcentaje !== null &&
-                        multiplesProgramas?.porcentaje !== undefined ? (
+                          multiplesProgramas?.porcentaje !== undefined ? (
                           <p className="text-sm text-muted-foreground">
                             Representa {formatPercent(multiplesProgramas?.porcentaje, { showSign: false })} del total
                             de estudiantes
