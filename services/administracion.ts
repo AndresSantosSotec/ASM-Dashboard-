@@ -36,7 +36,8 @@ export interface EvolutionPoint {
 
 export interface ProgramDistribution {
   programa: string
-  total: number
+  abreviatura: string
+  totalEstudiantes: number
   porcentaje?: number | null
 }
 
