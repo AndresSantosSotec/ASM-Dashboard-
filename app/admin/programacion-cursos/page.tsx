@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Calendar, ChevronLeft, ChevronRight, Plus } from "lucide-react"
@@ -20,12 +20,40 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function ProgramacionCursosPage() {
-  const [currentMonth, setCurrentMonth] = useState<string>("Marzo 2025")
+  const [currentDate, setCurrentDate] = useState(new Date())
   const [currentView, setCurrentView] = useState<"month" | "week">("month")
   const [showNewSessionDialog, setShowNewSessionDialog] = useState(false)
 
+  // Calcular información del calendario dinámicamente
+  const calendarInfo = useMemo(() => {
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth()
+    
+    // Nombres de meses en español
+    const monthNames = [
+      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ]
+    
+    // Obtener el primer día del mes (0 = Domingo, 1 = Lunes, etc.)
+    const firstDayOfMonth = new Date(year, month, 1).getDay()
+    // Ajustar para que Lunes sea 0 (0 = Lunes, 6 = Domingo)
+    const firstDayOffset = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1
+    
+    // Obtener el total de días en el mes
+    const totalDays = new Date(year, month + 1, 0).getDate()
+    
+    return {
+      monthName: `${monthNames[month]} ${year}`,
+      firstDayOffset,
+      totalDays,
+      month,
+      year
+    }
+  }, [currentDate])
+
   // Datos de ejemplo para el calendario
-  const calendarDays = Array.from({ length: 31 }, (_, i) => i + 1)
+  const calendarDays = Array.from({ length: calendarInfo.totalDays }, (_, i) => i + 1)
   const weekDays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 
   // Datos de ejemplo para cursos
@@ -57,11 +85,11 @@ export default function ProgramacionCursosPage() {
   ]
 
   const handlePreviousMonth = () => {
-    setCurrentMonth("Febrero 2025") // Simulado, en una implementación real calcularíamos el mes anterior
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
   }
 
   const handleNextMonth = () => {
-    setCurrentMonth("Abril 2025") // Simulado, en una implementación real calcularíamos el mes siguiente
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
   }
 
   return (
@@ -186,7 +214,7 @@ export default function ProgramacionCursosPage() {
               <Button variant="outline" size="icon" onClick={handlePreviousMonth}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <CardTitle>{currentMonth}</CardTitle>
+              <CardTitle>{calendarInfo.monthName}</CardTitle>
               <Button variant="outline" size="icon" onClick={handleNextMonth}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -217,6 +245,11 @@ export default function ProgramacionCursosPage() {
                 ))}
               </div>
               <div className="grid grid-cols-7 gap-px bg-gray-200">
+                {/* Empty cells for the offset */}
+                {Array.from({ length: calendarInfo.firstDayOffset }).map((_, i) => (
+                  <div key={`empty-${i}`} className="bg-gray-50 p-2 min-h-[100px]" />
+                ))}
+                {/* Calendar days */}
                 {calendarDays.map((day) => (
                   <div key={day} className="bg-white p-2 min-h-[100px]">
                     <div className="font-medium text-sm mb-1">{day}</div>
