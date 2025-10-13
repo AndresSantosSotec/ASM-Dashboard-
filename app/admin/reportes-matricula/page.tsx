@@ -219,7 +219,7 @@ export default function ReportesMatriculaPage() {
   const students = reportData?.listado?.alumnos ?? []
   const currentPage = pagination?.pagina ?? appliedFilters.page ?? 1
   const totalPages = pagination?.totalPaginas ?? 1
-  const pageSize = pagination?.porPagina ?? appliedFilters.perPage ?? students.length || 1
+  const pageSize = (pagination?.porPagina ?? appliedFilters.perPage ?? students.length) || 1
   const totalRecords = pagination?.total ?? students.length
   const firstRecord = totalRecords === 0 ? 0 : (currentPage - 1) * pageSize + 1
   const lastRecord = totalRecords === 0 ? 0 : Math.min(firstRecord + pageSize - 1, totalRecords)
