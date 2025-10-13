@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Download, FileText, Printer, Filter, FileSpreadsheet, FileIcon as FilePdf } from "lucide-react"
+import { Download, FileText, Printer, Filter, FileSpreadsheet, FileIcon as FilePdf, AlertCircle } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,6 +18,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import ReportErrorHandler from "@/components/admin/report-error-handler"
 
 export default function ReportesMatriculaPage() {
   const [dateRange, setDateRange] = useState<"month" | "quarter" | "semester" | "year" | "custom">("month")
@@ -29,6 +31,42 @@ export default function ReportesMatriculaPage() {
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [exportFormat, setExportFormat] = useState<string>("pdf")
   const [exportDetail, setExportDetail] = useState<string>("complete")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [reportData, setReportData] = useState<any>(null)
+
+  // Simular la carga de datos del reporte
+  useEffect(() => {
+    loadReportData()
+  }, [dateRange, startDate, endDate, program, studentType])
+
+  const loadReportData = async () => {
+    setLoading(true)
+    setError(null)
+    
+    try {
+      // Aquí se haría la llamada real al API
+      // const response = await fetch(`/api/reportes/matricula?start=${startDate}&end=${endDate}`)
+      // const data = await response.json()
+      
+      // Simulación: Comentar esto y descomentar el código de arriba cuando el backend esté listo
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Simular un error de boolean para demostración
+      // Descomentar la siguiente línea para ver el error handler en acción:
+      // throw new Error("SQLSTATE[42883]: Undefined function: 7 ERROR: el operador no existe: boolean = integer LINE 1: ...grama\" as \"programa\", CASE WHEN prospectos.activo = 1 THEN 'Activo' ELSE 'Inactivo' END as estado")
+      
+      setReportData({ loaded: true })
+    } catch (err: any) {
+      setError(err.message || "Error al cargar el reporte")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const retryLoadData = () => {
+    loadReportData()
+  }
 
   // Datos de ejemplo para la tabla
   const students = [
@@ -275,6 +313,26 @@ export default function ReportesMatriculaPage() {
           </Dialog>
         </div>
       </div>
+
+      {/* Show error handler if there's an error */}
+      {error && (
+        <ReportErrorHandler 
+          error={error} 
+          onRetry={retryLoadData}
+          onClose={() => setError(null)}
+        />
+      )}
+
+      {/* Show loading state */}
+      {loading && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Cargando reporte...</AlertTitle>
+          <AlertDescription>
+            Por favor espere mientras se cargan los datos del reporte.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
