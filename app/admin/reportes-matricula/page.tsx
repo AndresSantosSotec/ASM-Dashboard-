@@ -42,6 +42,11 @@ import {
   type MatriculaReportFilters,
   type MatriculaReportResponse,
 } from "@/services/reportesMatricula"
+import {
+  exportarEstudiantesMatriculados,
+  fetchEstudiantesMatriculados,
+  type EstudianteMatriculado,
+} from "@/services/estudiantesMatriculados"
 
 const numberFormatter = new Intl.NumberFormat("es-PE")
 const percentFormatter = new Intl.NumberFormat("es-PE", { maximumFractionDigits: 2 })
@@ -142,6 +147,8 @@ export default function ReportesMatriculaPage() {
   const [exportDetail, setExportDetail] = useState<MatriculaExportDetail>("complete")
   const [includeCharts, setIncludeCharts] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [useStudentsEndpoint, setUseStudentsEndpoint] = useState(false)
+  const [allStudentsLoading, setAllStudentsLoading] = useState(false)
 
   const loadReport = useCallback(async (filters: MatriculaReportFilters) => {
     try {
@@ -171,9 +178,57 @@ export default function ReportesMatriculaPage() {
     }
   }, [toast])
 
+  const loadAllStudents = useCallback(async (filters: MatriculaReportFilters) => {
+    try {
+      setAllStudentsLoading(true)
+      setError(null)
+      const response = await fetchEstudiantesMatriculados({
+        fechaInicio: filters.fechaInicio,
+        fechaFin: filters.fechaFin,
+        programaId: filters.programaId === "all" ? undefined : filters.programaId,
+        tipoAlumno: filters.tipoAlumno === "all" ? undefined : filters.tipoAlumno,
+        page: filters.page,
+        perPage: filters.perPage,
+      })
+      
+      const estudiantesData = response.estudiantes ?? response.data ?? []
+      
+      // Update report data structure to match the existing format
+      if (reportData) {
+        setReportData({
+          ...reportData,
+          listado: {
+            alumnos: estudiantesData.map((est) => ({
+              id: est.id,
+              nombre: est.nombre,
+              fechaMatricula: est.fechaMatricula,
+              tipo: est.tipo ?? est.tipoAlumno,
+              programa: est.programa,
+              estado: est.estado,
+            })),
+            paginacion: response.paginacion,
+          },
+        })
+      }
+    } catch (err) {
+      const message = getErrorMessage(err)
+      setError(message)
+      toast({
+        title: "No se pudieron obtener los estudiantes matriculados",
+        description: message,
+        variant: "destructive",
+      })
+    } finally {
+      setAllStudentsLoading(false)
+    }
+  }, [toast, reportData])
+
   useEffect(() => {
     void loadReport(appliedFilters)
-  }, [appliedFilters, loadReport])
+    if (useStudentsEndpoint) {
+      void loadAllStudents(appliedFilters)
+    }
+  }, [appliedFilters, loadReport, loadAllStudents, useStudentsEndpoint])
 
   useEffect(() => {
     if (appliedFilters.rango) {
@@ -299,18 +354,32 @@ export default function ReportesMatriculaPage() {
   const handleExport = async () => {
     try {
       setExporting(true)
-      await exportMatriculaReport({
-        formato: exportFormat,
-        detalle: exportDetail,
-        incluirGraficas: includeCharts,
-        rango: appliedFilters.rango,
-        fechaInicio: appliedFilters.fechaInicio,
-        fechaFin: appliedFilters.fechaFin,
-        programaId: appliedFilters.programaId,
-        tipoAlumno: appliedFilters.tipoAlumno,
-        page: appliedFilters.page,
-        perPage: appliedFilters.perPage,
-      })
+      
+      if (useStudentsEndpoint) {
+        // Use new students endpoint for export
+        await exportarEstudiantesMatriculados({
+          formato: exportFormat === "pdf" ? "pdf" : exportFormat === "excel" ? "excel" : "csv",
+          fechaInicio: appliedFilters.fechaInicio,
+          fechaFin: appliedFilters.fechaFin,
+          programaId: appliedFilters.programaId === "all" ? undefined : appliedFilters.programaId,
+          tipoAlumno: appliedFilters.tipoAlumno === "all" ? undefined : appliedFilters.tipoAlumno,
+          incluirTodos: true,
+        })
+      } else {
+        // Use existing reports endpoint
+        await exportMatriculaReport({
+          formato: exportFormat,
+          detalle: exportDetail,
+          incluirGraficas: includeCharts,
+          rango: appliedFilters.rango,
+          fechaInicio: appliedFilters.fechaInicio,
+          fechaFin: appliedFilters.fechaFin,
+          programaId: appliedFilters.programaId,
+          tipoAlumno: appliedFilters.tipoAlumno,
+          page: appliedFilters.page,
+          perPage: appliedFilters.perPage,
+        })
+      }
 
       toast({
         title: "Exportación iniciada",
@@ -466,6 +535,16 @@ export default function ReportesMatriculaPage() {
               <CardDescription>Aplicar filtros actualiza toda la información del reporte.</CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="mb-4 flex items-center gap-2">
+                <Checkbox
+                  id="use-students-endpoint"
+                  checked={useStudentsEndpoint}
+                  onCheckedChange={(value) => setUseStudentsEndpoint(Boolean(value))}
+                />
+                <Label htmlFor="use-students-endpoint" className="text-sm font-normal cursor-pointer">
+                  Mostrar todas las matrículas (incluye datos históricos completos)
+                </Label>
+              </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div className="space-y-2">
                   <Label htmlFor="date-range">Rango de fechas</Label>
@@ -624,9 +703,16 @@ export default function ReportesMatriculaPage() {
             <CardHeader>
               <CardTitle>Listado de alumnos matriculados</CardTitle>
               <CardDescription>
-                {totalRecords > 0
-                  ? `Mostrando ${formatNumber(firstRecord)} - ${formatNumber(lastRecord)} de ${formatNumber(totalRecords)} alumnos`
-                  : "No se encontraron alumnos con los filtros aplicados"}
+                {useStudentsEndpoint && allStudentsLoading ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Cargando estudiantes matriculados...
+                  </span>
+                ) : totalRecords > 0 ? (
+                  `Mostrando ${formatNumber(firstRecord)} - ${formatNumber(lastRecord)} de ${formatNumber(totalRecords)} alumnos`
+                ) : (
+                  "No se encontraron alumnos con los filtros aplicados"
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -685,7 +771,7 @@ export default function ReportesMatriculaPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage <= 1 || loading}
+                    disabled={currentPage <= 1 || loading || allStudentsLoading}
                   >
                     Anterior
                   </Button>
@@ -693,7 +779,7 @@ export default function ReportesMatriculaPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage >= totalPages || loading}
+                    disabled={currentPage >= totalPages || loading || allStudentsLoading}
                   >
                     Siguiente
                   </Button>
