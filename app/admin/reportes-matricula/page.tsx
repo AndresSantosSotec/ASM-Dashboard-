@@ -33,6 +33,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
+import { useDebounce } from "@/hooks/use-debounce"
 import {
   exportMatriculaReport,
   fetchMatriculaReport,
@@ -178,6 +179,8 @@ export default function ReportesMatriculaPage() {
     }
   }, [toast])
 
+  const loadReportMemoized = useMemo(() => loadReport, [loadReport])
+
   const loadAllStudents = useCallback(async (filters: MatriculaReportFilters) => {
     try {
       setAllStudentsLoading(true)
@@ -194,9 +197,10 @@ export default function ReportesMatriculaPage() {
       const estudiantesData = response.estudiantes ?? response.data ?? []
       
       // Update report data structure to match the existing format
-      if (reportData) {
-        setReportData({
-          ...reportData,
+      setReportData((prevData) => {
+        if (!prevData) return prevData
+        return {
+          ...prevData,
           listado: {
             alumnos: estudiantesData.map((est) => ({
               id: est.id,
@@ -208,8 +212,8 @@ export default function ReportesMatriculaPage() {
             })),
             paginacion: response.paginacion,
           },
-        })
-      }
+        }
+      })
     } catch (err) {
       const message = getErrorMessage(err)
       setError(message)
@@ -221,14 +225,19 @@ export default function ReportesMatriculaPage() {
     } finally {
       setAllStudentsLoading(false)
     }
-  }, [toast, reportData])
+  }, [toast])
+
+  const loadAllStudentsMemoized = useMemo(() => loadAllStudents, [loadAllStudents])
 
   useEffect(() => {
-    void loadReport(appliedFilters)
+    void loadReportMemoized(appliedFilters)
+  }, [appliedFilters, loadReportMemoized])
+
+  useEffect(() => {
     if (useStudentsEndpoint) {
-      void loadAllStudents(appliedFilters)
+      void loadAllStudentsMemoized(appliedFilters)
     }
-  }, [appliedFilters, loadReport, loadAllStudents, useStudentsEndpoint])
+  }, [appliedFilters, useStudentsEndpoint, loadAllStudentsMemoized])
 
   useEffect(() => {
     if (appliedFilters.rango) {
