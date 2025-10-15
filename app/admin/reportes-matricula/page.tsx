@@ -35,6 +35,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { useDebounce } from "@/hooks/use-debounce"
 import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import {
   exportMatriculaReport,
   fetchMatriculaReport,
   type MatriculaDateRange,
@@ -312,6 +321,44 @@ export default function ReportesMatriculaPage() {
   const tendencias = reportData?.tendencias
 
   const isInitialLoading = loading && !reportData
+
+  // Helper function to generate visible page numbers with ellipsis
+  const getVisiblePages = (current: number, total: number): (number | string)[] => {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1)
+    }
+
+    const pages: (number | string)[] = []
+    const delta = 2
+
+    pages.push(1)
+
+    if (current > delta + 2) {
+      pages.push("ellipsis-start")
+    }
+
+    const start = Math.max(2, current - delta)
+    const end = Math.min(total - 1, current + delta)
+
+    for (let i = start; i <= end; i++) {
+      pages.push(i)
+    }
+
+    if (current < total - delta - 1) {
+      pages.push("ellipsis-end")
+    }
+
+    if (total > 1) {
+      pages.push(total)
+    }
+
+    return pages
+  }
+
+  const visiblePages = useMemo(
+    () => getVisiblePages(currentPage, totalPages),
+    [currentPage, totalPages]
+  )
 
   const handleApplyFilters = () => {
     if (dateRange === "custom") {
@@ -631,22 +678,6 @@ export default function ReportesMatriculaPage() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="per-page">Registros por página</Label>
-                  <Select value={String(perPage)} onValueChange={(value) => setPerPage(Number(value))}>
-                    <SelectTrigger id="per-page">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[25, 50, 100].map((size) => (
-                        <SelectItem key={size} value={String(size)}>
-                          {size}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 <div className="flex items-end">
                   <Button onClick={handleApplyFilters} disabled={loading}>
                     {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />}
@@ -771,29 +802,118 @@ export default function ReportesMatriculaPage() {
                   </TableBody>
                 </Table>
               </div>
-              <div className="mt-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <p className="text-sm text-muted-foreground">
-                  Página {formatNumber(currentPage)} de {formatNumber(totalPages)}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage <= 1 || loading || allStudentsLoading}
-                  >
-                    Anterior
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage >= totalPages || loading || allStudentsLoading}
-                  >
-                    Siguiente
-                  </Button>
+              
+              {/* Enhanced Pagination Controls */}
+              {totalRecords > 0 && (
+                <div className="mt-4 space-y-4">
+                  {/* Records info and page size selector */}
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-sm text-muted-foreground">
+                      Mostrando <span className="font-medium">{formatNumber(firstRecord)}</span> a{" "}
+                      <span className="font-medium">{formatNumber(lastRecord)}</span> de{" "}
+                      <span className="font-medium">{formatNumber(totalRecords)}</span> alumnos
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="page-size" className="text-sm text-muted-foreground whitespace-nowrap">
+                        Registros por página:
+                      </Label>
+                      <Select
+                        value={String(perPage)}
+                        onValueChange={(value) => {
+                          setPerPage(Number(value))
+                          setAppliedFilters((prev) => ({
+                            ...prev,
+                            page: 1,
+                            perPage: Number(value),
+                          }))
+                        }}
+                        disabled={loading || allStudentsLoading}
+                      >
+                        <SelectTrigger id="page-size" className="w-[100px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[10, 25, 50, 100].map((size) => (
+                            <SelectItem key={size} value={String(size)}>
+                              {size}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Page navigation */}
+                  {totalPages > 1 && (
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              if (currentPage > 1) {
+                                handlePageChange(currentPage - 1)
+                              }
+                            }}
+                            className={currentPage <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                            aria-disabled={currentPage <= 1 || loading || allStudentsLoading}
+                          />
+                        </PaginationItem>
+
+                        {visiblePages.map((page, idx) =>
+                          typeof page === "number" ? (
+                            <PaginationItem key={page}>
+                              <PaginationLink
+                                href="#"
+                                isActive={page === currentPage}
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  if (page !== currentPage) {
+                                    handlePageChange(page)
+                                  }
+                                }}
+                                className="cursor-pointer"
+                                aria-disabled={loading || allStudentsLoading}
+                              >
+                                {page}
+                              </PaginationLink>
+                            </PaginationItem>
+                          ) : (
+                            <PaginationItem key={`${page}-${idx}`}>
+                              <PaginationEllipsis />
+                            </PaginationItem>
+                          )
+                        )}
+
+                        <PaginationItem>
+                          <PaginationNext
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              if (currentPage < totalPages) {
+                                handlePageChange(currentPage + 1)
+                              }
+                            }}
+                            className={
+                              currentPage >= totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"
+                            }
+                            aria-disabled={currentPage >= totalPages || loading || allStudentsLoading}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  )}
+
+                  {/* Loading indicator for pagination */}
+                  {(loading || allStudentsLoading) && (
+                    <div className="flex items-center justify-center text-sm text-muted-foreground">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Cargando datos...
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
