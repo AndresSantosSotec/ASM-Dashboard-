@@ -251,17 +251,6 @@ export const importKardexPagos = async (file: File, tipoArchivo: string = 'carde
   return res.data
 }
 
-
-export const getCuotasByProspecto = async (
-  prospectoId: string | number,
-  params?: any,
-) => {
-  const res = await api.get(`/prospectos/${prospectoId}/cuotas`, {
-    params,
-  })
-  return res.data
-}
-
 export const updateNotificationRule = async (
   ruleId: string | number,
   notificationId: string | number,
