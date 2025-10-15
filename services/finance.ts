@@ -238,13 +238,27 @@ export const fetchNotificationRulesByRule = async (ruleId: string | number) => {
   return Array.isArray(list) ? list : []
 }
 
-export const createNotificationRule = async (ruleId: string | number, data: any) => {
-  const payload = {
-    type: data.type ?? "email",
-    offset_days: Number(data.triggerDays ?? 0),
-    message: data.message ?? "",
-  }
-  const res = await api.post(`/payment-rules/${ruleId}/notifications`, payload)
+export const importKardexPagos = async (file: File, tipoArchivo: string = 'cardex_directo') => {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('tipo_archivo', tipoArchivo)
+  
+  const res = await api.post('/importar-pagos-kardex', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+  return res.data
+}
+
+
+export const getCuotasByProspecto = async (
+  prospectoId: string | number,
+  params?: any,
+) => {
+  const res = await api.get(`/prospectos/${prospectoId}/cuotas`, {
+    params,
+  })
   return res.data
 }
 

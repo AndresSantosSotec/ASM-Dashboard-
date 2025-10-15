@@ -1,7 +1,8 @@
 "use client"
 
 import React from "react"
-import { useState, useEffect } from "react"
+
+import { useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -15,166 +16,76 @@ interface DayModalData {
 }
 
 export default function ProgramacionCursosPage() {
-  const [currentMonth, setCurrentMonth] = useState<string>("")
-  const [courses, setCourses] = useState<ProgramacionCurso[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [availableMonths, setAvailableMonths] = useState<string[]>([])
-  const [currentMonthIndex, setCurrentMonthIndex] = useState(0)
-  const [selectedDay, setSelectedDay] = useState<DayModalData | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [currentDate, setCurrentDate] = useState(new Date())
+  const [currentView, setCurrentView] = useState<"month" | "week">("month")
+  const [showNewSessionDialog, setShowNewSessionDialog] = useState(false)
 
-  // Fetch courses from backend
-  useEffect(() => {
-    const loadCourses = async () => {
-      try {
-        setLoading(true)
-        const data = await fetchProgramacionCursos()
-        setCourses(data)
-
-        // Get unique months and set the first one as current
-        const months = getUniqueMonths(data)
-        setAvailableMonths(months)
-
-        // Calculate current month and select if exists
-        const now = new Date()
-        const monthNameRaw = new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(now)
-        const monthName = monthNameRaw.charAt(0).toUpperCase() + monthNameRaw.slice(1)
-        const year = String(now.getFullYear())
-        const currentKey = `${monthName} ${year}`
-
-        let initialIndex = 0
-        if (months.length > 0) {
-          const found = months.indexOf(currentKey)
-          initialIndex = found >= 0 ? found : 0
-          setCurrentMonth(months[initialIndex])
-          setCurrentMonthIndex(initialIndex)
-        }
-      } catch (err) {
-        console.error('Error loading courses:', err)
-        setError((err as Error).message || 'Error al cargar los cursos')
-      } finally {
-        setLoading(false)
-      }
+  // Calcular información del calendario dinámicamente
+  const calendarInfo = useMemo(() => {
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth()
+    
+    // Nombres de meses en español
+    const monthNames = [
+      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ]
+    
+    // Obtener el primer día del mes (0 = Domingo, 1 = Lunes, etc.)
+    const firstDayOfMonth = new Date(year, month, 1).getDay()
+    // Ajustar para que Lunes sea 0 (0 = Lunes, 6 = Domingo)
+    const firstDayOffset = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1
+    
+    // Obtener el total de días en el mes
+    const totalDays = new Date(year, month + 1, 0).getDate()
+    
+    return {
+      monthName: `${monthNames[month]} ${year}`,
+      firstDayOffset,
+      totalDays,
+      month,
+      year
     }
+  }, [currentDate])
 
-    loadCourses()
-  }, [])
+  // Datos de ejemplo para el calendario
+  const calendarDays = Array.from({ length: calendarInfo.totalDays }, (_, i) => i + 1)
+  const weekDays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 
-  // Generate calendar days for the current month
-  const generateCalendarDays = () => {
-    if (!currentMonth) return []
-
-    const [mesName, anioStr] = currentMonth.split(' ')
-    const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
-                   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-    const monthIndex = meses.indexOf(mesName)
-    const year = parseInt(anioStr)
-
-    const firstDay = new Date(year, monthIndex, 1)
-    const lastDay = new Date(year, monthIndex + 1, 0)
-    const daysInMonth = lastDay.getDate()
-    
-    // Get the day of week for the first day (0 = Sunday, 1 = Monday, etc.)
-    let firstDayOfWeek = firstDay.getDay()
-    // Convert to Monday = 0, Sunday = 6
-    firstDayOfWeek = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1
-
-    const days = []
-    
-    // Add empty cells for days before the month starts
-    for (let i = 0; i < firstDayOfWeek; i++) {
-      days.push(null)
-    }
-    
-    // Add all days of the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      days.push(day)
-    }
-    
-    return days
-  }
-
-  // Get courses for a specific day
-  const getCoursesForDay = (day: number | null) => {
-    if (!day) return []
-    
-    return courses.filter(course => {
-      if (!course.fecha_inicio) return false
-      
-      const courseDate = new Date(course.fecha_inicio)
-      const courseDay = courseDate.getDate()
-      const courseMonthYear = `${course.mes} ${course.anio}`
-      
-      return courseDay === day && courseMonthYear === currentMonth
-    })
-  }
-
-  // Handle day click
-  const handleDayClick = (day: number | null) => {
-    if (!day) return
-    
-    const dayCourses = getCoursesForDay(day)
-    setSelectedDay({
-      day,
-      courses: dayCourses,
-      monthYear: currentMonth
-    })
-    setIsModalOpen(true)
-  }
+  // Datos de ejemplo para cursos
+  const courses = [
+    {
+      id: 1,
+      name: "Introducción a la Programación",
+      instructor: "Juan Pérez",
+      room: "Aula 101",
+      time: "09:00 - 11:00",
+      days: [2, 4, 6, 9, 11, 13, 16, 18, 20, 23, 25, 27, 30],
+    },
+    {
+      id: 2,
+      name: "Matemáticas Avanzadas",
+      instructor: "María Rodríguez",
+      room: "Aula 203",
+      time: "14:00 - 16:00",
+      days: [1, 3, 5, 8, 10, 12, 15, 17, 19, 22, 24, 26, 29, 31],
+    },
+    {
+      id: 3,
+      name: "Diseño Gráfico",
+      instructor: "Carlos Gómez",
+      room: "Lab 3",
+      time: "16:00 - 18:00",
+      days: [1, 3, 5, 8, 10, 12, 15, 17, 19, 22, 24, 26, 29, 31],
+    },
+  ]
 
   const handlePreviousMonth = () => {
-    if (currentMonthIndex > 0) {
-      const newIndex = currentMonthIndex - 1
-      setCurrentMonthIndex(newIndex)
-      setCurrentMonth(availableMonths[newIndex])
-    }
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
   }
 
   const handleNextMonth = () => {
-    if (currentMonthIndex < availableMonths.length - 1) {
-      const newIndex = currentMonthIndex + 1
-      setCurrentMonthIndex(newIndex)
-      setCurrentMonth(availableMonths[newIndex])
-    }
-  }
-
-  // Format date for display
-  const formatFullDate = (day: number, monthYear: string) => {
-    const [mes, anio] = monthYear.split(' ')
-    const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
-                   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-    const monthIndex = meses.indexOf(mes)
-    const date = new Date(parseInt(anio), monthIndex, day)
-    
-    return new Intl.DateTimeFormat('es-ES', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    }).format(date)
-  }
-
-  if (loading) {
-    return (
-      <div className="p-6 flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Cargando programación de cursos...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <h3 className="text-red-800 font-medium mb-2">Error al cargar los cursos</h3>
-          <p className="text-red-600">{error}</p>
-        </div>
-      </div>
-    )
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
   }
 
   const calendarDays = generateCalendarDays()
@@ -215,31 +126,47 @@ export default function ProgramacionCursosPage() {
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <CardTitle className="text-2xl font-bold text-gray-800">
-                {currentMonth || 'Seleccione un mes'}
-              </CardTitle>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleNextMonth}
-                disabled={currentMonthIndex === availableMonths.length - 1}
-                className="hover:bg-white"
-              >
+              <CardTitle>{calendarInfo.monthName}</CardTitle>
+              <Button variant="outline" size="icon" onClick={handleNextMonth}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-6">
-          {/* Calendar Grid */}
-          <div className="mb-4">
-            {/* Days of week header */}
-            <div className="grid grid-cols-7 gap-2 mb-2">
-              {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(day => (
-                <div key={day} className="text-center font-semibold text-sm text-gray-600 py-2">
-                  {day}
-                </div>
-              ))}
+        <CardContent>
+          {currentView === "month" ? (
+            <div className="border rounded-md">
+              <div className="grid grid-cols-7 gap-px bg-gray-200">
+                {weekDays.map((day) => (
+                  <div key={day} className="bg-white p-2 text-center font-medium">
+                    {day}
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-px bg-gray-200">
+                {/* Empty cells for the offset */}
+                {Array.from({ length: calendarInfo.firstDayOffset }).map((_, i) => (
+                  <div key={`empty-${i}`} className="bg-gray-50 p-2 min-h-[100px]" />
+                ))}
+                {/* Calendar days */}
+                {calendarDays.map((day) => (
+                  <div key={day} className="bg-white p-2 min-h-[100px]">
+                    <div className="font-medium text-sm mb-1">{day}</div>
+                    {courses.map((course) =>
+                      course.days.includes(day) ? (
+                        <div
+                          key={`${course.id}-${day}`}
+                          className="text-xs p-1 mb-1 rounded bg-blue-100 text-blue-800 cursor-pointer"
+                          title={`${course.name} - ${course.instructor} - ${course.room}`}
+                        >
+                          {course.name.length > 15 ? `${course.name.substring(0, 15)}...` : course.name}
+                          <div className="text-xs text-blue-600">{course.time}</div>
+                        </div>
+                      ) : null,
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
             
             {/* Calendar days */}
