@@ -1,8 +1,6 @@
 "use client"
 
-import React from "react"
-
-import { useState, useMemo } from "react"
+import React, { useState, useMemo, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -19,6 +17,27 @@ export default function ProgramacionCursosPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [currentView, setCurrentView] = useState<"month" | "week">("month")
   const [showNewSessionDialog, setShowNewSessionDialog] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedDay, setSelectedDay] = useState<DayModalData | null>(null)
+  const [allCourses, setAllCourses] = useState<ProgramacionCurso[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Cargar cursos al montar el componente
+  useEffect(() => {
+    loadCourses()
+  }, [])
+
+  const loadCourses = async () => {
+    try {
+      setLoading(true)
+      const data = await fetchProgramacionCursos()
+      setAllCourses(data)
+    } catch (error) {
+      console.error("Error loading courses:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Calcular información del calendario dinámicamente
   const calendarInfo = useMemo(() => {
@@ -48,37 +67,33 @@ export default function ProgramacionCursosPage() {
     }
   }, [currentDate])
 
-  // Datos de ejemplo para el calendario
+  // Generar días del calendario
   const calendarDays = Array.from({ length: calendarInfo.totalDays }, (_, i) => i + 1)
   const weekDays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 
-  // Datos de ejemplo para cursos
-  const courses = [
-    {
-      id: 1,
-      name: "Introducción a la Programación",
-      instructor: "Juan Pérez",
-      room: "Aula 101",
-      time: "09:00 - 11:00",
-      days: [2, 4, 6, 9, 11, 13, 16, 18, 20, 23, 25, 27, 30],
-    },
-    {
-      id: 2,
-      name: "Matemáticas Avanzadas",
-      instructor: "María Rodríguez",
-      room: "Aula 203",
-      time: "14:00 - 16:00",
-      days: [1, 3, 5, 8, 10, 12, 15, 17, 19, 22, 24, 26, 29, 31],
-    },
-    {
-      id: 3,
-      name: "Diseño Gráfico",
-      instructor: "Carlos Gómez",
-      room: "Lab 3",
-      time: "16:00 - 18:00",
-      days: [1, 3, 5, 8, 10, 12, 15, 17, 19, 22, 24, 26, 29, 31],
-    },
-  ]
+  // Filtrar cursos del mes actual
+  const currentMonthCourses = useMemo(() => {
+    return allCourses.filter(course => {
+      const courseMonth = `${course.mes} ${course.anio}`
+      const currentMonth = `${calendarInfo.monthName}`
+      return courseMonth === currentMonth
+    })
+  }, [allCourses, calendarInfo.monthName])
+
+  // Obtener cursos para un día específico
+  const getCoursesForDay = (day: number): ProgramacionCurso[] => {
+    if (!day) return []
+    
+    return currentMonthCourses.filter(course => {
+      if (!course.fecha_inicio || !course.fecha_fin) return false
+      
+      const startDate = new Date(course.fecha_inicio)
+      const endDate = new Date(course.fecha_fin)
+      const checkDate = new Date(calendarInfo.year, calendarInfo.month, day)
+      
+      return checkDate >= startDate && checkDate <= endDate
+    })
+  }
 
   const handlePreviousMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
@@ -88,11 +103,25 @@ export default function ProgramacionCursosPage() {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
   }
 
-  const calendarDays = generateCalendarDays()
-  const currentMonthCourses = courses.filter(course => {
-    const courseMonth = `${course.mes} ${course.anio}`
-    return courseMonth === currentMonth
-  })
+  const handleDayClick = (day: number) => {
+    const dayCourses = getCoursesForDay(day)
+    setSelectedDay({
+      day,
+      courses: dayCourses,
+      monthYear: calendarInfo.monthName
+    })
+    setIsModalOpen(true)
+  }
+
+  const formatFullDate = (day: number, monthYear: string): string => {
+    const date = new Date(calendarInfo.year, calendarInfo.month, day)
+    return new Intl.DateTimeFormat('es-ES', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }).format(date)
+  }
 
   // Get today's date for highlighting
   const today = new Date()
@@ -100,7 +129,16 @@ export default function ProgramacionCursosPage() {
   const todayMonth = new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(today)
   const todayMonthCapitalized = todayMonth.charAt(0).toUpperCase() + todayMonth.slice(1)
   const todayYear = today.getFullYear()
-  const isCurrentMonth = currentMonth === `${todayMonthCapitalized} ${todayYear}`
+  const isCurrentMonth = calendarInfo.monthName === `${todayMonthCapitalized} ${todayYear}`
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6 space-y-6">
@@ -121,119 +159,88 @@ export default function ProgramacionCursosPage() {
                 variant="outline"
                 size="icon"
                 onClick={handlePreviousMonth}
-                disabled={currentMonthIndex === 0}
                 className="hover:bg-white"
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <CardTitle>{calendarInfo.monthName}</CardTitle>
-              <Button variant="outline" size="icon" onClick={handleNextMonth}>
+              <Button variant="outline" size="icon" onClick={handleNextMonth} className="hover:bg-white">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {currentView === "month" ? (
-            <div className="border rounded-md">
-              <div className="grid grid-cols-7 gap-px bg-gray-200">
-                {weekDays.map((day) => (
-                  <div key={day} className="bg-white p-2 text-center font-medium">
-                    {day}
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-7 gap-px bg-gray-200">
-                {/* Empty cells for the offset */}
-                {Array.from({ length: calendarInfo.firstDayOffset }).map((_, i) => (
-                  <div key={`empty-${i}`} className="bg-gray-50 p-2 min-h-[100px]" />
-                ))}
-                {/* Calendar days */}
-                {calendarDays.map((day) => (
-                  <div key={day} className="bg-white p-2 min-h-[100px]">
-                    <div className="font-medium text-sm mb-1">{day}</div>
-                    {courses.map((course) =>
-                      course.days.includes(day) ? (
-                        <div
-                          key={`${course.id}-${day}`}
-                          className="text-xs p-1 mb-1 rounded bg-blue-100 text-blue-800 cursor-pointer"
-                          title={`${course.name} - ${course.instructor} - ${course.room}`}
-                        >
-                          {course.name.length > 15 ? `${course.name.substring(0, 15)}...` : course.name}
-                          <div className="text-xs text-blue-600">{course.time}</div>
-                        </div>
-                      ) : null,
-                    )}
-                  </div>
-                ))}
-              </div>
+          <div className="border rounded-md">
+            <div className="grid grid-cols-7 gap-px bg-gray-200">
+              {weekDays.map((day) => (
+                <div key={day} className="bg-white p-2 text-center font-medium">
+                  {day}
+                </div>
+              ))}
             </div>
             
             {/* Calendar days */}
-            <div className="grid grid-cols-7 gap-2">
-              {calendarDays.map((day, index) => {
+            <div className="grid grid-cols-7 gap-px bg-gray-200">
+              {/* Empty cells for the offset */}
+              {Array.from({ length: calendarInfo.firstDayOffset }).map((_, i) => (
+                <div key={`empty-${i}`} className="bg-gray-50 p-2 min-h-[100px]" />
+              ))}
+              
+              {calendarDays.map((day) => {
                 const dayCourses = getCoursesForDay(day)
                 const isToday = isCurrentMonth && day === todayDay
                 const hasCourses = dayCourses.length > 0
 
                 return (
                   <div
-                    key={index}
+                    key={day}
                     onClick={() => handleDayClick(day)}
-                    className={`min-h-[120px] border rounded-lg p-2 transition-all ${
-                      day === null 
-                        ? 'bg-gray-50' 
-                        : isToday
-                        ? 'bg-blue-50 border-blue-400 border-2 cursor-pointer hover:shadow-lg'
+                    className={`min-h-[100px] p-2 transition-all cursor-pointer ${
+                      isToday
+                        ? 'bg-blue-50 border-blue-400 border-2'
                         : hasCourses
-                        ? 'bg-white hover:shadow-md cursor-pointer border-gray-200 hover:border-blue-300'
-                        : 'bg-white border-gray-100 cursor-pointer hover:bg-gray-50'
+                        ? 'bg-white hover:bg-gray-50'
+                        : 'bg-white hover:bg-gray-50'
                     }`}
                   >
-                    {day && (
-                      <>
-                        <div className={`text-right mb-1 ${
-                          isToday 
-                            ? 'font-bold text-blue-600' 
-                            : 'text-gray-600'
-                        }`}>
-                          <span className={`text-sm ${
-                            isToday ? 'bg-blue-600 text-white px-2 py-0.5 rounded-full' : ''
-                          }`}>
-                            {day}
-                          </span>
-                        </div>
-                        
-                        {/* Courses for this day */}
-                        <div className="space-y-1 overflow-y-auto max-h-[90px]">
-                          {dayCourses.slice(0, 3).map((course, idx) => (
-                            <div
-                              key={course.courseid}
-                              className={`text-xs p-1.5 rounded ${
-                                idx === 0 ? 'bg-blue-100 text-blue-800' :
-                                idx === 1 ? 'bg-green-100 text-green-800' :
-                                'bg-purple-100 text-purple-800'
-                              } hover:opacity-80 transition-opacity`}
-                              title={course.coursename}
-                            >
-                              <div className="font-medium truncate">
-                                {course.coursename}
-                              </div>
-                              <div className="flex items-center text-[10px] mt-0.5 opacity-75">
-                                <Clock className="h-2.5 w-2.5 mr-1" />
-                                {course.dia_semana}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        
-                        {/* Show +X more indicator if there are many courses */}
-                        {dayCourses.length > 3 && (
-                          <div className="text-[10px] text-blue-600 text-center mt-1 font-semibold">
-                            +{dayCourses.length - 3} más
+                    <div className={`text-right mb-1 ${
+                      isToday 
+                        ? 'font-bold text-blue-600' 
+                        : 'text-gray-600'
+                    }`}>
+                      <span className={`text-sm ${
+                        isToday ? 'bg-blue-600 text-white px-2 py-0.5 rounded-full' : ''
+                      }`}>
+                        {day}
+                      </span>
+                    </div>
+                    
+                    {/* Courses for this day */}
+                    <div className="space-y-1 overflow-y-auto max-h-[70px]">
+                      {dayCourses.slice(0, 2).map((course, idx) => (
+                        <div
+                          key={course.courseid}
+                          className={`text-xs p-1.5 rounded ${
+                            idx === 0 ? 'bg-blue-100 text-blue-800' :
+                            'bg-green-100 text-green-800'
+                          } hover:opacity-80 transition-opacity`}
+                          title={course.coursename}
+                        >
+                          <div className="font-medium truncate">
+                            {course.coursename.length > 15 
+                              ? `${course.coursename.substring(0, 15)}...` 
+                              : course.coursename}
                           </div>
-                        )}
-                      </>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Show +X more indicator if there are many courses */}
+                    {dayCourses.length > 2 && (
+                      <div className="text-[10px] text-blue-600 text-center mt-1 font-semibold">
+                        +{dayCourses.length - 2} más
+                      </div>
                     )}
                   </div>
                 )
@@ -242,7 +249,7 @@ export default function ProgramacionCursosPage() {
           </div>
 
           {currentMonthCourses.length === 0 && (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-500 mt-4">
               <Calendar className="h-12 w-12 mx-auto mb-3 text-gray-400" />
               <p>No hay cursos programados para este mes</p>
             </div>
