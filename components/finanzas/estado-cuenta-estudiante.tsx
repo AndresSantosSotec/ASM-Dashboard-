@@ -1,457 +1,404 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import {
-  AlertCircle,
-  CreditCard,
-  Download,
-  FileText,
-  Upload,
-  Calendar,
-  Clock,
-  CheckCircle,
-  AlertTriangle,
-} from "lucide-react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { useEffect, useState } from "react"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { fetchStudentAccountSummary } from "@/services/finance"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ArrowUpDown, ArrowUp, ArrowDown, Download, Search, Filter } from "lucide-react"
+import { fetchProspectos, type ProspectoRow } from "@/services/estudiantes"
+import StudentAccountModal from "./StudentAccountModal"
+import * as pdfGenerator from "@/lib/pdf-generator"
 
-export function EstadoCuentaEstudiante() {
-  const [activeTab, setActiveTab] = useState("pending")
-  const [showCardPayment, setShowCardPayment] = useState(false)
-  const [showReceiptUpload, setShowReceiptUpload] = useState(false)
-  const [selectedPayment, setSelectedPayment] = useState<any | null>(null)
-  const [uploadFile, setUploadFile] = useState<File | null>(null)
-  const [accountData, setAccountData] = useState<any | null>(null)
-  const [loading, setLoading] = useState(true)
+type SortField = 'nombre' | 'monto_pagado' | 'balance' | 'fecha_pago'
+type SortOrder = 'asc' | 'desc'
+type PriorityMode = 'none' | 'balance' | 'pagado'
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const data = await fetchStudentAccountSummary()
-        setAccountData(data)
-      } catch (e) {
-        console.error('Error fetching account summary', e)
-      } finally {
-        setLoading(false)
+export default function GestionEstadosCuenta() {
+  const [q, setQ] = useState("")
+  const [status, setStatus] = useState<'al_dia'|'bloqueado'|'all'>('all')
+  const [sortField, setSortField] = useState<SortField>('monto_pagado')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(25)
+  const [rows, setRows] = useState<ProspectoRow[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [totalPages, setTotalPages] = useState(0)
+
+  const [modalOpen, setModalOpen] = useState(false)
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+
+  // Filtros adicionales
+  const [minBalance, setMinBalance] = useState("")
+  const [maxBalance, setMaxBalance] = useState("")
+  const [programa, setPrograma] = useState("all")
+
+  // NUEVO: Prioridad (balance/pagado) y filtro “solo > 0”
+  const [priority, setPriority] = useState<PriorityMode>('none')
+  const [onlyPositive, setOnlyPositive] = useState(false)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const params: any = {
+        q: q.trim() || undefined,
+        status: status === 'all' ? undefined : status,
+        program_id: programa === 'all' ? undefined : programa,
+        sort_field: sortField,
+        sort_order: sortOrder,
+        page,
+        per_page: perPage,
       }
-    }
-    loadData()
-  }, [])
 
-  // Función para iniciar el pago con tarjeta
-  const startCardPayment = (payment: any) => {
-    setSelectedPayment(payment)
-    setShowCardPayment(true)
-  }
+      if (minBalance) params.min_balance = parseFloat(minBalance)
+      if (maxBalance) params.max_balance = parseFloat(maxBalance)
 
-  // Función para iniciar la carga de recibo
-  const startReceiptUpload = (payment: any) => {
-    setSelectedPayment(payment)
-    setShowReceiptUpload(true)
-  }
+      const { data, meta } = await fetchProspectos(params)
 
-  // Función para manejar la carga de archivos
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setUploadFile(e.target.files[0])
-    }
-  }
+      // === Post-proceso en cliente: prioridad y filtro de “solo > 0” ===
+      let processed = [...data]
 
-  // Función para confirmar la carga de recibo
-  const confirmReceiptUpload = () => {
-    setShowReceiptUpload(false)
-    setUploadFile(null)
-    // Aquí se implementaría la lógica para subir el recibo al servidor
-  }
+      if (priority === 'balance') {
+        if (onlyPositive) processed = processed.filter(e => Number(e.balance) > 0)
+        processed.sort((a, b) => Number(b.balance) - Number(a.balance))
+      } else if (priority === 'pagado') {
+        if (onlyPositive) processed = processed.filter(e => Number(e.monto_pagado) > 0)
+        processed.sort((a, b) => Number(b.monto_pagado) - Number(a.monto_pagado))
+      }
+      // Si priority === 'none', respetamos el orden que vino del backend (sortField/sortOrder)
 
-  // Función para obtener el color de la insignia según el estado
-  const getBadgeVariant = (status: string) => {
-    switch (status) {
-      case "completado":
-        return "default"
-      case "pendiente":
-        return "outline"
-      case "vencido":
-        return "destructive"
-      case "procesando":
-        return "secondary"
-      default:
-        return "outline"
+      setRows(processed)
+
+      // Si aplicamos “onlyPositive” con prioridad, el total visual debe reflejar lo mostrado
+      const baseTotal = meta?.total ?? data.length
+      const visualTotal = (priority !== 'none' && onlyPositive) ? processed.length : baseTotal
+      setTotal(visualTotal)
+      setTotalPages(Math.ceil(visualTotal / perPage))
+    } finally {
+      setLoading(false)
     }
   }
 
-  // Función para obtener el texto del estado
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "completado":
-        return "Completado"
-      case "pendiente":
-        return "Pendiente"
-      case "vencido":
-        return "Vencido"
-      case "procesando":
-        return "Procesando"
-      default:
-        return "Pendiente"
+  // Cuando cambian filtros “globales”, resetea a página 1 y carga
+  useEffect(() => {
+    setPage(1)
+    load()
+  }, [q, status, sortField, sortOrder, perPage, minBalance, maxBalance, programa, priority, onlyPositive])
+
+  // Cambios de página
+  useEffect(() => {
+    load()
+  }, [page])
+
+  const handleSort = (field: SortField) => {
+    // Si estamos priorizando, ignora clicks de sort para no confundir
+    if (priority !== 'none') return
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortOrder('desc')
     }
   }
 
-  // Calcular el total pendiente incluyendo moras
-  const calculateTotalPending = () => {
-    return accountData.pendingPayments.reduce((total, payment) => {
-      return total + payment.amount + payment.lateFee
-    }, 0)
+  const getSortIcon = (field: SortField) => {
+    if (priority !== 'none') return <ArrowUpDown className="w-4 h-4" />
+    if (sortField !== field) return <ArrowUpDown className="w-4 h-4" />
+    return sortOrder === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
   }
 
-  if (loading || !accountData) {
+  const handleGeneratePDF = async (prospecto: ProspectoRow) => {
+    try {
+      const gen: any = pdfGenerator as any
+      if (typeof gen.generateAccountStatePDF === 'function') {
+        await gen.generateAccountStatePDF(prospecto)
+      } else if (typeof gen.generateStudentAccountPDF === 'function') {
+        await gen.generateStudentAccountPDF(prospecto)
+      } else if (typeof gen.generate === 'function') {
+        await gen.generate(prospecto)
+      } else if (typeof gen.default?.generateAccountStatePDF === 'function') {
+        await gen.default.generateAccountStatePDF(prospecto)
+      } else {
+        console.warn('No PDF generator export found on "@/lib/pdf-generator"')
+      }
+    } catch (error) {
+      console.error('Error generando PDF:', error)
+    }
+  }
+
+  const clearFilters = () => {
+    setQ("")
+    setStatus('all')
+    setPrograma('all')
+    setMinBalance("")
+    setMaxBalance("")
+    setSortField('monto_pagado')
+    setSortOrder('desc')
+    setPriority('none')
+    setOnlyPositive(false)
+    setPage(1)
+  }
+
+  const renderPagination = () => {
+    const startPage = Math.max(1, page - 2)
+    const endPage = Math.min(totalPages, page + 2)
+    const pages = []
+    for (let i = startPage; i <= endPage; i++) pages.push(i)
+
     return (
-      <div className="flex justify-center items-center h-64">
-        <p>Cargando estado de cuenta...</p>
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
+          Mostrando {((page - 1) * perPage) + 1} - {Math.min(page * perPage, total)} de {total} resultados
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button variant="outline" size="sm" onClick={() => setPage(1)} disabled={page <= 1 || loading}>Primera</Button>
+          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1 || loading}>Anterior</Button>
+          {startPage > 1 && (
+            <>
+              <Button variant="outline" size="sm" onClick={() => setPage(1)}>1</Button>
+              {startPage > 2 && <span className="px-2">...</span>}
+            </>
+          )}
+          {pages.map(p => (
+            <Button key={p} variant={p === page ? "default" : "outline"} size="sm" onClick={() => setPage(p)}>
+              {p}
+            </Button>
+          ))}
+          {endPage < totalPages && (
+            <>
+              {endPage < totalPages - 1 && <span className="px-2">...</span>}
+              <Button variant="outline" size="sm" onClick={() => setPage(totalPages)}>{totalPages}</Button>
+            </>
+          )}
+          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages || loading}>Siguiente</Button>
+          <Button variant="outline" size="sm" onClick={() => setPage(totalPages)} disabled={page >= totalPages || loading}>Última</Button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Resumen del estado de cuenta */}
+    <>
       <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-            <div>
-              <CardTitle>Estado de Cuenta</CardTitle>
-              <CardDescription>
-                {accountData.student.name} - {accountData.student.id}
-              </CardDescription>
-            </div>
-            <div className="mt-2 md:mt-0">
-              {accountData.balance.isBlocked ? (
-                <Badge variant="destructive" className="text-sm">
-                  Cuenta Bloqueada
-                </Badge>
-              ) : accountData.balance.warningLevel > 0 ? (
-                <Badge variant="outline" className="border-yellow-500 text-yellow-700 bg-yellow-50 text-sm">
-                  {accountData.balance.warningLevel === 1 ? "Advertencia de Pago" : "Riesgo de Bloqueo"}
-                </Badge>
-              ) : (
-                <Badge variant="default" className="bg-green-500 text-sm">
-                  Al Día
-                </Badge>
-              )}
-            </div>
-          </div>
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2">
+            Estados de Cuenta (Administración)
+            <Badge variant="secondary">{total} estudiantes</Badge>
+          </CardTitle>
         </CardHeader>
-        <CardContent className="pb-2">
-          <div className="grid gap-6 md:grid-cols-3">
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium text-muted-foreground">Saldo Pendiente</h3>
-              <div className="text-2xl font-bold">Q{calculateTotalPending().toLocaleString()}</div>
-              <div className="text-sm text-muted-foreground">
-                Incluye Q{accountData.pendingPayments.reduce((total, payment) => total + payment.lateFee, 0)} en
-                recargos por mora
+
+        <CardContent className="space-y-4">
+          {/* Filtros principales */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nombre, carnet o correo"
+                value={q}
+                onChange={e => setQ(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+
+            <Select value={status} onValueChange={(v: any) => setStatus(v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Estado de cuenta" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                <SelectItem value="al_dia">Al día</SelectItem>
+                <SelectItem value="bloqueado">Bloqueado</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* NUEVO: Prioridad + Solo > 0 */}
+            <div className="flex items-center gap-2">
+              <Select value={priority} onValueChange={(v: PriorityMode) => setPriority(v)}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Priorizar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin prioridad</SelectItem>
+                  <SelectItem value="pagado">Priorizar Pagado</SelectItem>
+                  <SelectItem value="balance">Priorizar Balance</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="flex items-center gap-2">
+                <Checkbox id="onlyPositive" checked={onlyPositive} onCheckedChange={(v) => setOnlyPositive(Boolean(v))} />
+                <label htmlFor="onlyPositive" className="text-sm text-muted-foreground">Solo &gt; 0</label>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium text-muted-foreground">Próximo Vencimiento</h3>
-              <div className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-blue-500" />
-                <span className="text-lg font-medium">
-                  {new Date(accountData.balance.nextDueDate).toLocaleDateString()}
-                </span>
-              </div>
-              <div className="text-sm text-muted-foreground flex items-center gap-1">
-                <Clock className="h-4 w-4" />
-                <span>Faltan {accountData.balance.daysUntilDue} días</span>
-              </div>
-            </div>
+            <div className="flex items-center gap-2">
+              <Select value={String(perPage)} onValueChange={(v) => setPerPage(Number(v))}>
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10 filas</SelectItem>
+                  <SelectItem value="25">25 filas</SelectItem>
+                  <SelectItem value="50">50 filas</SelectItem>
+                  <SelectItem value="100">100 filas</SelectItem>
+                </SelectContent>
+              </Select>
 
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium text-muted-foreground">Estado de Pagos</h3>
-              <div className="flex items-center gap-2">
-                {accountData.balance.latePayments === 0 ? (
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                ) : (
-                  <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                )}
-                <span className="text-lg font-medium">
-                  {accountData.balance.latePayments === 0
-                    ? "Al día"
-                    : `${accountData.balance.latePayments} pago(s) atrasado(s)`}
-                </span>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                {accountData.balance.latePayments === 0
-                  ? "Todos los pagos están al día"
-                  : accountData.balance.latePayments === 1
-                    ? "Riesgo de recargo por mora"
-                    : "Riesgo de bloqueo de plataforma"}
+              <Button variant="outline" size="sm" onClick={clearFilters}>
+                <Filter className="w-4 h-4 mr-1" />
+                Limpiar
+              </Button>
+            </div>
+          </div>
+
+          {/* Filtros de balance */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 p-3 bg-muted/50 rounded-lg">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Balance mínimo</label>
+              <Input
+                type="number"
+                placeholder="0.00"
+                value={minBalance}
+                onChange={e => setMinBalance(e.target.value)}
+                className="h-8"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Balance máximo</label>
+              <Input
+                type="number"
+                placeholder="100000.00"
+                value={maxBalance}
+                onChange={e => setMaxBalance(e.target.value)}
+                className="h-8"
+              />
+            </div>
+            <div className="md:col-span-2 flex items-end">
+              <div className="text-xs text-muted-foreground">
+                {loading ? 'Cargando...' : `${total} estudiantes encontrados`}
               </div>
             </div>
           </div>
+
+          {/* Tabla */}
+          <div className="border rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="w-[250px]">
+                    <Button variant="ghost" onClick={() => handleSort('nombre')} className="h-auto p-0 font-semibold">
+                      Estudiante {getSortIcon('nombre')}
+                    </Button>
+                  </TableHead>
+                  <TableHead>Programas</TableHead>
+                  <TableHead className="text-right">
+                    <Button variant="ghost" onClick={() => handleSort('monto_pagado')} className="h-auto p-0 font-semibold">
+                      Pagado {getSortIcon('monto_pagado')}
+                    </Button>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <Button variant="ghost" onClick={() => handleSort('balance')} className="h-auto p-0 font-semibold">
+                      Balance {getSortIcon('balance')}
+                    </Button>
+                  </TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead className="text-right w-[160px]">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                        Cargando...
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : rows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      No se encontraron resultados con los filtros actuales
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  rows.map((r, index) => (
+                    <TableRow key={r.id} className={index % 2 === 0 ? "bg-background" : "bg-muted/20"}>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="font-medium text-sm">{r.nombre}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {r.carnet ? `Carnet: ${r.carnet}` : 'Sin carnet'}
+                          </div>
+                          {(((r as any).email) || ((r as any).correo)) && (
+                            <div className="text-xs text-muted-foreground">{(r as any).email ?? (r as any).correo}</div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <div className="max-w-[200px]">
+                          {r.programas?.map(p => p.programa).filter(Boolean).join(", ") || (
+                            <span className="text-muted-foreground italic">Sin programa asignado</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        <div className={`font-semibold ${r.monto_pagado > 0 ? 'text-green-600' : 'text-muted-foreground'}`}>
+                          Q{r.monto_pagado.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        <div className={`font-semibold ${r.balance > 0 ? 'text-red-600' : r.balance === 0 ? 'text-green-600' : 'text-blue-600'}`}>
+                          Q{r.balance.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {r.bloqueado ? (
+                          <Badge variant="destructive" className="text-xs">Bloqueado</Badge>
+                        ) : (
+                          <Badge className="bg-green-500 hover:bg-green-600 text-xs">Al día</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex gap-1 justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => { setSelectedId(r.id); setModalOpen(true) }}
+                            className="text-xs"
+                          >
+                            Ver estado
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleGeneratePDF(r)}
+                            className="text-xs"
+                          >
+                            <Download className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Paginación */}
+          {!loading && rows.length > 0 && renderPagination()}
         </CardContent>
       </Card>
 
-      {/* Alerta de mora o bloqueo si aplica */}
-      {accountData.balance.warningLevel > 0 && (
-        <Alert
-          variant={accountData.balance.warningLevel === 2 ? "destructive" : "default"}
-          className={accountData.balance.warningLevel === 2 ? "" : "border-yellow-500 text-yellow-700 bg-yellow-50"}
-        >
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>
-            {accountData.balance.warningLevel === 2 ? "Cuenta en riesgo de bloqueo" : "Pago vencido"}
-          </AlertTitle>
-          <AlertDescription>
-            {accountData.balance.warningLevel === 2
-              ? "Su cuenta será bloqueada en 5 días si no realiza el pago pendiente. Por favor, regularice su situación lo antes posible."
-              : "Tiene un pago vencido con recargo por mora de Q50. Realice su pago lo antes posible para evitar el bloqueo de su cuenta."}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="pending">Pagos Pendientes</TabsTrigger>
-          <TabsTrigger value="history">Historial de Pagos</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="pending" className="space-y-6 mt-6">
-          {accountData.pendingPayments.length > 0 ? (
-            <div className="grid gap-6 md:grid-cols-2">
-              {accountData.pendingPayments.map((payment) => (
-                <Card key={payment.id} className={payment.status === "vencido" ? "border-red-200" : ""}>
-                  <CardHeader className={`pb-2 ${payment.status === "vencido" ? "bg-red-50" : ""}`}>
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="text-lg font-bold">{payment.concept}</CardTitle>
-                      <Badge variant={getBadgeVariant(payment.status)}>{getStatusText(payment.status)}</Badge>
-                    </div>
-                    <CardDescription>
-                      Fecha límite: {new Date(payment.dueDate).toLocaleDateString()}
-                      {payment.status === "vencido" && (
-                        <span className="text-red-500 ml-2">({payment.daysLate} días de atraso)</span>
-                      )}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pb-2">
-                    <div className="space-y-1">
-                      <div className="text-2xl font-bold">
-                        Q{payment.amount.toLocaleString()}
-                        {payment.lateFee > 0 && (
-                          <span className="text-sm text-red-500 ml-2">+ Q{payment.lateFee} (mora)</span>
-                        )}
-                      </div>
-                      {payment.status === "vencido" && (
-                        <div className="text-sm text-red-500">
-                          Total a pagar: Q{(payment.amount + payment.lateFee).toLocaleString()}
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                  <CardFooter className="flex flex-col sm:flex-row gap-2 pt-2">
-                    <Button onClick={() => startCardPayment(payment)} className="w-full sm:w-auto">
-                      <CreditCard className="mr-2 h-4 w-4" /> Pagar con Tarjeta
-                    </Button>
-                    <Button variant="outline" onClick={() => startReceiptUpload(payment)} className="w-full sm:w-auto">
-                      <Upload className="mr-2 h-4 w-4" /> Subir Recibo
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-10">
-              <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-              <h3 className="text-lg font-medium">¡No tiene pagos pendientes!</h3>
-              <p className="text-muted-foreground mt-2">
-                Todos sus pagos están al día. El próximo pago vence el{" "}
-                {new Date(accountData.balance.nextDueDate).toLocaleDateString()}.
-              </p>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="history" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Historial de Pagos</CardTitle>
-              <CardDescription>Registro de todos los pagos realizados</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Concepto</TableHead>
-                    <TableHead>Monto</TableHead>
-                    <TableHead>Fecha de Pago</TableHead>
-                    <TableHead>Método</TableHead>
-                    <TableHead>Referencia</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {accountData.paymentHistory.map((payment) => (
-                    <TableRow key={payment.id}>
-                      <TableCell className="font-medium">{payment.concept}</TableCell>
-                      <TableCell>Q{payment.amount.toLocaleString()}</TableCell>
-                      <TableCell>{new Date(payment.paymentDate).toLocaleDateString()}</TableCell>
-                      <TableCell>{payment.method}</TableCell>
-                      <TableCell>{payment.reference}</TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm">
-                          <Download className="h-4 w-4 mr-1" /> Recibo
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-            <CardFooter>
-              <Button variant="outline" className="ml-auto">
-                <Download className="mr-2 h-4 w-4" /> Descargar Estado de Cuenta
-              </Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Diálogo de pago con tarjeta */}
-      <Dialog open={showCardPayment} onOpenChange={setShowCardPayment}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Pago con Tarjeta</DialogTitle>
-            <DialogDescription>
-              Complete los datos de su tarjeta para realizar el pago de {selectedPayment?.concept}.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="card-number">Número de Tarjeta</Label>
-              <Input id="card-number" placeholder="1234 5678 9012 3456" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="expiry">Fecha de Expiración</Label>
-                <Input id="expiry" placeholder="MM/AA" />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="cvc">CVC</Label>
-                <Input id="cvc" placeholder="123" />
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="name">Nombre en la Tarjeta</Label>
-              <Input id="name" placeholder="NOMBRE APELLIDO" />
-            </div>
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Monto a pagar</AlertTitle>
-              <AlertDescription>
-                <span className="font-bold">
-                  Q{selectedPayment ? (selectedPayment.amount + selectedPayment.lateFee).toLocaleString() : "0"}
-                </span>
-                {selectedPayment?.lateFee > 0 && (
-                  <span className="text-sm text-muted-foreground ml-2">
-                    (Incluye Q{selectedPayment.lateFee} de recargo por mora)
-                  </span>
-                )}
-              </AlertDescription>
-            </Alert>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCardPayment(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit">Procesar Pago</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Diálogo de carga de recibo */}
-      <Dialog open={showReceiptUpload} onOpenChange={setShowReceiptUpload}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Subir Recibo de Pago</DialogTitle>
-            <DialogDescription>
-              Suba el comprobante de su depósito o transferencia para el pago de {selectedPayment?.concept}.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="receipt-number">Número de Boleta/Referencia</Label>
-              <Input id="receipt-number" placeholder="Ej: 123456789" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="bank">Banco</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione el banco" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="banrural">Banrural</SelectItem>
-                  <SelectItem value="bi">Banco Industrial</SelectItem>
-                  <SelectItem value="bam">BAM</SelectItem>
-                  <SelectItem value="g&t">G&T Continental</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="amount">Monto (Q)</Label>
-              <Input
-                id="amount"
-                type="number"
-                defaultValue={selectedPayment ? (selectedPayment.amount + selectedPayment.lateFee).toString() : "0"}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="receipt-upload">Comprobante de Pago</Label>
-              <Input id="receipt-upload" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileUpload} />
-              <p className="text-xs text-gray-500">Formatos aceptados: PDF, JPG, PNG (máx. 5MB)</p>
-            </div>
-            {uploadFile && (
-              <div className="flex items-center gap-2 text-sm text-green-600">
-                <FileText className="h-4 w-4" />
-                <span>Archivo seleccionado: {uploadFile.name}</span>
-              </div>
-            )}
-            <Alert className="bg-yellow-50 border-yellow-200">
-              <AlertCircle className="h-4 w-4 text-yellow-600" />
-              <AlertTitle className="text-yellow-800">Importante</AlertTitle>
-              <AlertDescription className="text-yellow-700">
-                La conciliación de su pago puede tomar hasta 48 horas hábiles. Recibirá una notificación cuando su pago
-                sea confirmado.
-              </AlertDescription>
-            </Alert>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowReceiptUpload(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={confirmReceiptUpload} disabled={!uploadFile}>
-              Enviar Recibo
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+      <StudentAccountModal 
+        open={modalOpen} 
+        onOpenChange={setModalOpen} 
+        prospectoId={selectedId ?? undefined} 
+      />
+    </>
   )
 }
-

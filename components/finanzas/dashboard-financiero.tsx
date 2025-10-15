@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { fetchDashboardFinanciero } from "@/services/finance"
+import { useRouter } from "next/navigation"
 import { toast } from "@/hooks/use-toast"
 import type { DateRange } from "react-day-picker"
 import type { DashboardFinancieroData } from "@/types/dashboard"
@@ -41,6 +42,7 @@ const calcularCambio = (actual?: number, anterior?: number) => {
 }
 
 export function DashboardFinanciero() {
+  const router = useRouter()
   const firstOfMonth = new Date()
   firstOfMonth.setDate(1)
 
@@ -53,11 +55,15 @@ export function DashboardFinanciero() {
   const [loading, setLoading] = useState(true)
 
   const loadData = async () => {
+    if (!dateRange?.from || !dateRange?.to) return
+    
     try {
       setLoading(true)
       const data = await fetchDashboardFinanciero({
-        fecha_inicio: dateRange?.from?.toISOString(),
-        fecha_fin: dateRange?.to?.toISOString()
+        fecha_inicio: dateRange.from.toISOString(),
+        fecha_fin: dateRange.to.toISOString(),
+        limit_pagos: 10,
+        limit_alertas: 20,
       })
       setDashboardData(data)
     } catch (error) {
@@ -77,13 +83,36 @@ export function DashboardFinanciero() {
   }, [])
 
   const handleRefresh = () => {
-    loadData()
+    if (!dateRange?.from || !dateRange?.to) return
+    fetchDashboardFinanciero({
+      fecha_inicio: dateRange.from.toISOString(),
+      fecha_fin: dateRange.to.toISOString(),
+      limit_pagos: 10,
+      limit_alertas: 20,
+    })
+      .then(setDashboardData)
+      .catch(() => toast({ title: 'Error', description: 'No se pudo cargar el resumen financiero' }))
   }
 
-  const handleDateRangeChange = (range: DateRange | undefined) => {
+  const handleDateRangeChange = async (range: DateRange | undefined) => {
     setDateRange(range)
-    // Opcionalmente recargar datos cuando cambie el rango
-    // loadData()
+    if (range?.from && range?.to) {
+      try {
+        setLoading(true)
+        const data = await fetchDashboardFinanciero({
+          fecha_inicio: range.from.toISOString(),
+          fecha_fin: range.to.toISOString(),
+          limit_pagos: 10,
+          limit_alertas: 20,
+        })
+        setDashboardData(data)
+      } catch (error) {
+        console.error('Error loading dashboard:', error)
+        toast({ title: 'Error', description: 'No se pudo cargar el resumen financiero' })
+      } finally {
+        setLoading(false)
+      }
+    }
   }
 
   // Helpers de UI para badges de variación
@@ -150,8 +179,12 @@ export function DashboardFinanciero() {
         <div className="flex items-center gap-2">
           <DatePickerWithRange
             className="w-auto"
-            value={dateRange}
-            onChange={handleDateRangeChange}
+            value={
+              dateRange
+                ? { from: dateRange.from ?? new Date(), to: dateRange.to ?? new Date() }
+                : undefined
+            }
+            onChange={(r) => handleDateRangeChange(r as unknown as DateRange)}
           />
           <Button variant="outline" size="icon" onClick={handleRefresh} title="Actualizar">
             <RefreshCw className="h-4 w-4" />
@@ -213,47 +246,6 @@ export function DashboardFinanciero() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Tendencia de Ingresos</CardTitle>
-            <CardDescription>Análisis de ingresos de los últimos 6 meses</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] flex items-center justify-center bg-muted/20 rounded-md">
-              <div className="text-center">
-                <LineChart className="h-16 w-16 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Gráfico de tendencia de ingresos</p>
-                <p className="text-xs text-muted-foreground">(Visualización simulada)</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Morosidad por Programa</CardTitle>
-            <CardDescription>Porcentaje de morosidad por programa académico</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {morosidadPorPrograma.length === 0 ? (
-                <div className="text-muted-foreground text-sm">Sin datos</div>
-              ) : (
-                morosidadPorPrograma.map((item) => (
-                  <div key={item.programa} className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span>{item.programa}</span>
-                      <span className="font-medium">{item.porcentaje}%</span>
-                    </div>
-                    <Progress value={item.porcentaje} className="h-2" />
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
@@ -292,7 +284,14 @@ export function DashboardFinanciero() {
             </Table>
           </CardContent>
           <CardFooter>
-            <Button variant="outline" className="w-full">
+            <Button variant="outline" className="w-full" onClick={() => {
+              if (!dateRange?.from || !dateRange?.to) return
+              const qs = new URLSearchParams({
+                fecha_inicio: dateRange.from.toISOString(),
+                fecha_fin: dateRange.to.toISOString(),
+              }).toString()
+              // router.push(`/pagos?${qs}`)
+            }}>
               Ver todos los pagos
             </Button>
           </CardFooter>
@@ -361,7 +360,13 @@ export function DashboardFinanciero() {
             </Table>
           </CardContent>
           <CardFooter>
-            <Button variant="outline" className="w-full">
+            <Button variant="outline" className="w-full" onClick={() => {
+              if (!dateRange?.from || !dateRange?.to) return
+              const qs = new URLSearchParams({
+                cutoff: dateRange.to.toISOString(),
+              }).toString()
+              // router.push(`/alertas?${qs}`)
+            }}>
               Ver todas las alertas
             </Button>
           </CardFooter>
@@ -374,7 +379,10 @@ export function DashboardFinanciero() {
         <AlertDescription>
           Los datos mostrados en este dashboard corresponden al período del {formatDate(dateRange?.from)} al {formatDate(dateRange?.to)}. 
           {dashboardData.configuracionMora && (
-            <span> Mora aplicada según regla: {dashboardData.configuracionMora.regla_activa} ({dashboardData.configuracionMora.porcentaje_mora}% mensual).</span>
+            <span>
+              {' '}Mora: {dashboardData.configuracionMora.porcentaje_mora}% mensual
+              {dashboardData.configuracionMora.dias_gracia > 0 && ` (con ${dashboardData.configuracionMora.dias_gracia} días de gracia)`}.
+            </span>
           )}
         </AlertDescription>
       </Alert>

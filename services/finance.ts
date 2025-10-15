@@ -1,4 +1,9 @@
-import api from './api'
+// services/finance.ts
+import api from "./api"
+
+/* =========================
+   Tipos compartidos
+========================= */
 
 export interface DashboardSummary {
   ingresosMensuales: number
@@ -11,18 +16,113 @@ export interface DashboardSummary {
   estudiantesActivosAnterior: number
 }
 
+export interface ProspectoContact {
+  id: number
+  nombre_completo?: string
+  telefono?: string | null
+  telefono_corporativo?: string | null
+  correo_electronico?: string | null
+  correo_corporativo?: string | null
+  programas?: Array<{ programa?: { nombre_del_programa?: string } }>
+}
+
+/** Tipos mínimos para colecciones; si ya los tienes en '@/types/collections',
+ *  borra estas interfaces y usa tus imports. */
+export type LatePaymentsBucket = "all" | "b1" | "b2" | "b3" | "b4"
+export interface LatePaymentsQuery {
+  q?: string
+  bucket?: LatePaymentsBucket
+  programa_id?: number | string
+  per_page?: number
+  page?: number
+}
+export interface LatePaymentRow {
+  id: number              // EP id (row id)
+  studentId: number
+  name: string
+  program: string
+  totalDebt: number
+  lateMonths: number
+  daysLate: number
+  bucket: "B1" | "B2" | "B3" | "B4"
+  status: "activo" | "bloqueado"
+  lastContact?: string | null
+  promiseDate?: string | null
+}
+export interface PaginationMeta {
+  total: number
+  per_page: number
+  current_page: number
+  last_page: number
+}
+export interface LatePaymentsResponse {
+  data: LatePaymentRow[]
+  meta: PaginationMeta
+}
+export interface StudentSnapshot {
+  prospectoId: any
+  ep: any
+  epId: number
+  studentId: number
+  studentName: string
+  programName: string
+  balance: number
+  dueInstallments: Array<{
+    id: number
+    due_date: string
+    amount_due: number
+    amount_paid: number
+  }>
+  lastContacts?: Array<{
+    id: number
+    date: string
+    channel: string
+    notes: string
+  }>
+}
+
+/* =========================
+   Dashboard / Reportes
+========================= */
+
 export const fetchDashboardSummary = async (): Promise<DashboardSummary> => {
-  const res = await api.get('/reports/summary')
+  const res = await api.get("/reports/summary")
   return Array.isArray(res.data) ? res.data[0] : res.data
 }
 
+export const exportFinancialReport = async (
+  format: "pdf" | "excel",
+  queue?: boolean,
+) => {
+  const res = await api.get("/reports/export", {
+    params: { format, ...(queue ? { queue: 1 } : {}) },
+    responseType: queue ? "json" : "blob",
+  })
+  return res.data
+}
+
+export const fetchFinancialReports = async (params?: any) => {
+  const res = await api.get("/financial-reports", { params })
+  return res.data
+}
+
+/** Variante simple (compatibilidad) */
+export const fetchDashboardFinanciero = async (params?: any) => {
+  const res = await api.get("/dashboard-financiero", { params })
+  return res.data
+}
+
+/* =========================
+   Invoices
+========================= */
+
 export const getInvoices = async (params?: any) => {
-  const res = await api.get('/invoices', { params })
+  const res = await api.get("/invoices", { params })
   return res.data
 }
 
 export const createInvoice = async (data: any) => {
-  const res = await api.post('/invoices', data)
+  const res = await api.post("/invoices", data)
   return res.data
 }
 
@@ -36,31 +136,82 @@ export const deleteInvoice = async (id: string | number) => {
   return res.data
 }
 
+/* =========================
+   Payments
+========================= */
+
+/** Compatibilidad: devuelve tal cual lo que entregue el backend */
 export const getPayments = async (params?: any) => {
-  const res = await api.get('/payments', { params })
+  const res = await api.get("/payments", { params })
   return res.data
 }
 
+/** Lista paginada de pagos con filtros (para módulo de colecciones) */
+export const listPayments = async (params: {
+  status?: "aprobado" | "pendiente" | "rechazado"
+  method?: string
+  program_id?: number | string
+  q?: string
+  fecha_inicio?: string
+  fecha_fin?: string
+  page?: number
+  per_page?: number
+  sort?: string
+} = {}) => {
+  const res = await api.get("/payments", { params })
+  const data = Array.isArray(res.data) ? res.data : (res.data?.data ?? [])
+  const meta: PaginationMeta = res.data?.meta ?? {
+    total: data.length,
+    per_page: params.per_page ?? data.length,
+    current_page: params.page ?? 1,
+    last_page: 1,
+  }
+  return { data, meta }
+}
+
 export const fetchRecentPayments = async (limit = 5) => {
-  const res = await api.get('/payments', { params: { per_page: limit } })
+  const res = await api.get("/payments", { params: { per_page: limit } })
   const data = Array.isArray(res.data) ? res.data : res.data.data
   return Array.isArray(data) ? data.slice(0, limit) : []
 }
 
 export const createPayment = async (data: any) => {
-  const res = await api.post('/payments', data)
+  const res = await api.post("/payments", data)
   return res.data
 }
 
+/* =========================
+   Reconciliación bancaria
+========================= */
+
+export const getPendingReconciliation = async () => {
+  const res = await api.get("/reconciliation/pending")
+  return res.data
+}
+
+export const uploadReconciliation = async (data: FormData) => {
+  const res = await api.post("/reconciliation/upload", data, {
+    headers: { "Content-Type": "multipart/form-data" },
+  })
+  return res.data
+}
+
+export const processReconciliation = async () => {
+  const res = await api.post("/reconciliation/process")
+  return res.data
+}
+
+/* =========================
+   Reglas de Pago
+========================= */
+
 export const getPaymentRules = async () => {
-  const res = await api.get('/payment-rules')
+  const res = await api.get("/payment-rules")
   return res.data
 }
 
 export const getCurrentPaymentRule = async () => {
-  // Devuelve la última regla creada (o 404 si no hay)
-  // El backend puede incluir notifications si usas ->load('notifications')
-  const res = await api.get('/payment-rules-current')
+  const res = await api.get("/payment-rules-current")
   return res.data
 }
 
@@ -69,160 +220,22 @@ export const getPaymentRuleById = async (id: string | number) => {
   return res.data
 }
 
-export const updatePaymentRules = async (
-  id: string | number,
-  data: any,
-) => {
+export const createPaymentRule = async (data: any) => {
+  const res = await api.post("/payment-rules", data)
+  return res.data
+}
+
+export const updatePaymentRules = async (id: string | number, data: any) => {
   const res = await api.put(`/payment-rules/${id}`, data)
   return res.data
 }
 
-export const createNotificationRule = async (
-  ruleId: string | number,
-  data: any,
-) => {
-  // map UI -> API
-const payload = {
-  type: data.type ?? "email", // o el valor por defecto
-  offset_days: Number(data.triggerDays ?? 0),
-  message: data.message ?? "",
-};
-  const res = await api.post(`/payment-rules/${ruleId}/notifications`, payload)
-  return res.data
-}
+/* ===== Notificaciones (Reglas de Pago) ===== */
 
-export const updateNotificationRule = async (
-  ruleId: string | number,
-  notificationId: string | number,
-  data: any,
-) => {
-  // map UI -> API (usar 'sometimes' del backend)
-  const payload: any = {}
-  if (data.type !== undefined) payload.type = data.type
-  if (data.triggerDays !== undefined) payload.offset_days = Number(data.triggerDays)
-  if (data.message !== undefined) payload.message = data.message
-
-  const res = await api.put(
-    `/payment-rules/${ruleId}/notifications/${notificationId}`,
-    payload,
-  )
-  return res.data
-}
-
-export const deleteNotificationRule = async (
-  ruleId: string | number,
-  notificationId: string | number,
-) => {
-  const res = await api.delete(
-    `/payment-rules/${ruleId}/notifications/${notificationId}`,
-  )
-  return res.data
-}
-
-export const getPendingReconciliation = async () => {
-  const res = await api.get('/reconciliation/pending')
-  return res.data
-}
-
-export const uploadReconciliation = async (data: FormData) => {
-  const res = await api.post('/reconciliation/upload', data, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
-  return res.data
-}
-
-export const processReconciliation = async () => {
-  const res = await api.post('/reconciliation/process')
-  return res.data
-}
-
-export const getPaymentPlans = async (params?: any) => {
-  const res = await api.get('/payment-plans', { params })
-  return res.data
-}
-
-export const createPaymentPlan = async (data: any) => {
-  const res = await api.post('/payment-plans', data)
-  return res.data
-}
-
-export const updatePaymentPlan = async (id: string | number, data: any) => {
-  const res = await api.put(`/payment-plans/${id}`, data)
-  return res.data
-}
-
-export const deletePaymentPlan = async (id: string | number) => {
-  const res = await api.delete(`/payment-plans/${id}`)
-  return res.data
-}
-
-export const getInstallments = async (planId: string | number) => {
-  const res = await api.get(`/payment-plans/${planId}/installments`)
-  return res.data
-}
-
-export const createInstallment = async (
-  planId: string | number,
-  data: any,
-) => {
-  const res = await api.post(`/payment-plans/${planId}/installments`, data)
-  return res.data
-}
-
-export const updateInstallment = async (
-  installmentId: string | number,
-  data: any,
-) => {
-  const res = await api.put(`/payment-plans/installments/${installmentId}`, data)
-  return res.data
-}
-
-export const deleteInstallment = async (installmentId: string | number) => {
-  const res = await api.delete(
-    `/payment-plans/installments/${installmentId}`,
-  )
-  return res.data
-}
-
-export const getCollectionLogs = async (params?: any) => {
-  const res = await api.get('/collection-logs', { params })
-  return res.data
-}
-
-export const createCollectionLog = async (data: any) => {
-  const res = await api.post('/collection-logs', data)
-  return res.data
-}
-
-export const updateCollectionLog = async (id: string | number, data: any) => {
-  const res = await api.put(`/collection-logs/${id}`, data)
-  return res.data
-}
-
-export const deleteCollectionLog = async (id: string | number) => {
-  const res = await api.delete(`/collection-logs/${id}`)
-  return res.data
-}
-
-export const exportFinancialReport = async (
-  format: 'pdf' | 'excel',
-  queue?: boolean,
-) => {
-  const res = await api.get('/reports/export', {
-    params: { format, ...(queue ? { queue: 1 } : {}) },
-    responseType: queue ? 'json' : 'blob',
-  })
-  return res.data
-}
-
-export const getKardexPagos = async (params?: any) => {
-  const res = await api.get('/kardex-pagos', { params })
-  return res.data
-}
-
-export const createKardexPago = async (data: any) => {
-  const res = await api.post('/kardex-pagos', data)
-  return res.data
+export const fetchNotificationRulesByRule = async (ruleId: string | number) => {
+  const res = await api.get(`/payment-rules/${ruleId}/notifications`)
+  const list = Array.isArray(res.data) ? res.data : res.data?.data
+  return Array.isArray(list) ? list : []
 }
 
 export const importKardexPagos = async (file: File, tipoArchivo: string = 'cardex_directo') => {
@@ -249,83 +262,41 @@ export const getCuotasByProspecto = async (
   return res.data
 }
 
-export const getCuotasByPrograma = async (
-  programaId: string | number,
-  params?: any,
+export const updateNotificationRule = async (
+  ruleId: string | number,
+  notificationId: string | number,
+  data: any,
 ) => {
-  const res = await api.get(`/estudiante-programa/${programaId}/cuotas`, {
-    params,
-  })
+  const payload: any = {}
+  if (data.type !== undefined) payload.type = data.type
+  if (data.triggerDays !== undefined) payload.offset_days = Number(data.triggerDays)
+  if (data.message !== undefined) payload.message = data.message
+  const res = await api.put(`/payment-rules/${ruleId}/notifications/${notificationId}`, payload)
   return res.data
 }
 
-export const fetchCollectionData = async (params?: any) => {
-  const res = await api.get('/finance/collections', { params })
-  return res.data
-}
-
-export const fetchStudentAccountSummary = async (
-  studentId?: string | number,
+export const deleteNotificationRule = async (
+  ruleId: string | number,
+  notificationId: string | number,
 ) => {
-  const url = studentId
-    ? `/students/${studentId}/account-summary`
-    : '/students/account-summary'
-  const res = await api.get(url)
+  const res = await api.delete(`/payment-rules/${ruleId}/notifications/${notificationId}`)
   return res.data
 }
 
-export const fetchFinancialReports = async (params?: any) => {
-  const res = await api.get('/financial-reports', { params })
-  return res.data
-}
+/* =========================
+   Reglas de Bloqueo (Blocking)
+========================= */
 
-export const createPaymentRule = async (data: any) => {
-  const res = await api.post('/payment-rules', data)
-  return res.data
-}
-
-export const fetchNotificationRulesByRule = async (ruleId: string | number) => {
-  const res = await api.get(`/payment-rules/${ruleId}/notifications`)
-  // backend responde { data: [...] }
+export const fetchBlockingRulesByRule = async (ruleId: string | number) => {
+  const res = await api.get(`/payment-rules/${ruleId}/blocking-rules`)
   const list = Array.isArray(res.data) ? res.data : res.data?.data
   return Array.isArray(list) ? list : []
 }
 
-// --- BLOQUEOS DE SERVICIO (Blocking Rules) ---
-
-export const fetchBlockingRulesByRule = async (ruleId: string | number) => {
-  console.log('🔍 [DEBUG] fetchBlockingRulesByRule - ruleId:', ruleId)
-  
-  try {
-    const res = await api.get(`/payment-rules/${ruleId}/blocking-rules`)
-    console.log('✅ [DEBUG] fetchBlockingRulesByRule - respuesta exitosa:', res.data)
-    
-    // backend responde { data: [...] } o directamente array
-    const list = Array.isArray(res.data) ? res.data : res.data?.data
-    return Array.isArray(list) ? list : []
-  } catch (error: any) {
-    console.error('❌ [DEBUG] fetchBlockingRulesByRule - Error:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-      url: error.config?.url
-    })
-    throw error
-  }
-}
-
 export const createBlockingRule = async (ruleId: string | number, data: any) => {
-  // 🚨 DEBUGGING - Ver datos iniciales
-  console.log('🔍 [DEBUG] createBlockingRule - Datos iniciales:')
-  console.log('  ruleId:', ruleId)
-  console.log('  data recibido:', data)
-  
-  // Validación del ruleId
   if (!ruleId || isNaN(Number(ruleId))) {
-    console.error('❌ [DEBUG] createBlockingRule - ruleId inválido:', ruleId)
-    throw new Error('ID de regla de pago inválido')
+    throw new Error("ID de regla de pago inválido")
   }
-
   const payload = {
     name: data.name?.trim(),
     description: data.description,
@@ -333,133 +304,57 @@ export const createBlockingRule = async (ruleId: string | number, data: any) => 
     affected_services: Array.isArray(data.services) ? data.services : [],
     active: !!data.active,
   }
-
-  // 🚨 DEBUGGING - Ver payload construido
-  console.log('🔍 [DEBUG] createBlockingRule - Payload construido:', payload)
-
-  // Validaciones frontend con logging
-  if (!payload.name) {
-    console.error('❌ [DEBUG] createBlockingRule - Nombre vacío')
-    throw new Error('El nombre es requerido')
-  }
-  
+  if (!payload.name) throw new Error("El nombre es requerido")
   if (isNaN(payload.days_after_due) || payload.days_after_due <= 0) {
-    console.error('❌ [DEBUG] createBlockingRule - Días inválidos:', payload.days_after_due)
-    throw new Error('Los días después del vencimiento deben ser mayores a cero')
+    throw new Error("Los días después del vencimiento deben ser mayores a cero")
   }
-  
   if (payload.affected_services.length === 0) {
-    console.error('❌ [DEBUG] createBlockingRule - Sin servicios seleccionados')
-    throw new Error('Debe seleccionar al menos un servicio')
+    throw new Error("Debe seleccionar al menos un servicio")
   }
-
-  // Validar servicios válidos
-  const validServices = ['plataforma', 'evaluaciones', 'materiales']
-  const invalidServices = payload.affected_services.filter((s: string) => !validServices.includes(s))
-  if (invalidServices.length > 0) {
-    console.error('❌ [DEBUG] createBlockingRule - Servicios inválidos:', invalidServices)
-    throw new Error(`Servicios inválidos: ${invalidServices.join(', ')}`)
-  }
-
-  // URL que se va a llamar
-  const url = `/payment-rules/${ruleId}/blocking-rules`
-  console.log('🔍 [DEBUG] createBlockingRule - URL:', url)
-
-  try {
-    console.log('📤 [DEBUG] createBlockingRule - Enviando request...')
-    const res = await api.post(url, payload)
-    
-    console.log('✅ [DEBUG] createBlockingRule - Respuesta exitosa:')
-    console.log('  status:', res.status)
-    console.log('  data:', res.data)
-    
-    return res.data
-  } catch (error: any) {
-    console.error('❌ [DEBUG] createBlockingRule - Error completo:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      url: error.config?.url,
-      method: error.config?.method,
-      sentData: error.config?.data
-    })
-
-    // Si hay errores de validación del backend, mostrarlos
-    if (error.response?.status === 422 && error.response?.data?.errors) {
-      console.error('📋 [DEBUG] Errores de validación del backend:', error.response.data.errors)
-    }
-
-    throw error
-  }
+  const validServices = ["plataforma", "evaluaciones", "materiales"]
+  const invalid = payload.affected_services.filter((s: string) => !validServices.includes(s))
+  if (invalid.length > 0) throw new Error(`Servicios inválidos: ${invalid.join(", ")}`)
+  const res = await api.post(`/payment-rules/${ruleId}/blocking-rules`, payload)
+  return res.data
 }
 
 export const updateBlockingRule = async (
   ruleId: string | number,
   blockingRuleId: string | number,
-  data: any
+  data: any,
 ) => {
-  console.log('🔍 [DEBUG] updateBlockingRule:', {
-    ruleId,
-    blockingRuleId,
-    data
-  })
-
   const payload: any = {}
   if (data.name !== undefined) payload.name = data.name
   if (data.description !== undefined) payload.description = data.description
   if (data.daysAfterDue !== undefined) payload.days_after_due = Number(data.daysAfterDue)
   if (data.services !== undefined) payload.affected_services = data.services
   if (data.active !== undefined) payload.active = !!data.active
-
-  console.log('📤 [DEBUG] updateBlockingRule - payload:', payload)
-
-  try {
-    const res = await api.put(
-      `/payment-rules/${ruleId}/blocking-rules/${blockingRuleId}`,
-      payload
-    )
-    console.log('✅ [DEBUG] updateBlockingRule - éxito:', res.data)
-    return res.data
-  } catch (error: any) {
-    console.error('❌ [DEBUG] updateBlockingRule - error:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status
-    })
-    throw error
-  }
+  const res = await api.put(`/payment-rules/${ruleId}/blocking-rules/${blockingRuleId}`, payload)
+  return res.data
 }
 
 export const deleteBlockingRule = async (
   ruleId: string | number,
   blockingRuleId: string | number,
 ) => {
-  console.log('🔍 [DEBUG] deleteBlockingRule:', { ruleId, blockingRuleId })
-
-  try {
-    const res = await api.delete(
-      `/payment-rules/${ruleId}/blocking-rules/${blockingRuleId}`
-    )
-    console.log('✅ [DEBUG] deleteBlockingRule - éxito')
-    return res.data
-  } catch (error: any) {
-    console.error('❌ [DEBUG] deleteBlockingRule - error:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status
-    })
-    throw error
-  }
-}
-
-// --- PAYMENT GATEWAYS ---
-export const getPaymentGateways = async (params?: any) => {
-  const res = await api.get('/payment-gateways', { params })
+  const res = await api.delete(`/payment-rules/${ruleId}/blocking-rules/${blockingRuleId}`)
   return res.data
 }
 
-// --- PAYMENT GATEWAYS --- ✅ CORREGIDO
+/* =========================
+   Gateways de Pago
+========================= */
+
+export const getPaymentGateways = async (params?: any) => {
+  const res = await api.get("/payment-gateways", { params })
+  return res.data
+}
+
+export const getActivePaymentGateways = async () => {
+  const res = await api.get("/payment-gateways/active")
+  return res.data
+}
+
 export const createPaymentGateway = async (data: any) => {
   const payload = {
     name: data.name,
@@ -468,11 +363,9 @@ export const createPaymentGateway = async (data: any) => {
     api_key: data.api_key,
     merchant_id: data.merchant_id,
     active: !!data.active,
-    // ✅ CAMBIO: Enviar objeto vacío o omitir campo
-    ...(data.configuration && { configuration: data.configuration })
+    ...(data.configuration && { configuration: data.configuration }),
   }
-  
-  const res = await api.post('/payment-gateways', payload)
+  const res = await api.post("/payment-gateways", payload)
   return res.data
 }
 
@@ -491,18 +384,15 @@ export const togglePaymentGatewayStatus = async (id: string | number) => {
   return res.data
 }
 
-export const getActivePaymentGateways = async () => {
-  const res = await api.get('/payment-gateways/active')
-  return res.data
-}
+/* =========================
+   Categorías de Excepciones
+========================= */
 
-// --- EXCEPTION CATEGORIES ---
 export const getExceptionCategories = async (params?: any) => {
-  const res = await api.get('/payment-exception-categories', { params })
+  const res = await api.get("/payment-exception-categories", { params })
   return res.data
 }
 
-// --- EXCEPTION CATEGORIES --- ✅ CORREGIDO
 export const createExceptionCategory = async (data: any) => {
   const payload = {
     name: data.name,
@@ -512,11 +402,9 @@ export const createExceptionCategory = async (data: any) => {
     allow_partial_payments: !!data.allow_partial_payments,
     skip_blocking: !!data.skip_blocking,
     active: !!data.active,
-    // ✅ CAMBIO: Enviar objeto vacío o omitir campo  
-    ...(data.additional_rules && { additional_rules: data.additional_rules })
+    ...(data.additional_rules && { additional_rules: data.additional_rules }),
   }
-  
-  const res = await api.post('/payment-exception-categories', payload)
+  const res = await api.post("/payment-exception-categories", payload)
   return res.data
 }
 
@@ -540,8 +428,170 @@ export const assignCategoryToStudent = async (categoryId: string | number, data:
   return res.data
 }
 
-//
-export const fetchDashboardFinanciero = async (params?: any) => {
-  const res = await api.get('/dashboard-financiero', { params })
+/* =========================
+   Gestión de Cobros / Colecciones
+========================= */
+
+export const getCollectionLogs = async (params?: any) => {
+  const res = await api.get("/collection-logs", { params })
+  return res.data
+}
+
+export const createCollectionLog = async (data: any) => {
+  const res = await api.post("/collection-logs", data)
+  return res.data
+}
+
+export const updateCollectionLog = async (id: string | number, data: any) => {
+  const res = await api.put(`/collection-logs/${id}`, data)
+  return res.data
+}
+
+export const deleteCollectionLog = async (id: string | number) => {
+  const res = await api.delete(`/collection-logs/${id}`)
+  return res.data
+}
+
+export const fetchCollectionData = async (params?: any) => {
+  const res = await api.get("/finance/collections", { params })
+  return res.data
+}
+
+/** Late payments (colecciones) */
+export const fetchLatePayments = async (
+  params: LatePaymentsQuery = {},
+): Promise<LatePaymentsResponse> => {
+  const res = await api.get("/collections/late-payments", { params })
+  // backend puede devolver {data, meta} o un array; normalizamos:
+  const data = Array.isArray(res.data) ? res.data : res.data?.data
+  const meta: PaginationMeta = res.data?.meta ?? {
+    total: Array.isArray(data) ? data.length : 0,
+    per_page: params.per_page ?? (Array.isArray(data) ? data.length : 0),
+    current_page: params.page ?? 1,
+    last_page: 1,
+  }
+  return { data: data ?? [], meta }
+}
+
+/** Snapshot de estudiante (por EP id) */
+export const fetchStudentSnapshot = async (epId: number | string): Promise<StudentSnapshot> => {
+  const res = await api.get(`/collections/students/${epId}/snapshot`)
+  return res.data as StudentSnapshot
+}
+
+/* =========================
+   Kardex / Cuotas por Prospecto/Programa
+========================= */
+
+export const getKardexPagos = async (params?: any) => {
+  const res = await api.get("/kardex-pagos", { params })
+  return res.data
+}
+
+export const createKardexPago = async (data: any) => {
+  const res = await api.post("/kardex-pagos", data)
+  return res.data
+}
+
+export const getCuotasByProspecto = async (
+  prospectoId: string | number,
+  params?: any,
+) => {
+  const res = await api.get(`/prospectos/${prospectoId}/cuotas`, { params })
+  return res.data
+}
+
+export const getCuotasByPrograma = async (
+  programaId: string | number,
+  params?: any,
+) => {
+  const res = await api.get(`/estudiante-programa/${programaId}/cuotas`, { params })
+  return res.data
+}
+
+/* =========================
+   Prospectos / Emails
+========================= */
+
+export async function getProspectoById(id: number) {
+  const res = await api.get(`/prospectos/${id}`)
+  // backend responde { message, data }
+  return res.data?.data
+}
+
+export async function sendEmailToProspect(payload: {
+  to: string; subject: string; html: string; attachments?: File[];
+}) {
+  const form = new FormData()
+  form.append("to", payload.to)
+  form.append("subject", payload.subject)
+  form.append("html", payload.html)
+  for (const f of payload.attachments ?? []) {
+    form.append("attachments[]", f)
+  }
+  const res = await api.post("/emails/send", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  })
+  return res.data
+}
+
+
+
+export const getKardexPendientes = async (params: {
+  from?: string; // YYYY-MM-DD
+  to?: string;   // YYYY-MM-DD
+  banco?: string;
+} = {}) => {
+  const res = await api.get("/conciliacion/pendientes-desde-kardex", { params })
+  return res.data
+}
+
+export const previewConciliacion = async (rows: any[]) => {
+  const res = await api.post("/conciliacion/preview", { rows })
+  return res.data
+}
+
+export const confirmConciliacion = async (payload: {
+  index: number; carnet: string; banco: string; recibo: string; monto: number; fechaPago?: string;
+}) => {
+  const res = await api.post("/conciliacion/confirm", payload)
+  return res.data
+}
+
+export const rejectConciliacion = async (payload: {
+  index: number; motivo: string;
+}) => {
+  const res = await api.post("/conciliacion/reject", payload)
+  return res.data
+}
+
+
+
+export const importConciliacion = async (file: File) => {
+  const form = new FormData()
+  form.append("file", file)
+  const res = await api.post("/conciliacion/import", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  })
+  return res.data // { ok, message, summary: { created, updated, skipped, errors } }
+}
+
+export const downloadConciliacionTemplate = async () => {
+  const res = await api.get("/conciliacion/template", { responseType: "blob" })
+  return res.data as Blob
+}
+
+export const exportConciliacionXlsx = async (params: {
+  from?: string; to?: string; bank?: string; status?: string
+}) => {
+  const res = await api.get("/conciliacion/export", { params, responseType: "blob" })
+  return res.data as Blob
+}
+
+// services/finance.ts
+export const getKardexConciliados = async (params: {
+  from?: string; to?: string; banco?: string;
+} = {}) => {
+  const res = await api.get("/conciliacion/conciliados-desde-kardex", { params })
   return res.data
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -29,6 +29,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useDebounce } from "@/hooks/use-debounce"
 
 export default function AlumnosNuevosPorMesPage() {
   const [period, setPeriod] = useState<string>("current-month")
@@ -152,19 +153,24 @@ export default function AlumnosNuevosPorMesPage() {
   // Programas académicos disponibles
   const programs = ["Desarrollo Web", "Marketing Digital", "Diseño Gráfico", "Contabilidad"]
 
-  // Calcular totales
-  const totalNewStudents = monthlyData.reduce((sum, month) => sum + month.newStudents, 0)
-  const totalEnrollments = monthlyData.reduce((sum, month) => sum + month.totalEnrollments, 0)
-  const totalPreviousYear = monthlyData.reduce((sum, month) => sum + month.previousYear, 0)
-  const percentNewVsTotal = (totalNewStudents / totalEnrollments) * 100
-  const percentChange = ((totalNewStudents - totalPreviousYear) / totalPreviousYear) * 100
+  // Debounce search term to avoid excessive filtering
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
-  // Filtrar estudiantes según criterios
-  const filteredStudents = newStudents.filter((student) => {
-    if (program !== "all" && student.program !== program) return false
-    if (searchTerm && !student.name.toLowerCase().includes(searchTerm.toLowerCase())) return false
-    return true
-  })
+  // Calcular totales with useMemo to avoid recalculation on every render
+  const totalNewStudents = useMemo(() => monthlyData.reduce((sum, month) => sum + month.newStudents, 0), [])
+  const totalEnrollments = useMemo(() => monthlyData.reduce((sum, month) => sum + month.totalEnrollments, 0), [])
+  const totalPreviousYear = useMemo(() => monthlyData.reduce((sum, month) => sum + month.previousYear, 0), [])
+  const percentNewVsTotal = useMemo(() => (totalNewStudents / totalEnrollments) * 100, [totalNewStudents, totalEnrollments])
+  const percentChange = useMemo(() => ((totalNewStudents - totalPreviousYear) / totalPreviousYear) * 100, [totalNewStudents, totalPreviousYear])
+
+  // Filtrar estudiantes según criterios with useMemo
+  const filteredStudents = useMemo(() => {
+    return newStudents.filter((student) => {
+      if (program !== "all" && student.program !== program) return false
+      if (debouncedSearchTerm && !student.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) return false
+      return true
+    })
+  }, [program, debouncedSearchTerm])
 
   // Función para ver detalles de un estudiante
   const handleViewDetails = (student: any) => {

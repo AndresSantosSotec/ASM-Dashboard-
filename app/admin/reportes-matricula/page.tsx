@@ -1,14 +1,21 @@
 "use client"
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { isAxiosError } from "axios"
+import {
+  AlertCircle,
+  Download,
+  FileSpreadsheet,
+  FileIcon as FilePdf,
+  FileText,
+  Filter,
+  Loader2,
+  Printer,
+} from "lucide-react"
+
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Download, FileText, Printer, Filter, FileSpreadsheet, FileIcon as FilePdf } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -18,212 +25,475 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useToast } from "@/components/ui/use-toast"
+import { useDebounce } from "@/hooks/use-debounce"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import {
+  exportMatriculaReport,
+  fetchMatriculaReport,
+  type MatriculaDateRange,
+  type MatriculaExportDetail,
+  type MatriculaExportFormat,
+  type MatriculaReportFilters,
+  type MatriculaReportResponse,
+} from "@/services/reportesMatricula"
+import {
+  exportarEstudiantesMatriculados,
+  fetchEstudiantesMatriculados,
+  type EstudianteMatriculado,
+} from "@/services/estudiantesMatriculados"
+
+const numberFormatter = new Intl.NumberFormat("es-PE")
+const percentFormatter = new Intl.NumberFormat("es-PE", { maximumFractionDigits: 2 })
+const dateFormatter = new Intl.DateTimeFormat("es-PE")
+
+const rangeLabels: Record<MatriculaDateRange, string> = {
+  month: "Mes actual",
+  quarter: "Trimestre actual",
+  semester: "Semestre actual",
+  year: "Año actual",
+  custom: "Rango personalizado",
+}
+
+const formatNumber = (value?: number | null) => {
+  if (value === null || value === undefined) {
+    return "—"
+  }
+
+  return numberFormatter.format(value)
+}
+
+const formatPercent = (value?: number | null, { showSign = true }: { showSign?: boolean } = {}) => {
+  if (value === null || value === undefined || Number.isNaN(value) || !Number.isFinite(value)) {
+    return "—"
+  }
+
+  const formatted = percentFormatter.format(Math.abs(value))
+
+  if (!showSign) {
+    return `${formatted}%`
+  }
+
+  if (value > 0) {
+    return `+${formatted}%`
+  }
+
+  if (value < 0) {
+    return `-${formatted}%`
+  }
+
+  return `${formatted}%`
+}
+
+const formatDate = (value?: string | null) => {
+  if (!value) {
+    return "—"
+  }
+
+  const parsedDate = new Date(value)
+  if (Number.isNaN(parsedDate.getTime())) {
+    return value
+  }
+
+  return dateFormatter.format(parsedDate)
+}
+
+const getErrorMessage = (error: unknown) => {
+  if (isAxiosError(error)) {
+    const message =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      error.response?.data?.mensaje ||
+      error.message
+
+    return message || "Ocurrió un error inesperado"
+  }
+
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  return "Ocurrió un error inesperado"
+}
+
+const DEFAULT_FILTERS: MatriculaReportFilters = {
+  rango: "month",
+  programaId: "all",
+  tipoAlumno: "all",
+  page: 1,
+  perPage: 50,
+}
 
 export default function ReportesMatriculaPage() {
-  const [dateRange, setDateRange] = useState<"month" | "quarter" | "semester" | "year" | "custom">("month")
-  const [startDate, setStartDate] = useState<string>("2025-03-01")
-  const [endDate, setEndDate] = useState<string>("2025-03-31")
-  const [program, setProgram] = useState<string>("all")
-  const [studentType, setStudentType] = useState<string>("all")
-  const [activeTab, setActiveTab] = useState<string>("current")
+  const { toast } = useToast()
+  const [activeTab, setActiveTab] = useState<"current" | "comparison" | "trends">("current")
+  const [dateRange, setDateRange] = useState<MatriculaDateRange>(DEFAULT_FILTERS.rango ?? "month")
+  const [startDate, setStartDate] = useState<string>("")
+  const [endDate, setEndDate] = useState<string>("")
+  const [program, setProgram] = useState<string>(DEFAULT_FILTERS.programaId ?? "all")
+  const [studentType, setStudentType] = useState<string>(DEFAULT_FILTERS.tipoAlumno ?? "all")
+  const [perPage, setPerPage] = useState<number>(DEFAULT_FILTERS.perPage ?? 50)
+  const [appliedFilters, setAppliedFilters] = useState<MatriculaReportFilters>(DEFAULT_FILTERS)
+  const [reportData, setReportData] = useState<MatriculaReportResponse | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [showExportDialog, setShowExportDialog] = useState(false)
-  const [exportFormat, setExportFormat] = useState<string>("pdf")
-  const [exportDetail, setExportDetail] = useState<string>("complete")
+  const [exportFormat, setExportFormat] = useState<MatriculaExportFormat>("pdf")
+  const [exportDetail, setExportDetail] = useState<MatriculaExportDetail>("complete")
+  const [includeCharts, setIncludeCharts] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [useStudentsEndpoint, setUseStudentsEndpoint] = useState(false)
+  const [allStudentsLoading, setAllStudentsLoading] = useState(false)
 
-  // Datos de ejemplo para la tabla
-  const students = [
-    {
-      id: 1,
-      name: "Ana García",
-      enrollmentDate: "2025-03-05",
-      type: "Nuevo",
-      program: "Desarrollo Web",
-      status: "Activo",
-    },
-    {
-      id: 2,
-      name: "Carlos Rodríguez",
-      enrollmentDate: "2025-03-07",
-      type: "Nuevo",
-      program: "Marketing Digital",
-      status: "Activo",
-    },
-    {
-      id: 3,
-      name: "María López",
-      enrollmentDate: "2025-03-10",
-      type: "Recurrente",
-      program: "Diseño Gráfico",
-      status: "Activo",
-    },
-    {
-      id: 4,
-      name: "Juan Pérez",
-      enrollmentDate: "2025-03-12",
-      type: "Recurrente",
-      program: "Desarrollo Web",
-      status: "Activo",
-    },
-    {
-      id: 5,
-      name: "Laura Martínez",
-      enrollmentDate: "2025-03-15",
-      type: "Nuevo",
-      program: "Contabilidad",
-      status: "Activo",
-    },
-    {
-      id: 6,
-      name: "Roberto Sánchez",
-      enrollmentDate: "2025-03-18",
-      type: "Recurrente",
-      program: "Marketing Digital",
-      status: "Retirado",
-    },
-    {
-      id: 7,
-      name: "Sofía Ramírez",
-      enrollmentDate: "2025-03-20",
-      type: "Nuevo",
-      program: "Desarrollo Web",
-      status: "Activo",
-    },
-    {
-      id: 8,
-      name: "Diego Hernández",
-      enrollmentDate: "2025-03-22",
-      type: "Recurrente",
-      program: "Diseño Gráfico",
-      status: "Activo",
-    },
-    {
-      id: 9,
-      name: "Valentina Torres",
-      enrollmentDate: "2025-03-25",
-      type: "Nuevo",
-      program: "Contabilidad",
-      status: "Activo",
-    },
-    {
-      id: 10,
-      name: "Javier Flores",
-      enrollmentDate: "2025-03-28",
-      type: "Recurrente",
-      program: "Marketing Digital",
-      status: "Activo",
-    },
-  ]
+  const loadReport = useCallback(async (filters: MatriculaReportFilters) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const data = await fetchMatriculaReport(filters)
+      setReportData(data)
 
-  // Datos de ejemplo para comparación con período anterior
-  const previousPeriodStudents = [
-    {
-      id: 1,
-      name: "Ana García",
-      enrollmentDate: "2025-02-05",
-      type: "Nuevo",
-      program: "Desarrollo Web",
-      status: "Activo",
-    },
-    {
-      id: 2,
-      name: "Carlos Rodríguez",
-      enrollmentDate: "2025-02-07",
-      type: "Nuevo",
-      program: "Marketing Digital",
-      status: "Activo",
-    },
-    {
-      id: 3,
-      name: "María López",
-      enrollmentDate: "2025-02-10",
-      type: "Recurrente",
-      program: "Diseño Gráfico",
-      status: "Activo",
-    },
-    {
-      id: 4,
-      name: "Juan Pérez",
-      enrollmentDate: "2025-02-12",
-      type: "Recurrente",
-      program: "Desarrollo Web",
-      status: "Activo",
-    },
-    {
-      id: 5,
-      name: "Laura Martínez",
-      enrollmentDate: "2025-02-15",
-      type: "Nuevo",
-      program: "Contabilidad",
-      status: "Activo",
-    },
-    {
-      id: 6,
-      name: "Roberto Sánchez",
-      enrollmentDate: "2025-02-18",
-      type: "Recurrente",
-      program: "Marketing Digital",
-      status: "Retirado",
-    },
-  ]
+      const periodo = data.periodoActual?.rango
+      if (filters.rango === "custom") {
+        setStartDate(filters.fechaInicio ?? "")
+        setEndDate(filters.fechaFin ?? "")
+      } else {
+        setStartDate(periodo?.fechaInicio ?? "")
+        setEndDate(periodo?.fechaFin ?? "")
+      }
+    } catch (err) {
+      const message = getErrorMessage(err)
+      setError(message)
+      toast({
+        title: "No se pudieron obtener los reportes",
+        description: message,
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
 
-  // Filtrar estudiantes según los criterios seleccionados
-  const filteredStudents = students.filter((student) => {
-    if (program !== "all" && student.program !== program) return false
-    if (studentType !== "all" && student.type !== studentType) return false
-    return true
-  })
+  const loadReportMemoized = useMemo(() => loadReport, [loadReport])
 
-  // Calcular totales
-  const totalStudents = filteredStudents.length
-  const newStudents = filteredStudents.filter((s) => s.type === "Nuevo").length
-  const recurringStudents = filteredStudents.filter((s) => s.type === "Recurrente").length
+  const loadAllStudents = useCallback(async (filters: MatriculaReportFilters) => {
+    try {
+      setAllStudentsLoading(true)
+      setError(null)
+      const response = await fetchEstudiantesMatriculados({
+        fechaInicio: filters.fechaInicio,
+        fechaFin: filters.fechaFin,
+        programaId: filters.programaId === "all" ? undefined : filters.programaId,
+        tipoAlumno: filters.tipoAlumno === "all" ? undefined : filters.tipoAlumno,
+        page: filters.page,
+        perPage: filters.perPage,
+      })
+      
+      const estudiantesData = response.estudiantes ?? response.data ?? []
+      
+      // Update report data structure to match the existing format
+      setReportData((prevData) => {
+        if (!prevData) return prevData
+        return {
+          ...prevData,
+          listado: {
+            alumnos: estudiantesData.map((est) => ({
+              id: est.id,
+              nombre: est.nombre,
+              fechaMatricula: est.fechaMatricula,
+              tipo: est.tipo ?? est.tipoAlumno,
+              programa: est.programa,
+              estado: est.estado,
+            })),
+            paginacion: response.paginacion,
+          },
+        }
+      })
+    } catch (err) {
+      const message = getErrorMessage(err)
+      setError(message)
+      toast({
+        title: "No se pudieron obtener los estudiantes matriculados",
+        description: message,
+        variant: "destructive",
+      })
+    } finally {
+      setAllStudentsLoading(false)
+    }
+  }, [toast])
 
-  // Calcular totales del período anterior
-  const previousTotalStudents = previousPeriodStudents.length
-  const previousNewStudents = previousPeriodStudents.filter((s) => s.type === "Nuevo").length
-  const previousRecurringStudents = previousPeriodStudents.filter((s) => s.type === "Recurrente").length
+  const loadAllStudentsMemoized = useMemo(() => loadAllStudents, [loadAllStudents])
 
-  // Calcular porcentajes de crecimiento
-  const totalGrowth = ((totalStudents - previousTotalStudents) / previousTotalStudents) * 100
-  const newGrowth = ((newStudents - previousNewStudents) / previousNewStudents) * 100
-  const recurringGrowth = ((recurringStudents - previousRecurringStudents) / previousRecurringStudents) * 100
+  useEffect(() => {
+    void loadReportMemoized(appliedFilters)
+  }, [appliedFilters, loadReportMemoized])
 
-  // Datos para gráficas por programa
-  const programCounts = filteredStudents.reduce((acc: Record<string, number>, student) => {
-    acc[student.program] = (acc[student.program] || 0) + 1
-    return acc
-  }, {})
+  useEffect(() => {
+    if (useStudentsEndpoint) {
+      void loadAllStudentsMemoized(appliedFilters)
+    }
+  }, [appliedFilters, useStudentsEndpoint, loadAllStudentsMemoized])
+
+  useEffect(() => {
+    if (appliedFilters.rango) {
+      setDateRange(appliedFilters.rango)
+    }
+    if (appliedFilters.programaId) {
+      setProgram(appliedFilters.programaId)
+    }
+    if (appliedFilters.tipoAlumno) {
+      setStudentType(appliedFilters.tipoAlumno)
+    }
+    if (appliedFilters.rango === "custom") {
+      setStartDate(appliedFilters.fechaInicio ?? "")
+      setEndDate(appliedFilters.fechaFin ?? "")
+    }
+  }, [appliedFilters])
+
+  useEffect(() => {
+    const serverPerPage = reportData?.listado?.paginacion?.porPagina
+    if (typeof serverPerPage === "number" && serverPerPage > 0) {
+      setPerPage(serverPerPage)
+    }
+  }, [reportData?.listado?.paginacion?.porPagina])
+
+  const availableRanges = reportData?.filtros?.rangosDisponibles ?? ["month", "quarter", "semester", "year", "custom"]
+  const programOptions = reportData?.filtros?.programas ?? []
+  const studentTypeOptions = useMemo(() => {
+    const tipos = reportData?.filtros?.tiposAlumno ?? []
+    const unique = Array.from(new Set(tipos))
+    return ["all", ...unique]
+  }, [reportData?.filtros?.tiposAlumno])
+
+  const currentTotals = reportData?.periodoActual?.totales
+  const totalStudents = currentTotals?.matriculados ?? 0
+  const newStudents = currentTotals?.alumnosNuevos ?? 0
+  const recurringStudents = currentTotals?.alumnosRecurrentes ?? 0
+
+  const comparativa = reportData?.comparativa
+  const previousDescription = reportData?.periodoAnterior?.rangoComparado?.descripcion
+  const currentPeriodDescription = reportData?.periodoActual?.rango?.descripcion
+
+  const pagination = reportData?.listado?.paginacion
+  const students = reportData?.listado?.alumnos ?? []
+  const currentPage = pagination?.pagina ?? appliedFilters.page ?? 1
+  const totalPages = pagination?.totalPaginas ?? 1
+  const pageSize = (pagination?.porPagina ?? appliedFilters.perPage ?? students.length) || 1
+  const totalRecords = pagination?.total ?? students.length
+  const firstRecord = totalRecords === 0 ? 0 : (currentPage - 1) * pageSize + 1
+  const lastRecord = totalRecords === 0 ? 0 : Math.min(firstRecord + pageSize - 1, totalRecords)
+
+  const typeDistributionWithPercent = useMemo(() => {
+    const distribution = reportData?.periodoActual?.distribucionTipo ?? []
+    const total = distribution.reduce((sum, item) => sum + (item.total ?? 0), 0)
+    return distribution.map((item, index) => ({
+      ...item,
+      key: `${item.tipo ?? "tipo"}-${index}`,
+      porcentaje: total > 0 ? (item.total ?? 0) / total * 100 : 0,
+    }))
+  }, [reportData?.periodoActual?.distribucionTipo])
+
+  const programDistributionWithPercent = useMemo(() => {
+    const distribution = reportData?.periodoActual?.distribucionProgramas ?? []
+    const total = distribution.reduce((sum, item) => sum + (item.total ?? 0), 0)
+    return distribution.map((item, index) => ({
+      ...item,
+      key: `${item.programa ?? "programa"}-${index}`,
+      porcentaje: total > 0 ? (item.total ?? 0) / total * 100 : 0,
+    }))
+  }, [reportData?.periodoActual?.distribucionProgramas])
+
+  const monthlyEvolution = reportData?.periodoActual?.evolucionMensual ?? []
+  const tendencias = reportData?.tendencias
+
+  const isInitialLoading = loading && !reportData
+
+  // Helper function to generate visible page numbers with ellipsis
+  const getVisiblePages = (current: number, total: number): (number | string)[] => {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1)
+    }
+
+    const pages: (number | string)[] = []
+    const delta = 2
+
+    pages.push(1)
+
+    if (current > delta + 2) {
+      pages.push("ellipsis-start")
+    }
+
+    const start = Math.max(2, current - delta)
+    const end = Math.min(total - 1, current + delta)
+
+    for (let i = start; i <= end; i++) {
+      pages.push(i)
+    }
+
+    if (current < total - delta - 1) {
+      pages.push("ellipsis-end")
+    }
+
+    if (total > 1) {
+      pages.push(total)
+    }
+
+    return pages
+  }
+
+  const visiblePages = useMemo(
+    () => getVisiblePages(currentPage, totalPages),
+    [currentPage, totalPages]
+  )
+
+  const handleApplyFilters = () => {
+    if (dateRange === "custom") {
+      if (!startDate || !endDate) {
+        toast({
+          title: "Fechas incompletas",
+          description: "Debe seleccionar fecha de inicio y fin para el rango personalizado.",
+          variant: "destructive",
+        })
+        return
+      }
+      if (new Date(startDate) > new Date(endDate)) {
+        toast({
+          title: "Rango inválido",
+          description: "La fecha de inicio no puede ser posterior a la fecha fin.",
+          variant: "destructive",
+        })
+        return
+      }
+    }
+
+    const nextFilters: MatriculaReportFilters = {
+      rango: dateRange,
+      programaId: program,
+      tipoAlumno: studentType,
+      page: 1,
+      perPage,
+    }
+
+    if (dateRange === "custom") {
+      nextFilters.fechaInicio = startDate
+      nextFilters.fechaFin = endDate
+    }
+
+    setAppliedFilters(nextFilters)
+  }
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || (pagination?.totalPaginas && newPage > pagination.totalPaginas)) {
+      return
+    }
+
+    setAppliedFilters((prev) => ({
+      ...prev,
+      page: newPage,
+    }))
+  }
+
+  const handleExport = async () => {
+    try {
+      setExporting(true)
+      
+      if (useStudentsEndpoint) {
+        // Use new students endpoint for export
+        await exportarEstudiantesMatriculados({
+          formato: exportFormat === "pdf" ? "pdf" : exportFormat === "excel" ? "excel" : "csv",
+          fechaInicio: appliedFilters.fechaInicio,
+          fechaFin: appliedFilters.fechaFin,
+          programaId: appliedFilters.programaId === "all" ? undefined : appliedFilters.programaId,
+          tipoAlumno: appliedFilters.tipoAlumno === "all" ? undefined : appliedFilters.tipoAlumno,
+          incluirTodos: true,
+        })
+      } else {
+        // Use existing reports endpoint
+        await exportMatriculaReport({
+          formato: exportFormat,
+          detalle: exportDetail,
+          incluirGraficas: includeCharts,
+          rango: appliedFilters.rango,
+          fechaInicio: appliedFilters.fechaInicio,
+          fechaFin: appliedFilters.fechaFin,
+          programaId: appliedFilters.programaId,
+          tipoAlumno: appliedFilters.tipoAlumno,
+          page: appliedFilters.page,
+          perPage: appliedFilters.perPage,
+        })
+      }
+
+      toast({
+        title: "Exportación iniciada",
+        description: `Se generó el archivo en formato ${exportFormat.toUpperCase()}.`,
+      })
+      setShowExportDialog(false)
+    } catch (err) {
+      const message = getErrorMessage(err)
+      toast({
+        title: "No se pudo exportar",
+        description: message,
+        variant: "destructive",
+      })
+    } finally {
+      setExporting(false)
+    }
+  }
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Reportes de Matrícula y Alumnos Nuevos</h1>
-        <div className="flex items-center space-x-2">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Reportes de Matrícula y Alumnos Nuevos</h1>
+          {currentPeriodDescription ? (
+            <p className="text-sm text-muted-foreground">Período analizado: {currentPeriodDescription}</p>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {loading && reportData ? (
+            <div className="flex items-center text-sm text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Actualizando datos…
+            </div>
+          ) : null}
           <Button variant="outline" size="sm">
-            <Printer className="h-4 w-4 mr-1" />
+            <Printer className="mr-1 h-4 w-4" />
             Imprimir
           </Button>
           <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-1" />
+                <Download className="mr-1 h-4 w-4" />
                 Exportar
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Exportar Reporte</DialogTitle>
+                <DialogTitle>Exportar reporte</DialogTitle>
                 <DialogDescription>
-                  Seleccione el formato y nivel de detalle para exportar el reporte.
+                  Seleccione el formato y el nivel de detalle que desea incluir en el archivo.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="exportFormat" className="text-right">
+                  <Label htmlFor="export-format" className="text-right">
                     Formato
                   </Label>
-                  <Select value={exportFormat} onValueChange={(value: any) => setExportFormat(value)}>
-                    <SelectTrigger className="col-span-3">
+                  <Select value={exportFormat} onValueChange={(value: MatriculaExportFormat) => setExportFormat(value)}>
+                    <SelectTrigger id="export-format" className="col-span-3">
                       <SelectValue placeholder="Seleccionar formato" />
                     </SelectTrigger>
                     <SelectContent>
@@ -234,41 +504,47 @@ export default function ReportesMatriculaPage() {
                   </Select>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="exportDetail" className="text-right">
-                    Nivel de Detalle
+                  <Label htmlFor="export-detail" className="text-right">
+                    Nivel de detalle
                   </Label>
-                  <Select value={exportDetail} onValueChange={(value: any) => setExportDetail(value)}>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Seleccionar nivel de detalle" />
+                  <Select value={exportDetail} onValueChange={(value: MatriculaExportDetail) => setExportDetail(value)}>
+                    <SelectTrigger id="export-detail" className="col-span-3">
+                      <SelectValue placeholder="Seleccionar detalle" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="complete">Reporte Completo</SelectItem>
-                      <SelectItem value="summary">Solo Resumen</SelectItem>
-                      <SelectItem value="data">Solo Datos</SelectItem>
+                      <SelectItem value="complete">Reporte completo</SelectItem>
+                      <SelectItem value="summary">Solo resumen</SelectItem>
+                      <SelectItem value="data">Solo datos</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="includeCharts" className="text-right">
-                    Incluir Gráficas
+                  <Label htmlFor="include-charts" className="text-right">
+                    Incluir gráficas
                   </Label>
-                  <div className="col-span-3 flex items-center space-x-2">
-                    <input type="checkbox" id="includeCharts" className="h-4 w-4" defaultChecked />
-                    <Label htmlFor="includeCharts">Incluir gráficas en el reporte</Label>
+                  <div className="col-span-3 flex items-center gap-2">
+                    <Checkbox
+                      id="include-charts"
+                      checked={includeCharts}
+                      onCheckedChange={(value) => setIncludeCharts(Boolean(value))}
+                    />
+                    <span className="text-sm text-muted-foreground">Agregar gráficas en el archivo (si aplica)</span>
                   </div>
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setShowExportDialog(false)}>
+                <Button variant="outline" onClick={() => setShowExportDialog(false)} disabled={exporting}>
                   Cancelar
                 </Button>
-                <Button onClick={() => setShowExportDialog(false)}>
-                  {exportFormat === "pdf" ? (
-                    <FilePdf className="h-4 w-4 mr-1" />
+                <Button onClick={handleExport} disabled={exporting}>
+                  {exporting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : exportFormat === "pdf" ? (
+                    <FilePdf className="mr-2 h-4 w-4" />
                   ) : (
-                    <FileSpreadsheet className="h-4 w-4 mr-1" />
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
                   )}
-                  Exportar
+                  {exporting ? "Exportando…" : "Exportar"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -276,103 +552,152 @@ export default function ReportesMatriculaPage() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      {error ? (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>No se pudo cargar el reporte</AlertTitle>
+          <AlertDescription className="flex items-center justify-between gap-4">
+            <span>{error}</span>
+            <Button variant="outline" size="sm" onClick={() => void loadReport(appliedFilters)}>
+              Reintentar
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {isInitialLoading ? (
+        <div className="space-y-6">
+          <Skeleton className="h-24 w-full" />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
+          </div>
+          <Skeleton className="h-[400px] w-full" />
+        </div>
+      ) : null}
+
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)} className="space-y-4">
         <TabsList>
-          <TabsTrigger value="current">Período Actual</TabsTrigger>
+          <TabsTrigger value="current">Período actual</TabsTrigger>
           <TabsTrigger value="comparison">Comparativa</TabsTrigger>
           <TabsTrigger value="trends">Tendencias</TabsTrigger>
         </TabsList>
 
         <TabsContent value="current" className="space-y-4">
-          {/* Filtros */}
           <Card>
             <CardHeader>
-              <CardTitle>Filtros de Búsqueda</CardTitle>
+              <CardTitle>Filtros de búsqueda</CardTitle>
+              <CardDescription>Aplicar filtros actualiza toda la información del reporte.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="mb-4 flex items-center gap-2">
+                <Checkbox
+                  id="use-students-endpoint"
+                  checked={useStudentsEndpoint}
+                  onCheckedChange={(value) => setUseStudentsEndpoint(Boolean(value))}
+                />
+                <Label htmlFor="use-students-endpoint" className="text-sm font-normal cursor-pointer">
+                  Mostrar todas las matrículas (incluye datos históricos completos)
+                </Label>
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div className="space-y-2">
-                  <Label htmlFor="dateRange">Rango de Fechas</Label>
-                  <Select value={dateRange} onValueChange={(value: any) => setDateRange(value)}>
-                    <SelectTrigger>
+                  <Label htmlFor="date-range">Rango de fechas</Label>
+                  <Select
+                    value={dateRange}
+                    onValueChange={(value: MatriculaDateRange) => setDateRange(value)}
+                    disabled={loading && !reportData}
+                  >
+                    <SelectTrigger id="date-range">
                       <SelectValue placeholder="Seleccionar rango" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="month">Mes Actual</SelectItem>
-                      <SelectItem value="quarter">Trimestre Actual</SelectItem>
-                      <SelectItem value="semester">Semestre Actual</SelectItem>
-                      <SelectItem value="year">Año Actual</SelectItem>
-                      <SelectItem value="custom">Personalizado</SelectItem>
+                      {availableRanges.map((range) => (
+                        <SelectItem key={range} value={range}>
+                          {rangeLabels[range] ?? range}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {dateRange === "custom" && (
+                {dateRange === "custom" ? (
                   <>
                     <div className="space-y-2">
-                      <Label htmlFor="startDate">Fecha Inicio</Label>
+                      <Label htmlFor="start-date">Fecha inicio</Label>
                       <Input
-                        id="startDate"
+                        id="start-date"
                         type="date"
                         value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
+                        onChange={(event) => setStartDate(event.target.value)}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="endDate">Fecha Fin</Label>
-                      <Input id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                      <Label htmlFor="end-date">Fecha fin</Label>
+                      <Input
+                        id="end-date"
+                        type="date"
+                        value={endDate}
+                        onChange={(event) => setEndDate(event.target.value)}
+                      />
                     </div>
                   </>
-                )}
+                ) : null}
 
                 <div className="space-y-2">
                   <Label htmlFor="program">Programa/Carrera</Label>
-                  <Select value={program} onValueChange={(value: any) => setProgram(value)}>
-                    <SelectTrigger>
+                  <Select value={program} onValueChange={setProgram}>
+                    <SelectTrigger id="program">
                       <SelectValue placeholder="Todos los programas" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos los programas</SelectItem>
-                      <SelectItem value="Desarrollo Web">Desarrollo Web</SelectItem>
-                      <SelectItem value="Marketing Digital">Marketing Digital</SelectItem>
-                      <SelectItem value="Diseño Gráfico">Diseño Gráfico</SelectItem>
-                      <SelectItem value="Contabilidad">Contabilidad</SelectItem>
+                      {programOptions.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.nombre}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="studentType">Tipo de Alumno</Label>
-                  <Select value={studentType} onValueChange={(value: any) => setStudentType(value)}>
-                    <SelectTrigger>
+                  <Label htmlFor="student-type">Tipo de alumno</Label>
+                  <Select value={studentType} onValueChange={setStudentType}>
+                    <SelectTrigger id="student-type">
                       <SelectValue placeholder="Todos los tipos" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos los tipos</SelectItem>
-                      <SelectItem value="Nuevo">Nuevo</SelectItem>
-                      <SelectItem value="Recurrente">Recurrente</SelectItem>
+                      {studentTypeOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option === "all" ? "Todos" : option}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="flex items-end">
-                  <Button>
-                    <Filter className="h-4 w-4 mr-1" />
-                    Aplicar Filtros
+                  <Button onClick={handleApplyFilters} disabled={loading}>
+                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />}
+                    {loading ? "Aplicando…" : "Aplicar filtros"}
                   </Button>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Resumen */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Total Matriculados</p>
-                    <h3 className="text-2xl font-bold mt-1">{totalStudents}</h3>
+                    <p className="text-sm text-muted-foreground">Total matriculados</p>
+                    <h3 className="mt-1 text-2xl font-bold">{formatNumber(totalStudents)}</h3>
+                    {currentPeriodDescription ? (
+                      <p className="mt-1 text-xs text-muted-foreground">{currentPeriodDescription}</p>
+                    ) : null}
                   </div>
                   <FileText className="h-10 w-10 text-blue-500" />
                 </div>
@@ -383,10 +708,12 @@ export default function ReportesMatriculaPage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Alumnos Nuevos</p>
-                    <h3 className="text-2xl font-bold mt-1">{newStudents}</h3>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {Math.round((newStudents / totalStudents) * 100)}% del total
+                    <p className="text-sm text-muted-foreground">Alumnos nuevos</p>
+                    <h3 className="mt-1 text-2xl font-bold">{formatNumber(newStudents)}</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {totalStudents > 0
+                        ? `${percentFormatter.format((newStudents / totalStudents) * 100)}% del total`
+                        : "—"}
                     </p>
                   </div>
                   <FileText className="h-10 w-10 text-green-500" />
@@ -398,10 +725,12 @@ export default function ReportesMatriculaPage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Alumnos Recurrentes</p>
-                    <h3 className="text-2xl font-bold mt-1">{recurringStudents}</h3>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {Math.round((recurringStudents / totalStudents) * 100)}% del total
+                    <p className="text-sm text-muted-foreground">Alumnos recurrentes</p>
+                    <h3 className="mt-1 text-2xl font-bold">{formatNumber(recurringStudents)}</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {totalStudents > 0
+                        ? `${percentFormatter.format((recurringStudents / totalStudents) * 100)}% del total`
+                        : "—"}
                     </p>
                   </div>
                   <FileText className="h-10 w-10 text-purple-500" />
@@ -410,210 +739,466 @@ export default function ReportesMatriculaPage() {
             </Card>
           </div>
 
-          {/* Tabla de Resultados */}
           <Card>
             <CardHeader>
-              <CardTitle>Listado de Alumnos Matriculados</CardTitle>
+              <CardTitle>Listado de alumnos matriculados</CardTitle>
+              <CardDescription>
+                {useStudentsEndpoint && allStudentsLoading ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Cargando estudiantes matriculados...
+                  </span>
+                ) : totalRecords > 0 ? (
+                  `Mostrando ${formatNumber(firstRecord)} - ${formatNumber(lastRecord)} de ${formatNumber(totalRecords)} alumnos`
+                ) : (
+                  "No se encontraron alumnos con los filtros aplicados"
+                )}
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Fecha de Matrícula</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Programa</TableHead>
-                    <TableHead>Estado</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredStudents.map((student) => (
-                    <TableRow key={student.id}>
-                      <TableCell>{student.id}</TableCell>
-                      <TableCell>{student.name}</TableCell>
-                      <TableCell>{student.enrollmentDate}</TableCell>
-                      <TableCell>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${student.type === "Nuevo" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}
-                        >
-                          {student.type}
-                        </span>
-                      </TableCell>
-                      <TableCell>{student.program}</TableCell>
-                      <TableCell>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${student.status === "Activo" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
-                        >
-                          {student.status}
-                        </span>
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Fecha de matrícula</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Programa</TableHead>
+                      <TableHead>Estado</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {students.length ? (
+                      students.map((student) => (
+                        <TableRow key={`${student.id}-${student.fechaMatricula}`}>
+                          <TableCell>{student.id ?? "—"}</TableCell>
+                          <TableCell>{student.nombre ?? "—"}</TableCell>
+                          <TableCell>{formatDate(student.fechaMatricula)}</TableCell>
+                          <TableCell>
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                                student.tipo === "Nuevo"
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : student.tipo === "Recurrente"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-muted text-muted-foreground"
+                              }`}
+                            >
+                              {student.tipo ?? "—"}
+                            </span>
+                          </TableCell>
+                          <TableCell>{student.programa ?? "—"}</TableCell>
+                          <TableCell>{student.estado ?? "—"}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                          No hay alumnos registrados para los criterios seleccionados.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              
+              {/* Enhanced Pagination Controls */}
+              {totalRecords > 0 && (
+                <div className="mt-4 space-y-4">
+                  {/* Records info and page size selector */}
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-sm text-muted-foreground">
+                      Mostrando <span className="font-medium">{formatNumber(firstRecord)}</span> a{" "}
+                      <span className="font-medium">{formatNumber(lastRecord)}</span> de{" "}
+                      <span className="font-medium">{formatNumber(totalRecords)}</span> alumnos
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="page-size" className="text-sm text-muted-foreground whitespace-nowrap">
+                        Registros por página:
+                      </Label>
+                      <Select
+                        value={String(perPage)}
+                        onValueChange={(value) => {
+                          setPerPage(Number(value))
+                          setAppliedFilters((prev) => ({
+                            ...prev,
+                            page: 1,
+                            perPage: Number(value),
+                          }))
+                        }}
+                        disabled={loading || allStudentsLoading}
+                      >
+                        <SelectTrigger id="page-size" className="w-[100px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[10, 25, 50, 100].map((size) => (
+                            <SelectItem key={size} value={String(size)}>
+                              {size}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Page navigation */}
+                  {totalPages > 1 && (
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              if (currentPage > 1) {
+                                handlePageChange(currentPage - 1)
+                              }
+                            }}
+                            className={currentPage <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                            aria-disabled={currentPage <= 1 || loading || allStudentsLoading}
+                          />
+                        </PaginationItem>
+
+                        {visiblePages.map((page, idx) =>
+                          typeof page === "number" ? (
+                            <PaginationItem key={page}>
+                              <PaginationLink
+                                href="#"
+                                isActive={page === currentPage}
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  if (page !== currentPage) {
+                                    handlePageChange(page)
+                                  }
+                                }}
+                                className="cursor-pointer"
+                                aria-disabled={loading || allStudentsLoading}
+                              >
+                                {page}
+                              </PaginationLink>
+                            </PaginationItem>
+                          ) : (
+                            <PaginationItem key={`${page}-${idx}`}>
+                              <PaginationEllipsis />
+                            </PaginationItem>
+                          )
+                        )}
+
+                        <PaginationItem>
+                          <PaginationNext
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              if (currentPage < totalPages) {
+                                handlePageChange(currentPage + 1)
+                              }
+                            }}
+                            className={
+                              currentPage >= totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"
+                            }
+                            aria-disabled={currentPage >= totalPages || loading || allStudentsLoading}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  )}
+
+                  {/* Loading indicator for pagination */}
+                  {(loading || allStudentsLoading) && (
+                    <div className="flex items-center justify-center text-sm text-muted-foreground">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Cargando datos...
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
-
-          {/* Gráficas */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Matrícula por Mes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-80 flex items-center justify-center bg-gray-50 rounded-md">
-                  <p className="text-gray-500">Gráfica de matrícula mensual</p>
-                  {/* Aquí iría el componente de gráfica real */}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Distribución por Programa</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-80 flex items-center justify-center bg-gray-50 rounded-md">
-                  <p className="text-gray-500">Gráfica de distribución por programa</p>
-                  {/* Aquí iría el componente de gráfica real */}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </TabsContent>
 
         <TabsContent value="comparison" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Comparativa con Período Anterior</CardTitle>
+              <CardTitle>Comparativa entre períodos</CardTitle>
               <CardDescription>
-                Comparación entre {dateRange === "month" ? "Marzo 2025" : "el período actual"} y{" "}
-                {dateRange === "month" ? "Febrero 2025" : "el período anterior"}
+                {previousDescription
+                  ? `Comparando con ${previousDescription}`
+                  : "Comparación con el período anterior inmediato"}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <Card>
                   <CardContent className="p-6">
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">Total Matriculados</p>
-                      <div className="flex items-center mt-1">
-                        <h3 className="text-2xl font-bold">{totalStudents}</h3>
-                        <span className={`ml-2 text-sm ${totalGrowth >= 0 ? "text-green-500" : "text-red-500"}`}>
-                          {totalGrowth >= 0 ? "+" : ""}
-                          {totalGrowth.toFixed(1)}%
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">vs. {previousTotalStudents} en período anterior</p>
+                    <p className="text-sm text-muted-foreground">Total matriculados</p>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <h3 className="text-2xl font-bold">{formatNumber(comparativa?.totales?.actual)}</h3>
+                      <span className="text-sm text-muted-foreground">
+                        vs {formatNumber(comparativa?.totales?.anterior)}
+                      </span>
                     </div>
+                    <p
+                      className={`mt-1 text-xs font-medium ${
+                        (comparativa?.totales?.variacion ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"
+                      }`}
+                    >
+                      {formatPercent(comparativa?.totales?.variacion)}
+                    </p>
                   </CardContent>
                 </Card>
 
                 <Card>
                   <CardContent className="p-6">
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">Alumnos Nuevos</p>
-                      <div className="flex items-center mt-1">
-                        <h3 className="text-2xl font-bold">{newStudents}</h3>
-                        <span className={`ml-2 text-sm ${newGrowth >= 0 ? "text-green-500" : "text-red-500"}`}>
-                          {newGrowth >= 0 ? "+" : ""}
-                          {newGrowth.toFixed(1)}%
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">vs. {previousNewStudents} en período anterior</p>
+                    <p className="text-sm text-muted-foreground">Alumnos nuevos</p>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <h3 className="text-2xl font-bold">{formatNumber(comparativa?.nuevos?.actual)}</h3>
+                      <span className="text-sm text-muted-foreground">
+                        vs {formatNumber(comparativa?.nuevos?.anterior)}
+                      </span>
                     </div>
+                    <p
+                      className={`mt-1 text-xs font-medium ${
+                        (comparativa?.nuevos?.variacion ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"
+                      }`}
+                    >
+                      {formatPercent(comparativa?.nuevos?.variacion)}
+                    </p>
                   </CardContent>
                 </Card>
 
                 <Card>
                   <CardContent className="p-6">
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">Alumnos Recurrentes</p>
-                      <div className="flex items-center mt-1">
-                        <h3 className="text-2xl font-bold">{recurringStudents}</h3>
-                        <span className={`ml-2 text-sm ${recurringGrowth >= 0 ? "text-green-500" : "text-red-500"}`}>
-                          {recurringGrowth >= 0 ? "+" : ""}
-                          {recurringGrowth.toFixed(1)}%
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">vs. {previousRecurringStudents} en período anterior</p>
+                    <p className="text-sm text-muted-foreground">Alumnos recurrentes</p>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <h3 className="text-2xl font-bold">{formatNumber(comparativa?.recurrentes?.actual)}</h3>
+                      <span className="text-sm text-muted-foreground">
+                        vs {formatNumber(comparativa?.recurrentes?.anterior)}
+                      </span>
                     </div>
+                    <p
+                      className={`mt-1 text-xs font-medium ${
+                        (comparativa?.recurrentes?.variacion ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"
+                      }`}
+                    >
+                      {formatPercent(comparativa?.recurrentes?.variacion)}
+                    </p>
                   </CardContent>
                 </Card>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Comparativa de Matrícula</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-80 flex items-center justify-center bg-gray-50 rounded-md">
-                      <p className="text-gray-500">Gráfica comparativa entre períodos</p>
-                      {/* Aquí iría el componente de gráfica real */}
-                    </div>
-                  </CardContent>
-                </Card>
+              <div className="mt-6 overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Métrica</TableHead>
+                      <TableHead>Período actual</TableHead>
+                      <TableHead>Período anterior</TableHead>
+                      <TableHead>Variación</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {["totales", "nuevos", "recurrentes"].map((key) => {
+                      const detail = comparativa?.[key as keyof typeof comparativa]
+                      const label =
+                        key === "totales"
+                          ? "Total matriculados"
+                          : key === "nuevos"
+                            ? "Alumnos nuevos"
+                            : "Alumnos recurrentes"
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Distribución por Tipo de Alumno</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-80 flex items-center justify-center bg-gray-50 rounded-md">
-                      <p className="text-gray-500">Gráfica de distribución por tipo de alumno</p>
-                      {/* Aquí iría el componente de gráfica real */}
-                    </div>
-                  </CardContent>
-                </Card>
+                      return (
+                        <TableRow key={key}>
+                          <TableCell>{label}</TableCell>
+                          <TableCell>{formatNumber(detail?.actual)}</TableCell>
+                          <TableCell>{formatNumber(detail?.anterior)}</TableCell>
+                          <TableCell>{formatPercent(detail?.variacion)}</TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
               </div>
             </CardContent>
           </Card>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Distribución por tipo de alumno</CardTitle>
+                <CardDescription>Participación relativa de nuevos y recurrentes.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Participación</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {typeDistributionWithPercent.length ? (
+                      typeDistributionWithPercent.map((item) => (
+                        <TableRow key={item.key}>
+                          <TableCell>{item.tipo ?? "—"}</TableCell>
+                          <TableCell>{formatNumber(item.total)}</TableCell>
+                          <TableCell>{formatPercent(item.porcentaje, { showSign: false })}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={3} className="py-6 text-center text-sm text-muted-foreground">
+                          No hay información de distribución por tipo de alumno.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Distribución por programa</CardTitle>
+                <CardDescription>Totales y variación por carrera o programa.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Programa</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Participación</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {programDistributionWithPercent.length ? (
+                      programDistributionWithPercent.map((item) => (
+                        <TableRow key={item.key}>
+                          <TableCell>{item.programa ?? "—"}</TableCell>
+                          <TableCell>{formatNumber(item.total)}</TableCell>
+                          <TableCell>{formatPercent(item.porcentaje, { showSign: false })}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={3} className="py-6 text-center text-sm text-muted-foreground">
+                          No hay datos de distribución por programa para mostrar.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="trends" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Tendencias de Matrícula</CardTitle>
-              <CardDescription>Análisis de tendencias en los últimos 12 meses</CardDescription>
+              <CardTitle>Evolución de matrícula</CardTitle>
+              <CardDescription>Totales registrados en los últimos meses.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-96 flex items-center justify-center bg-gray-50 rounded-md mb-6">
-                <p className="text-gray-500">Gráfica de tendencias de matrícula (12 meses)</p>
-                {/* Aquí iría el componente de gráfica real */}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Crecimiento por Programa</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-80 flex items-center justify-center bg-gray-50 rounded-md">
-                      <p className="text-gray-500">Gráfica de crecimiento por programa</p>
-                      {/* Aquí iría el componente de gráfica real */}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Proyección de Matrícula</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-80 flex items-center justify-center bg-gray-50 rounded-md">
-                      <p className="text-gray-500">Gráfica de proyección para próximos períodos</p>
-                      {/* Aquí iría el componente de gráfica real */}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Mes</TableHead>
+                    <TableHead>Total de matriculados</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {monthlyEvolution.length ? (
+                    monthlyEvolution.map((item, index) => (
+                      <TableRow key={`${item.mes ?? "mes"}-${index}`}>
+                        <TableCell>{item.mes ? formatDate(`${item.mes}-01`) : "—"}</TableCell>
+                        <TableCell>{formatNumber(item.total)}</TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={2} className="py-6 text-center text-sm text-muted-foreground">
+                        No hay datos de evolución mensual disponibles.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Crecimiento por programa</CardTitle>
+                <CardDescription>Variación porcentual en los últimos períodos.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Programa</TableHead>
+                      <TableHead>Variación</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tendencias?.crecimientoPorPrograma?.length ? (
+                      tendencias.crecimientoPorPrograma.map((item, index) => (
+                        <TableRow key={`${item.programa ?? "crecimiento"}-${index}`}>
+                          <TableCell>{item.programa ?? "—"}</TableCell>
+                          <TableCell>{formatPercent(item.variacion)}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={2} className="py-6 text-center text-sm text-muted-foreground">
+                          No se registran variaciones por programa en este período.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Proyección de matrícula</CardTitle>
+                <CardDescription>Estimaciones calculadas por el backend.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Período</TableHead>
+                      <TableHead>Total proyectado</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tendencias?.proyeccion?.length ? (
+                      tendencias.proyeccion.map((item, index) => (
+                        <TableRow key={`${item.periodo ?? "proyeccion"}-${index}`}>
+                          <TableCell>{item.periodo ?? "—"}</TableCell>
+                          <TableCell>{formatNumber(item.totalEsperado)}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={2} className="py-6 text-center text-sm text-muted-foreground">
+                          No hay información de proyección disponible.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
   )
 }
-

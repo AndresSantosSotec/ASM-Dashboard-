@@ -56,7 +56,9 @@ export interface UploadReceiptData {
   banco: string
   monto: number
   comprobante: File
+  fecha_recibo?: string // ⬅️ NUEVO, opcional
 }
+
 
 export interface PaymentUploadResponse {
   success: boolean
@@ -122,29 +124,32 @@ class PaymentsService {
     return response.data
   }
 
-  async uploadReceipt(data: UploadReceiptData): Promise<PaymentUploadResponse> {
-    const formData = new FormData()
-    formData.append('cuota_id', data.cuota_id.toString())
-    formData.append('numero_boleta', data.numero_boleta)
-    formData.append('banco', data.banco)
-    formData.append('monto', data.monto.toString())
-    formData.append('comprobante', data.comprobante)
+async uploadReceipt(data: UploadReceiptData): Promise<PaymentUploadResponse> {
+  const formData = new FormData()
+  formData.append('cuota_id', data.cuota_id.toString())
+  formData.append('numero_boleta', data.numero_boleta)
+  formData.append('banco', data.banco)
+  formData.append('monto', data.monto.toString())
+  formData.append('comprobante', data.comprobante)
 
-    try {
-      const response = await api.post('/estudiante/pagos/subir-recibo', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      return response.data
-    } catch (error: any) {
-      // Manejar errores específicos del servidor
-      if (error.response?.data) {
-        // El servidor devolvió una respuesta estructurada
-        throw new PaymentError(error.response.data)
-      }
-      // Error genérico
-      throw error
-    }
+  // ⬅️ NUEVO: solo se agrega si viene
+  if (data.fecha_recibo) {
+    formData.append('fecha_recibo', data.fecha_recibo)
   }
+
+  try {
+    const response = await api.post('/estudiante/pagos/subir-recibo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data
+  } catch (error: any) {
+    if (error.response?.data) {
+      throw new PaymentError(error.response.data)
+    }
+    throw error
+  }
+}
+
 
   async refreshAllData() {
     const timestamp = Date.now()
