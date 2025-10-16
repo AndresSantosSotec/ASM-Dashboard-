@@ -1,5 +1,23 @@
 "use client";
 
+/**
+ * NOTA IMPORTANTE SOBRE PERMISOS DE USUARIO:
+ * 
+ * Este componente gestiona los permisos directos de usuarios.
+ * NO debe incluir permisos heredados de roles (esos tienen su propia tabla).
+ * 
+ * PROBLEMA CONOCIDO EN EL BACKEND:
+ * Existe un error en el backend (UserPermisosController.php línea ~88) donde se intenta
+ * acceder a la columna 'moduleview_id' en la tabla 'permissions', pero esta columna no existe.
+ * La columna correcta es 'module_view_id' (con guión bajo).
+ * 
+ * Hasta que el backend sea corregido, la función de guardar permisos fallará con el error:
+ * "SQLSTATE[42703]: Undefined column: 7 ERROR: no existe la columna «moduleview_id»"
+ * 
+ * ESTRUCTURA DE LA BASE DE DATOS:
+ * users (id) -> userpermissions (user_id, permission_id) -> permissions (id, module_view_id) -> moduleviews (id)
+ */
+
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "@/utils/apiConfig";
@@ -150,16 +168,36 @@ export default function PermisosVistasTab() {
         );
         if (response.data?.success) {
           const rows: any[] = Array.isArray(response.data.data) ? response.data.data : [];
+          // Extract module_view_id from the permission object
+          // The response structure should be: data[].permission.module_view_id
+          // or data[].permission.module_view.id
           const moduleViewIds = rows
             .map((row) => {
-              return (
-                row?.permission?.module_view?.id ??
-                row?.permission?.moduleView?.id ??
-                row?.permission?.module_view_id ??
-                null
-              );
+              // Try different possible structures
+              const permissionData = row?.permission;
+              if (!permissionData) return null;
+              
+              // Try nested object first (permission.module_view.id)
+              if (permissionData.module_view?.id) {
+                return permissionData.module_view.id;
+              }
+              // Try camelCase variant
+              if (permissionData.moduleView?.id) {
+                return permissionData.moduleView.id;
+              }
+              // Try direct property
+              if (permissionData.module_view_id) {
+                return permissionData.module_view_id;
+              }
+              // Try camelCase direct property
+              if (permissionData.moduleViewId) {
+                return permissionData.moduleViewId;
+              }
+              
+              return null;
             })
-            .filter((id: any) => typeof id === "number");
+            .filter((id: any) => typeof id === "number" && id > 0);
+          
           setSelectedPermisos(moduleViewIds as number[]);
         } else {
           setSelectedPermisos([]);
@@ -203,9 +241,14 @@ export default function PermisosVistasTab() {
     }
     setIsSaving(true);
     try {
+      // NOTA: El backend espera un array de module_view_id
+      // Estructura de la base de datos:
+      // - users (id) -> userpermissions (user_id, permission_id) -> permissions (id, module_view_id) -> moduleviews (id)
+      // El backend debería buscar/crear permissions para cada module_view_id y luego crear los registros en userpermissions
+      // IMPORTANTE: No se deben guardar permisos heredados de roles aquí, solo permisos directos del usuario
       const payload = {
         user_id: Number(selectedUsuario),
-        permissions: selectedPermisos, // siempre moduleview_id
+        module_view_ids: selectedPermisos, // Array of module view IDs
       };
       const response = await axios.post(`${API_BASE_URL}/api/userpermissions`, payload);
       if (response.data?.success) {
@@ -222,6 +265,24 @@ export default function PermisosVistasTab() {
             ? Object.values(errors).flat().join("\n")
             : error.response.data?.message || "Datos inválidos";
         Swal.fire("Validación", messages, "warning");
+      } else if (axios.isAxiosError(error) && error.response?.status === 500) {
+        // Backend error - likely the moduleview_id column issue
+        const backendError = error.response.data?.message || "";
+        if (backendError.includes("moduleview_id") || backendError.includes("Undefined column")) {
+          Swal.fire({
+            title: "Error en el servidor",
+            html: `
+              <p>Error en la base de datos del backend.</p>
+              <p class="text-sm mt-2">El backend está intentando acceder a una columna 'moduleview_id' que no existe en la tabla 'permissions'.</p>
+              <p class="text-sm mt-2">La columna correcta debería ser 'module_view_id' (con guión bajo).</p>
+              <p class="text-sm mt-2"><strong>Este es un error del backend que debe ser corregido en:</strong></p>
+              <p class="text-xs mt-1">app/Http/Controllers/Api/UserPermisosController.php (línea 88 aproximadamente)</p>
+            `,
+            icon: "error",
+          });
+        } else {
+          Swal.fire("Error", "Ocurrió un error al guardar los permisos", "error");
+        }
       } else {
         Swal.fire("Error", "Ocurrió un error al guardar los permisos", "error");
       }
