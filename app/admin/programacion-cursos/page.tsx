@@ -91,7 +91,25 @@ export default function ProgramacionCursosPage() {
       const endDate = new Date(course.fecha_fin)
       const checkDate = new Date(calendarInfo.year, calendarInfo.month, day)
       
-      return checkDate >= startDate && checkDate <= endDate
+      // Verificar que la fecha esté en el rango
+      if (checkDate < startDate || checkDate > endDate) return false
+      
+      // Verificar que el día de la semana coincida con el día de la semana del curso
+      const dayOfWeek = checkDate.getDay() // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+      
+      // Mapeo de días de la semana en español al número correspondiente
+      const dayToNumber: { [key: string]: number } = {
+        "Domingo": 0,
+        "Lunes": 1,
+        "Martes": 2,
+        "Miércoles": 3,
+        "Jueves": 4,
+        "Viernes": 5,
+        "Sábado": 6
+      }
+      
+      // Verificar que el día de la semana del curso coincide con el día de la semana de la fecha
+      return dayOfWeek === dayToNumber[course.dia_semana]
     })
   }
 
