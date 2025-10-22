@@ -3,7 +3,8 @@ import { MantenimientosFinancieros } from "@/components/finanzas/reportes-financ
 
 export const metadata: Metadata = {
   title: "Mantenimientos Financieros",
-  description: "Administre el kardex de pagos y las cuotas estudiantiles desde un espacio único de mantenimiento.",
+  description:
+    "Administre el kardex de pagos, las cuotas de estudiantes y la generación de reportes financieros oficiales",
 }
 
 export default function MantenimientosFinancierosPage() {
