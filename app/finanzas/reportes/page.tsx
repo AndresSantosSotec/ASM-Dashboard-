@@ -1,16 +1,15 @@
 import type { Metadata } from "next"
-import { ReportesFinancieros } from "@/components/finanzas/reportes-financieros"
+import { MantenimientosFinancieros } from "@/components/finanzas/reportes-financieros"
 
 export const metadata: Metadata = {
-  title: "Reportes Financieros",
-  description: "Generación de reportes financieros, estados de cuenta y libros contables",
+  title: "Mantenimientos Financieros",
+  description: "Administre el kardex de pagos y las cuotas estudiantiles desde un espacio único de mantenimiento.",
 }
 
-export default function ReportesFinancierosPage() {
+export default function MantenimientosFinancierosPage() {
   return (
     <div className="container mx-auto py-6 max-w-7xl">
-      <ReportesFinancieros />
+      <MantenimientosFinancieros />
     </div>
   )
 }
-
