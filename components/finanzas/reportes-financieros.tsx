@@ -424,98 +424,14 @@ const mapStudentQuotaRecords = (data: any): StudentQuotaRecord[] => {
 }
 
 
-// Componente para generar estados de cuenta
-const GeneradorEstadosCuenta = ({ data }: { data: any }) => {
-  const [dateRange, setDateRange] = useState({
-    from: new Date(new Date().setDate(new Date().getDate() - 30)),
-    to: new Date(),
-  })
-  const [selectedStudents, setSelectedStudents] = useState<string[]>([])
-  const [searchQuery, setSearchQuery] = useState("")
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [showPreview, setShowPreview] = useState(false)
-  const [previewStudent, setPreviewStudent] = useState<any | null>(null)
-
-  // Función para manejar la selección de estudiantes
-  const handleStudentSelection = (studentId: string) => {
-    if (selectedStudents.includes(studentId)) {
-      setSelectedStudents(selectedStudents.filter((id) => id !== studentId))
-    } else {
-      setSelectedStudents([...selectedStudents, studentId])
-    }
-  }
-
-  // Función para seleccionar todos los estudiantes
-  const handleSelectAllStudents = (checked: boolean) => {
-    if (checked) {
-      setSelectedStudents(data.estudiantes.map((student: any) => student.id))
-    } else {
-      setSelectedStudents([])
-    }
-  }
-
-  // Función para filtrar estudiantes
-  const filteredStudents = data.estudiantes.filter(
-    (student) =>
-      student.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student.carnet.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student.programa.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
-
-  // Función para generar estados de cuenta
-  const [format, setFormat] = useState<'pdf' | 'excel'>('pdf')
-  const generateAccountStatements = async () => {
-    if (selectedStudents.length === 0) {
-      alert('Por favor seleccione al menos un estudiante')
-      return
-    }
-
-    setIsGenerating(true)
-    try {
-      const blob = await exportFinancialReport(format)
-      const url = URL.createObjectURL(blob)
-      window.open(url)
-    } catch (e) {
-      alert('No se pudo generar el reporte')
-    } finally {
-      setIsGenerating(false)
-    }
-  }
-
-  // Función para mostrar vista previa
-  const showAccountPreview = (student: any) => {
-    setPreviewStudent(student)
-    setShowPreview(true)
-  }
-
+export function MantenimientosFinancieros() {
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col md:flex-row justify-between gap-4">
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Buscar estudiante..."
-              className="pl-8 w-full md:w-[250px]"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <Select defaultValue="all">
-            <SelectTrigger className="w-full md:w-[180px]">
-              <SelectValue placeholder="Filtrar por programa" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los programas</SelectItem>
-              <SelectItem value="desarrollo">Desarrollo Web</SelectItem>
-              <SelectItem value="diseno">Diseño UX/UI</SelectItem>
-              <SelectItem value="medicina">Medicina</SelectItem>
-              <SelectItem value="psicologia">Psicología</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <DatePickerWithRange className="w-auto" value={dateRange} onChange={setDateRange} />
+    <div className="space-y-10">
+      <div className="space-y-2">
+        <h2 className="text-3xl font-bold tracking-tight">Mantenimientos financieros</h2>
+        <p className="text-muted-foreground">
+          Administre el kardex de pagos y las cuotas estudiantiles desde una vista dedicada de mantenimiento.
+        </p>
       </div>
 
       <Card>
