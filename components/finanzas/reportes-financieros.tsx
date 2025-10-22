@@ -2089,85 +2089,6 @@ const MantenimientoCuotasEstudiantes = ({ initialQuotas }: { initialQuotas?: Stu
   )
 }
 
-const ReportesGeneracionTab = ({ data }: { data: any }) => {
-  const tiposReporte = Array.isArray(data?.tiposReporte) ? data.tiposReporte : []
-
-  return (
-    <div className="space-y-6">
-      <Card className="border-dashed bg-muted/40">
-        <CardContent className="flex flex-col gap-2 p-6">
-          <h3 className="text-lg font-semibold">Generación de reportes financieros</h3>
-          <p className="text-sm text-muted-foreground">
-            Utilice las herramientas actuales para exportar estados de cuenta, libros contables y reportes
-            personalizados.
-          </p>
-        </CardContent>
-      </Card>
-
-      <Tabs defaultValue="estados-cuenta" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-1 md:grid-cols-3">
-          <TabsTrigger value="estados-cuenta" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            <span>Estados de cuenta</span>
-          </TabsTrigger>
-          <TabsTrigger value="libros-contables" className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4" />
-            <span>Libros contables</span>
-          </TabsTrigger>
-          <TabsTrigger value="reportes-personalizados" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            <span>Reportes personalizados</span>
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="estados-cuenta">
-          <GeneradorEstadosCuenta data={data} />
-        </TabsContent>
-
-        <TabsContent value="libros-contables">
-          <GeneradorLibrosContables data={data} />
-        </TabsContent>
-
-        <TabsContent value="reportes-personalizados">
-          <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Reportes personalizados</CardTitle>
-                <CardDescription>
-                  Genere reportes financieros personalizados según sus necesidades.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {tiposReporte.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {tiposReporte.map((reporte: any) => (
-                      <Card key={reporte.id ?? reporte.nombre} className="border border-muted">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-base">{reporte.nombre}</CardTitle>
-                          <CardDescription className="text-xs">{reporte.descripcion}</CardDescription>
-                        </CardHeader>
-                        <CardFooter className="pt-2">
-                          <Button variant="outline" size="sm" className="w-full">
-                            <BarChart3 className="mr-2 h-4 w-4" /> Generar reporte
-                          </Button>
-                        </CardFooter>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No hay reportes personalizados configurados en este momento.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
-    </div>
-  )
-}
-
 export function ReportesFinancieros() {
   const [reportesData, setReportesData] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
@@ -2271,10 +2192,6 @@ export function ReportesFinancieros() {
             <GraduationCap className="h-4 w-4" />
             <span>Cuotas por estudiante</span>
           </TabsTrigger>
-          <TabsTrigger value="reportes" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            <span>Reportes financieros</span>
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="kardex">
@@ -2285,9 +2202,6 @@ export function ReportesFinancieros() {
           <MantenimientoCuotasEstudiantes initialQuotas={cuotasRecords} />
         </TabsContent>
 
-        <TabsContent value="reportes">
-          <ReportesGeneracionTab data={safeReportesData} />
-        </TabsContent>
       </Tabs>
     </div>
   )
