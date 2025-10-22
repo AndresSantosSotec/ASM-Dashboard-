@@ -101,10 +101,7 @@ export const exportFinancialReport = async (
   return res.data
 }
 
-export const fetchFinancialReports = async (params?: any) => {
-  const res = await api.get("/financial-reports", { params })
-  return res.data
-}
+
 
 /** Variante simple (compatibilidad) */
 export const fetchDashboardFinanciero = async (params?: any) => {

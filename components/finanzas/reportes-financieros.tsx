@@ -40,7 +40,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { exportFinancialReport, fetchFinancialReports } from "@/services/finance"
+import { exportFinancialReport } from "@/services/finance"
 
 type KardexStatus = "aplicado" | "pendiente" | "anulado"
 
@@ -456,7 +456,7 @@ const GeneradorEstadosCuenta = ({ data }: { data: any }) => {
 
   // Función para filtrar estudiantes
   const filteredStudents = data.estudiantes.filter(
-    (student) =>
+    (student: any) =>
       student.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
       student.carnet.toLowerCase().includes(searchQuery.toLowerCase()) ||
       student.programa.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -515,7 +515,15 @@ const GeneradorEstadosCuenta = ({ data }: { data: any }) => {
             </SelectContent>
           </Select>
         </div>
-        <DatePickerWithRange className="w-auto" value={dateRange} onChange={setDateRange} />
+        <DatePickerWithRange
+          className="w-auto"
+          value={dateRange}
+          onChange={(range) => {
+            if (range && range.from && range.to) {
+              setDateRange({ from: range.from, to: range.to })
+            }
+          }}
+        />
       </div>
 
       <Card>
@@ -542,7 +550,7 @@ const GeneradorEstadosCuenta = ({ data }: { data: any }) => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredStudents.map((student) => (
+              {filteredStudents.map((student: any) => (
                 <TableRow key={student.id}>
                   <TableCell>
                     <Checkbox
@@ -768,6 +776,7 @@ const GeneradorLibrosContables = ({ data }: { data: any }) => {
   const [isGenerating, setIsGenerating] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [previewBook, setPreviewBook] = useState<any | null>(null)
+  const [format, setFormat] = useState<'pdf' | 'excel'>('pdf')
 
   // Función para manejar la selección de libros
   const handleBookSelection = (bookId: string) => {
@@ -827,7 +836,15 @@ const GeneradorLibrosContables = ({ data }: { data: any }) => {
             <SelectItem value="resultados">Estado de Resultados</SelectItem>
           </SelectContent>
         </Select>
-        <DatePickerWithRange className="w-auto" value={dateRange} onChange={setDateRange} />
+        <DatePickerWithRange
+          className="w-auto"
+          value={dateRange}
+          onChange={(range) => {
+            if (range && range.from && range.to) {
+              setDateRange({ from: range.from, to: range.to })
+            }
+          }}
+        />
       </div>
 
       <Card>
@@ -2158,8 +2175,8 @@ export function ReportesFinancieros() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const data = await fetchFinancialReports()
-        setReportesData(data ?? {})
+        
+        
       } catch (e) {
         console.error('Error fetching financial reports', e)
         setReportesData({})
