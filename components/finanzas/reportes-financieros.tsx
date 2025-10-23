@@ -207,12 +207,6 @@ const createDefaultFilters = (): ReportFilters => ({
 
 type RowAction = "view" | "edit" | "delete"
 
-const ACTION_LABELS: Record<RowAction, string> = {
-  view: "Ver detalle",
-  edit: "Editar",
-  delete: "Eliminar",
-}
-
 const TAB_LABELS: Record<"kardex" | "reconciliaciones", string> = {
   kardex: "Kardex",
   reconciliaciones: "Conciliaciones",
@@ -247,6 +241,27 @@ const toDateInputValue = (value: string | null | undefined) => {
 
   return local.toISOString().slice(0, 10)
 }
+
+const createKardexEditFormState = (row: KardexRow): KardexEditFormState => ({
+  monto_pagado: row.monto_pagado != null ? String(row.monto_pagado) : "",
+  fecha_pago: toDateInputValue(row.fecha_pago),
+  fecha_recibo: toDateInputValue(row.fecha_recibo),
+  metodo_pago: row.metodo_pago ?? "",
+  estado_pago: row.estado_pago ?? "",
+  numero_boleta: row.numero_boleta ?? "",
+  banco: row.banco ?? "",
+  observaciones: row.observaciones ?? "",
+})
+
+const createReconciliationEditFormState = (
+  row: ReconciliationRow,
+): ReconciliationEditFormState => ({
+  amount: row.amount != null ? String(row.amount) : "",
+  date: toDateInputValue(row.date),
+  status: row.status ?? "",
+  bank: row.bank ?? "",
+  reference: row.reference ?? "",
+})
 
 export const ReportesFinancieros = () => {
   const { toast } = useToast()
@@ -294,17 +309,22 @@ export const ReportesFinancieros = () => {
   const [deleteState, setDeleteState] = useState<DeleteState>(null)
   const [deleteReference, setDeleteReference] = useState<string>("")
 
-  // You may need to implement open/close modal handlers and form logic as needed.
+  const closeDetailModal = useCallback(() => {
+    setKardexModal(null)
+    setReconciliationModal(null)
+    setKardexEditForm(null)
+    setReconciliationEditForm(null)
+  }, [])
 
-  // Dummy handler for kardex edit submit to fix compile error
   const handleKardexEditSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    // Implement the logic to save kardex edit here
-    // For now, just close the modal
-    setKardexModal(null)
+    toast({
+      title: "Edición pendiente",
+      description: "La actualización de movimientos del kardex estará disponible próximamente.",
+    })
+    closeDetailModal()
   }
 
-  // Dummy handler for reconciliation edit submit to fix compile error
   const handleReconciliationEditSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     // Implement the logic to save reconciliation edit here
@@ -512,22 +532,71 @@ export const ReportesFinancieros = () => {
     return loadingStates.reconciliaciones
   }
 
-  const handleRowAction = (
-    tab: "kardex" | "reconciliaciones",
-    action: RowAction,
-    reference?: string,
-  ) => {
-    const tabLabel = TAB_LABELS[tab]
-    const actionLabel = ACTION_LABELS[action]
+  const handleKardexRowAction = useCallback(
+    (action: RowAction, row: KardexRow) => {
+      if (action === "delete") {
+        setKardexModal(null)
+        setKardexEditForm(null)
+        setDeleteState({ tab: "kardex", row })
+        setDeleteReference(getKardexReference(row))
+        return
+      }
 
+      setDeleteState(null)
+      setDeleteReference("")
+      setReconciliationModal(null)
+      setReconciliationEditForm(null)
+
+      if (action === "edit") {
+        setKardexEditForm(createKardexEditFormState(row))
+      } else {
+        setKardexEditForm(null)
+      }
+
+      setKardexModal({ tab: "kardex", action, row })
+    },
+    [],
+  )
+
+  const handleReconciliationRowAction = useCallback(
+    (action: RowAction, row: ReconciliationRow) => {
+      if (action === "delete") {
+        setReconciliationModal(null)
+        setReconciliationEditForm(null)
+        setDeleteState({ tab: "reconciliaciones", row })
+        setDeleteReference(getReconciliationReference(row))
+        return
+      }
+
+      setDeleteState(null)
+      setDeleteReference("")
+      setKardexModal(null)
+      setKardexEditForm(null)
+
+      if (action === "edit") {
+        setReconciliationEditForm(createReconciliationEditFormState(row))
+      } else {
+        setReconciliationEditForm(null)
+      }
+
+      setReconciliationModal({ tab: "reconciliaciones", action, row })
+    },
+    [],
+  )
+
+  const handleDeleteConfirm = useCallback(() => {
+    if (!deleteState) {
+      return
+    }
+
+    const tabLabel = TAB_LABELS[deleteState.tab]
     toast({
-      title: `${actionLabel} (${tabLabel})`,
+      title: `Eliminación pendiente (${tabLabel})`,
       description:
-        reference && reference.trim().length > 0
-          ? `Acción pendiente de implementación para ${reference}.`
-          : "Acción pendiente de implementación.",
+        deleteReference && deleteReference.trim().length > 0
+          ? `${deleteReference} no puede eliminarse todavía. La funcionalidad estará disponible próximamente.`
+          : "Esta eliminación estará disponible próximamente.",
     })
-  }
 
   const cuotaFilters = useMemo(
     () => buildRequestFilters(filtersByTab.cuotas),
@@ -941,9 +1010,6 @@ export const ReportesFinancieros = () => {
                       const estado = row.estado_pago ?? ""
                       const estadoClase = estadoPagoClasses[estado] ?? "bg-slate-500/15 text-slate-700 border-slate-500/30"
                       const estadoLabel = estadoPagoLabels[estado] ?? (estado ? estado.replace(/_/g, " ") : "Sin estado")
-                      const referenceLabel = row.numero_boleta
-                        ? `Boleta ${row.numero_boleta}`
-                        : `Pago #${row.id}`
 
                       return (
                         <TableRow key={row.id}>
@@ -995,7 +1061,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("kardex", "view", referenceLabel)}
+                                onClick={() => handleKardexRowAction("view", row)}
                                 aria-label="Ver detalle"
                               >
                                 <Eye className="h-4 w-4" />
@@ -1004,7 +1070,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("kardex", "edit", referenceLabel)}
+                                onClick={() => handleKardexRowAction("edit", row)}
                                 aria-label="Editar"
                               >
                                 <Pencil className="h-4 w-4" />
@@ -1013,7 +1079,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("kardex", "delete", referenceLabel)}
+                                onClick={() => handleKardexRowAction("delete", row)}
                                 aria-label="Eliminar"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -1068,7 +1134,6 @@ export const ReportesFinancieros = () => {
                       const estado = row.status ?? ""
                       const estadoClase = conciliacionClasses[estado] ?? "bg-slate-500/15 text-slate-700 border-slate-500/30"
                       const estadoLabel = conciliacionLabels[estado] ?? (estado ? estado.replace(/_/g, " ") : "Sin estado")
-                      const reference = row.reference ?? `Conciliación #${row.id}`
 
                       return (
                         <TableRow key={row.id}>
@@ -1104,7 +1169,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("reconciliaciones", "view", reference)}
+                                onClick={() => handleReconciliationRowAction("view", row)}
                                 aria-label="Ver detalle"
                               >
                                 <Eye className="h-4 w-4" />
@@ -1113,7 +1178,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("reconciliaciones", "edit", reference)}
+                                onClick={() => handleReconciliationRowAction("edit", row)}
                                 aria-label="Editar"
                               >
                                 <Pencil className="h-4 w-4" />
@@ -1122,7 +1187,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("reconciliaciones", "delete", reference)}
+                                onClick={() => handleReconciliationRowAction("delete", row)}
                                 aria-label="Eliminar"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -1624,6 +1689,7 @@ export const ReportesFinancieros = () => {
         onOpenChange={(open) => {
           if (!open) {
             setDeleteState(null)
+            setDeleteReference("")
           }
         }}
       >
@@ -1637,7 +1703,12 @@ export const ReportesFinancieros = () => {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setDeleteState(null)}>
+              <AlertDialogCancel
+                onClick={() => {
+                  setDeleteState(null)
+                  setDeleteReference("")
+                }}
+              >
                 Cancelar
               </AlertDialogCancel>
               <AlertDialogAction
