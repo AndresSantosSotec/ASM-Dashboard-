@@ -114,12 +114,14 @@ const cuotaEstadoClasses: Record<string, string> = {
   vencido: "bg-red-500/15 text-red-600 border-red-500/30",
 }
 
+type LimitValue = number | "all"
+
 interface ReportFilters {
   search: string
   estadoPago: string
   estadoReconciliacion: string
   estadoCuota: string
-  limit: number
+  limit: LimitValue
 }
 
 const BASE_FILTERS: ReportFilters = {
@@ -127,7 +129,81 @@ const BASE_FILTERS: ReportFilters = {
   estadoPago: "todos",
   estadoReconciliacion: "todos",
   estadoCuota: "todos",
-  limit: 50,
+  limit: "all",
+}
+
+type TabKey = "kardex" | "reconciliaciones" | "cuotas"
+type PaginationKey = "kardex" | "reconciliaciones" | "cuotasEstudiantes" | "cuotas"
+
+type PageSizeValue = number | "all"
+
+interface PaginationState {
+  page: number
+  pageSize: PageSizeValue
+}
+
+const PAGE_SIZE_OPTIONS: Array<{ label: string; value: PageSizeValue }> = [
+  { label: "10", value: 10 },
+  { label: "25", value: 25 },
+  { label: "50", value: 50 },
+  { label: "100", value: 100 },
+  { label: "Todos", value: "all" },
+]
+
+const LIMIT_OPTIONS: Array<{ label: string; value: LimitValue }> = [
+  { label: "Todos los registros", value: "all" },
+  { label: "25 registros", value: 25 },
+  { label: "50 registros", value: 50 },
+  { label: "100 registros", value: 100 },
+  { label: "200 registros", value: 200 },
+  { label: "500 registros", value: 500 },
+]
+
+const createDefaultFilters = (): ReportFilters => ({
+  ...BASE_FILTERS,
+})
+
+type RowAction = "view" | "edit" | "delete"
+
+const TAB_LABELS: Record<"kardex" | "reconciliaciones", string> = {
+  kardex: "Kardex",
+  reconciliaciones: "Conciliaciones",
+}
+
+type KardexRow = KardexPagoResumen
+type ReconciliationRow = ReconciliationRecordResumen
+
+type DetailModalState =
+  | { tab: "kardex"; action: Exclude<RowAction, "delete">; row: KardexRow }
+  | {
+      tab: "reconciliaciones"
+      action: Exclude<RowAction, "delete">
+      row: ReconciliationRow
+    }
+  | null
+
+type DeleteState =
+  | { tab: "kardex"; row: KardexRow }
+  | { tab: "reconciliaciones"; row: ReconciliationRow }
+  | null
+
+interface KardexEditFormState {
+  monto_pagado: string
+  fecha_pago: string
+  fecha_recibo: string
+  metodo_pago: string
+  estado_pago: string
+  numero_boleta: string
+  banco: string
+  observaciones: string
+}
+
+interface ReconciliationEditFormState {
+  amount: string
+  date: string
+  status: string
+  bank: string
+  reference: string
 }
 
 type TabKey = "kardex" | "reconciliaciones" | "cuotas"
@@ -162,8 +238,30 @@ const buildRequestFilters = (filters: ReportFilters) => ({
   estado_pago: filters.estadoPago !== "todos" ? filters.estadoPago : undefined,
   estado_reconciliacion: filters.estadoReconciliacion !== "todos" ? filters.estadoReconciliacion : undefined,
   estado_cuota: filters.estadoCuota !== "todos" ? filters.estadoCuota : undefined,
-  limit: filters.limit,
+  limit: filters.limit === "all" ? undefined : filters.limit,
 })
+
+const getKardexReference = (row: KardexRow) =>
+  row.numero_boleta ? `Boleta ${row.numero_boleta}` : `Pago #${row.id}`
+
+const getReconciliationReference = (row: ReconciliationRow) =>
+  row.reference ?? `Conciliación #${row.id}`
+
+const toDateInputValue = (value: string | null | undefined) => {
+  if (!value) {
+    return ""
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return ""
+  }
+
+  const offset = parsed.getTimezoneOffset()
+  const local = new Date(parsed.getTime() - offset * 60_000)
+
+  return local.toISOString().slice(0, 10)
+}
 
 export const ReportesFinancieros = () => {
   const { toast } = useToast()
@@ -721,9 +819,9 @@ export const ReportesFinancieros = () => {
                     <SelectValue placeholder="Límite" />
                   </SelectTrigger>
                   <SelectContent>
-                    {[25, 50, 100, 200, 500].map((value) => (
+                    {LIMIT_OPTIONS.map(({ value, label }) => (
                       <SelectItem key={value} value={String(value)}>
-                        {value} registros
+                        {label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1232,6 +1330,462 @@ export const ReportesFinancieros = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={Boolean(kardexModal)} onOpenChange={(open) => (!open ? closeDetailModal() : undefined)}>
+        {kardexModal ? (
+          <DialogContent className="sm:max-w-[650px]">
+            <DialogHeader>
+              <DialogTitle>
+                {kardexModal.action === "view"
+                  ? "Detalle del pago"
+                  : "Editar movimiento del kardex"}
+              </DialogTitle>
+              <DialogDescription>
+                {getKardexReference(kardexModal.row)} · {kardexModal.row.prospecto?.nombre ?? "Sin nombre"}
+              </DialogDescription>
+            </DialogHeader>
+            {kardexModal.action === "view" ? (
+              <div className="space-y-4 text-sm">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Estudiante</p>
+                    <p className="font-medium text-foreground">{kardexModal.row.prospecto?.nombre ?? "Sin nombre"}</p>
+                    <p className="text-muted-foreground">
+                      {kardexModal.row.prospecto?.carnet ?? "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Programa</p>
+                    <p className="font-medium text-foreground">{kardexModal.row.programa?.nombre ?? "-"}</p>
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Monto pagado</p>
+                    <p className="font-medium text-foreground">{formatCurrency(kardexModal.row.monto_pagado)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Estado del pago</p>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "capitalize",
+                        estadoPagoClasses[kardexModal.row.estado_pago ?? ""] ??
+                          "bg-slate-500/15 text-slate-700 border-slate-500/30",
+                      )}
+                    >
+                      {estadoPagoLabels[kardexModal.row.estado_pago ?? ""] ??
+                        (kardexModal.row.estado_pago
+                          ? kardexModal.row.estado_pago.replace(/_/g, " ")
+                          : "Sin estado")}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Fecha de pago</p>
+                    <p>{formatDateTime(kardexModal.row.fecha_pago)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Fecha de recibo</p>
+                    <p>{formatDateTime(kardexModal.row.fecha_recibo)}</p>
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Método de pago</p>
+                    <p className="capitalize">{kardexModal.row.metodo_pago ?? "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Banco / Boleta</p>
+                    <p>
+                      {kardexModal.row.banco ?? "Sin banco"}
+                      {kardexModal.row.numero_boleta
+                        ? ` · Boleta ${kardexModal.row.numero_boleta}`
+                        : ""}
+                    </p>
+                  </div>
+                </div>
+                {kardexModal.row.observaciones ? (
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Observaciones</p>
+                    <p>{kardexModal.row.observaciones}</p>
+                  </div>
+                ) : null}
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Conciliaciones vinculadas</p>
+                  {kardexModal.row.reconciliaciones.length > 0 ? (
+                    <ul className="mt-2 space-y-2">
+                      {kardexModal.row.reconciliaciones.map((item) => (
+                        <li key={item.id} className="rounded-md border p-2">
+                          <div className="flex flex-col gap-1 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium text-foreground">{item.bank ?? "Banco"}</span>
+                              <span>{formatCurrency(item.amount)}</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {item.reference ?? "Sin referencia"} · {formatDate(item.date)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Estado: {conciliacionLabels[item.status ?? ""] ?? item.status ?? "Sin estado"}
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-xs text-muted-foreground">No hay conciliaciones asociadas.</p>
+                  )}
+                </div>
+              </div>
+            ) : kardexEditForm ? (
+              <form className="space-y-4" onSubmit={handleKardexEditSubmit}>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="kardex-monto">Monto pagado</Label>
+                    <Input
+                      id="kardex-monto"
+                      type="number"
+                      step="0.01"
+                      value={kardexEditForm.monto_pagado}
+                      onChange={(event) =>
+                        setKardexEditForm((prev) =>
+                          prev ? { ...prev, monto_pagado: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="kardex-metodo">Método de pago</Label>
+                    <Input
+                      id="kardex-metodo"
+                      value={kardexEditForm.metodo_pago}
+                      onChange={(event) =>
+                        setKardexEditForm((prev) =>
+                          prev ? { ...prev, metodo_pago: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="kardex-fecha-pago">Fecha de pago</Label>
+                    <Input
+                      id="kardex-fecha-pago"
+                      type="date"
+                      value={kardexEditForm.fecha_pago}
+                      onChange={(event) =>
+                        setKardexEditForm((prev) =>
+                          prev ? { ...prev, fecha_pago: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="kardex-fecha-recibo">Fecha de recibo</Label>
+                    <Input
+                      id="kardex-fecha-recibo"
+                      type="date"
+                      value={kardexEditForm.fecha_recibo}
+                      onChange={(event) =>
+                        setKardexEditForm((prev) =>
+                          prev ? { ...prev, fecha_recibo: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="kardex-banco">Banco</Label>
+                    <Input
+                      id="kardex-banco"
+                      value={kardexEditForm.banco}
+                      onChange={(event) =>
+                        setKardexEditForm((prev) =>
+                          prev ? { ...prev, banco: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="kardex-boleta">Número de boleta</Label>
+                    <Input
+                      id="kardex-boleta"
+                      value={kardexEditForm.numero_boleta}
+                      onChange={(event) =>
+                        setKardexEditForm((prev) =>
+                          prev ? { ...prev, numero_boleta: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="kardex-estado">Estado del pago</Label>
+                    <Select
+                      value={kardexEditForm.estado_pago}
+                      onValueChange={(value) =>
+                        setKardexEditForm((prev) =>
+                          prev ? { ...prev, estado_pago: value } : prev,
+                        )
+                      }
+                    >
+                      <SelectTrigger id="kardex-estado">
+                        <SelectValue placeholder="Estado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(estadoPagoLabels).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="kardex-observaciones">Observaciones</Label>
+                  <Textarea
+                    id="kardex-observaciones"
+                    value={kardexEditForm.observaciones}
+                    onChange={(event) =>
+                      setKardexEditForm((prev) =>
+                        prev ? { ...prev, observaciones: event.target.value } : prev,
+                      )
+                    }
+                    rows={4}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={closeDetailModal}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit">Guardar cambios</Button>
+                </DialogFooter>
+              </form>
+            ) : (
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                Cargando información del formulario...
+              </div>
+            )}
+            {kardexModal.action === "view" ? (
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={closeDetailModal}>
+                  Cerrar
+                </Button>
+              </DialogFooter>
+            ) : null}
+          </DialogContent>
+        ) : null}
+      </Dialog>
+
+      <Dialog
+        open={Boolean(reconciliationModal)}
+        onOpenChange={(open) => (!open ? closeDetailModal() : undefined)}
+      >
+        {reconciliationModal ? (
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>
+                {reconciliationModal.action === "view"
+                  ? "Detalle de la conciliación"
+                  : "Editar conciliación"}
+              </DialogTitle>
+              <DialogDescription>
+                {getReconciliationReference(reconciliationModal.row)} · {reconciliationModal.row.bank ?? "Sin banco"}
+              </DialogDescription>
+            </DialogHeader>
+            {reconciliationModal.action === "view" ? (
+              <div className="space-y-4 text-sm">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Banco</p>
+                    <p className="font-medium text-foreground">{reconciliationModal.row.bank ?? "Sin banco"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Referencia</p>
+                    <p className="font-medium text-foreground">{reconciliationModal.row.reference ?? "Sin referencia"}</p>
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Monto</p>
+                    <p className="font-medium text-foreground">{formatCurrency(reconciliationModal.row.amount)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Fecha</p>
+                    <p>{formatDateTime(reconciliationModal.row.date)}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Estado</p>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "capitalize",
+                      conciliacionClasses[reconciliationModal.row.status ?? ""] ??
+                        "bg-slate-500/15 text-slate-700 border-slate-500/30",
+                    )}
+                  >
+                    {conciliacionLabels[reconciliationModal.row.status ?? ""] ??
+                      (reconciliationModal.row.status
+                        ? reconciliationModal.row.status.replace(/_/g, " ")
+                        : "Sin estado")}
+                  </Badge>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Prospecto</p>
+                    <p className="font-medium text-foreground">{reconciliationModal.row.prospecto?.nombre ?? "Sin prospecto"}</p>
+                    <p className="text-muted-foreground">{reconciliationModal.row.prospecto?.carnet ?? "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Programa</p>
+                    <p className="font-medium text-foreground">{reconciliationModal.row.programa?.nombre ?? "-"}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Movimiento en kardex</p>
+                  {reconciliationModal.row.kardex ? (
+                    <div className="mt-2 rounded-md border p-3 text-sm">
+                      <div className="font-medium text-foreground">Pago #{reconciliationModal.row.kardex.id}</div>
+                      <div className="text-muted-foreground">
+                        {formatCurrency(reconciliationModal.row.kardex.monto_pagado ?? 0)} · {formatDate(reconciliationModal.row.kardex.fecha_pago)}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs text-muted-foreground">Sin vincular al kardex.</p>
+                  )}
+                </div>
+              </div>
+            ) : reconciliationEditForm ? (
+              <form className="space-y-4" onSubmit={handleReconciliationEditSubmit}>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="reconciliacion-banco">Banco</Label>
+                    <Input
+                      id="reconciliacion-banco"
+                      value={reconciliationEditForm.bank}
+                      onChange={(event) =>
+                        setReconciliationEditForm((prev) =>
+                          prev ? { ...prev, bank: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reconciliacion-referencia">Referencia</Label>
+                    <Input
+                      id="reconciliacion-referencia"
+                      value={reconciliationEditForm.reference}
+                      onChange={(event) =>
+                        setReconciliationEditForm((prev) =>
+                          prev ? { ...prev, reference: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reconciliacion-monto">Monto</Label>
+                    <Input
+                      id="reconciliacion-monto"
+                      type="number"
+                      step="0.01"
+                      value={reconciliationEditForm.amount}
+                      onChange={(event) =>
+                        setReconciliationEditForm((prev) =>
+                          prev ? { ...prev, amount: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reconciliacion-fecha">Fecha</Label>
+                    <Input
+                      id="reconciliacion-fecha"
+                      type="date"
+                      value={reconciliationEditForm.date}
+                      onChange={(event) =>
+                        setReconciliationEditForm((prev) =>
+                          prev ? { ...prev, date: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reconciliacion-estado">Estado</Label>
+                    <Select
+                      value={reconciliationEditForm.status}
+                      onValueChange={(value) =>
+                        setReconciliationEditForm((prev) =>
+                          prev ? { ...prev, status: value } : prev,
+                        )
+                      }
+                    >
+                      <SelectTrigger id="reconciliacion-estado">
+                        <SelectValue placeholder="Estado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(conciliacionLabels).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={closeDetailModal}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit">Guardar cambios</Button>
+                </DialogFooter>
+              </form>
+            ) : (
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                Cargando información del formulario...
+              </div>
+            )}
+            {reconciliationModal.action === "view" ? (
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={closeDetailModal}>
+                  Cerrar
+                </Button>
+              </DialogFooter>
+            ) : null}
+          </DialogContent>
+        ) : null}
+      </Dialog>
+
+      <AlertDialog
+        open={Boolean(deleteState)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteState(null)
+          }
+        }}
+      >
+        {deleteState ? (
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Eliminar {TAB_LABELS[deleteState.tab]}</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción eliminará definitivamente {deleteReference}. Esta funcionalidad está pendiente de integración,
+                por lo que no se realizarán cambios reales por ahora.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setDeleteState(null)}>
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteConfirm}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        ) : null}
+      </AlertDialog>
     </div>
   )
 }
