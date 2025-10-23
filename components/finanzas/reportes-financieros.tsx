@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { exportFinancialReport, fetchFinancialReports } from "@/services/finance"
+import SeguimientoEstudiantes from "./seguimiento-estudiantes"
 
 
 // Componente para generar estados de cuenta
@@ -368,6 +369,7 @@ const GeneradorLibrosContables = ({ data }: { data: any }) => {
   const [isGenerating, setIsGenerating] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [previewBook, setPreviewBook] = useState<any | null>(null)
+  const [format, setFormat] = useState<'pdf' | 'excel'>('pdf')
 
   // Función para manejar la selección de libros
   const handleBookSelection = (bookId: string) => {
@@ -877,8 +879,12 @@ export function ReportesFinancieros() {
         <p className="text-muted-foreground">Genere reportes financieros, estados de cuenta y libros contables</p>
       </div>
 
-      <Tabs defaultValue="estados-cuenta" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-1 md:grid-cols-3">
+      <Tabs defaultValue="seguimiento-estudiantes" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+          <TabsTrigger value="seguimiento-estudiantes" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            <span>Seguimiento Estudiantes</span>
+          </TabsTrigger>
           <TabsTrigger value="estados-cuenta" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
             <span>Estados de Cuenta</span>
@@ -892,6 +898,10 @@ export function ReportesFinancieros() {
             <span>Reportes Personalizados</span>
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="seguimiento-estudiantes">
+          <SeguimientoEstudiantes />
+        </TabsContent>
 
         <TabsContent value="estados-cuenta">
           <GeneradorEstadosCuenta data={reportesData} />
