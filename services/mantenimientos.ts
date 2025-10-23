@@ -46,7 +46,7 @@ export interface KardexDashboardResponse {
 }
 
 export interface ProspectoResumen {
-  id: number
+  id: number | null
   nombre: string
   carnet: string
   correo: string
@@ -54,7 +54,7 @@ export interface ProspectoResumen {
 }
 
 export interface ProgramaResumen {
-  id: number
+  id: number | null
   nombre: string
 }
 
@@ -143,9 +143,9 @@ export interface CuotasDashboardEstudiante {
   estudiante_programa_id: number | null
   prospecto: (ProspectoResumen & { telefono?: string | null }) | null
   programa: ProgramaResumen | null
-  saldo_pendiente: number
-  cuotas_pendientes: number
-  cuotas_pagadas: number
+  saldo_pendiente: number | null
+  cuotas_pendientes: number | null
+  cuotas_pagadas: number | null
   proxima_cuota: CuotaDetalladaResumen | null
   cuotas: CuotaDetalladaResumen[]
 }
@@ -164,25 +164,21 @@ export interface CuotasDashboardResponse {
   estudiantes: CuotasDashboardEstudiante[]
 }
 
-export interface EstudianteActivoProgramaResumen {
-  estudiante_programa_id: number
-  programa_id: number | null
-  programa_nombre: string | null
-}
-
 export interface EstudianteActivoResumen {
-  id: number
-  nombre: string
-  carnet: string
-  correo: string
-  telefono: string | null
-  programas: EstudianteActivoProgramaResumen[]
+  estudiante_programa_id: number | null
+  prospecto_id: number | null
+  nombre_completo: string
+  carnet: string | null
+  correo_electronico: string | null
+  notas_pago: string | null
+  nomenclatura: string | null
+  status_actual: string | null
 }
 
 export interface EstudiantesActivosResponse {
   timestamp: string
-  filters: Record<string, unknown>
-  data: EstudianteActivoResumen[]
+  total_estudiantes_activos: number
+  estudiantes: EstudianteActivoResumen[]
 }
 
 const sanitizeParams = (params?: MantenimientosFilters) => {
@@ -241,13 +237,31 @@ export const getCuotasDashboard = async (
   return response.data
 }
 
+type EstudiantesActivosFilters = MantenimientosFilters & { q?: string }
+
 export const getEstudiantesActivos = async (
-  params?: MantenimientosFilters,
+  params?: EstudiantesActivosFilters,
   config?: AxiosRequestConfig,
 ): Promise<EstudiantesActivosResponse> => {
+  const sanitized = sanitizeParams(params) as (Record<string, unknown> & { q?: string }) | undefined
+  let finalParams: (Record<string, unknown> & { q?: string }) | undefined
+
+  if (sanitized) {
+    finalParams = { ...sanitized }
+    const searchValue = sanitized.search
+
+    if (typeof searchValue === "string" && searchValue.trim().length > 0) {
+      finalParams.q = searchValue.trim()
+    }
+
+    if ("search" in finalParams) {
+      delete finalParams.search
+    }
+  }
+
   const response = await api.get<EstudiantesActivosResponse>("/mantenimientos/estudiantes/activos", {
     ...(config ?? {}),
-    params: sanitizeParams(params),
+    params: finalParams,
   })
 
   return response.data

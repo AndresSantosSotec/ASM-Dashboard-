@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import axios from "axios"
 import {
   Card,
@@ -36,21 +36,20 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Eye, Loader2, Pencil, RefreshCw, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
-  getCuotasDashboard,
   getKardexDashboard,
   getKardexData,
-  type CuotaProgramaResumen,
-  type CuotasDashboardEstudiante,
-  type CuotasDashboardResponse,
   type CuotasDashboardMetrics,
+  type CuotasDashboardResumen,
   type KardexDashboardMetrics,
   type KardexPagoResumen,
   type ReconciliationDashboardMetrics,
   type ReconciliationRecordResumen,
 } from "@/services/mantenimientos"
+import { CuotasDashboardTab } from "./CuotasDashboardTab"
 
 const currencyFormatter = new Intl.NumberFormat("es-GT", {
   style: "currency",
@@ -119,20 +118,6 @@ const conciliacionClasses: Record<string, string> = {
   imported: "bg-slate-500/15 text-slate-700 border-slate-500/30",
 }
 
-const cuotaEstadoLabels: Record<string, string> = {
-  pagado: "Pagado",
-  pendiente: "Pendiente",
-  parcial: "Pago parcial",
-  vencido: "Vencido",
-}
-
-const cuotaEstadoClasses: Record<string, string> = {
-  pagado: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
-  pendiente: "bg-amber-500/15 text-amber-700 border-amber-500/30",
-  parcial: "bg-sky-500/15 text-sky-700 border-sky-500/30",
-  vencido: "bg-red-500/15 text-red-600 border-red-500/30",
-}
-
 type LimitValue = number | "all"
 
 interface ReportFilters {
@@ -152,7 +137,7 @@ const BASE_FILTERS: ReportFilters = {
 }
 
 type TabKey = "kardex" | "reconciliaciones" | "cuotas"
-type PaginationKey = "kardex" | "reconciliaciones" | "cuotasEstudiantes" | "cuotas"
+type PaginationKey = "kardex" | "reconciliaciones"
 
 type PageSizeValue = number | "all"
 
@@ -222,12 +207,6 @@ const createDefaultFilters = (): ReportFilters => ({
 
 type RowAction = "view" | "edit" | "delete"
 
-const ACTION_LABELS: Record<RowAction, string> = {
-  view: "Ver detalle",
-  edit: "Editar",
-  delete: "Eliminar",
-}
-
 const TAB_LABELS: Record<"kardex" | "reconciliaciones", string> = {
   kardex: "Kardex",
   reconciliaciones: "Conciliaciones",
@@ -263,6 +242,27 @@ const toDateInputValue = (value: string | null | undefined) => {
   return local.toISOString().slice(0, 10)
 }
 
+const createKardexEditFormState = (row: KardexRow): KardexEditFormState => ({
+  monto_pagado: row.monto_pagado != null ? String(row.monto_pagado) : "",
+  fecha_pago: toDateInputValue(row.fecha_pago),
+  fecha_recibo: toDateInputValue(row.fecha_recibo),
+  metodo_pago: row.metodo_pago ?? "",
+  estado_pago: row.estado_pago ?? "",
+  numero_boleta: row.numero_boleta ?? "",
+  banco: row.banco ?? "",
+  observaciones: row.observaciones ?? "",
+})
+
+const createReconciliationEditFormState = (
+  row: ReconciliationRow,
+): ReconciliationEditFormState => ({
+  amount: row.amount != null ? String(row.amount) : "",
+  date: toDateInputValue(row.date),
+  status: row.status ?? "",
+  bank: row.bank ?? "",
+  reference: row.reference ?? "",
+})
+
 export const ReportesFinancieros = () => {
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<TabKey>("kardex")
@@ -290,19 +290,15 @@ export const ReportesFinancieros = () => {
   const [reconciliacionTotals, setReconciliacionTotals] =
     useState<ReconciliationDashboardMetrics | null>(null)
   const [cuotasTotals, setCuotasTotals] = useState<CuotasDashboardMetrics | null>(null)
+  const [cuotasSummary, setCuotasSummary] = useState<CuotasDashboardResumen | null>(null)
   const [kardexRows, setKardexRows] = useState<KardexPagoResumen[]>([])
   const [reconciliationRows, setReconciliationRows] = useState<ReconciliationRecordResumen[]>([])
-  const [cuotasRows, setCuotasRows] = useState<CuotaProgramaResumen[]>([])
-  const [cuotasDashboard, setCuotasDashboard] = useState<CuotasDashboardResponse | null>(null)
   const [kardexLastUpdated, setKardexLastUpdated] = useState<string | null>(null)
   const [reconciliacionesLastUpdated, setReconciliacionesLastUpdated] =
     useState<string | null>(null)
-  const [cuotasLastUpdated, setCuotasLastUpdated] = useState<string | null>(null)
   const [pagination, setPagination] = useState<Record<PaginationKey, PaginationState>>({
     kardex: { page: 1, pageSize: 10 },
     reconciliaciones: { page: 1, pageSize: 10 },
-    cuotasEstudiantes: { page: 1, pageSize: 10 },
-    cuotas: { page: 1, pageSize: 10 },
   })
 
   // Add missing modal and form states
@@ -313,28 +309,29 @@ export const ReportesFinancieros = () => {
   const [deleteState, setDeleteState] = useState<DeleteState>(null)
   const [deleteReference, setDeleteReference] = useState<string>("")
 
-  // You may need to implement open/close modal handlers and form logic as needed.
+  const closeDetailModal = useCallback(() => {
+    setKardexModal(null)
+    setReconciliationModal(null)
+    setKardexEditForm(null)
+    setReconciliationEditForm(null)
+  }, [])
 
-  // Dummy handler for kardex edit submit to fix compile error
   const handleKardexEditSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    // Implement the logic to save kardex edit here
-    // For now, just close the modal
-    setKardexModal(null)
+    toast({
+      title: "Edición pendiente",
+      description: "La actualización de movimientos del kardex estará disponible próximamente.",
+    })
+    closeDetailModal()
   }
 
-  // Dummy handler for reconciliation edit submit to fix compile error
   const handleReconciliationEditSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    // Implement the logic to save reconciliation edit here
-    // For now, just close the modal
-    setReconciliationModal(null)
-  }
-
-  // Handler to close any open detail modal
-  const closeDetailModal = () => {
-    setKardexModal(null)
-    setReconciliationModal(null)
+    toast({
+      title: "Edición pendiente",
+      description: "La actualización de conciliaciones bancarias estará disponible próximamente.",
+    })
+    closeDetailModal()
   }
 
   useEffect(() => {
@@ -444,64 +441,6 @@ export const ReportesFinancieros = () => {
     }
   }, [filtersByTab.reconciliaciones])
 
-  useEffect(() => {
-    const controller = new AbortController()
-
-    const loadCuotas = async () => {
-      setLoadingStates((prev) => ({ ...prev, cuotas: true }))
-      setErrors((prev) => ({ ...prev, cuotas: null }))
-
-      const params = buildRequestFilters(filtersByTab.cuotas)
-
-      try {
-        const [dashboardResponse, dataResponse, cuotasDashboardResponse] =
-          await Promise.all([
-            getKardexDashboard(params, { signal: controller.signal }),
-            getKardexData(params, { signal: controller.signal }),
-            getCuotasDashboard(params, { signal: controller.signal }),
-          ])
-
-        if (controller.signal.aborted) {
-          return
-        }
-
-        setCuotasTotals(dashboardResponse.cuotas)
-        setCuotasRows(dataResponse.cuotas)
-        setCuotasLastUpdated(dataResponse.timestamp)
-        setCuotasDashboard(cuotasDashboardResponse)
-        setPagination((prev) => ({
-          ...prev,
-          cuotas:
-            prev.cuotas.page === 1 ? prev.cuotas : { ...prev.cuotas, page: 1 },
-          cuotasEstudiantes:
-            prev.cuotasEstudiantes.page === 1
-              ? prev.cuotasEstudiantes
-              : { ...prev.cuotasEstudiantes, page: 1 },
-        }))
-      } catch (err) {
-        if ((err as { code?: string })?.code === "ERR_CANCELED") {
-          return
-        }
-
-        const message = axios.isAxiosError(err)
-          ? err.response?.data?.message ?? err.message ?? "No se pudieron cargar las cuotas"
-          : (err as Error).message ?? "No se pudieron cargar las cuotas"
-
-        setErrors((prev) => ({ ...prev, cuotas: message }))
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoadingStates((prev) => ({ ...prev, cuotas: false }))
-        }
-      }
-    }
-
-    loadCuotas()
-
-    return () => {
-      controller.abort()
-    }
-  }, [filtersByTab.cuotas])
-
   const handleFiltersChange = (tab: TabKey, updates: Partial<ReportFilters>) => {
     setFormFiltersByTab((prev) => ({
       ...prev,
@@ -537,12 +476,8 @@ export const ReportesFinancieros = () => {
       case "kardex":
         return kardexRows.length
       case "reconciliaciones":
-        return reconciliationRows.length
-      case "cuotasEstudiantes":
-        return cuotasDashboard?.estudiantes?.length ?? 0
-      case "cuotas":
       default:
-        return cuotasRows.length
+        return reconciliationRows.length
     }
   }
 
@@ -583,28 +518,106 @@ export const ReportesFinancieros = () => {
       return loadingStates.reconciliaciones
     }
 
-    return loadingStates.cuotas
+    return loadingStates.reconciliaciones
   }
 
-  const handleRowAction = (
-    tab: "kardex" | "reconciliaciones",
-    action: RowAction,
-    reference?: string,
-  ) => {
-    const tabLabel = TAB_LABELS[tab]
-    const actionLabel = ACTION_LABELS[action]
+  const handleKardexRowAction = useCallback(
+    (action: RowAction, row: KardexRow) => {
+      if (action === "delete") {
+        setKardexModal(null)
+        setKardexEditForm(null)
+        setDeleteState({ tab: "kardex", row })
+        setDeleteReference(getKardexReference(row))
+        return
+      }
 
+      setDeleteState(null)
+      setDeleteReference("")
+      setReconciliationModal(null)
+      setReconciliationEditForm(null)
+
+      if (action === "edit") {
+        setKardexEditForm(createKardexEditFormState(row))
+      } else {
+        setKardexEditForm(null)
+      }
+
+      setKardexModal({ tab: "kardex", action, row })
+    },
+    [],
+  )
+
+  const handleReconciliationRowAction = useCallback(
+    (action: RowAction, row: ReconciliationRow) => {
+      if (action === "delete") {
+        setReconciliationModal(null)
+        setReconciliationEditForm(null)
+        setDeleteState({ tab: "reconciliaciones", row })
+        setDeleteReference(getReconciliationReference(row))
+        return
+      }
+
+      setDeleteState(null)
+      setDeleteReference("")
+      setKardexModal(null)
+      setKardexEditForm(null)
+
+      if (action === "edit") {
+        setReconciliationEditForm(createReconciliationEditFormState(row))
+      } else {
+        setReconciliationEditForm(null)
+      }
+
+      setReconciliationModal({ tab: "reconciliaciones", action, row })
+    },
+    [],
+  )
+
+  const handleDeleteConfirm = useCallback(() => {
+    if (!deleteState) {
+      return
+    }
+
+    const tabLabel = TAB_LABELS[deleteState.tab]
     toast({
-      title: `${actionLabel} (${tabLabel})`,
+      title: `Eliminación pendiente (${tabLabel})`,
       description:
-        reference && reference.trim().length > 0
-          ? `Acción pendiente de implementación para ${reference}.`
-          : "Acción pendiente de implementación.",
+        deleteReference && deleteReference.trim().length > 0
+          ? `${deleteReference} no puede eliminarse todavía. La funcionalidad estará disponible próximamente.`
+          : "Esta eliminación estará disponible próximamente.",
     })
-  }
 
-  const estudiantesResumen = useMemo(() => cuotasDashboard?.summary ?? null, [cuotasDashboard])
-  const estudiantes = useMemo(() => cuotasDashboard?.estudiantes ?? [], [cuotasDashboard])
+    setDeleteState(null)
+    setDeleteReference("")
+  }, [deleteReference, deleteState, toast])
+
+  const cuotaFilters = useMemo(
+    () => buildRequestFilters(filtersByTab.cuotas),
+    [filtersByTab.cuotas],
+  )
+  const cuotasResumen = cuotasSummary
+
+  const handleCuotasLoadingChange = useCallback((loading: boolean) => {
+    setLoadingStates((prev) => ({ ...prev, cuotas: loading }))
+  }, [])
+
+  const handleCuotasError = useCallback((message: string | null) => {
+    setErrors((prev) => ({ ...prev, cuotas: message }))
+  }, [])
+
+  const handleCuotasMetricsChange = useCallback(
+    (metrics: CuotasDashboardMetrics | null) => {
+      setCuotasTotals(metrics)
+    },
+    [],
+  )
+
+  const handleCuotasSummaryChange = useCallback(
+    (summary: CuotasDashboardResumen | null, _timestamp: string | null) => {
+      setCuotasSummary(summary)
+    },
+    [],
+  )
 
   const renderTablePlaceholder = (message: string, columns = 7, isLoading = false) => (
     <TableRow>
@@ -696,20 +709,6 @@ export const ReportesFinancieros = () => {
     return reconciliationRows.slice(start, start + pageSize)
   }, [reconciliationRows, pagination.reconciliaciones])
 
-  const paginatedCuotasRows = useMemo(() => {
-    const { page, pageSize } = pagination.cuotas
-    if (pageSize === "all") return cuotasRows
-    const start = (page - 1) * pageSize
-    return cuotasRows.slice(start, start + pageSize)
-  }, [cuotasRows, pagination.cuotas])
-
-  const paginatedCuotasEstudiantes = useMemo(() => {
-    const { page, pageSize } = pagination.cuotasEstudiantes
-    if (pageSize === "all") return estudiantes
-    const start = (page - 1) * pageSize
-    return estudiantes.slice(start, start + pageSize)
-  }, [estudiantes, pagination.cuotasEstudiantes])
-
   useEffect(() => {
     setPagination((prev) => {
       const { page, pageSize } = prev.kardex
@@ -743,39 +742,9 @@ export const ReportesFinancieros = () => {
     })
   }, [reconciliationRows])
 
-  useEffect(() => {
-    setPagination((prev) => {
-      const { page, pageSize } = prev.cuotas
-      const totalPages = Math.max(1, Math.ceil(cuotasRows.length / pageSize))
-      if (page <= totalPages) {
-        return prev
-      }
-
-      return {
-        ...prev,
-        cuotas: { ...prev.cuotas, page: totalPages },
-      }
-    })
-  }, [cuotasRows])
-
-  useEffect(() => {
-    setPagination((prev) => {
-      const { page, pageSize } = prev.cuotasEstudiantes
-      const totalPages = Math.max(1, Math.ceil(estudiantes.length / pageSize))
-      if (page <= totalPages) {
-        return prev
-      }
-
-      return {
-        ...prev,
-        cuotasEstudiantes: { ...prev.cuotasEstudiantes, page: totalPages },
-      }
-    })
-  }, [estudiantes])
-
   const activeFormFilters = formFiltersByTab[activeTab]
   const activeLoading = loadingStates[activeTab]
-  const activeError = errors[activeTab]
+  const activeError = activeTab === "cuotas" ? null : errors[activeTab]
 
   return (
     <div className="space-y-6">
@@ -973,18 +942,18 @@ export const ReportesFinancieros = () => {
             <CardDescription className="text-xs">Con base en planes de pago activos</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="text-2xl font-semibold">{estudiantesResumen?.estudiantes_activos ?? 0}</div>
+            <div className="text-2xl font-semibold">{cuotasResumen?.estudiantes_activos ?? 0}</div>
             <div className="flex justify-between text-muted-foreground">
               <span>Saldo estimado</span>
-              <span className="font-medium text-foreground">{formatCurrency(estudiantesResumen?.saldo_estimado ?? 0)}</span>
+              <span className="font-medium text-foreground">{formatCurrency(cuotasResumen?.saldo_estimado ?? 0)}</span>
             </div>
             <div className="flex justify-between text-muted-foreground">
               <span>En mora</span>
-              <span className="font-medium text-foreground">{estudiantesResumen?.en_mora ?? 0}</span>
+              <span className="font-medium text-foreground">{cuotasResumen?.en_mora ?? 0}</span>
             </div>
             <div className="flex justify-between text-muted-foreground">
               <span>Planes reestructurados</span>
-              <span className="font-medium text-foreground">{estudiantesResumen?.planes_reestructurados ?? 0}</span>
+              <span className="font-medium text-foreground">{cuotasResumen?.planes_reestructurados ?? 0}</span>
             </div>
           </CardContent>
         </Card>
@@ -1031,9 +1000,6 @@ export const ReportesFinancieros = () => {
                       const estado = row.estado_pago ?? ""
                       const estadoClase = estadoPagoClasses[estado] ?? "bg-slate-500/15 text-slate-700 border-slate-500/30"
                       const estadoLabel = estadoPagoLabels[estado] ?? (estado ? estado.replace(/_/g, " ") : "Sin estado")
-                      const referenceLabel = row.numero_boleta
-                        ? `Boleta ${row.numero_boleta}`
-                        : `Pago #${row.id}`
 
                       return (
                         <TableRow key={row.id}>
@@ -1085,7 +1051,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("kardex", "view", referenceLabel)}
+                                onClick={() => handleKardexRowAction("view", row)}
                                 aria-label="Ver detalle"
                               >
                                 <Eye className="h-4 w-4" />
@@ -1094,7 +1060,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("kardex", "edit", referenceLabel)}
+                                onClick={() => handleKardexRowAction("edit", row)}
                                 aria-label="Editar"
                               >
                                 <Pencil className="h-4 w-4" />
@@ -1103,7 +1069,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("kardex", "delete", referenceLabel)}
+                                onClick={() => handleKardexRowAction("delete", row)}
                                 aria-label="Eliminar"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -1158,7 +1124,6 @@ export const ReportesFinancieros = () => {
                       const estado = row.status ?? ""
                       const estadoClase = conciliacionClasses[estado] ?? "bg-slate-500/15 text-slate-700 border-slate-500/30"
                       const estadoLabel = conciliacionLabels[estado] ?? (estado ? estado.replace(/_/g, " ") : "Sin estado")
-                      const reference = row.reference ?? `Conciliación #${row.id}`
 
                       return (
                         <TableRow key={row.id}>
@@ -1194,7 +1159,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("reconciliaciones", "view", reference)}
+                                onClick={() => handleReconciliationRowAction("view", row)}
                                 aria-label="Ver detalle"
                               >
                                 <Eye className="h-4 w-4" />
@@ -1203,7 +1168,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("reconciliaciones", "edit", reference)}
+                                onClick={() => handleReconciliationRowAction("edit", row)}
                                 aria-label="Editar"
                               >
                                 <Pencil className="h-4 w-4" />
@@ -1212,7 +1177,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("reconciliaciones", "delete", reference)}
+                                onClick={() => handleReconciliationRowAction("delete", row)}
                                 aria-label="Eliminar"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -1231,148 +1196,13 @@ export const ReportesFinancieros = () => {
         </TabsContent>
 
         <TabsContent value="cuotas" className="space-y-4 pt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Seguimiento por estudiante</CardTitle>
-              <CardDescription>
-                Resumen de cuotas pendientes y próximas fechas de pago. Actualizado
-                {" "}
-                {cuotasDashboard?.timestamp
-                  ? formatDateTime(cuotasDashboard.timestamp)
-                  : "sin información"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Estudiante</TableHead>
-                    <TableHead>Programa</TableHead>
-                    <TableHead>Saldo pendiente</TableHead>
-                    <TableHead>Cuotas pendientes</TableHead>
-                    <TableHead>Cuotas pagadas</TableHead>
-                    <TableHead>Próxima cuota</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {estudiantes.length === 0 ? (
-                    renderTablePlaceholder(
-                      "No se encontraron estudiantes con cuotas para los filtros seleccionados",
-                      6,
-                      loadingStates.cuotas,
-                    )
-                  ) : (
-                    paginatedCuotasEstudiantes.map(
-                      (estudiante: CuotasDashboardEstudiante, index) => (
-                        <TableRow
-                          key={
-                            estudiante.estudiante_programa_id ??
-                            estudiante.prospecto?.id ??
-                            `est-${index}`
-                          }
-                        >
-                          <TableCell className="min-w-[220px]">
-                            <div className="font-medium">{estudiante.prospecto?.nombre ?? "Sin nombre"}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {estudiante.prospecto?.carnet ?? "-"}
-                              {estudiante.prospecto?.telefono ? ` · ${estudiante.prospecto.telefono}` : ""}
-                            </div>
-                          </TableCell>
-                          <TableCell className="min-w-[160px]">{estudiante.programa?.nombre ?? "-"}</TableCell>
-                          <TableCell>{formatCurrency(estudiante.saldo_pendiente)}</TableCell>
-                          <TableCell>{estudiante.cuotas_pendientes}</TableCell>
-                          <TableCell>{estudiante.cuotas_pagadas}</TableCell>
-                          <TableCell>
-                            {estudiante.proxima_cuota ? (
-                              <div className="text-xs">
-                                <div className="font-medium">Cuota #{estudiante.proxima_cuota.numero_cuota}</div>
-                                <div>{formatDate(estudiante.proxima_cuota.fecha_vencimiento)}</div>
-                                <div className="text-muted-foreground">{formatCurrency(estudiante.proxima_cuota.monto)}</div>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">Sin próximas cuotas</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ),
-                    )
-                  )}
-                </TableBody>
-              </Table>
-              {renderPaginationControls("cuotasEstudiantes", estudiantes.length)}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Cuotas registradas</CardTitle>
-              <CardDescription>
-                Detalle de cuotas individuales de estudiantes. Actualizado
-                {" "}
-                {cuotasLastUpdated ? formatDateTime(cuotasLastUpdated) : "sin información"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Estudiante</TableHead>
-                    <TableHead>Programa</TableHead>
-                    <TableHead>Cuota</TableHead>
-                    <TableHead>Vencimiento</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Pago</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cuotasRows.length === 0 ? (
-                    renderTablePlaceholder(
-                      "No se encontraron cuotas para los filtros seleccionados",
-                      6,
-                      loadingStates.cuotas,
-                    )
-                  ) : (
-                    paginatedCuotasRows.map((row) => {
-                      const estado = row.estado ?? ""
-                      const estadoClase = cuotaEstadoClasses[estado] ?? "bg-slate-500/15 text-slate-700 border-slate-500/30"
-                      const estadoLabel = cuotaEstadoLabels[estado] ?? (estado ? estado.replace(/_/g, " ") : "Sin estado")
-
-                      return (
-                        <TableRow key={row.id}>
-                          <TableCell className="min-w-[200px]">
-                            <div className="font-medium">{row.prospecto?.nombre ?? "Sin nombre"}</div>
-                            <div className="text-xs text-muted-foreground">{row.prospecto?.carnet ?? "-"}</div>
-                          </TableCell>
-                          <TableCell className="min-w-[160px]">{row.programa?.nombre ?? "-"}</TableCell>
-                          <TableCell>
-                            <div>Cuota #{row.numero_cuota}</div>
-                            <div className="text-xs text-muted-foreground">Monto: {formatCurrency(row.monto)}</div>
-                          </TableCell>
-                          <TableCell>{formatDate(row.fecha_vencimiento)}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={cn("capitalize", estadoClase)}>
-                              {estadoLabel}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {row.paid_at ? (
-                              <div className="text-xs">
-                                <div className="font-medium">Pagado</div>
-                                <div>{formatDateTime(row.paid_at)}</div>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">Sin pago registrado</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })
-                  )}
-                </TableBody>
-              </Table>
-              {renderPaginationControls("cuotas", cuotasRows.length)}
-            </CardContent>
-          </Card>
+          <CuotasDashboardTab
+            filters={cuotaFilters}
+            onLoadingChange={handleCuotasLoadingChange}
+            onError={handleCuotasError}
+            onMetricsChange={handleCuotasMetricsChange}
+            onSummaryChange={handleCuotasSummaryChange}
+          />
         </TabsContent>
       </Tabs>
 
@@ -1809,6 +1639,7 @@ export const ReportesFinancieros = () => {
         onOpenChange={(open) => {
           if (!open) {
             setDeleteState(null)
+            setDeleteReference("")
           }
         }}
       >
@@ -1822,7 +1653,12 @@ export const ReportesFinancieros = () => {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setDeleteState(null)}>
+              <AlertDialogCancel
+                onClick={() => {
+                  setDeleteState(null)
+                  setDeleteReference("")
+                }}
+              >
                 Cancelar
               </AlertDialogCancel>
               <AlertDialogAction
