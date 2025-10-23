@@ -14,6 +14,7 @@ import {
   type CuotasDashboardMetrics,
   type CuotasDashboardResumen,
   type MantenimientosFilters,
+  type Pagination,
 } from "@/services/mantenimientos"
 
 const currencyFormatter = new Intl.NumberFormat("es-GT", {
@@ -56,14 +57,13 @@ const formatDateTime = (value: string | null | undefined) => {
 }
 
 const PAGE_SIZE_OPTIONS = [
-  { label: "10", value: 10 },
   { label: "25", value: 25 },
   { label: "50", value: 50 },
   { label: "100", value: 100 },
-  { label: "Todos", value: "all" as const },
+  { label: "200", value: 200 },
 ]
 
-type PageSizeValue = number | "all"
+type PageSizeValue = number
 
 interface CuotasDashboardTabProps {
   filters?: MantenimientosFilters
@@ -85,28 +85,13 @@ export const CuotasDashboardTab = ({
   const [summary, setSummary] = useState<CuotasDashboardResumen | null>(null)
   const [timestamp, setTimestamp] = useState<string | null>(null)
   const [estudiantes, setEstudiantes] = useState<CuotasDashboardEstudiante[]>([])
+  const [pagination, setPagination] = useState<Pagination | null>(null)
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState<PageSizeValue>(10)
+  const [pageSize, setPageSize] = useState<PageSizeValue>(100)
   const abortControllerRef = useRef<AbortController | null>(null)
 
-  const totalItems = estudiantes.length
-
-  const paginatedEstudiantes = useMemo(() => {
-    if (pageSize === "all") {
-      return estudiantes
-    }
-
-    const start = (page - 1) * pageSize
-    return estudiantes.slice(start, start + pageSize)
-  }, [estudiantes, page, pageSize])
-
-  const totalPages = useMemo(() => {
-    if (pageSize === "all") {
-      return 1
-    }
-
-    return Math.max(1, Math.ceil(totalItems / pageSize))
-  }, [pageSize, totalItems])
+  const totalItems = pagination?.total ?? 0
+  const totalPages = pagination?.total_pages ?? 1
 
   const handlePageChange = useCallback(
     (nextPage: number) => {
@@ -120,15 +105,11 @@ export const CuotasDashboardTab = ({
 
   const handlePageSizeChange = useCallback((value: string) => {
     const parsed = Number(value)
-    setPage(1)
-    setPageSize(Number.isNaN(parsed) ? "all" : parsed)
-  }, [])
-
-  useEffect(() => {
-    if (page > totalPages) {
-      setPage(totalPages)
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      setPage(1)
+      setPageSize(parsed)
     }
-  }, [page, totalPages])
+  }, [])
 
   useEffect(() => {
     if (!summary) {
@@ -149,9 +130,15 @@ export const CuotasDashboardTab = ({
     onError?.(null)
 
     try {
+      const paginatedFilters = {
+        ...filters,
+        page,
+        per_page: pageSize,
+      }
+
       const [dashboardResponse, cuotasDashboardResponse] = await Promise.all([
         getKardexDashboard(filters, { signal: controller.signal }),
-        getCuotasDashboard(filters, { signal: controller.signal }),
+        getCuotasDashboard(paginatedFilters, { signal: controller.signal }),
       ])
 
       if (controller.signal.aborted) {
@@ -161,12 +148,13 @@ export const CuotasDashboardTab = ({
       const cuotasSummary = cuotasDashboardResponse.summary ?? null
       const cuotasTimestamp = cuotasDashboardResponse.timestamp ?? null
       const estudiantesResponse = cuotasDashboardResponse.estudiantes ?? []
+      const paginationData = cuotasDashboardResponse.pagination ?? null
       const metrics = dashboardResponse.cuotas ?? null
 
       setSummary(cuotasSummary)
       setTimestamp(cuotasTimestamp)
       setEstudiantes(estudiantesResponse)
-      setPage(1)
+      setPagination(paginationData)
       onSummaryChange?.(cuotasSummary, cuotasTimestamp)
       onMetricsChange?.(metrics)
     } catch (err) {
@@ -178,6 +166,7 @@ export const CuotasDashboardTab = ({
       setSummary(null)
       setTimestamp(null)
       setEstudiantes([])
+      setPagination(null)
       setError("Error al cargar las cuotas.")
       onSummaryChange?.(null, null)
       onMetricsChange?.(null)
@@ -188,7 +177,7 @@ export const CuotasDashboardTab = ({
         onLoadingChange?.(false)
       }
     }
-  }, [filters, onError, onLoadingChange, onMetricsChange, onSummaryChange])
+  }, [filters, page, pageSize, onError, onLoadingChange, onMetricsChange, onSummaryChange])
 
   useEffect(() => {
     fetchCuotas()
@@ -296,7 +285,7 @@ export const CuotasDashboardTab = ({
                       "No se encontraron estudiantes con cuotas para los filtros seleccionados.",
                     )
               ) : (
-                paginatedEstudiantes.map((estudiante, index) => (
+                estudiantes.map((estudiante, index) => (
                   <TableRow
                     key={
                       estudiante.estudiante_programa_id ?? estudiante.prospecto?.id ?? `cuota-${index}`
@@ -334,11 +323,7 @@ export const CuotasDashboardTab = ({
           {totalItems > 0 ? (
             <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-muted-foreground">
-                {pageSize === "all"
-                  ? `Mostrando ${totalItems} de ${totalItems} registros`
-                  : `Mostrando ${(page - 1) * (pageSize as number) + 1}-${
-                      Math.min(totalItems, page * (pageSize as number))
-                    } de ${totalItems} registros`}
+                Mostrando {pagination?.from ?? 0}-{pagination?.to ?? 0} de {totalItems} registros
               </div>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div className="flex items-center gap-2">
@@ -356,29 +341,29 @@ export const CuotasDashboardTab = ({
                     </SelectContent>
                   </Select>
                 </div>
-                {pageSize === "all" ? null : (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={page <= 1 || loading}
-                      onClick={() => handlePageChange(page - 1)}
-                    >
-                      Anterior
-                    </Button>
-                    <span className="text-sm text-muted-foreground">Página {page} de {totalPages}</span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={page >= totalPages || loading}
-                      onClick={() => handlePageChange(page + 1)}
-                    >
-                      Siguiente
-                    </Button>
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1 || loading}
+                    onClick={() => handlePageChange(page - 1)}
+                  >
+                    Anterior
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Página {page} de {totalPages}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!pagination?.has_more || loading}
+                    onClick={() => handlePageChange(page + 1)}
+                  >
+                    Siguiente
+                  </Button>
+                </div>
               </div>
             </div>
           ) : null}

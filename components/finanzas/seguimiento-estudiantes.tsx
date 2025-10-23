@@ -36,6 +36,7 @@ import {
   type CuotaCreatePayload,
   type CuotaUpdatePayload,
   type CuotaDetalladaResumen,
+  type Pagination,
 } from "@/services/mantenimientos"
 import { toast } from "sonner"
 
@@ -76,6 +77,9 @@ const getEstadoBadgeColor = (estado: string | null) => {
 export function SeguimientoEstudiantes() {
   const [loading, setLoading] = useState(false)
   const [estudiantes, setEstudiantes] = useState<CuotasDashboardEstudiante[]>([])
+  const [pagination, setPagination] = useState<Pagination | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [perPage, setPerPage] = useState(100)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedEstudiante, setSelectedEstudiante] = useState<CuotasDashboardEstudiante | null>(null)
   const [showCuotasModal, setShowCuotasModal] = useState(false)
@@ -104,13 +108,18 @@ export function SeguimientoEstudiantes() {
 
   useEffect(() => {
     loadEstudiantes()
-  }, [])
+  }, [currentPage, perPage, searchQuery])
 
   const loadEstudiantes = async () => {
     setLoading(true)
     try {
-      const response = await getCuotasDashboard({ limit: 200 })
+      const response = await getCuotasDashboard({ 
+        page: currentPage, 
+        per_page: perPage,
+        search: searchQuery || undefined,
+      })
       setEstudiantes(response.estudiantes || [])
+      setPagination(response.pagination || null)
     } catch (error) {
       console.error("Error loading students:", error)
       toast.error("Error al cargar los estudiantes")
@@ -119,15 +128,26 @@ export function SeguimientoEstudiantes() {
     }
   }
 
-  const filteredEstudiantes = estudiantes.filter((est) => {
-    if (!searchQuery) return true
-    const query = searchQuery.toLowerCase()
-    return (
-      est.prospecto?.nombre?.toLowerCase().includes(query) ||
-      est.prospecto?.carnet?.toLowerCase().includes(query) ||
-      est.programa?.nombre?.toLowerCase().includes(query)
-    )
-  })
+  const filteredEstudiantes = estudiantes
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value)
+    setCurrentPage(1)
+  }
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= (pagination?.total_pages || 1)) {
+      setCurrentPage(newPage)
+    }
+  }
+
+  const handlePerPageChange = (value: string) => {
+    const newPerPage = parseInt(value)
+    if (!isNaN(newPerPage) && newPerPage > 0) {
+      setPerPage(newPerPage)
+      setCurrentPage(1)
+    }
+  }
 
   const handleViewCuotas = (estudiante: CuotasDashboardEstudiante) => {
     setSelectedEstudiante(estudiante)
@@ -183,7 +203,11 @@ export function SeguimientoEstudiantes() {
       setShowCreateModal(false)
       await loadEstudiantes()
       // Reload the selected student's cuotas
-      const updatedResponse = await getCuotasDashboard({ limit: 200 })
+      const updatedResponse = await getCuotasDashboard({ 
+        page: currentPage, 
+        per_page: perPage,
+        search: searchQuery || undefined,
+      })
       const updatedEstudiante = updatedResponse.estudiantes.find(
         (e) => e.estudiante_programa_id === selectedEstudiante.estudiante_programa_id,
       )
@@ -213,7 +237,11 @@ export function SeguimientoEstudiantes() {
       setShowEditModal(false)
       await loadEstudiantes()
       // Reload the selected student's cuotas
-      const updatedResponse = await getCuotasDashboard({ limit: 200 })
+      const updatedResponse = await getCuotasDashboard({ 
+        page: currentPage, 
+        per_page: perPage,
+        search: searchQuery || undefined,
+      })
       const updatedEstudiante = updatedResponse.estudiantes.find(
         (e) => e.estudiante_programa_id === selectedEstudiante?.estudiante_programa_id,
       )
@@ -235,7 +263,11 @@ export function SeguimientoEstudiantes() {
       setShowDeleteDialog(false)
       await loadEstudiantes()
       // Reload the selected student's cuotas
-      const updatedResponse = await getCuotasDashboard({ limit: 200 })
+      const updatedResponse = await getCuotasDashboard({ 
+        page: currentPage, 
+        per_page: perPage,
+        search: searchQuery || undefined,
+      })
       const updatedEstudiante = updatedResponse.estudiantes.find(
         (e) => e.estudiante_programa_id === selectedEstudiante?.estudiante_programa_id,
       )
@@ -289,7 +321,11 @@ export function SeguimientoEstudiantes() {
       })
       await loadEstudiantes()
       // Reload the selected student's cuotas
-      const updatedResponse = await getCuotasDashboard({ limit: 200 })
+      const updatedResponse = await getCuotasDashboard({ 
+        page: currentPage, 
+        per_page: perPage,
+        search: searchQuery || undefined,
+      })
       const updatedEstudiante = updatedResponse.estudiantes.find(
         (e) => e.estudiante_programa_id === selectedEstudiante.estudiante_programa_id,
       )
@@ -316,7 +352,7 @@ export function SeguimientoEstudiantes() {
               <Input
                 placeholder="Buscar por nombre, carnet o programa..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-8"
               />
             </div>
@@ -388,6 +424,51 @@ export function SeguimientoEstudiantes() {
                   )}
                 </TableBody>
               </Table>
+            </div>
+          )}
+
+          {!loading && pagination && pagination.total > 0 && (
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-muted-foreground">
+                Mostrando {pagination.from}-{pagination.to} de {pagination.total} registros
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Por página:</span>
+                  <Select value={String(perPage)} onValueChange={handlePerPageChange} disabled={loading}>
+                    <SelectTrigger className="w-[120px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                      <SelectItem value="200">200</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage <= 1 || loading}
+                    onClick={() => handlePageChange(currentPage - 1)}
+                  >
+                    Anterior
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Página {currentPage} de {pagination.total_pages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!pagination.has_more || loading}
+                    onClick={() => handlePageChange(currentPage + 1)}
+                  >
+                    Siguiente
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
         </CardContent>
