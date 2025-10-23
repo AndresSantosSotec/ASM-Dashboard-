@@ -16,7 +16,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, RefreshCw } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Eye, Loader2, Pencil, RefreshCw, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getCuotasDashboard,
@@ -25,8 +46,10 @@ import {
   type CuotaProgramaResumen,
   type CuotasDashboardEstudiante,
   type CuotasDashboardResponse,
-  type KardexDashboardResponse,
+  type CuotasDashboardMetrics,
+  type KardexDashboardMetrics,
   type KardexPagoResumen,
+  type ReconciliationDashboardMetrics,
   type ReconciliationRecordResumen,
 } from "@/services/mantenimientos"
 
@@ -111,20 +134,101 @@ const cuotaEstadoClasses: Record<string, string> = {
   vencido: "bg-red-500/15 text-red-600 border-red-500/30",
 }
 
+type LimitValue = number | "all"
+
 interface ReportFilters {
   search: string
   estadoPago: string
   estadoReconciliacion: string
   estadoCuota: string
-  limit: number
+  limit: LimitValue
 }
 
-const DEFAULT_FILTERS: ReportFilters = {
+const BASE_FILTERS: ReportFilters = {
   search: "",
   estadoPago: "todos",
   estadoReconciliacion: "todos",
   estadoCuota: "todos",
-  limit: 50,
+  limit: "all",
+}
+
+type TabKey = "kardex" | "reconciliaciones" | "cuotas"
+type PaginationKey = "kardex" | "reconciliaciones" | "cuotasEstudiantes" | "cuotas"
+
+type PageSizeValue = number | "all"
+
+const isAllPageSize = (value: PageSizeValue): value is "all" => value === "all"
+
+const getNumericPageSize = (value: PageSizeValue, totalItems: number) =>
+  isAllPageSize(value) ? Math.max(totalItems, 1) : value
+
+interface PaginationState {
+  page: number
+  pageSize: PageSizeValue
+}
+
+const PAGE_SIZE_OPTIONS: Array<{ label: string; value: PageSizeValue }> = [
+  { label: "10", value: 10 },
+  { label: "25", value: 25 },
+  { label: "50", value: 50 },
+  { label: "100", value: 100 },
+  { label: "Todos", value: "all" },
+]
+
+const LIMIT_OPTIONS: Array<{ label: string; value: LimitValue }> = [
+  { label: "Todos los registros", value: "all" },
+  { label: "25 registros", value: 25 },
+  { label: "50 registros", value: 50 },
+  { label: "100 registros", value: 100 },
+  { label: "200 registros", value: 200 },
+  { label: "500 registros", value: 500 },
+]
+
+const createDefaultFilters = (): ReportFilters => ({
+  ...BASE_FILTERS,
+})
+
+type RowAction = "view" | "edit" | "delete"
+
+const TAB_LABELS: Record<"kardex" | "reconciliaciones", string> = {
+  kardex: "Kardex",
+  reconciliaciones: "Conciliaciones",
+}
+
+type KardexRow = KardexPagoResumen
+type ReconciliationRow = ReconciliationRecordResumen
+
+type DetailModalState =
+  | { tab: "kardex"; action: Exclude<RowAction, "delete">; row: KardexRow }
+  | {
+      tab: "reconciliaciones"
+      action: Exclude<RowAction, "delete">
+      row: ReconciliationRow
+    }
+  | null
+
+type DeleteState =
+  | { tab: "kardex"; row: KardexRow }
+  | { tab: "reconciliaciones"; row: ReconciliationRow }
+  | null
+
+interface KardexEditFormState {
+  monto_pagado: string
+  fecha_pago: string
+  fecha_recibo: string
+  metodo_pago: string
+  estado_pago: string
+  numero_boleta: string
+  banco: string
+  observaciones: string
+}
+
+interface ReconciliationEditFormState {
+  amount: string
+  date: string
+  status: string
+  bank: string
+  reference: string
 }
 
 const buildRequestFilters = (filters: ReportFilters) => ({
@@ -132,119 +236,675 @@ const buildRequestFilters = (filters: ReportFilters) => ({
   estado_pago: filters.estadoPago !== "todos" ? filters.estadoPago : undefined,
   estado_reconciliacion: filters.estadoReconciliacion !== "todos" ? filters.estadoReconciliacion : undefined,
   estado_cuota: filters.estadoCuota !== "todos" ? filters.estadoCuota : undefined,
-  limit: filters.limit,
+  limit: filters.limit === "all" ? undefined : filters.limit,
 })
 
+const getKardexReference = (row: KardexRow) =>
+  row.numero_boleta ? `Boleta ${row.numero_boleta}` : `Pago #${row.id}`
+
+const getReconciliationReference = (row: ReconciliationRow) =>
+  row.reference ?? `Conciliación #${row.id}`
+
+const toDateInputValue = (value: string | null | undefined) => {
+  if (!value) {
+    return ""
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return ""
+  }
+
+  const offset = parsed.getTimezoneOffset()
+  const local = new Date(parsed.getTime() - offset * 60_000)
+
+  return local.toISOString().slice(0, 10)
+}
+
 export const ReportesFinancieros = () => {
-  const [activeTab, setActiveTab] = useState("kardex")
-  const [filters, setFilters] = useState<ReportFilters>(DEFAULT_FILTERS)
-  const [formFilters, setFormFilters] = useState<ReportFilters>(DEFAULT_FILTERS)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [dashboardSummary, setDashboardSummary] = useState<KardexDashboardResponse | null>(null)
+  const { toast } = useToast()
+  const [activeTab, setActiveTab] = useState<TabKey>("kardex")
+  const [filtersByTab, setFiltersByTab] = useState<Record<TabKey, ReportFilters>>({
+    kardex: createDefaultFilters(),
+    reconciliaciones: createDefaultFilters(),
+    cuotas: createDefaultFilters(),
+  })
+  const [formFiltersByTab, setFormFiltersByTab] = useState<Record<TabKey, ReportFilters>>({
+    kardex: createDefaultFilters(),
+    reconciliaciones: createDefaultFilters(),
+    cuotas: createDefaultFilters(),
+  })
+  const [loadingStates, setLoadingStates] = useState<Record<TabKey, boolean>>({
+    kardex: false,
+    reconciliaciones: false,
+    cuotas: false,
+  })
+  const [errors, setErrors] = useState<Record<TabKey, string | null>>({
+    kardex: null,
+    reconciliaciones: null,
+    cuotas: null,
+  })
+  const [kardexTotals, setKardexTotals] = useState<KardexDashboardMetrics | null>(null)
+  const [reconciliacionTotals, setReconciliacionTotals] =
+    useState<ReconciliationDashboardMetrics | null>(null)
+  const [cuotasTotals, setCuotasTotals] = useState<CuotasDashboardMetrics | null>(null)
   const [kardexRows, setKardexRows] = useState<KardexPagoResumen[]>([])
   const [reconciliationRows, setReconciliationRows] = useState<ReconciliationRecordResumen[]>([])
   const [cuotasRows, setCuotasRows] = useState<CuotaProgramaResumen[]>([])
   const [cuotasDashboard, setCuotasDashboard] = useState<CuotasDashboardResponse | null>(null)
-  const [lastUpdated, setLastUpdated] = useState<string | null>(null)
-
-  useEffect(() => {
-    setFormFilters(filters)
-  }, [filters])
+  const [kardexLastUpdated, setKardexLastUpdated] = useState<string | null>(null)
+  const [reconciliacionesLastUpdated, setReconciliacionesLastUpdated] =
+    useState<string | null>(null)
+  const [cuotasLastUpdated, setCuotasLastUpdated] = useState<string | null>(null)
+  const [pagination, setPagination] = useState<Record<PaginationKey, PaginationState>>({
+    kardex: { page: 1, pageSize: 10 },
+    reconciliaciones: { page: 1, pageSize: 10 },
+    cuotasEstudiantes: { page: 1, pageSize: 10 },
+    cuotas: { page: 1, pageSize: 10 },
+  })
+  const [detailModal, setDetailModal] = useState<DetailModalState>(null)
+  const [deleteState, setDeleteState] = useState<DeleteState>(null)
+  const [kardexEditForm, setKardexEditForm] = useState<KardexEditFormState | null>(null)
+  const [reconciliationEditForm, setReconciliationEditForm] =
+    useState<ReconciliationEditFormState | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
 
-    const loadData = async () => {
-      setLoading(true)
-      setError(null)
+    const loadKardex = async () => {
+      setLoadingStates((prev) => ({ ...prev, kardex: true }))
+      setErrors((prev) => ({ ...prev, kardex: null }))
 
-      const params = buildRequestFilters(filters)
+      const params = buildRequestFilters(filtersByTab.kardex)
 
       try {
-        const [kardexDashboard, kardexData, cuotasDashboardResponse] = await Promise.all([
+        const [dashboardResponse, dataResponse] = await Promise.all([
           getKardexDashboard(params, { signal: controller.signal }),
           getKardexData(params, { signal: controller.signal }),
-          getCuotasDashboard(params, { signal: controller.signal }),
         ])
 
         if (controller.signal.aborted) {
           return
         }
 
-        setDashboardSummary(kardexDashboard)
-        setKardexRows(kardexData.kardex)
-        setReconciliationRows(kardexData.reconciliaciones)
-        setCuotasRows(kardexData.cuotas)
-        setCuotasDashboard(cuotasDashboardResponse)
-        setLastUpdated(kardexData.timestamp)
+        setKardexTotals(dashboardResponse.kardex)
+        setKardexRows(dataResponse.kardex)
+        setKardexLastUpdated(dataResponse.timestamp)
+        setPagination((prev) => ({
+          ...prev,
+          kardex:
+            prev.kardex.page === 1 ? prev.kardex : { ...prev.kardex, page: 1 },
+        }))
       } catch (err) {
         if ((err as { code?: string })?.code === "ERR_CANCELED") {
           return
         }
 
-        if (axios.isAxiosError(err)) {
-          setError(err.response?.data?.message ?? err.message ?? "No se pudieron cargar los reportes")
-        } else {
-          setError((err as Error).message ?? "No se pudieron cargar los reportes")
-        }
+        const message = axios.isAxiosError(err)
+          ? err.response?.data?.message ?? err.message ??
+            "No se pudieron cargar los movimientos del kardex"
+          : (err as Error).message ??
+            "No se pudieron cargar los movimientos del kardex"
+
+        setErrors((prev) => ({ ...prev, kardex: message }))
       } finally {
         if (!controller.signal.aborted) {
-          setLoading(false)
+          setLoadingStates((prev) => ({ ...prev, kardex: false }))
         }
       }
     }
 
-    loadData()
+    loadKardex()
 
     return () => {
       controller.abort()
     }
-  }, [filters])
+  }, [filtersByTab.kardex])
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    const loadReconciliaciones = async () => {
+      setLoadingStates((prev) => ({ ...prev, reconciliaciones: true }))
+      setErrors((prev) => ({ ...prev, reconciliaciones: null }))
+
+      const params = buildRequestFilters(filtersByTab.reconciliaciones)
+
+      try {
+        const [dashboardResponse, dataResponse] = await Promise.all([
+          getKardexDashboard(params, { signal: controller.signal }),
+          getKardexData(params, { signal: controller.signal }),
+        ])
+
+        if (controller.signal.aborted) {
+          return
+        }
+
+        setReconciliacionTotals(dashboardResponse.reconciliaciones)
+        setReconciliationRows(dataResponse.reconciliaciones)
+        setReconciliacionesLastUpdated(dataResponse.timestamp)
+        setPagination((prev) => ({
+          ...prev,
+          reconciliaciones:
+            prev.reconciliaciones.page === 1
+              ? prev.reconciliaciones
+              : { ...prev.reconciliaciones, page: 1 },
+        }))
+      } catch (err) {
+        if ((err as { code?: string })?.code === "ERR_CANCELED") {
+          return
+        }
+
+        const message = axios.isAxiosError(err)
+          ? err.response?.data?.message ?? err.message ??
+            "No se pudieron cargar las conciliaciones"
+          : (err as Error).message ?? "No se pudieron cargar las conciliaciones"
+
+        setErrors((prev) => ({ ...prev, reconciliaciones: message }))
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoadingStates((prev) => ({ ...prev, reconciliaciones: false }))
+        }
+      }
+    }
+
+    loadReconciliaciones()
+
+    return () => {
+      controller.abort()
+    }
+  }, [filtersByTab.reconciliaciones])
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    const loadCuotas = async () => {
+      setLoadingStates((prev) => ({ ...prev, cuotas: true }))
+      setErrors((prev) => ({ ...prev, cuotas: null }))
+
+      const params = buildRequestFilters(filtersByTab.cuotas)
+
+      try {
+        const [dashboardResponse, dataResponse, cuotasDashboardResponse] =
+          await Promise.all([
+            getKardexDashboard(params, { signal: controller.signal }),
+            getKardexData(params, { signal: controller.signal }),
+            getCuotasDashboard(params, { signal: controller.signal }),
+          ])
+
+        if (controller.signal.aborted) {
+          return
+        }
+
+        setCuotasTotals(dashboardResponse.cuotas)
+        setCuotasRows(dataResponse.cuotas)
+        setCuotasLastUpdated(dataResponse.timestamp)
+        setCuotasDashboard(cuotasDashboardResponse)
+        setPagination((prev) => ({
+          ...prev,
+          cuotas:
+            prev.cuotas.page === 1 ? prev.cuotas : { ...prev.cuotas, page: 1 },
+          cuotasEstudiantes:
+            prev.cuotasEstudiantes.page === 1
+              ? prev.cuotasEstudiantes
+              : { ...prev.cuotasEstudiantes, page: 1 },
+        }))
+      } catch (err) {
+        if ((err as { code?: string })?.code === "ERR_CANCELED") {
+          return
+        }
+
+        const message = axios.isAxiosError(err)
+          ? err.response?.data?.message ?? err.message ?? "No se pudieron cargar las cuotas"
+          : (err as Error).message ?? "No se pudieron cargar las cuotas"
+
+        setErrors((prev) => ({ ...prev, cuotas: message }))
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoadingStates((prev) => ({ ...prev, cuotas: false }))
+        }
+      }
+    }
+
+    loadCuotas()
+
+    return () => {
+      controller.abort()
+    }
+  }, [filtersByTab.cuotas])
+
+  const handleFiltersChange = (tab: TabKey, updates: Partial<ReportFilters>) => {
+    setFormFiltersByTab((prev) => ({
+      ...prev,
+      [tab]: { ...prev[tab], ...updates },
+    }))
+  }
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setFilters(formFilters)
+
+    setFiltersByTab((prev) => ({
+      ...prev,
+      [activeTab]: { ...formFiltersByTab[activeTab] },
+    }))
   }
 
   const handleReset = () => {
-    setFormFilters(DEFAULT_FILTERS)
-    setFilters(DEFAULT_FILTERS)
+    const defaults = createDefaultFilters()
+
+    setFormFiltersByTab((prev) => ({
+      ...prev,
+      [activeTab]: defaults,
+    }))
+
+    setFiltersByTab((prev) => ({
+      ...prev,
+      [activeTab]: defaults,
+    }))
   }
 
-  const kardexTotals = useMemo(() => {
-    if (!dashboardSummary) {
-      return null
+  const getTotalItems = (key: PaginationKey) => {
+    switch (key) {
+      case "kardex":
+        return kardexRows.length
+      case "reconciliaciones":
+        return reconciliationRows.length
+      case "cuotasEstudiantes":
+        return cuotasDashboard?.estudiantes?.length ?? 0
+      case "cuotas":
+      default:
+        return cuotasRows.length
+    }
+  }
+
+  const handlePageChange = (key: PaginationKey, nextPage: number) => {
+    const totalItems = getTotalItems(key)
+
+    setPagination((prev) => {
+      const state = prev[key]
+
+      if (isAllPageSize(state.pageSize)) {
+        if (state.page === 1) {
+          return prev
+        }
+
+        return {
+          ...prev,
+          [key]: { ...state, page: 1 },
+        }
+      }
+
+      const totalPages = Math.max(1, Math.ceil(totalItems / state.pageSize))
+      const page = Math.min(Math.max(1, nextPage), totalPages)
+
+      if (page === state.page) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        [key]: { ...state, page },
+      }
+    })
+  }
+
+  const handlePageSizeChange = (key: PaginationKey, size: PageSizeValue) => {
+    setPagination((prev) => ({
+      ...prev,
+      [key]: { page: 1, pageSize: size },
+    }))
+  }
+
+  const getPaginationLoading = (key: PaginationKey) => {
+    if (key === "kardex") {
+      return loadingStates.kardex
     }
 
-    return dashboardSummary.kardex
-  }, [dashboardSummary])
-
-  const reconciliacionTotals = useMemo(() => {
-    if (!dashboardSummary) {
-      return null
+    if (key === "reconciliaciones") {
+      return loadingStates.reconciliaciones
     }
 
-    return dashboardSummary.reconciliaciones
-  }, [dashboardSummary])
+    return loadingStates.cuotas
+  }
 
-  const cuotasTotals = useMemo(() => {
-    if (!dashboardSummary) {
-      return null
+  const handleRowAction = (
+    tab: "kardex" | "reconciliaciones",
+    action: RowAction,
+    row: KardexRow | ReconciliationRow,
+  ) => {
+    if (action === "delete") {
+      setDeleteState({ tab, row } as DeleteState)
+      return
     }
 
-    return dashboardSummary.cuotas
-  }, [dashboardSummary])
+    setDetailModal({ tab, action, row } as DetailModalState)
+  }
 
   const estudiantesResumen = useMemo(() => cuotasDashboard?.summary ?? null, [cuotasDashboard])
+  const estudiantes = useMemo(() => cuotasDashboard?.estudiantes ?? [], [cuotasDashboard])
 
-  const renderTablePlaceholder = (message: string, columns = 7) => (
+  const renderTablePlaceholder = (message: string, columns = 7, isLoading = false) => (
     <TableRow>
       <TableCell colSpan={columns} className="py-8 text-center text-sm text-muted-foreground">
-        {loading ? "Cargando información..." : message}
+        {isLoading ? "Cargando información..." : message}
       </TableCell>
     </TableRow>
   )
+
+  const renderPaginationControls = (key: PaginationKey, totalItems: number) => {
+    if (totalItems === 0) {
+      return null
+    }
+
+    const { page, pageSize } = pagination[key]
+    const isAll = isAllPageSize(pageSize)
+    const safeTotalItems = totalItems === 0 ? 0 : totalItems
+    const numericPageSize = getNumericPageSize(pageSize, safeTotalItems)
+    const totalPages = isAll ? 1 : Math.max(1, Math.ceil(totalItems / numericPageSize))
+    const safePage = Math.min(page, totalPages)
+    const start = safeTotalItems === 0 ? 0 : (safePage - 1) * numericPageSize + 1
+    const end = isAll ? totalItems : Math.min(totalItems, safePage * numericPageSize)
+    const isLoading = getPaginationLoading(key)
+
+    return (
+      <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-sm text-muted-foreground">
+          Mostrando {start}-{end} de {totalItems} registros
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Por página:</span>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(value) =>
+                handlePageSizeChange(key, value === "all" ? "all" : Number(value))
+              }
+              disabled={isLoading}
+            >
+              <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="Elementos" />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map(({ value, label }) => (
+                  <SelectItem key={value} value={String(value)}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={safePage <= 1 || isLoading}
+              onClick={() => handlePageChange(key, safePage - 1)}
+            >
+              Anterior
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Página {safePage} de {totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={safePage >= totalPages || isLoading}
+              onClick={() => handlePageChange(key, safePage + 1)}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const paginatedKardexRows = useMemo(() => {
+    const { page, pageSize } = pagination.kardex
+    if (isAllPageSize(pageSize)) {
+      return kardexRows
+    }
+
+    const start = (page - 1) * pageSize
+    return kardexRows.slice(start, start + pageSize)
+  }, [kardexRows, pagination.kardex])
+
+  const paginatedReconciliationRows = useMemo(() => {
+    const { page, pageSize } = pagination.reconciliaciones
+    if (isAllPageSize(pageSize)) {
+      return reconciliationRows
+    }
+
+    const start = (page - 1) * pageSize
+    return reconciliationRows.slice(start, start + pageSize)
+  }, [reconciliationRows, pagination.reconciliaciones])
+
+  const paginatedCuotasRows = useMemo(() => {
+    const { page, pageSize } = pagination.cuotas
+    if (isAllPageSize(pageSize)) {
+      return cuotasRows
+    }
+
+    const start = (page - 1) * pageSize
+    return cuotasRows.slice(start, start + pageSize)
+  }, [cuotasRows, pagination.cuotas])
+
+  const paginatedCuotasEstudiantes = useMemo(() => {
+    const { page, pageSize } = pagination.cuotasEstudiantes
+    if (isAllPageSize(pageSize)) {
+      return estudiantes
+    }
+
+    const start = (page - 1) * pageSize
+    return estudiantes.slice(start, start + pageSize)
+  }, [estudiantes, pagination.cuotasEstudiantes])
+
+  useEffect(() => {
+    setPagination((prev) => {
+      const state = prev.kardex
+
+      if (state.pageSize === "all") {
+        if (state.page === 1) {
+          return prev
+        }
+
+        return {
+          ...prev,
+          kardex: { ...state, page: 1 },
+        }
+      }
+
+      const totalPages = Math.max(1, Math.ceil(kardexRows.length / state.pageSize))
+      if (state.page <= totalPages) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        kardex: { ...state, page: totalPages },
+      }
+    })
+  }, [kardexRows])
+
+  useEffect(() => {
+    setPagination((prev) => {
+      const state = prev.reconciliaciones
+
+      if (state.pageSize === "all") {
+        if (state.page === 1) {
+          return prev
+        }
+
+        return {
+          ...prev,
+          reconciliaciones: { ...state, page: 1 },
+        }
+      }
+
+      const totalPages = Math.max(1, Math.ceil(reconciliationRows.length / state.pageSize))
+      if (state.page <= totalPages) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        reconciliaciones: { ...state, page: totalPages },
+      }
+    })
+  }, [reconciliationRows])
+
+  useEffect(() => {
+    setPagination((prev) => {
+      const state = prev.cuotas
+
+      if (state.pageSize === "all") {
+        if (state.page === 1) {
+          return prev
+        }
+
+        return {
+          ...prev,
+          cuotas: { ...state, page: 1 },
+        }
+      }
+
+      const totalPages = Math.max(1, Math.ceil(cuotasRows.length / state.pageSize))
+      if (state.page <= totalPages) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        cuotas: { ...state, page: totalPages },
+      }
+    })
+  }, [cuotasRows])
+
+  useEffect(() => {
+    setPagination((prev) => {
+      const state = prev.cuotasEstudiantes
+
+      if (state.pageSize === "all") {
+        if (state.page === 1) {
+          return prev
+        }
+
+        return {
+          ...prev,
+          cuotasEstudiantes: { ...state, page: 1 },
+        }
+      }
+
+      const totalPages = Math.max(1, Math.ceil(estudiantes.length / state.pageSize))
+      if (state.page <= totalPages) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        cuotasEstudiantes: { ...state, page: totalPages },
+      }
+    })
+  }, [estudiantes])
+
+  useEffect(() => {
+    if (!detailModal || detailModal.action !== "edit") {
+      setKardexEditForm(null)
+      setReconciliationEditForm(null)
+      return
+    }
+
+    if (detailModal.tab === "kardex") {
+      const row = detailModal.row
+      setReconciliationEditForm(null)
+      setKardexEditForm({
+        monto_pagado: row.monto_pagado?.toString() ?? "",
+        fecha_pago: toDateInputValue(row.fecha_pago),
+        fecha_recibo: toDateInputValue(row.fecha_recibo),
+        metodo_pago: row.metodo_pago ?? "",
+        estado_pago: row.estado_pago ?? "pendiente_revision",
+        numero_boleta: row.numero_boleta ?? "",
+        banco: row.banco ?? "",
+        observaciones: row.observaciones ?? "",
+      })
+    } else {
+      const row = detailModal.row
+      setKardexEditForm(null)
+      setReconciliationEditForm({
+        amount: row.amount?.toString() ?? "",
+        date: toDateInputValue(row.date),
+        status: row.status ?? "pendiente",
+        bank: row.bank ?? "",
+        reference: row.reference ?? "",
+      })
+    }
+  }, [detailModal])
+
+  const closeDetailModal = () => {
+    setDetailModal(null)
+  }
+
+  const handleKardexEditSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    const current = detailModal
+    if (!current || current.tab !== "kardex" || current.action !== "edit") {
+      return
+    }
+
+    toast({
+      title: "Pago actualizado",
+      description: `${getKardexReference(current.row)} se actualizará en cuanto la edición esté disponible.`,
+    })
+
+    setDetailModal(null)
+  }
+
+  const handleReconciliationEditSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    const current = detailModal
+    if (!current || current.tab !== "reconciliaciones" || current.action !== "edit") {
+      return
+    }
+
+    toast({
+      title: "Conciliación actualizada",
+      description: `${getReconciliationReference(current.row)} se actualizará en cuanto la edición esté disponible.`,
+    })
+
+    setDetailModal(null)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (!deleteState) {
+      return
+    }
+
+    const { tab, row } = deleteState
+    const reference = tab === "kardex" ? getKardexReference(row) : getReconciliationReference(row)
+
+    toast({
+      title: `Eliminar ${TAB_LABELS[tab]}`,
+      description: `${reference} se eliminará cuando la funcionalidad esté disponible.`,
+    })
+
+    setDeleteState(null)
+  }
+
+  const activeFormFilters = formFiltersByTab[activeTab]
+  const activeLoading = loadingStates[activeTab]
+  const activeError = errors[activeTab]
+  const kardexModal = detailModal?.tab === "kardex" ? detailModal : null
+  const reconciliationModal =
+    detailModal?.tab === "reconciliaciones" ? detailModal : null
+  const deleteReference = deleteState
+    ? deleteState.tab === "kardex"
+      ? getKardexReference(deleteState.row)
+      : getReconciliationReference(deleteState.row)
+    : "este registro"
 
   return (
     <div className="space-y-6">
@@ -258,77 +918,97 @@ export const ReportesFinancieros = () => {
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div className="flex flex-1 flex-wrap gap-3">
                 <Input
-                  value={formFilters.search}
-                  onChange={(event) => setFormFilters((prev) => ({ ...prev, search: event.target.value }))}
+                  value={activeFormFilters.search}
+                  onChange={(event) =>
+                    handleFiltersChange(activeTab, { search: event.target.value })
+                  }
                   placeholder="Buscar por estudiante, carnet, programa o referencia"
                   className="w-full min-w-[220px] flex-1"
                 />
+                {activeTab === "kardex" ? (
+                  <Select
+                    value={activeFormFilters.estadoPago}
+                    onValueChange={(value) =>
+                      handleFiltersChange("kardex", { estadoPago: value })
+                    }
+                  >
+                    <SelectTrigger className="w-full min-w-[160px] sm:w-[180px]">
+                      <SelectValue placeholder="Estado de pago" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos los pagos</SelectItem>
+                      <SelectItem value="aprobado">Aprobado</SelectItem>
+                      <SelectItem value="pendiente_revision">Pendiente</SelectItem>
+                      <SelectItem value="rechazado">Rechazado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : null}
+                {activeTab !== "cuotas" ? (
+                  <Select
+                    value={activeFormFilters.estadoReconciliacion}
+                    onValueChange={(value) =>
+                      handleFiltersChange(activeTab, {
+                        estadoReconciliacion: value,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-full min-w-[160px] sm:w-[180px]">
+                      <SelectValue placeholder="Estado conciliación" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todas las conciliaciones</SelectItem>
+                      <SelectItem value="conciliado">Conciliado</SelectItem>
+                      <SelectItem value="pendiente">Pendiente</SelectItem>
+                      <SelectItem value="rechazado">Rechazado</SelectItem>
+                      <SelectItem value="sin_coincidencia">Sin coincidencia</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : null}
+                {activeTab === "cuotas" ? (
+                  <Select
+                    value={activeFormFilters.estadoCuota}
+                    onValueChange={(value) =>
+                      handleFiltersChange("cuotas", { estadoCuota: value })
+                    }
+                  >
+                    <SelectTrigger className="w-full min-w-[160px] sm:w-[180px]">
+                      <SelectValue placeholder="Estado de cuota" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todas las cuotas</SelectItem>
+                      <SelectItem value="pendiente">Pendiente</SelectItem>
+                      <SelectItem value="pagado">Pagado</SelectItem>
+                      <SelectItem value="parcial">Pago parcial</SelectItem>
+                      <SelectItem value="vencido">Vencido</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : null}
                 <Select
-                  value={formFilters.estadoPago}
-                  onValueChange={(value) => setFormFilters((prev) => ({ ...prev, estadoPago: value }))}
-                >
-                  <SelectTrigger className="w-full min-w-[160px] sm:w-[180px]">
-                    <SelectValue placeholder="Estado de pago" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos los pagos</SelectItem>
-                    <SelectItem value="aprobado">Aprobado</SelectItem>
-                    <SelectItem value="pendiente_revision">Pendiente</SelectItem>
-                    <SelectItem value="rechazado">Rechazado</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select
-                  value={formFilters.estadoReconciliacion}
-                  onValueChange={(value) => setFormFilters((prev) => ({ ...prev, estadoReconciliacion: value }))}
-                >
-                  <SelectTrigger className="w-full min-w-[160px] sm:w-[180px]">
-                    <SelectValue placeholder="Estado conciliación" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todas las conciliaciones</SelectItem>
-                    <SelectItem value="conciliado">Conciliado</SelectItem>
-                    <SelectItem value="pendiente">Pendiente</SelectItem>
-                    <SelectItem value="rechazado">Rechazado</SelectItem>
-                    <SelectItem value="sin_coincidencia">Sin coincidencia</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select
-                  value={formFilters.estadoCuota}
-                  onValueChange={(value) => setFormFilters((prev) => ({ ...prev, estadoCuota: value }))}
-                >
-                  <SelectTrigger className="w-full min-w-[160px] sm:w-[180px]">
-                    <SelectValue placeholder="Estado de cuota" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todas las cuotas</SelectItem>
-                    <SelectItem value="pendiente">Pendiente</SelectItem>
-                    <SelectItem value="pagado">Pagado</SelectItem>
-                    <SelectItem value="parcial">Pago parcial</SelectItem>
-                    <SelectItem value="vencido">Vencido</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select
-                  value={String(formFilters.limit)}
-                  onValueChange={(value) => setFormFilters((prev) => ({ ...prev, limit: Number(value) }))}
+                  value={String(activeFormFilters.limit)}
+                  onValueChange={(value) =>
+                    handleFiltersChange(activeTab, {
+                      limit: value === "all" ? "all" : Number(value),
+                    })
+                  }
                 >
                   <SelectTrigger className="w-full min-w-[120px] sm:w-[140px]">
                     <SelectValue placeholder="Límite" />
                   </SelectTrigger>
                   <SelectContent>
-                    {[25, 50, 100, 200, 500].map((value) => (
+                    {LIMIT_OPTIONS.map(({ value, label }) => (
                       <SelectItem key={value} value={String(value)}>
-                        {value} registros
+                        {label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={handleReset} disabled={loading}>
+                <Button type="button" variant="outline" onClick={handleReset} disabled={activeLoading}>
                   Restablecer
                 </Button>
-                <Button type="submit" disabled={loading}>
-                  {loading ? (
+                <Button type="submit" disabled={activeLoading}>
+                  {activeLoading ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <RefreshCw className="mr-2 h-4 w-4" />
@@ -341,10 +1021,10 @@ export const ReportesFinancieros = () => {
         </CardContent>
       </Card>
 
-      {error ? (
+      {activeError ? (
         <Alert variant="destructive">
           <AlertTitle>Ocurrió un problema</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{activeError}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -441,7 +1121,7 @@ export const ReportesFinancieros = () => {
         </Card>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabKey)}>
         <TabsList className="w-full overflow-x-auto">
           <TabsTrigger value="kardex" className="flex-1">Kardex</TabsTrigger>
           <TabsTrigger value="reconciliaciones" className="flex-1">Conciliaciones</TabsTrigger>
@@ -453,7 +1133,7 @@ export const ReportesFinancieros = () => {
             <CardHeader>
               <CardTitle>Movimientos del kardex</CardTitle>
               <CardDescription>
-                Actualizado {lastUpdated ? formatDateTime(lastUpdated) : "sin información"}
+                Actualizado {kardexLastUpdated ? formatDateTime(kardexLastUpdated) : "sin información"}
               </CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
@@ -467,13 +1147,18 @@ export const ReportesFinancieros = () => {
                     <TableHead>Estado</TableHead>
                     <TableHead>Método</TableHead>
                     <TableHead>Conciliaciones</TableHead>
+                    <TableHead className="w-[140px] text-center">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {kardexRows.length === 0 ? (
-                    renderTablePlaceholder("No se encontraron movimientos para los filtros seleccionados")
+                    renderTablePlaceholder(
+                      "No se encontraron movimientos para los filtros seleccionados",
+                      8,
+                      loadingStates.kardex,
+                    )
                   ) : (
-                    kardexRows.map((row) => {
+                    paginatedKardexRows.map((row) => {
                       const estado = row.estado_pago ?? ""
                       const estadoClase = estadoPagoClasses[estado] ?? "bg-slate-500/15 text-slate-700 border-slate-500/30"
                       const estadoLabel = estadoPagoLabels[estado] ?? (estado ? estado.replace(/_/g, " ") : "Sin estado")
@@ -522,12 +1207,44 @@ export const ReportesFinancieros = () => {
                               <span className="text-xs text-muted-foreground">Sin conciliaciones</span>
                             )}
                           </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleRowAction("kardex", "view", row)}
+                                aria-label="Ver detalle"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleRowAction("kardex", "edit", row)}
+                                aria-label="Editar"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleRowAction("kardex", "delete", row)}
+                                aria-label="Eliminar"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       )
                     })
                   )}
                 </TableBody>
               </Table>
+              {renderPaginationControls("kardex", kardexRows.length)}
             </CardContent>
           </Card>
         </TabsContent>
@@ -537,7 +1254,11 @@ export const ReportesFinancieros = () => {
             <CardHeader>
               <CardTitle>Conciliaciones bancarias</CardTitle>
               <CardDescription>
-                Resultado de los registros importados desde las entidades financieras
+                Resultado de los registros importados desde las entidades financieras. Actualizado
+                {" "}
+                {reconciliacionesLastUpdated
+                  ? formatDateTime(reconciliacionesLastUpdated)
+                  : "sin información"}
               </CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
@@ -550,16 +1271,18 @@ export const ReportesFinancieros = () => {
                     <TableHead>Estado</TableHead>
                     <TableHead>Prospecto</TableHead>
                     <TableHead>Kardex vinculado</TableHead>
+                    <TableHead className="w-[140px] text-center">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {reconciliationRows.length === 0 ? (
                     renderTablePlaceholder(
                       "No se encontraron conciliaciones para los filtros seleccionados",
-                      6,
+                      7,
+                      loadingStates.reconciliaciones,
                     )
                   ) : (
-                    reconciliationRows.map((row) => {
+                    paginatedReconciliationRows.map((row) => {
                       const estado = row.status ?? ""
                       const estadoClase = conciliacionClasses[estado] ?? "bg-slate-500/15 text-slate-700 border-slate-500/30"
                       const estadoLabel = conciliacionLabels[estado] ?? (estado ? estado.replace(/_/g, " ") : "Sin estado")
@@ -592,12 +1315,44 @@ export const ReportesFinancieros = () => {
                               <span className="text-xs text-muted-foreground">Sin vincular</span>
                             )}
                           </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleRowAction("reconciliaciones", "view", row)}
+                                aria-label="Ver detalle"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleRowAction("reconciliaciones", "edit", row)}
+                                aria-label="Editar"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleRowAction("reconciliaciones", "delete", row)}
+                                aria-label="Eliminar"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       )
                     })
                   )}
                 </TableBody>
               </Table>
+              {renderPaginationControls("reconciliaciones", reconciliationRows.length)}
             </CardContent>
           </Card>
         </TabsContent>
@@ -606,7 +1361,13 @@ export const ReportesFinancieros = () => {
           <Card>
             <CardHeader>
               <CardTitle>Seguimiento por estudiante</CardTitle>
-              <CardDescription>Resumen de cuotas pendientes y próximas fechas de pago</CardDescription>
+              <CardDescription>
+                Resumen de cuotas pendientes y próximas fechas de pago. Actualizado
+                {" "}
+                {cuotasDashboard?.timestamp
+                  ? formatDateTime(cuotasDashboard.timestamp)
+                  : "sin información"}
+              </CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
@@ -621,13 +1382,14 @@ export const ReportesFinancieros = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {!cuotasDashboard || cuotasDashboard.estudiantes.length === 0 ? (
+                  {estudiantes.length === 0 ? (
                     renderTablePlaceholder(
                       "No se encontraron estudiantes con cuotas para los filtros seleccionados",
                       6,
+                      loadingStates.cuotas,
                     )
                   ) : (
-                    cuotasDashboard.estudiantes.map(
+                    paginatedCuotasEstudiantes.map(
                       (estudiante: CuotasDashboardEstudiante, index) => (
                         <TableRow
                           key={
@@ -636,40 +1398,46 @@ export const ReportesFinancieros = () => {
                             `est-${index}`
                           }
                         >
-                        <TableCell className="min-w-[220px]">
-                          <div className="font-medium">{estudiante.prospecto?.nombre ?? "Sin nombre"}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {estudiante.prospecto?.carnet ?? "-"}
-                            {estudiante.prospecto?.telefono ? ` · ${estudiante.prospecto.telefono}` : ""}
-                          </div>
-                        </TableCell>
-                        <TableCell className="min-w-[160px]">{estudiante.programa?.nombre ?? "-"}</TableCell>
-                        <TableCell>{formatCurrency(estudiante.saldo_pendiente)}</TableCell>
-                        <TableCell>{estudiante.cuotas_pendientes}</TableCell>
-                        <TableCell>{estudiante.cuotas_pagadas}</TableCell>
-                        <TableCell>
-                          {estudiante.proxima_cuota ? (
-                            <div className="text-xs">
-                              <div className="font-medium">Cuota #{estudiante.proxima_cuota.numero_cuota}</div>
-                              <div>{formatDate(estudiante.proxima_cuota.fecha_vencimiento)}</div>
-                              <div className="text-muted-foreground">{formatCurrency(estudiante.proxima_cuota.monto)}</div>
+                          <TableCell className="min-w-[220px]">
+                            <div className="font-medium">{estudiante.prospecto?.nombre ?? "Sin nombre"}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {estudiante.prospecto?.carnet ?? "-"}
+                              {estudiante.prospecto?.telefono ? ` · ${estudiante.prospecto.telefono}` : ""}
                             </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Sin próximas cuotas</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
+                          </TableCell>
+                          <TableCell className="min-w-[160px]">{estudiante.programa?.nombre ?? "-"}</TableCell>
+                          <TableCell>{formatCurrency(estudiante.saldo_pendiente)}</TableCell>
+                          <TableCell>{estudiante.cuotas_pendientes}</TableCell>
+                          <TableCell>{estudiante.cuotas_pagadas}</TableCell>
+                          <TableCell>
+                            {estudiante.proxima_cuota ? (
+                              <div className="text-xs">
+                                <div className="font-medium">Cuota #{estudiante.proxima_cuota.numero_cuota}</div>
+                                <div>{formatDate(estudiante.proxima_cuota.fecha_vencimiento)}</div>
+                                <div className="text-muted-foreground">{formatCurrency(estudiante.proxima_cuota.monto)}</div>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Sin próximas cuotas</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ),
+                    )
                   )}
                 </TableBody>
               </Table>
+              {renderPaginationControls("cuotasEstudiantes", estudiantes.length)}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
               <CardTitle>Cuotas registradas</CardTitle>
-              <CardDescription>Detalle de cuotas individuales de estudiantes</CardDescription>
+              <CardDescription>
+                Detalle de cuotas individuales de estudiantes. Actualizado
+                {" "}
+                {cuotasLastUpdated ? formatDateTime(cuotasLastUpdated) : "sin información"}
+              </CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
@@ -688,9 +1456,10 @@ export const ReportesFinancieros = () => {
                     renderTablePlaceholder(
                       "No se encontraron cuotas para los filtros seleccionados",
                       6,
+                      loadingStates.cuotas,
                     )
                   ) : (
-                    cuotasRows.map((row) => {
+                    paginatedCuotasRows.map((row) => {
                       const estado = row.estado ?? ""
                       const estadoClase = cuotaEstadoClasses[estado] ?? "bg-slate-500/15 text-slate-700 border-slate-500/30"
                       const estadoLabel = cuotaEstadoLabels[estado] ?? (estado ? estado.replace(/_/g, " ") : "Sin estado")
@@ -728,10 +1497,467 @@ export const ReportesFinancieros = () => {
                   )}
                 </TableBody>
               </Table>
+              {renderPaginationControls("cuotas", cuotasRows.length)}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={Boolean(kardexModal)} onOpenChange={(open) => (!open ? closeDetailModal() : undefined)}>
+        {kardexModal ? (
+          <DialogContent className="sm:max-w-[650px]">
+            <DialogHeader>
+              <DialogTitle>
+                {kardexModal.action === "view"
+                  ? "Detalle del pago"
+                  : "Editar movimiento del kardex"}
+              </DialogTitle>
+              <DialogDescription>
+                {getKardexReference(kardexModal.row)} · {kardexModal.row.prospecto?.nombre ?? "Sin nombre"}
+              </DialogDescription>
+            </DialogHeader>
+            {kardexModal.action === "view" ? (
+              <div className="space-y-4 text-sm">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Estudiante</p>
+                    <p className="font-medium text-foreground">{kardexModal.row.prospecto?.nombre ?? "Sin nombre"}</p>
+                    <p className="text-muted-foreground">
+                      {kardexModal.row.prospecto?.carnet ?? "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Programa</p>
+                    <p className="font-medium text-foreground">{kardexModal.row.programa?.nombre ?? "-"}</p>
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Monto pagado</p>
+                    <p className="font-medium text-foreground">{formatCurrency(kardexModal.row.monto_pagado)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Estado del pago</p>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "capitalize",
+                        estadoPagoClasses[kardexModal.row.estado_pago ?? ""] ??
+                          "bg-slate-500/15 text-slate-700 border-slate-500/30",
+                      )}
+                    >
+                      {estadoPagoLabels[kardexModal.row.estado_pago ?? ""] ??
+                        (kardexModal.row.estado_pago
+                          ? kardexModal.row.estado_pago.replace(/_/g, " ")
+                          : "Sin estado")}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Fecha de pago</p>
+                    <p>{formatDateTime(kardexModal.row.fecha_pago)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Fecha de recibo</p>
+                    <p>{formatDateTime(kardexModal.row.fecha_recibo)}</p>
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Método de pago</p>
+                    <p className="capitalize">{kardexModal.row.metodo_pago ?? "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Banco / Boleta</p>
+                    <p>
+                      {kardexModal.row.banco ?? "Sin banco"}
+                      {kardexModal.row.numero_boleta
+                        ? ` · Boleta ${kardexModal.row.numero_boleta}`
+                        : ""}
+                    </p>
+                  </div>
+                </div>
+                {kardexModal.row.observaciones ? (
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Observaciones</p>
+                    <p>{kardexModal.row.observaciones}</p>
+                  </div>
+                ) : null}
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Conciliaciones vinculadas</p>
+                  {kardexModal.row.reconciliaciones.length > 0 ? (
+                    <ul className="mt-2 space-y-2">
+                      {kardexModal.row.reconciliaciones.map((item) => (
+                        <li key={item.id} className="rounded-md border p-2">
+                          <div className="flex flex-col gap-1 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium text-foreground">{item.bank ?? "Banco"}</span>
+                              <span>{formatCurrency(item.amount)}</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {item.reference ?? "Sin referencia"} · {formatDate(item.date)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Estado: {conciliacionLabels[item.status ?? ""] ?? item.status ?? "Sin estado"}
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-xs text-muted-foreground">No hay conciliaciones asociadas.</p>
+                  )}
+                </div>
+              </div>
+            ) : kardexEditForm ? (
+              <form className="space-y-4" onSubmit={handleKardexEditSubmit}>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="kardex-monto">Monto pagado</Label>
+                    <Input
+                      id="kardex-monto"
+                      type="number"
+                      step="0.01"
+                      value={kardexEditForm.monto_pagado}
+                      onChange={(event) =>
+                        setKardexEditForm((prev) =>
+                          prev ? { ...prev, monto_pagado: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="kardex-metodo">Método de pago</Label>
+                    <Input
+                      id="kardex-metodo"
+                      value={kardexEditForm.metodo_pago}
+                      onChange={(event) =>
+                        setKardexEditForm((prev) =>
+                          prev ? { ...prev, metodo_pago: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="kardex-fecha-pago">Fecha de pago</Label>
+                    <Input
+                      id="kardex-fecha-pago"
+                      type="date"
+                      value={kardexEditForm.fecha_pago}
+                      onChange={(event) =>
+                        setKardexEditForm((prev) =>
+                          prev ? { ...prev, fecha_pago: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="kardex-fecha-recibo">Fecha de recibo</Label>
+                    <Input
+                      id="kardex-fecha-recibo"
+                      type="date"
+                      value={kardexEditForm.fecha_recibo}
+                      onChange={(event) =>
+                        setKardexEditForm((prev) =>
+                          prev ? { ...prev, fecha_recibo: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="kardex-banco">Banco</Label>
+                    <Input
+                      id="kardex-banco"
+                      value={kardexEditForm.banco}
+                      onChange={(event) =>
+                        setKardexEditForm((prev) =>
+                          prev ? { ...prev, banco: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="kardex-boleta">Número de boleta</Label>
+                    <Input
+                      id="kardex-boleta"
+                      value={kardexEditForm.numero_boleta}
+                      onChange={(event) =>
+                        setKardexEditForm((prev) =>
+                          prev ? { ...prev, numero_boleta: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="kardex-estado">Estado del pago</Label>
+                    <Select
+                      value={kardexEditForm.estado_pago}
+                      onValueChange={(value) =>
+                        setKardexEditForm((prev) =>
+                          prev ? { ...prev, estado_pago: value } : prev,
+                        )
+                      }
+                    >
+                      <SelectTrigger id="kardex-estado">
+                        <SelectValue placeholder="Estado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(estadoPagoLabels).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="kardex-observaciones">Observaciones</Label>
+                  <Textarea
+                    id="kardex-observaciones"
+                    value={kardexEditForm.observaciones}
+                    onChange={(event) =>
+                      setKardexEditForm((prev) =>
+                        prev ? { ...prev, observaciones: event.target.value } : prev,
+                      )
+                    }
+                    rows={4}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={closeDetailModal}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit">Guardar cambios</Button>
+                </DialogFooter>
+              </form>
+            ) : (
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                Cargando información del formulario...
+              </div>
+            )}
+            {kardexModal.action === "view" ? (
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={closeDetailModal}>
+                  Cerrar
+                </Button>
+              </DialogFooter>
+            ) : null}
+          </DialogContent>
+        ) : null}
+      </Dialog>
+
+      <Dialog
+        open={Boolean(reconciliationModal)}
+        onOpenChange={(open) => (!open ? closeDetailModal() : undefined)}
+      >
+        {reconciliationModal ? (
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>
+                {reconciliationModal.action === "view"
+                  ? "Detalle de la conciliación"
+                  : "Editar conciliación"}
+              </DialogTitle>
+              <DialogDescription>
+                {getReconciliationReference(reconciliationModal.row)} · {reconciliationModal.row.bank ?? "Sin banco"}
+              </DialogDescription>
+            </DialogHeader>
+            {reconciliationModal.action === "view" ? (
+              <div className="space-y-4 text-sm">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Banco</p>
+                    <p className="font-medium text-foreground">{reconciliationModal.row.bank ?? "Sin banco"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Referencia</p>
+                    <p className="font-medium text-foreground">{reconciliationModal.row.reference ?? "Sin referencia"}</p>
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Monto</p>
+                    <p className="font-medium text-foreground">{formatCurrency(reconciliationModal.row.amount)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Fecha</p>
+                    <p>{formatDateTime(reconciliationModal.row.date)}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Estado</p>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "capitalize",
+                      conciliacionClasses[reconciliationModal.row.status ?? ""] ??
+                        "bg-slate-500/15 text-slate-700 border-slate-500/30",
+                    )}
+                  >
+                    {conciliacionLabels[reconciliationModal.row.status ?? ""] ??
+                      (reconciliationModal.row.status
+                        ? reconciliationModal.row.status.replace(/_/g, " ")
+                        : "Sin estado")}
+                  </Badge>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Prospecto</p>
+                    <p className="font-medium text-foreground">{reconciliationModal.row.prospecto?.nombre ?? "Sin prospecto"}</p>
+                    <p className="text-muted-foreground">{reconciliationModal.row.prospecto?.carnet ?? "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Programa</p>
+                    <p className="font-medium text-foreground">{reconciliationModal.row.programa?.nombre ?? "-"}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Movimiento en kardex</p>
+                  {reconciliationModal.row.kardex ? (
+                    <div className="mt-2 rounded-md border p-3 text-sm">
+                      <div className="font-medium text-foreground">Pago #{reconciliationModal.row.kardex.id}</div>
+                      <div className="text-muted-foreground">
+                        {formatCurrency(reconciliationModal.row.kardex.monto_pagado ?? 0)} · {formatDate(reconciliationModal.row.kardex.fecha_pago)}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs text-muted-foreground">Sin vincular al kardex.</p>
+                  )}
+                </div>
+              </div>
+            ) : reconciliationEditForm ? (
+              <form className="space-y-4" onSubmit={handleReconciliationEditSubmit}>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="reconciliacion-banco">Banco</Label>
+                    <Input
+                      id="reconciliacion-banco"
+                      value={reconciliationEditForm.bank}
+                      onChange={(event) =>
+                        setReconciliationEditForm((prev) =>
+                          prev ? { ...prev, bank: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reconciliacion-referencia">Referencia</Label>
+                    <Input
+                      id="reconciliacion-referencia"
+                      value={reconciliationEditForm.reference}
+                      onChange={(event) =>
+                        setReconciliationEditForm((prev) =>
+                          prev ? { ...prev, reference: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reconciliacion-monto">Monto</Label>
+                    <Input
+                      id="reconciliacion-monto"
+                      type="number"
+                      step="0.01"
+                      value={reconciliationEditForm.amount}
+                      onChange={(event) =>
+                        setReconciliationEditForm((prev) =>
+                          prev ? { ...prev, amount: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reconciliacion-fecha">Fecha</Label>
+                    <Input
+                      id="reconciliacion-fecha"
+                      type="date"
+                      value={reconciliationEditForm.date}
+                      onChange={(event) =>
+                        setReconciliationEditForm((prev) =>
+                          prev ? { ...prev, date: event.target.value } : prev,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reconciliacion-estado">Estado</Label>
+                    <Select
+                      value={reconciliationEditForm.status}
+                      onValueChange={(value) =>
+                        setReconciliationEditForm((prev) =>
+                          prev ? { ...prev, status: value } : prev,
+                        )
+                      }
+                    >
+                      <SelectTrigger id="reconciliacion-estado">
+                        <SelectValue placeholder="Estado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(conciliacionLabels).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={closeDetailModal}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit">Guardar cambios</Button>
+                </DialogFooter>
+              </form>
+            ) : (
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                Cargando información del formulario...
+              </div>
+            )}
+            {reconciliationModal.action === "view" ? (
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={closeDetailModal}>
+                  Cerrar
+                </Button>
+              </DialogFooter>
+            ) : null}
+          </DialogContent>
+        ) : null}
+      </Dialog>
+
+      <AlertDialog
+        open={Boolean(deleteState)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteState(null)
+          }
+        }}
+      >
+        {deleteState ? (
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Eliminar {TAB_LABELS[deleteState.tab]}</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción eliminará definitivamente {deleteReference}. Esta funcionalidad está pendiente de integración,
+                por lo que no se realizarán cambios reales por ahora.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setDeleteState(null)}>
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteConfirm}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        ) : null}
+      </AlertDialog>
     </div>
   )
 }
