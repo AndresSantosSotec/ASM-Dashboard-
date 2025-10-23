@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import axios from "axios"
 import {
   Card,
@@ -352,19 +352,6 @@ export const ReportesFinancieros = () => {
     setReconciliationModal(null)
   }
 
-  // Dummy handler for delete confirm to fix compile error
-  const handleDeleteConfirm = () => {
-    // Implement the logic to delete here
-    // For now, just close the dialog
-    setDeleteState(null)
-  }
-
-  // Handler to close any open detail modal
-  const closeDetailModal = () => {
-    setKardexModal(null)
-    setReconciliationModal(null)
-  }
-
   useEffect(() => {
     const controller = new AbortController()
 
@@ -679,6 +666,10 @@ export const ReportesFinancieros = () => {
           ? `${deleteReference} no puede eliminarse todavía. La funcionalidad estará disponible próximamente.`
           : "Esta eliminación estará disponible próximamente.",
     })
+
+    setDeleteState(null)
+    setDeleteReference("")
+  }, [deleteState, deleteReference, toast])
 
   const estudiantesResumen = useMemo(() => cuotasDashboard?.summary ?? null, [cuotasDashboard])
   const estudiantes = useMemo(() => cuotasDashboard?.estudiantes ?? [], [cuotasDashboard])
