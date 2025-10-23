@@ -12,6 +12,8 @@ export interface MantenimientosFilters {
   fecha_inicio?: string
   fecha_fin?: string
   limit?: number
+  page?: number
+  per_page?: number
 }
 
 export interface KardexDashboardMetrics {
@@ -157,9 +159,20 @@ export interface CuotasDashboardResumen {
   planes_reestructurados: number
 }
 
+export interface Pagination {
+  current_page: number
+  per_page: number
+  total: number
+  total_pages: number
+  from: number
+  to: number
+  has_more: boolean
+}
+
 export interface CuotasDashboardResponse {
   timestamp: string
   filters: Record<string, unknown>
+  pagination?: Pagination
   summary: CuotasDashboardResumen
   estudiantes: CuotasDashboardEstudiante[]
 }
