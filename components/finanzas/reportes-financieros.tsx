@@ -17,26 +17,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Eye, Loader2, Pencil, RefreshCw, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -157,11 +137,6 @@ type PaginationKey = "kardex" | "reconciliaciones" | "cuotasEstudiantes" | "cuot
 
 type PageSizeValue = number | "all"
 
-const isAllPageSize = (value: PageSizeValue): value is "all" => value === "all"
-
-const getNumericPageSize = (value: PageSizeValue, totalItems: number) =>
-  isAllPageSize(value) ? Math.max(totalItems, 1) : value
-
 interface PaginationState {
   page: number
   pageSize: PageSizeValue
@@ -229,6 +204,33 @@ interface ReconciliationEditFormState {
   status: string
   bank: string
   reference: string
+}
+
+type TabKey = "kardex" | "reconciliaciones" | "cuotas"
+type PaginationKey = "kardex" | "reconciliaciones" | "cuotasEstudiantes" | "cuotas"
+
+interface PaginationState {
+  page: number
+  pageSize: number
+}
+
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
+
+const createDefaultFilters = (): ReportFilters => ({
+  ...BASE_FILTERS,
+})
+
+type RowAction = "view" | "edit" | "delete"
+
+const ACTION_LABELS: Record<RowAction, string> = {
+  view: "Ver detalle",
+  edit: "Editar",
+  delete: "Eliminar",
+}
+
+const TAB_LABELS: Record<"kardex" | "reconciliaciones", string> = {
+  kardex: "Kardex",
+  reconciliaciones: "Conciliaciones",
 }
 
 const buildRequestFilters = (filters: ReportFilters) => ({
@@ -302,11 +304,6 @@ export const ReportesFinancieros = () => {
     cuotasEstudiantes: { page: 1, pageSize: 10 },
     cuotas: { page: 1, pageSize: 10 },
   })
-  const [detailModal, setDetailModal] = useState<DetailModalState>(null)
-  const [deleteState, setDeleteState] = useState<DeleteState>(null)
-  const [kardexEditForm, setKardexEditForm] = useState<KardexEditFormState | null>(null)
-  const [reconciliationEditForm, setReconciliationEditForm] =
-    useState<ReconciliationEditFormState | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -518,37 +515,24 @@ export const ReportesFinancieros = () => {
   }
 
   const handlePageChange = (key: PaginationKey, nextPage: number) => {
-    const totalItems = getTotalItems(key)
-
     setPagination((prev) => {
-      const state = prev[key]
-
-      if (isAllPageSize(state.pageSize)) {
-        if (state.page === 1) {
-          return prev
-        }
-
-        return {
-          ...prev,
-          [key]: { ...state, page: 1 },
-        }
-      }
-
-      const totalPages = Math.max(1, Math.ceil(totalItems / state.pageSize))
+      const { pageSize } = prev[key]
+      const totalItems = getTotalItems(key)
+      const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
       const page = Math.min(Math.max(1, nextPage), totalPages)
 
-      if (page === state.page) {
+      if (page === prev[key].page) {
         return prev
       }
 
       return {
         ...prev,
-        [key]: { ...state, page },
+        [key]: { ...prev[key], page },
       }
     })
   }
 
-  const handlePageSizeChange = (key: PaginationKey, size: PageSizeValue) => {
+  const handlePageSizeChange = (key: PaginationKey, size: number) => {
     setPagination((prev) => ({
       ...prev,
       [key]: { page: 1, pageSize: size },
@@ -570,14 +554,18 @@ export const ReportesFinancieros = () => {
   const handleRowAction = (
     tab: "kardex" | "reconciliaciones",
     action: RowAction,
-    row: KardexRow | ReconciliationRow,
+    reference?: string,
   ) => {
-    if (action === "delete") {
-      setDeleteState({ tab, row } as DeleteState)
-      return
-    }
+    const tabLabel = TAB_LABELS[tab]
+    const actionLabel = ACTION_LABELS[action]
 
-    setDetailModal({ tab, action, row } as DetailModalState)
+    toast({
+      title: `${actionLabel} (${tabLabel})`,
+      description:
+        reference && reference.trim().length > 0
+          ? `Acción pendiente de implementación para ${reference}.`
+          : "Acción pendiente de implementación.",
+    })
   }
 
   const estudiantesResumen = useMemo(() => cuotasDashboard?.summary ?? null, [cuotasDashboard])
@@ -597,13 +585,10 @@ export const ReportesFinancieros = () => {
     }
 
     const { page, pageSize } = pagination[key]
-    const isAll = isAllPageSize(pageSize)
-    const safeTotalItems = totalItems === 0 ? 0 : totalItems
-    const numericPageSize = getNumericPageSize(pageSize, safeTotalItems)
-    const totalPages = isAll ? 1 : Math.max(1, Math.ceil(totalItems / numericPageSize))
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
     const safePage = Math.min(page, totalPages)
-    const start = safeTotalItems === 0 ? 0 : (safePage - 1) * numericPageSize + 1
-    const end = isAll ? totalItems : Math.min(totalItems, safePage * numericPageSize)
+    const start = (safePage - 1) * pageSize + 1
+    const end = Math.min(totalItems, safePage * pageSize)
     const isLoading = getPaginationLoading(key)
 
     return (
@@ -616,18 +601,16 @@ export const ReportesFinancieros = () => {
             <span className="text-sm text-muted-foreground">Por página:</span>
             <Select
               value={String(pageSize)}
-              onValueChange={(value) =>
-                handlePageSizeChange(key, value === "all" ? "all" : Number(value))
-              }
+              onValueChange={(value) => handlePageSizeChange(key, Number(value))}
               disabled={isLoading}
             >
               <SelectTrigger className="w-[120px]">
                 <SelectValue placeholder="Elementos" />
               </SelectTrigger>
               <SelectContent>
-                {PAGE_SIZE_OPTIONS.map(({ value, label }) => (
-                  <SelectItem key={value} value={String(value)}>
-                    {label}
+                {PAGE_SIZE_OPTIONS.map((option) => (
+                  <SelectItem key={option} value={String(option)}>
+                    {option}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -663,248 +646,91 @@ export const ReportesFinancieros = () => {
 
   const paginatedKardexRows = useMemo(() => {
     const { page, pageSize } = pagination.kardex
-    if (isAllPageSize(pageSize)) {
-      return kardexRows
-    }
-
     const start = (page - 1) * pageSize
     return kardexRows.slice(start, start + pageSize)
   }, [kardexRows, pagination.kardex])
 
   const paginatedReconciliationRows = useMemo(() => {
     const { page, pageSize } = pagination.reconciliaciones
-    if (isAllPageSize(pageSize)) {
-      return reconciliationRows
-    }
-
     const start = (page - 1) * pageSize
     return reconciliationRows.slice(start, start + pageSize)
   }, [reconciliationRows, pagination.reconciliaciones])
 
   const paginatedCuotasRows = useMemo(() => {
     const { page, pageSize } = pagination.cuotas
-    if (isAllPageSize(pageSize)) {
-      return cuotasRows
-    }
-
     const start = (page - 1) * pageSize
     return cuotasRows.slice(start, start + pageSize)
   }, [cuotasRows, pagination.cuotas])
 
   const paginatedCuotasEstudiantes = useMemo(() => {
     const { page, pageSize } = pagination.cuotasEstudiantes
-    if (isAllPageSize(pageSize)) {
-      return estudiantes
-    }
-
     const start = (page - 1) * pageSize
     return estudiantes.slice(start, start + pageSize)
   }, [estudiantes, pagination.cuotasEstudiantes])
 
   useEffect(() => {
     setPagination((prev) => {
-      const state = prev.kardex
-
-      if (state.pageSize === "all") {
-        if (state.page === 1) {
-          return prev
-        }
-
-        return {
-          ...prev,
-          kardex: { ...state, page: 1 },
-        }
-      }
-
-      const totalPages = Math.max(1, Math.ceil(kardexRows.length / state.pageSize))
-      if (state.page <= totalPages) {
+      const { page, pageSize } = prev.kardex
+      const totalPages = Math.max(1, Math.ceil(kardexRows.length / pageSize))
+      if (page <= totalPages) {
         return prev
       }
 
       return {
         ...prev,
-        kardex: { ...state, page: totalPages },
+        kardex: { ...prev.kardex, page: totalPages },
       }
     })
   }, [kardexRows])
 
   useEffect(() => {
     setPagination((prev) => {
-      const state = prev.reconciliaciones
-
-      if (state.pageSize === "all") {
-        if (state.page === 1) {
-          return prev
-        }
-
-        return {
-          ...prev,
-          reconciliaciones: { ...state, page: 1 },
-        }
-      }
-
-      const totalPages = Math.max(1, Math.ceil(reconciliationRows.length / state.pageSize))
-      if (state.page <= totalPages) {
+      const { page, pageSize } = prev.reconciliaciones
+      const totalPages = Math.max(1, Math.ceil(reconciliationRows.length / pageSize))
+      if (page <= totalPages) {
         return prev
       }
 
       return {
         ...prev,
-        reconciliaciones: { ...state, page: totalPages },
+        reconciliaciones: { ...prev.reconciliaciones, page: totalPages },
       }
     })
   }, [reconciliationRows])
 
   useEffect(() => {
     setPagination((prev) => {
-      const state = prev.cuotas
-
-      if (state.pageSize === "all") {
-        if (state.page === 1) {
-          return prev
-        }
-
-        return {
-          ...prev,
-          cuotas: { ...state, page: 1 },
-        }
-      }
-
-      const totalPages = Math.max(1, Math.ceil(cuotasRows.length / state.pageSize))
-      if (state.page <= totalPages) {
+      const { page, pageSize } = prev.cuotas
+      const totalPages = Math.max(1, Math.ceil(cuotasRows.length / pageSize))
+      if (page <= totalPages) {
         return prev
       }
 
       return {
         ...prev,
-        cuotas: { ...state, page: totalPages },
+        cuotas: { ...prev.cuotas, page: totalPages },
       }
     })
   }, [cuotasRows])
 
   useEffect(() => {
     setPagination((prev) => {
-      const state = prev.cuotasEstudiantes
-
-      if (state.pageSize === "all") {
-        if (state.page === 1) {
-          return prev
-        }
-
-        return {
-          ...prev,
-          cuotasEstudiantes: { ...state, page: 1 },
-        }
-      }
-
-      const totalPages = Math.max(1, Math.ceil(estudiantes.length / state.pageSize))
-      if (state.page <= totalPages) {
+      const { page, pageSize } = prev.cuotasEstudiantes
+      const totalPages = Math.max(1, Math.ceil(estudiantes.length / pageSize))
+      if (page <= totalPages) {
         return prev
       }
 
       return {
         ...prev,
-        cuotasEstudiantes: { ...state, page: totalPages },
+        cuotasEstudiantes: { ...prev.cuotasEstudiantes, page: totalPages },
       }
     })
   }, [estudiantes])
 
-  useEffect(() => {
-    if (!detailModal || detailModal.action !== "edit") {
-      setKardexEditForm(null)
-      setReconciliationEditForm(null)
-      return
-    }
-
-    if (detailModal.tab === "kardex") {
-      const row = detailModal.row
-      setReconciliationEditForm(null)
-      setKardexEditForm({
-        monto_pagado: row.monto_pagado?.toString() ?? "",
-        fecha_pago: toDateInputValue(row.fecha_pago),
-        fecha_recibo: toDateInputValue(row.fecha_recibo),
-        metodo_pago: row.metodo_pago ?? "",
-        estado_pago: row.estado_pago ?? "pendiente_revision",
-        numero_boleta: row.numero_boleta ?? "",
-        banco: row.banco ?? "",
-        observaciones: row.observaciones ?? "",
-      })
-    } else {
-      const row = detailModal.row
-      setKardexEditForm(null)
-      setReconciliationEditForm({
-        amount: row.amount?.toString() ?? "",
-        date: toDateInputValue(row.date),
-        status: row.status ?? "pendiente",
-        bank: row.bank ?? "",
-        reference: row.reference ?? "",
-      })
-    }
-  }, [detailModal])
-
-  const closeDetailModal = () => {
-    setDetailModal(null)
-  }
-
-  const handleKardexEditSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    const current = detailModal
-    if (!current || current.tab !== "kardex" || current.action !== "edit") {
-      return
-    }
-
-    toast({
-      title: "Pago actualizado",
-      description: `${getKardexReference(current.row)} se actualizará en cuanto la edición esté disponible.`,
-    })
-
-    setDetailModal(null)
-  }
-
-  const handleReconciliationEditSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    const current = detailModal
-    if (!current || current.tab !== "reconciliaciones" || current.action !== "edit") {
-      return
-    }
-
-    toast({
-      title: "Conciliación actualizada",
-      description: `${getReconciliationReference(current.row)} se actualizará en cuanto la edición esté disponible.`,
-    })
-
-    setDetailModal(null)
-  }
-
-  const handleDeleteConfirm = () => {
-    if (!deleteState) {
-      return
-    }
-
-    const { tab, row } = deleteState
-    const reference = tab === "kardex" ? getKardexReference(row) : getReconciliationReference(row)
-
-    toast({
-      title: `Eliminar ${TAB_LABELS[tab]}`,
-      description: `${reference} se eliminará cuando la funcionalidad esté disponible.`,
-    })
-
-    setDeleteState(null)
-  }
-
   const activeFormFilters = formFiltersByTab[activeTab]
   const activeLoading = loadingStates[activeTab]
   const activeError = errors[activeTab]
-  const kardexModal = detailModal?.tab === "kardex" ? detailModal : null
-  const reconciliationModal =
-    detailModal?.tab === "reconciliaciones" ? detailModal : null
-  const deleteReference = deleteState
-    ? deleteState.tab === "kardex"
-      ? getKardexReference(deleteState.row)
-      : getReconciliationReference(deleteState.row)
-    : "este registro"
 
   return (
     <div className="space-y-6">
@@ -986,9 +812,7 @@ export const ReportesFinancieros = () => {
                 <Select
                   value={String(activeFormFilters.limit)}
                   onValueChange={(value) =>
-                    handleFiltersChange(activeTab, {
-                      limit: value === "all" ? "all" : Number(value),
-                    })
+                    handleFiltersChange(activeTab, { limit: Number(value) })
                   }
                 >
                   <SelectTrigger className="w-full min-w-[120px] sm:w-[140px]">
@@ -1162,6 +986,9 @@ export const ReportesFinancieros = () => {
                       const estado = row.estado_pago ?? ""
                       const estadoClase = estadoPagoClasses[estado] ?? "bg-slate-500/15 text-slate-700 border-slate-500/30"
                       const estadoLabel = estadoPagoLabels[estado] ?? (estado ? estado.replace(/_/g, " ") : "Sin estado")
+                      const referenceLabel = row.numero_boleta
+                        ? `Boleta ${row.numero_boleta}`
+                        : `Pago #${row.id}`
 
                       return (
                         <TableRow key={row.id}>
@@ -1213,7 +1040,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("kardex", "view", row)}
+                                onClick={() => handleRowAction("kardex", "view", referenceLabel)}
                                 aria-label="Ver detalle"
                               >
                                 <Eye className="h-4 w-4" />
@@ -1222,7 +1049,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("kardex", "edit", row)}
+                                onClick={() => handleRowAction("kardex", "edit", referenceLabel)}
                                 aria-label="Editar"
                               >
                                 <Pencil className="h-4 w-4" />
@@ -1231,7 +1058,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("kardex", "delete", row)}
+                                onClick={() => handleRowAction("kardex", "delete", referenceLabel)}
                                 aria-label="Eliminar"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -1286,6 +1113,7 @@ export const ReportesFinancieros = () => {
                       const estado = row.status ?? ""
                       const estadoClase = conciliacionClasses[estado] ?? "bg-slate-500/15 text-slate-700 border-slate-500/30"
                       const estadoLabel = conciliacionLabels[estado] ?? (estado ? estado.replace(/_/g, " ") : "Sin estado")
+                      const reference = row.reference ?? `Conciliación #${row.id}`
 
                       return (
                         <TableRow key={row.id}>
@@ -1321,7 +1149,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("reconciliaciones", "view", row)}
+                                onClick={() => handleRowAction("reconciliaciones", "view", reference)}
                                 aria-label="Ver detalle"
                               >
                                 <Eye className="h-4 w-4" />
@@ -1330,7 +1158,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("reconciliaciones", "edit", row)}
+                                onClick={() => handleRowAction("reconciliaciones", "edit", reference)}
                                 aria-label="Editar"
                               >
                                 <Pencil className="h-4 w-4" />
@@ -1339,7 +1167,7 @@ export const ReportesFinancieros = () => {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRowAction("reconciliaciones", "delete", row)}
+                                onClick={() => handleRowAction("reconciliaciones", "delete", reference)}
                                 aria-label="Eliminar"
                               >
                                 <Trash2 className="h-4 w-4" />
