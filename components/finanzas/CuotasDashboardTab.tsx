@@ -9,12 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   getCuotasDashboard,
-  getEstudiantesActivos,
   getKardexDashboard,
   type CuotasDashboardEstudiante,
   type CuotasDashboardMetrics,
   type CuotasDashboardResumen,
-  type EstudianteActivoResumen,
   type MantenimientosFilters,
 } from "@/services/mantenimientos"
 
@@ -67,120 +65,6 @@ const PAGE_SIZE_OPTIONS = [
 
 type PageSizeValue = number | "all"
 
-const mergeCuotasWithActivos = (
-  cuotas: CuotasDashboardEstudiante[],
-  activos: EstudianteActivoResumen[],
-) => {
-  const merged = cuotas.map((item) => ({ ...item }))
-  const indexByKey = new Map<string, number>()
-
-  const keyFromCuota = (item: CuotasDashboardEstudiante, index: number) => {
-    if (item.estudiante_programa_id !== null && item.estudiante_programa_id !== undefined) {
-      return `ep-${item.estudiante_programa_id}`
-    }
-
-    if (item.prospecto?.id !== null && item.prospecto?.id !== undefined) {
-      return `prospecto-${item.prospecto.id}`
-    }
-
-    return `idx-${index}`
-  }
-
-  merged.forEach((item, index) => {
-    indexByKey.set(keyFromCuota(item, index), index)
-  })
-
-  const ensureProspect = (
-    previous: CuotasDashboardEstudiante["prospecto"],
-    activo: EstudianteActivoResumen,
-  ): CuotasDashboardEstudiante["prospecto"] => {
-    const base =
-      previous ??
-      ({
-        id: activo.prospecto_id ?? null,
-        nombre: activo.nombre_completo ?? "Sin nombre",
-        carnet: activo.carnet ?? "",
-        correo: activo.correo_electronico ?? "",
-      } as CuotasDashboardEstudiante["prospecto"])
-
-    return {
-      ...base,
-      id: base.id ?? activo.prospecto_id ?? null,
-      nombre: base.nombre ?? activo.nombre_completo ?? "Sin nombre",
-      carnet: base.carnet ?? activo.carnet ?? "",
-      correo: base.correo ?? activo.correo_electronico ?? "",
-      telefono: base.telefono ?? null,
-    }
-  }
-
-  const ensurePrograma = (
-    previous: CuotasDashboardEstudiante["programa"],
-    activo: EstudianteActivoResumen,
-  ): CuotasDashboardEstudiante["programa"] => {
-    if (previous) {
-      return previous
-    }
-
-    if (activo.nomenclatura) {
-      return { id: null, nombre: activo.nomenclatura }
-    }
-
-    return previous
-  }
-
-  activos.forEach((activo) => {
-    if (!activo) {
-      return
-    }
-
-    const key =
-      activo.estudiante_programa_id !== null && activo.estudiante_programa_id !== undefined
-        ? `ep-${activo.estudiante_programa_id}`
-        : activo.prospecto_id !== null && activo.prospecto_id !== undefined
-          ? `prospecto-${activo.prospecto_id}`
-          : null
-
-    if (!key) {
-      return
-    }
-
-    const existingIndex = indexByKey.get(key)
-
-    if (existingIndex !== undefined) {
-      const previous = merged[existingIndex]
-      merged[existingIndex] = {
-        ...previous,
-        estudiante_programa_id: previous.estudiante_programa_id ?? activo.estudiante_programa_id ?? null,
-        prospecto: ensureProspect(previous.prospecto, activo),
-        programa: ensurePrograma(previous.programa, activo),
-      }
-
-      return
-    }
-
-    merged.push({
-      estudiante_programa_id: activo.estudiante_programa_id ?? null,
-      prospecto: {
-        id: activo.prospecto_id ?? null,
-        nombre: activo.nombre_completo ?? "Sin nombre",
-        carnet: activo.carnet ?? "",
-        correo: activo.correo_electronico ?? "",
-        telefono: null,
-      },
-      programa: activo.nomenclatura ? { id: null, nombre: activo.nomenclatura } : null,
-      saldo_pendiente: null,
-      cuotas_pendientes: null,
-      cuotas_pagadas: null,
-      proxima_cuota: null,
-      cuotas: [],
-    })
-
-    indexByKey.set(key, merged.length - 1)
-  })
-
-  return merged
-}
-
 interface CuotasDashboardTabProps {
   filters?: MantenimientosFilters
   onLoadingChange?: (loading: boolean) => void
@@ -201,11 +85,10 @@ export const CuotasDashboardTab = ({
   const [summary, setSummary] = useState<CuotasDashboardResumen | null>(null)
   const [timestamp, setTimestamp] = useState<string | null>(null)
   const [estudiantes, setEstudiantes] = useState<CuotasDashboardEstudiante[]>([])
-  const [activeStudentsTotal, setActiveStudentsTotal] = useState<number | null>(null)
-  const [activeStudentsTimestamp, setActiveStudentsTimestamp] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<PageSizeValue>(10)
   const abortControllerRef = useRef<AbortController | null>(null)
+
   const totalItems = estudiantes.length
 
   const paginatedEstudiantes = useMemo(() => {
@@ -255,17 +138,6 @@ export const CuotasDashboardTab = ({
     console.info("[Reportes financieros] Resumen de cuotas", summary)
   }, [summary])
 
-  useEffect(() => {
-    if (activeStudentsTotal === null) {
-      return
-    }
-
-    console.info("[Reportes financieros] Total de estudiantes activos", {
-      total: activeStudentsTotal,
-      timestamp: activeStudentsTimestamp ?? undefined,
-    })
-  }, [activeStudentsTotal, activeStudentsTimestamp])
-
   const fetchCuotas = useCallback(async () => {
     abortControllerRef.current?.abort()
     const controller = new AbortController()
@@ -277,10 +149,9 @@ export const CuotasDashboardTab = ({
     onError?.(null)
 
     try {
-      const [dashboardResponse, cuotasDashboardResponse, activosResponse] = await Promise.all([
+      const [dashboardResponse, cuotasDashboardResponse] = await Promise.all([
         getKardexDashboard(filters, { signal: controller.signal }),
         getCuotasDashboard(filters, { signal: controller.signal }),
-        getEstudiantesActivos(filters, { signal: controller.signal }),
       ])
 
       if (controller.signal.aborted) {
@@ -289,51 +160,14 @@ export const CuotasDashboardTab = ({
 
       const cuotasSummary = cuotasDashboardResponse.summary ?? null
       const cuotasTimestamp = cuotasDashboardResponse.timestamp ?? null
-      const estudiantesResponse = Array.isArray(cuotasDashboardResponse.estudiantes)
-        ? cuotasDashboardResponse.estudiantes
-        : []
+      const estudiantesResponse = cuotasDashboardResponse.estudiantes ?? []
       const metrics = dashboardResponse.cuotas ?? null
 
-      const activosEstudiantes = Array.isArray(activosResponse.estudiantes)
-        ? activosResponse.estudiantes
-        : []
-      const activosTotal =
-        typeof activosResponse.total_estudiantes_activos === "number"
-          ? activosResponse.total_estudiantes_activos
-          : activosEstudiantes.length
-      const activosTimestamp = activosResponse.timestamp ?? null
-
-      const nextSummaryBase: CuotasDashboardResumen | null =
-        cuotasSummary ??
-        (Number.isFinite(activosTotal)
-          ? {
-              estudiantes_activos: activosTotal,
-              saldo_estimado: 0,
-              en_mora: 0,
-              planes_reestructurados: 0,
-            }
-          : null)
-
-      const nextSummary =
-        nextSummaryBase && Number.isFinite(activosTotal)
-          ? {
-              ...nextSummaryBase,
-              estudiantes_activos:
-                activosTotal > 0
-                  ? activosTotal
-                  : nextSummaryBase.estudiantes_activos ?? activosTotal,
-            }
-          : nextSummaryBase
-
-      const mergedEstudiantes = mergeCuotasWithActivos(estudiantesResponse, activosEstudiantes)
-
-      setSummary(nextSummary)
-      setTimestamp(cuotasTimestamp ?? activosTimestamp ?? null)
-      setEstudiantes(mergedEstudiantes)
-      setActiveStudentsTotal(Number.isFinite(activosTotal) ? activosTotal : null)
-      setActiveStudentsTimestamp(activosTimestamp ?? null)
+      setSummary(cuotasSummary)
+      setTimestamp(cuotasTimestamp)
+      setEstudiantes(estudiantesResponse)
       setPage(1)
-      onSummaryChange?.(nextSummary, cuotasTimestamp ?? activosTimestamp ?? null)
+      onSummaryChange?.(cuotasSummary, cuotasTimestamp)
       onMetricsChange?.(metrics)
     } catch (err) {
       if ((err as { code?: string })?.code === "ERR_CANCELED") {
@@ -344,8 +178,6 @@ export const CuotasDashboardTab = ({
       setSummary(null)
       setTimestamp(null)
       setEstudiantes([])
-      setActiveStudentsTotal(null)
-      setActiveStudentsTimestamp(null)
       setError("Error al cargar las cuotas.")
       onSummaryChange?.(null, null)
       onMetricsChange?.(null)
@@ -478,21 +310,9 @@ export const CuotasDashboardTab = ({
                       </div>
                     </TableCell>
                     <TableCell className="min-w-[160px]">{estudiante.programa?.nombre ?? "-"}</TableCell>
-                    <TableCell>
-                      {estudiante.saldo_pendiente !== null && estudiante.saldo_pendiente !== undefined
-                        ? formatCurrency(estudiante.saldo_pendiente)
-                        : "-"}
-                    </TableCell>
-                    <TableCell>
-                      {estudiante.cuotas_pendientes !== null && estudiante.cuotas_pendientes !== undefined
-                        ? estudiante.cuotas_pendientes
-                        : "-"}
-                    </TableCell>
-                    <TableCell>
-                      {estudiante.cuotas_pagadas !== null && estudiante.cuotas_pagadas !== undefined
-                        ? estudiante.cuotas_pagadas
-                        : "-"}
-                    </TableCell>
+                    <TableCell>{formatCurrency(estudiante.saldo_pendiente)}</TableCell>
+                    <TableCell>{estudiante.cuotas_pendientes}</TableCell>
+                    <TableCell>{estudiante.cuotas_pagadas}</TableCell>
                     <TableCell>
                       {estudiante.proxima_cuota ? (
                         <div className="text-xs">
