@@ -266,3 +266,76 @@ export const getEstudiantesActivos = async (
 
   return response.data
 }
+
+// CRUD operations for Cuotas
+
+export interface CuotaCreatePayload {
+  estudiante_programa_id: number
+  numero_cuota: number
+  fecha_vencimiento: string
+  monto: number
+  estado?: string
+  observaciones?: string
+}
+
+export interface CuotaUpdatePayload {
+  numero_cuota?: number
+  fecha_vencimiento?: string
+  monto?: number
+  estado?: string
+  paid_at?: string | null
+  observaciones?: string
+}
+
+export interface CuotaListResponse {
+  data: CuotaProgramaResumen[]
+  pagination?: {
+    total: number
+    per_page: number
+    current_page: number
+    last_page: number
+  }
+}
+
+export const getCuotas = async (
+  params?: MantenimientosFilters & {
+    carnet?: string
+    estudiante_programa_id?: number
+    page?: number
+    limit?: number
+  },
+  config?: AxiosRequestConfig,
+): Promise<CuotaListResponse> => {
+  const response = await api.get<CuotaListResponse>("/mantenimientos/cuotas", {
+    ...(config ?? {}),
+    params: sanitizeParams(params),
+  })
+
+  return response.data
+}
+
+export const getCuota = async (id: number, config?: AxiosRequestConfig): Promise<CuotaProgramaResumen> => {
+  const response = await api.get<CuotaProgramaResumen>(`/mantenimientos/cuotas/${id}`, config)
+  return response.data
+}
+
+export const createCuota = async (
+  payload: CuotaCreatePayload,
+  config?: AxiosRequestConfig,
+): Promise<CuotaProgramaResumen> => {
+  const response = await api.post<CuotaProgramaResumen>("/mantenimientos/cuotas", payload, config)
+  return response.data
+}
+
+export const updateCuota = async (
+  id: number,
+  payload: CuotaUpdatePayload,
+  config?: AxiosRequestConfig,
+): Promise<CuotaProgramaResumen> => {
+  const response = await api.put<CuotaProgramaResumen>(`/mantenimientos/cuotas/${id}`, payload, config)
+  return response.data
+}
+
+export const deleteCuota = async (id: number, config?: AxiosRequestConfig): Promise<void> => {
+  await api.delete(`/mantenimientos/cuotas/${id}`, config)
+}
