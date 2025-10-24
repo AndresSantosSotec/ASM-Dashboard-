@@ -37,16 +37,23 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Eye, Loader2, Pencil, RefreshCw, Trash2 } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Eye, Loader2, Pencil, Plus, RefreshCw, Trash2, Calendar } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getCuotasDashboard,
   getKardexDashboard,
   getKardexData,
+  createCuota,
+  updateCuota,
+  deleteCuota,
   type CuotaProgramaResumen,
   type CuotasDashboardEstudiante,
   type CuotasDashboardResponse,
   type CuotasDashboardMetrics,
+  type CuotaDetalladaResumen,
+  type CuotaCreatePayload,
+  type CuotaUpdatePayload,
   type KardexDashboardMetrics,
   type KardexPagoResumen,
   type ReconciliationDashboardMetrics,
@@ -152,7 +159,7 @@ const BASE_FILTERS: ReportFilters = {
   limit: "all",
 }
 
-type TabKey = "kardex" | "reconciliaciones" | "cuotas"
+type TabKey = "kardex" | "reconciliaciones" | "cuotas" | "generacion-masiva"
 type PaginationKey = "kardex" | "reconciliaciones" | "cuotasEstudiantes" | "cuotas"
 
 type PageSizeValue = number | "all"
@@ -286,21 +293,25 @@ export const ReportesFinancieros = () => {
     kardex: createDefaultFilters(),
     reconciliaciones: createDefaultFilters(),
     cuotas: createDefaultFilters(),
+    "generacion-masiva": createDefaultFilters(),
   })
   const [formFiltersByTab, setFormFiltersByTab] = useState<Record<TabKey, ReportFilters>>({
     kardex: createDefaultFilters(),
     reconciliaciones: createDefaultFilters(),
     cuotas: createDefaultFilters(),
+    "generacion-masiva": createDefaultFilters(),
   })
   const [loadingStates, setLoadingStates] = useState<Record<TabKey, boolean>>({
     kardex: false,
     reconciliaciones: false,
     cuotas: false,
+    "generacion-masiva": false,
   })
   const [errors, setErrors] = useState<Record<TabKey, string | null>>({
     kardex: null,
     reconciliaciones: null,
     cuotas: null,
+    "generacion-masiva": null,
   })
   const [kardexTotals, setKardexTotals] = useState<KardexDashboardMetrics | null>(null)
   const [reconciliacionTotals, setReconciliacionTotals] =
@@ -328,6 +339,45 @@ export const ReportesFinancieros = () => {
   const [reconciliationEditForm, setReconciliationEditForm] = useState<ReconciliationEditFormState | null>(null)
   const [deleteState, setDeleteState] = useState<DeleteState>(null)
   const [deleteReference, setDeleteReference] = useState<string>("")
+
+  // Estados para el modal de cuotas del estudiante
+  const [selectedEstudiante, setSelectedEstudiante] = useState<CuotasDashboardEstudiante | null>(null)
+  const [showCuotasModal, setShowCuotasModal] = useState(false)
+  const [selectedCuota, setSelectedCuota] = useState<CuotaDetalladaResumen | null>(null)
+  const [showCreateCuotaModal, setShowCreateCuotaModal] = useState(false)
+  const [showEditCuotaModal, setShowEditCuotaModal] = useState(false)
+  const [showDeleteCuotaDialog, setShowDeleteCuotaDialog] = useState(false)
+  const [cuotaCreateForm, setCuotaCreateForm] = useState({
+    numero_cuota: 1,
+    fecha_vencimiento: "",
+    monto: 0,
+    estado: "pendiente",
+    observaciones: "",
+  })
+  const [cuotaEditForm, setCuotaEditForm] = useState({
+    numero_cuota: 0,
+    fecha_vencimiento: "",
+    monto: 0,
+    estado: "pendiente",
+  })
+
+  // Estados para generación masiva de cuotas
+  const [bulkGenerationFilters, setBulkGenerationFilters] = useState({
+    search: "",
+    carnet: "",
+  })
+  const [selectedStudents, setSelectedStudents] = useState<Set<number>>(new Set())
+  const [bulkCuotaForm, setBulkCuotaForm] = useState({
+    anio: new Date().getFullYear(),
+    mes_inicio: 1,
+    mes_fin: 12,
+    monto_por_mes: 0,
+    estado: "pendiente",
+    observaciones: "",
+  })
+  const [isGeneratingBulk, setIsGeneratingBulk] = useState(false)
+  const [allStudentsData, setAllStudentsData] = useState<CuotasDashboardEstudiante[]>([])
+  const [isLoadingAllStudents, setIsLoadingAllStudents] = useState(false)
 
   const closeDetailModal = useCallback(() => {
     setKardexModal(null)
@@ -671,8 +721,322 @@ export const ReportesFinancieros = () => {
     setDeleteReference("")
   }, [deleteState, deleteReference, toast])
 
+  // Handlers para el modal de cuotas
+  const handleViewCuotas = useCallback((estudiante: CuotasDashboardEstudiante) => {
+    setSelectedEstudiante(estudiante)
+    setShowCuotasModal(true)
+  }, [])
+
+  const handleCreateCuota = useCallback(() => {
+    if (!selectedEstudiante) return
+    
+    // Calcular el próximo número de cuota
+    const maxCuota = selectedEstudiante.cuotas?.length > 0 
+      ? Math.max(...selectedEstudiante.cuotas.map(c => c.numero_cuota))
+      : 0
+    
+    setCuotaCreateForm({
+      numero_cuota: maxCuota + 1,
+      fecha_vencimiento: "",
+      monto: 0,
+      estado: "pendiente",
+      observaciones: "",
+    })
+    setShowCreateCuotaModal(true)
+  }, [selectedEstudiante])
+
+  const handleEditCuota = useCallback((cuota: CuotaDetalladaResumen) => {
+    setSelectedCuota(cuota)
+    setCuotaEditForm({
+      numero_cuota: cuota.numero_cuota,
+      fecha_vencimiento: cuota.fecha_vencimiento || "",
+      monto: cuota.monto,
+      estado: cuota.estado || "pendiente",
+    })
+    setShowEditCuotaModal(true)
+  }, [])
+
+  const handleDeleteCuota = useCallback((cuota: CuotaDetalladaResumen) => {
+    setSelectedCuota(cuota)
+    setShowDeleteCuotaDialog(true)
+  }, [])
+
+  const submitCreateCuota = useCallback(async () => {
+    if (!selectedEstudiante?.estudiante_programa_id) {
+      toast({
+        title: "Error",
+        description: "No se ha seleccionado un estudiante",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const payload: CuotaCreatePayload = {
+        estudiante_programa_id: selectedEstudiante.estudiante_programa_id,
+        numero_cuota: cuotaCreateForm.numero_cuota,
+        fecha_vencimiento: cuotaCreateForm.fecha_vencimiento,
+        monto: cuotaCreateForm.monto,
+        estado: cuotaCreateForm.estado,
+        observaciones: cuotaCreateForm.observaciones || undefined,
+      }
+
+      await createCuota(payload)
+      toast({
+        title: "Cuota creada",
+        description: "La cuota se ha creado exitosamente",
+      })
+      setShowCreateCuotaModal(false)
+      
+      // Recargar los datos
+      const params = buildRequestFilters(filtersByTab.cuotas)
+      const cuotasDashboardResponse = await getCuotasDashboard(params)
+      setCuotasDashboard(cuotasDashboardResponse)
+      
+      // Actualizar el estudiante seleccionado
+      const updatedEstudiante = cuotasDashboardResponse.estudiantes.find(
+        (e) => e.estudiante_programa_id === selectedEstudiante.estudiante_programa_id
+      )
+      if (updatedEstudiante) {
+        setSelectedEstudiante(updatedEstudiante)
+      }
+    } catch (error: any) {
+      console.error("Error creating cuota:", error)
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Error al crear la cuota",
+        variant: "destructive",
+      })
+    }
+  }, [selectedEstudiante, cuotaCreateForm, toast, filtersByTab.cuotas])
+
+  const submitEditCuota = useCallback(async () => {
+    if (!selectedCuota) return
+
+    try {
+      const payload: CuotaUpdatePayload = {
+        numero_cuota: cuotaEditForm.numero_cuota,
+        fecha_vencimiento: cuotaEditForm.fecha_vencimiento,
+        monto: cuotaEditForm.monto,
+        estado: cuotaEditForm.estado,
+      }
+
+      await updateCuota(selectedCuota.id, payload)
+      toast({
+        title: "Cuota actualizada",
+        description: "La cuota se ha actualizado exitosamente",
+      })
+      setShowEditCuotaModal(false)
+      
+      // Recargar los datos
+      const params = buildRequestFilters(filtersByTab.cuotas)
+      const cuotasDashboardResponse = await getCuotasDashboard(params)
+      setCuotasDashboard(cuotasDashboardResponse)
+      
+      // Actualizar el estudiante seleccionado
+      const updatedEstudiante = cuotasDashboardResponse.estudiantes.find(
+        (e) => e.estudiante_programa_id === selectedEstudiante?.estudiante_programa_id
+      )
+      if (updatedEstudiante) {
+        setSelectedEstudiante(updatedEstudiante)
+      }
+    } catch (error: any) {
+      console.error("Error updating cuota:", error)
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Error al actualizar la cuota",
+        variant: "destructive",
+      })
+    }
+  }, [selectedCuota, cuotaEditForm, toast, filtersByTab.cuotas, selectedEstudiante])
+
+  const submitDeleteCuota = useCallback(async () => {
+    if (!selectedCuota) return
+
+    try {
+      await deleteCuota(selectedCuota.id)
+      toast({
+        title: "Cuota eliminada",
+        description: "La cuota se ha eliminado exitosamente",
+      })
+      setShowDeleteCuotaDialog(false)
+      
+      // Recargar los datos
+      const params = buildRequestFilters(filtersByTab.cuotas)
+      const cuotasDashboardResponse = await getCuotasDashboard(params)
+      setCuotasDashboard(cuotasDashboardResponse)
+      
+      // Actualizar el estudiante seleccionado
+      const updatedEstudiante = cuotasDashboardResponse.estudiantes.find(
+        (e) => e.estudiante_programa_id === selectedEstudiante?.estudiante_programa_id
+      )
+      if (updatedEstudiante) {
+        setSelectedEstudiante(updatedEstudiante)
+      }
+    } catch (error: any) {
+      console.error("Error deleting cuota:", error)
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Error al eliminar la cuota",
+        variant: "destructive",
+      })
+    }
+  }, [selectedCuota, toast, filtersByTab.cuotas, selectedEstudiante])
+
+  // Handlers para generación masiva
+  const loadAllStudents = useCallback(async () => {
+    setIsLoadingAllStudents(true)
+    try {
+      const response = await getCuotasDashboard({ limit: 10000 })
+      setAllStudentsData(response.estudiantes || [])
+    } catch (error: any) {
+      console.error("Error loading all students:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los estudiantes",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingAllStudents(false)
+    }
+  }, [toast])
+
+  const toggleStudentSelection = useCallback((estudianteId: number) => {
+    setSelectedStudents(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(estudianteId)) {
+        newSet.delete(estudianteId)
+      } else {
+        newSet.add(estudianteId)
+      }
+      return newSet
+    })
+  }, [])
+
+  const toggleAllStudents = useCallback((students: CuotasDashboardEstudiante[]) => {
+    if (selectedStudents.size === students.length) {
+      setSelectedStudents(new Set())
+    } else {
+      setSelectedStudents(new Set(students.map(s => s.estudiante_programa_id).filter((id): id is number => id !== null)))
+    }
+  }, [selectedStudents.size])
+
+  const generateBulkCuotas = useCallback(async () => {
+    if (selectedStudents.size === 0) {
+      toast({
+        title: "Error",
+        description: "Debe seleccionar al menos un estudiante",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (bulkCuotaForm.mes_inicio > bulkCuotaForm.mes_fin) {
+      toast({
+        title: "Error",
+        description: "El mes de inicio debe ser menor o igual al mes final",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (bulkCuotaForm.monto_por_mes <= 0) {
+      toast({
+        title: "Error",
+        description: "El monto debe ser mayor a 0",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsGeneratingBulk(true)
+
+    try {
+      const cuotasToCreate: CuotaCreatePayload[] = []
+      
+      // Para cada estudiante seleccionado
+      for (const estudianteId of Array.from(selectedStudents)) {
+        const estudiante = allStudentsData.find(e => e.estudiante_programa_id === estudianteId)
+        if (!estudiante) continue
+
+        // Calcular el número de cuota inicial
+        const maxCuota = estudiante.cuotas?.length > 0 
+          ? Math.max(...estudiante.cuotas.map(c => c.numero_cuota))
+          : 0
+        
+        let numeroCuota = maxCuota + 1
+
+        // Generar cuotas para cada mes en el rango
+        for (let mes = bulkCuotaForm.mes_inicio; mes <= bulkCuotaForm.mes_fin; mes++) {
+          // Calcular fecha de vencimiento (último día del mes)
+          const ultimoDia = new Date(bulkCuotaForm.anio, mes, 0).getDate()
+          const fechaVencimiento = `${bulkCuotaForm.anio}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`
+
+          cuotasToCreate.push({
+            estudiante_programa_id: estudianteId,
+            numero_cuota: numeroCuota,
+            fecha_vencimiento: fechaVencimiento,
+            monto: bulkCuotaForm.monto_por_mes,
+            estado: bulkCuotaForm.estado,
+            observaciones: bulkCuotaForm.observaciones || undefined,
+          })
+
+          numeroCuota++
+        }
+      }
+
+      // Crear todas las cuotas
+      const promises = cuotasToCreate.map(payload => createCuota(payload))
+      await Promise.all(promises)
+
+      toast({
+        title: "Cuotas creadas",
+        description: `Se crearon ${cuotasToCreate.length} cuotas exitosamente`,
+      })
+
+      // Limpiar selección y recargar datos
+      setSelectedStudents(new Set())
+      await loadAllStudents()
+
+    } catch (error: any) {
+      console.error("Error generating bulk cuotas:", error)
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Error al generar las cuotas",
+        variant: "destructive",
+      })
+    } finally {
+      setIsGeneratingBulk(false)
+    }
+  }, [selectedStudents, allStudentsData, bulkCuotaForm, toast, loadAllStudents])
+
+  // Cargar todos los estudiantes cuando se activa el tab de generación masiva
+  useEffect(() => {
+    if (activeTab === "generacion-masiva" && allStudentsData.length === 0) {
+      loadAllStudents()
+    }
+  }, [activeTab, allStudentsData.length, loadAllStudents])
+
   const estudiantesResumen = useMemo(() => cuotasDashboard?.summary ?? null, [cuotasDashboard])
   const estudiantes = useMemo(() => cuotasDashboard?.estudiantes ?? [], [cuotasDashboard])
+
+  // Filtrar estudiantes para generación masiva
+  const filteredBulkStudents = useMemo(() => {
+    return allStudentsData.filter(estudiante => {
+      const searchLower = bulkGenerationFilters.search.toLowerCase()
+      const carnetLower = bulkGenerationFilters.carnet.toLowerCase()
+      
+      const matchesSearch = !searchLower || 
+        estudiante.prospecto?.nombre?.toLowerCase().includes(searchLower) ||
+        // estudiante.prospecto?.apellido_paterno?.toLowerCase().includes(searchLower) ||
+        estudiante.prospecto?.apellido_materno?.toLowerCase().includes(searchLower)
+      
+      const matchesCarnet = !carnetLower || 
+        (estudiante.prospecto as any)?.carnet?.toLowerCase().includes(carnetLower)
+      
+      return matchesSearch && matchesCarnet
+    })
+  }, [allStudentsData, bulkGenerationFilters])
 
   const renderTablePlaceholder = (message: string, columns = 7, isLoading = false) => (
     <TableRow>
@@ -1072,6 +1436,7 @@ export const ReportesFinancieros = () => {
           <TabsTrigger value="kardex" className="flex-1">Kardex</TabsTrigger>
           <TabsTrigger value="reconciliaciones" className="flex-1">Conciliaciones</TabsTrigger>
           <TabsTrigger value="cuotas" className="flex-1">Cuotas</TabsTrigger>
+          <TabsTrigger value="generacion-masiva" className="flex-1">Generación Masiva</TabsTrigger>
         </TabsList>
 
         <TabsContent value="kardex" className="space-y-4 pt-4">
@@ -1325,13 +1690,14 @@ export const ReportesFinancieros = () => {
                     <TableHead>Cuotas pendientes</TableHead>
                     <TableHead>Cuotas pagadas</TableHead>
                     <TableHead>Próxima cuota</TableHead>
+                    <TableHead className="text-center">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {estudiantes.length === 0 ? (
                     renderTablePlaceholder(
                       "No se encontraron estudiantes con cuotas para los filtros seleccionados",
-                      6,
+                      7,
                       loadingStates.cuotas,
                     )
                   ) : (
@@ -1366,6 +1732,15 @@ export const ReportesFinancieros = () => {
                               <span className="text-xs text-muted-foreground">Sin próximas cuotas</span>
                             )}
                           </TableCell>
+                          <TableCell className="text-center">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewCuotas(estudiante)}
+                            >
+                              Ver Cuotas
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ),
                     )
@@ -1375,10 +1750,539 @@ export const ReportesFinancieros = () => {
               {renderPaginationControls("cuotasEstudiantes", estudiantes.length)}
             </CardContent>
           </Card>
+        </TabsContent>
 
+        <TabsContent value="generacion-masiva" className="space-y-4 pt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Generación Masiva de Cuotas
+              </CardTitle>
+              <CardDescription>
+                Genere múltiples cuotas para uno o varios estudiantes en un rango de fechas por meses
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Formulario de configuración */}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="bulk-anio">Año</Label>
+                  <Input
+                    id="bulk-anio"
+                    type="number"
+                    min="2020"
+                    max="2050"
+                    value={bulkCuotaForm.anio}
+                    onChange={(e) => setBulkCuotaForm({ ...bulkCuotaForm, anio: parseInt(e.target.value) || new Date().getFullYear() })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bulk-mes-inicio">Mes Inicio</Label>
+                  <Select
+                    value={String(bulkCuotaForm.mes_inicio)}
+                    onValueChange={(value) => setBulkCuotaForm({ ...bulkCuotaForm, mes_inicio: parseInt(value) })}
+                  >
+                    <SelectTrigger id="bulk-mes-inicio">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Enero</SelectItem>
+                      <SelectItem value="2">Febrero</SelectItem>
+                      <SelectItem value="3">Marzo</SelectItem>
+                      <SelectItem value="4">Abril</SelectItem>
+                      <SelectItem value="5">Mayo</SelectItem>
+                      <SelectItem value="6">Junio</SelectItem>
+                      <SelectItem value="7">Julio</SelectItem>
+                      <SelectItem value="8">Agosto</SelectItem>
+                      <SelectItem value="9">Septiembre</SelectItem>
+                      <SelectItem value="10">Octubre</SelectItem>
+                      <SelectItem value="11">Noviembre</SelectItem>
+                      <SelectItem value="12">Diciembre</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bulk-mes-fin">Mes Final</Label>
+                  <Select
+                    value={String(bulkCuotaForm.mes_fin)}
+                    onValueChange={(value) => setBulkCuotaForm({ ...bulkCuotaForm, mes_fin: parseInt(value) })}
+                  >
+                    <SelectTrigger id="bulk-mes-fin">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Enero</SelectItem>
+                      <SelectItem value="2">Febrero</SelectItem>
+                      <SelectItem value="3">Marzo</SelectItem>
+                      <SelectItem value="4">Abril</SelectItem>
+                      <SelectItem value="5">Mayo</SelectItem>
+                      <SelectItem value="6">Junio</SelectItem>
+                      <SelectItem value="7">Julio</SelectItem>
+                      <SelectItem value="8">Agosto</SelectItem>
+                      <SelectItem value="9">Septiembre</SelectItem>
+                      <SelectItem value="10">Octubre</SelectItem>
+                      <SelectItem value="11">Noviembre</SelectItem>
+                      <SelectItem value="12">Diciembre</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bulk-monto">Monto por Mes</Label>
+                  <Input
+                    id="bulk-monto"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={bulkCuotaForm.monto_por_mes}
+                    onChange={(e) => setBulkCuotaForm({ ...bulkCuotaForm, monto_por_mes: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bulk-estado">Estado</Label>
+                  <Select
+                    value={bulkCuotaForm.estado}
+                    onValueChange={(value) => setBulkCuotaForm({ ...bulkCuotaForm, estado: value })}
+                  >
+                    <SelectTrigger id="bulk-estado">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pendiente">Pendiente</SelectItem>
+                      <SelectItem value="pagado">Pagado</SelectItem>
+                      <SelectItem value="vencido">Vencido</SelectItem>
+                      <SelectItem value="parcial">Pago Parcial</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 md:col-span-2 lg:col-span-1">
+                  <Label htmlFor="bulk-observaciones">Observaciones (opcional)</Label>
+                  <Input
+                    id="bulk-observaciones"
+                    value={bulkCuotaForm.observaciones}
+                    onChange={(e) => setBulkCuotaForm({ ...bulkCuotaForm, observaciones: e.target.value })}
+                    placeholder="Notas adicionales..."
+                  />
+                </div>
+              </div>
 
+              {/* Resumen de generación */}
+              <Card className="bg-muted/50">
+                <CardContent className="pt-6">
+                  <div className="grid gap-3 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Estudiantes seleccionados:</span>
+                      <span className="font-medium">{selectedStudents.size}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Meses a generar:</span>
+                      <span className="font-medium">{bulkCuotaForm.mes_fin - bulkCuotaForm.mes_inicio + 1}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total de cuotas:</span>
+                      <span className="font-medium">{selectedStudents.size * (bulkCuotaForm.mes_fin - bulkCuotaForm.mes_inicio + 1)}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-3">
+                      <span className="font-medium">Monto total:</span>
+                      <span className="font-bold">{formatCurrency(selectedStudents.size * (bulkCuotaForm.mes_fin - bulkCuotaForm.mes_inicio + 1) * bulkCuotaForm.monto_por_mes)}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Botón de generación */}
+              <div className="flex justify-end gap-2">
+                <Button
+                  onClick={() => setSelectedStudents(new Set())}
+                  variant="outline"
+                  disabled={selectedStudents.size === 0 || isGeneratingBulk}
+                >
+                  Limpiar Selección
+                </Button>
+                <Button
+                  onClick={generateBulkCuotas}
+                  disabled={selectedStudents.size === 0 || isGeneratingBulk}
+                >
+                  {isGeneratingBulk ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generando...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Generar Cuotas
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Filtros de estudiantes */}
+              <div className="space-y-4 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">Seleccionar Estudiantes</h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleAllStudents(filteredBulkStudents)}
+                    disabled={isLoadingAllStudents}
+                  >
+                    {selectedStudents.size === filteredBulkStudents.length ? "Deseleccionar Todos" : "Seleccionar Todos"}
+                  </Button>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="filter-nombre">Buscar por Nombre</Label>
+                    <Input
+                      id="filter-nombre"
+                      placeholder="Nombre del estudiante..."
+                      value={bulkGenerationFilters.search}
+                      onChange={(e) => setBulkGenerationFilters({ ...bulkGenerationFilters, search: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="filter-carnet">Buscar por Carnet</Label>
+                    <Input
+                      id="filter-carnet"
+                      placeholder="Carnet del estudiante..."
+                      value={bulkGenerationFilters.carnet}
+                      onChange={(e) => setBulkGenerationFilters({ ...bulkGenerationFilters, carnet: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabla de estudiantes */}
+              <div className="border rounded-lg overflow-hidden">
+                <div className="max-h-[500px] overflow-y-auto">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background z-10">
+                      <TableRow>
+                        <TableHead className="w-[50px]">
+                          <Checkbox
+                            checked={selectedStudents.size === filteredBulkStudents.length && filteredBulkStudents.length > 0}
+                            onCheckedChange={() => toggleAllStudents(filteredBulkStudents)}
+                            disabled={isLoadingAllStudents}
+                          />
+                        </TableHead>
+                        <TableHead>Estudiante</TableHead>
+                        <TableHead>Carnet</TableHead>
+                        <TableHead>Programa</TableHead>
+                        <TableHead className="text-right">Cuotas Actuales</TableHead>
+                        <TableHead className="text-right">Saldo Pendiente</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {isLoadingAllStudents ? (
+                        renderTablePlaceholder("Cargando estudiantes...", 6, true)
+                      ) : filteredBulkStudents.length === 0 ? (
+                        renderTablePlaceholder("No se encontraron estudiantes", 6)
+                      ) : (
+                        filteredBulkStudents.map((estudiante) => (
+                          <TableRow key={estudiante.estudiante_programa_id}>
+                            <TableCell>
+                              <Checkbox
+                                checked={estudiante.estudiante_programa_id !== null && selectedStudents.has(estudiante.estudiante_programa_id)}
+                                onCheckedChange={() => {
+                                  if (estudiante.estudiante_programa_id !== null) {
+                                    toggleStudentSelection(estudiante.estudiante_programa_id)
+                                  }
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-medium">
+                                {estudiante.prospecto?.nombre} {estudiante.prospecto?.apellido_paterno}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {estudiante.prospecto?.email}
+                              </div>
+                            </TableCell>
+                            <TableCell>{(estudiante.prospecto as any)?.carnet || "-"}</TableCell>
+                            <TableCell className="text-sm">{estudiante.programa?.nombre}</TableCell>
+                            <TableCell className="text-right">{estudiante.total_cuotas || 0}</TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatCurrency(parseFloat(estudiante.saldo_pendiente) || 0)}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Modal de Cuotas del Estudiante */}
+      <Dialog open={showCuotasModal} onOpenChange={setShowCuotasModal}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Cuotas de {selectedEstudiante?.prospecto?.nombre}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedEstudiante?.programa?.nombre} · {selectedEstudiante?.prospecto?.carnet}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Resumen */}
+            <div className="grid grid-cols-3 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Saldo Pendiente</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{formatCurrency(selectedEstudiante?.saldo_pendiente)}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Pendientes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{selectedEstudiante?.cuotas_pendientes || 0}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Pagadas</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">{selectedEstudiante?.cuotas_pagadas || 0}</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Botón para crear nueva cuota */}
+            <div className="flex justify-end">
+              <Button onClick={handleCreateCuota} size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Nueva Cuota
+              </Button>
+            </div>
+
+            {/* Tabla de Cuotas */}
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>N°</TableHead>
+                    <TableHead>Fecha Vencimiento</TableHead>
+                    <TableHead className="text-right">Monto</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Fecha Pago</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selectedEstudiante?.cuotas && selectedEstudiante.cuotas.length > 0 ? (
+                    selectedEstudiante.cuotas.map((cuota) => {
+                      const estado = cuota.estado ?? ""
+                      const estadoClase = cuotaEstadoClasses[estado] ?? "bg-slate-500/15 text-slate-700 border-slate-500/30"
+                      const estadoLabel = cuotaEstadoLabels[estado] ?? (estado ? estado.replace(/_/g, " ") : "Sin estado")
+
+                      return (
+                        <TableRow key={cuota.id}>
+                          <TableCell>{cuota.numero_cuota}</TableCell>
+                          <TableCell>{formatDate(cuota.fecha_vencimiento)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(cuota.monto)}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={cn("capitalize", estadoClase)}>
+                              {estadoLabel}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{formatDate(cuota.paid_at)}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditCuota(cuota)}
+                                title="Editar cuota"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteCuota(cuota)}
+                                title="Eliminar cuota"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                        No hay cuotas registradas
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCuotasModal(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Crear Cuota */}
+      <Dialog open={showCreateCuotaModal} onOpenChange={setShowCreateCuotaModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Crear Nueva Cuota</DialogTitle>
+            <DialogDescription>
+              Ingrese los detalles de la nueva cuota para {selectedEstudiante?.prospecto?.nombre}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Número de Cuota</Label>
+              <Input
+                type="number"
+                value={cuotaCreateForm.numero_cuota}
+                onChange={(e) => setCuotaCreateForm({ ...cuotaCreateForm, numero_cuota: parseInt(e.target.value) || 1 })}
+              />
+            </div>
+            <div>
+              <Label>Fecha de Vencimiento</Label>
+              <Input
+                type="date"
+                value={cuotaCreateForm.fecha_vencimiento}
+                onChange={(e) => setCuotaCreateForm({ ...cuotaCreateForm, fecha_vencimiento: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Monto</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={cuotaCreateForm.monto}
+                onChange={(e) => setCuotaCreateForm({ ...cuotaCreateForm, monto: parseFloat(e.target.value) || 0 })}
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <Label>Estado</Label>
+              <Select value={cuotaCreateForm.estado} onValueChange={(value) => setCuotaCreateForm({ ...cuotaCreateForm, estado: value })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pendiente">Pendiente</SelectItem>
+                  <SelectItem value="pagado">Pagado</SelectItem>
+                  <SelectItem value="vencido">Vencido</SelectItem>
+                  <SelectItem value="parcial">Pago Parcial</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Observaciones (opcional)</Label>
+              <Textarea
+                value={cuotaCreateForm.observaciones}
+                onChange={(e) => setCuotaCreateForm({ ...cuotaCreateForm, observaciones: e.target.value })}
+                placeholder="Agregar notas sobre esta cuota..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateCuotaModal(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={submitCreateCuota}>Crear Cuota</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Editar Cuota */}
+      <Dialog open={showEditCuotaModal} onOpenChange={setShowEditCuotaModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Cuota</DialogTitle>
+            <DialogDescription>Modifique los detalles de la cuota</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Número de Cuota</Label>
+              <Input
+                type="number"
+                value={cuotaEditForm.numero_cuota}
+                onChange={(e) => setCuotaEditForm({ ...cuotaEditForm, numero_cuota: parseInt(e.target.value) || 0 })}
+              />
+            </div>
+            <div>
+              <Label>Fecha de Vencimiento</Label>
+              <Input
+                type="date"
+                value={cuotaEditForm.fecha_vencimiento}
+                onChange={(e) => setCuotaEditForm({ ...cuotaEditForm, fecha_vencimiento: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Monto</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={cuotaEditForm.monto}
+                onChange={(e) => setCuotaEditForm({ ...cuotaEditForm, monto: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
+            <div>
+              <Label>Estado</Label>
+              <Select value={cuotaEditForm.estado} onValueChange={(value) => setCuotaEditForm({ ...cuotaEditForm, estado: value })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pendiente">Pendiente</SelectItem>
+                  <SelectItem value="pagado">Pagado</SelectItem>
+                  <SelectItem value="vencido">Vencido</SelectItem>
+                  <SelectItem value="parcial">Pago Parcial</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditCuotaModal(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={submitEditCuota}>Actualizar Cuota</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AlertDialog de Eliminar Cuota */}
+      <AlertDialog open={showDeleteCuotaDialog} onOpenChange={setShowDeleteCuotaDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción eliminará la cuota permanentemente. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={submitDeleteCuota} className="bg-red-600 hover:bg-red-700">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={Boolean(kardexModal)} onOpenChange={(open) => (!open ? closeDetailModal() : undefined)}>
         {kardexModal ? (
