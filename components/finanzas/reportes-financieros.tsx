@@ -47,6 +47,12 @@ import {
   createCuota,
   updateCuota,
   deleteCuota,
+  createKardex,
+  updateKardex,
+  deleteKardex,
+  createReconciliacion,
+  updateReconciliacion,
+  deleteReconciliacion,
   type CuotaProgramaResumen,
   type CuotasDashboardEstudiante,
   type CuotasDashboardResponse,
@@ -54,6 +60,10 @@ import {
   type CuotaDetalladaResumen,
   type CuotaCreatePayload,
   type CuotaUpdatePayload,
+  type KardexCreatePayload,
+  type KardexUpdatePayload,
+  type ReconciliacionCreatePayload,
+  type ReconciliacionUpdatePayload,
   type KardexDashboardMetrics,
   type KardexPagoResumen,
   type ReconciliationDashboardMetrics,
@@ -379,6 +389,33 @@ export const ReportesFinancieros = () => {
   const [allStudentsData, setAllStudentsData] = useState<CuotasDashboardEstudiante[]>([])
   const [isLoadingAllStudents, setIsLoadingAllStudents] = useState(false)
 
+  // Estados para crear Kardex
+  const [showCreateKardexModal, setShowCreateKardexModal] = useState(false)
+  const [kardexCreateForm, setKardexCreateForm] = useState({
+    estudiante_programa_id: 0,
+    cuota_id: undefined as number | undefined,
+    monto_pagado: 0,
+    fecha_pago: "",
+    fecha_recibo: "",
+    metodo_pago: "efectivo",
+    estado_pago: "aprobado",
+    numero_boleta: "",
+    banco: "",
+    observaciones: "",
+  })
+
+  // Estados para crear Reconciliación
+  const [showCreateReconciliacionModal, setShowCreateReconciliacionModal] = useState(false)
+  const [reconciliacionCreateForm, setReconciliacionCreateForm] = useState({
+    bank: "",
+    reference: "",
+    amount: 0,
+    date: "",
+    status: "pendiente",
+    kardex_pago_id: undefined as number | undefined,
+    notes: "",
+  })
+
   const closeDetailModal = useCallback(() => {
     setKardexModal(null)
     setReconciliationModal(null)
@@ -386,18 +423,88 @@ export const ReportesFinancieros = () => {
     setReconciliationEditForm(null)
   }, [])
 
-  const handleKardexEditSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleKardexEditSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    toast({
-      title: "Edición pendiente",
-      description: "La actualización de movimientos del kardex estará disponible próximamente.",
-    })
-    closeDetailModal()
+    
+    if (!kardexModal || kardexModal.tab !== "kardex" || !kardexEditForm) return
+
+    try {
+      const payload: KardexUpdatePayload = {
+        monto_pagado: parseFloat(kardexEditForm.monto_pagado),
+        fecha_pago: kardexEditForm.fecha_pago,
+        fecha_recibo: kardexEditForm.fecha_recibo || undefined,
+        metodo_pago: kardexEditForm.metodo_pago,
+        estado_pago: kardexEditForm.estado_pago,
+        numero_boleta: kardexEditForm.numero_boleta || undefined,
+        banco: kardexEditForm.banco || undefined,
+        observaciones: kardexEditForm.observaciones || undefined,
+      }
+
+      await updateKardex(kardexModal.row.id, payload)
+      toast({
+        title: "Kardex actualizado",
+        description: "El movimiento del kardex se ha actualizado exitosamente",
+      })
+      closeDetailModal()
+      
+      // Recargar datos
+      const params = buildRequestFilters(filtersByTab.kardex)
+      const [dashboardResponse, dataResponse] = await Promise.all([
+        getKardexDashboard(params),
+        getKardexData(params),
+      ])
+      setKardexTotals(dashboardResponse.kardex)
+      setKardexRows(dataResponse.kardex)
+      setKardexLastUpdated(dataResponse.timestamp)
+    } catch (error: any) {
+      console.error("Error updating kardex:", error)
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Error al actualizar el kardex",
+        variant: "destructive",
+      })
+    }
   }
 
-  const handleReconciliationEditSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleReconciliationEditSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    // Implement the logic to save reconciliation edit here
+    
+    if (!reconciliationModal || reconciliationModal.tab !== "reconciliaciones" || !reconciliationEditForm) return
+
+    try {
+      const payload: ReconciliacionUpdatePayload = {
+        amount: parseFloat(reconciliationEditForm.amount),
+        date: reconciliationEditForm.date,
+        status: reconciliationEditForm.status,
+        bank: reconciliationEditForm.bank || undefined,
+        reference: reconciliationEditForm.reference || undefined,
+      }
+
+      await updateReconciliacion(reconciliationModal.row.id, payload)
+      toast({
+        title: "Reconciliación actualizada",
+        description: "La reconciliación se ha actualizado exitosamente",
+      })
+      closeDetailModal()
+      
+      // Recargar datos
+      const params = buildRequestFilters(filtersByTab.reconciliaciones)
+      const [dashboardResponse, dataResponse] = await Promise.all([
+        getKardexDashboard(params),
+        getKardexData(params),
+      ])
+      setReconciliationTotals(dashboardResponse.reconciliaciones)
+      setReconciliationRows(dataResponse.reconciliaciones)
+      setReconciliacionesLastUpdated(dataResponse.timestamp)
+    } catch (error: any) {
+      console.error("Error updating reconciliation:", error)
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Error al actualizar la reconciliación",
+        variant: "destructive",
+      })
+    }
+  }
     // For now, just close the modal
     setReconciliationModal(null)
   }
@@ -703,23 +810,57 @@ export const ReportesFinancieros = () => {
     [],
   )
 
-  const handleDeleteConfirm = useCallback(() => {
+  const handleDeleteConfirm = useCallback(async () => {
     if (!deleteState) {
       return
     }
 
-    const tabLabel = TAB_LABELS[deleteState.tab]
-    toast({
-      title: `Eliminación pendiente (${tabLabel})`,
-      description:
-        deleteReference && deleteReference.trim().length > 0
-          ? `${deleteReference} no puede eliminarse todavía. La funcionalidad estará disponible próximamente.`
-          : "Esta eliminación estará disponible próximamente.",
-    })
-
-    setDeleteState(null)
-    setDeleteReference("")
-  }, [deleteState, deleteReference, toast])
+    try {
+      if (deleteState.tab === "kardex") {
+        await deleteKardex(deleteState.row.id)
+        toast({
+          title: "Kardex eliminado",
+          description: "El movimiento del kardex se ha eliminado exitosamente",
+        })
+        
+        // Recargar datos
+        const params = buildRequestFilters(filtersByTab.kardex)
+        const [dashboardResponse, dataResponse] = await Promise.all([
+          getKardexDashboard(params),
+          getKardexData(params),
+        ])
+        setKardexTotals(dashboardResponse.kardex)
+        setKardexRows(dataResponse.kardex)
+        setKardexLastUpdated(dataResponse.timestamp)
+      } else if (deleteState.tab === "reconciliaciones") {
+        await deleteReconciliacion(deleteState.row.id)
+        toast({
+          title: "Reconciliación eliminada",
+          description: "La reconciliación se ha eliminado exitosamente",
+        })
+        
+        // Recargar datos
+        const params = buildRequestFilters(filtersByTab.reconciliaciones)
+        const [dashboardResponse, dataResponse] = await Promise.all([
+          getKardexDashboard(params),
+          getKardexData(params),
+        ])
+        setReconciliationTotals(dashboardResponse.reconciliaciones)
+        setReconciliationRows(dataResponse.reconciliaciones)
+        setReconciliacionesLastUpdated(dataResponse.timestamp)
+      }
+    } catch (error: any) {
+      console.error("Error deleting:", error)
+      toast({
+        title: "Error al eliminar",
+        description: error.response?.data?.message || "Error al eliminar el registro",
+        variant: "destructive",
+      })
+    } finally {
+      setDeleteState(null)
+      setDeleteReference("")
+    }
+  }, [deleteState, deleteReference, toast, filtersByTab])
 
   // Handlers para el modal de cuotas
   const handleViewCuotas = useCallback((estudiante: CuotasDashboardEstudiante) => {
@@ -1038,81 +1179,151 @@ export const ReportesFinancieros = () => {
     })
   }, [allStudentsData, bulkGenerationFilters])
 
-  const renderTablePlaceholder = (message: string, columns = 7, isLoading = false) => (
-    <TableRow>
-      <TableCell colSpan={columns} className="py-8 text-center text-sm text-muted-foreground">
-        {isLoading ? "Cargando información..." : message}
-      </TableCell>
-    </TableRow>
-  )
+  // Handlers para crear Kardex
+  const handleCreateKardex = useCallback(() => {
+    setKardexCreateForm({
+      estudiante_programa_id: 0,
+      cuota_id: undefined,
+      monto_pagado: 0,
+      fecha_pago: new Date().toISOString().split('T')[0],
+      fecha_recibo: "",
+      metodo_pago: "efectivo",
+      estado_pago: "aprobado",
+      numero_boleta: "",
+      banco: "",
+      observaciones: "",
+    })
+    setShowCreateKardexModal(true)
+  }, [])
 
-  const renderPaginationControls = (key: PaginationKey, totalItems: number) => {
-    if (totalItems === 0) {
-      return null
+  const submitCreateKardex = useCallback(async () => {
+    if (kardexCreateForm.estudiante_programa_id === 0) {
+      toast({
+        title: "Error",
+        description: "Debe seleccionar un estudiante",
+        variant: "destructive",
+      })
+      return
     }
 
-    const { page, pageSize } = pagination[key]
-    const totalPages =
-      typeof pageSize === "number" && pageSize > 0
-        ? Math.max(1, Math.ceil(totalItems / pageSize))
-        : 1
-    const safePage = Math.min(page, totalPages)
-    const start = typeof pageSize === "number" ? (safePage - 1) * pageSize + 1 : 1
-    const end = typeof pageSize === "number" ? Math.min(totalItems, safePage * pageSize) : totalItems
-    const isLoading = getPaginationLoading(key)
+    if (kardexCreateForm.monto_pagado <= 0) {
+      toast({
+        title: "Error",
+        description: "El monto debe ser mayor a 0",
+        variant: "destructive",
+      })
+      return
+    }
 
-    return (
-      <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-sm text-muted-foreground">
-          Mostrando {start}-{end} de {totalItems} registros
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Por página:</span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(value) => handlePageSizeChange(key, Number(value))}
-              disabled={isLoading}
-            >
-              <SelectTrigger className="w-[120px]">
-                <SelectValue placeholder="Elementos" />
-              </SelectTrigger>
-              <SelectContent>
-                {PAGE_SIZE_OPTIONS.map((option) => (
-                  <SelectItem key={String(option.value)} value={String(option.value)}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={safePage <= 1 || isLoading}
-              onClick={() => handlePageChange(key, safePage - 1)}
-            >
-              Anterior
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              Página {safePage} de {totalPages}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={safePage >= totalPages || isLoading}
-              onClick={() => handlePageChange(key, safePage + 1)}
-            >
-              Siguiente
-            </Button>
-          </div>
-        </div>
-      </div>
-    )
-  }
+    try {
+      const payload: KardexCreatePayload = {
+        estudiante_programa_id: kardexCreateForm.estudiante_programa_id,
+        cuota_id: kardexCreateForm.cuota_id,
+        monto_pagado: kardexCreateForm.monto_pagado,
+        fecha_pago: kardexCreateForm.fecha_pago,
+        fecha_recibo: kardexCreateForm.fecha_recibo || undefined,
+        metodo_pago: kardexCreateForm.metodo_pago,
+        estado_pago: kardexCreateForm.estado_pago,
+        numero_boleta: kardexCreateForm.numero_boleta || undefined,
+        banco: kardexCreateForm.banco || undefined,
+        observaciones: kardexCreateForm.observaciones || undefined,
+      }
+
+      await createKardex(payload)
+      toast({
+        title: "Kardex creado",
+        description: "El movimiento del kardex se ha creado exitosamente",
+      })
+      setShowCreateKardexModal(false)
+      
+      // Recargar datos
+      const params = buildRequestFilters(filtersByTab.kardex)
+      const [dashboardResponse, dataResponse] = await Promise.all([
+        getKardexDashboard(params),
+        getKardexData(params),
+      ])
+      setKardexTotals(dashboardResponse.kardex)
+      setKardexRows(dataResponse.kardex)
+      setKardexLastUpdated(dataResponse.timestamp)
+    } catch (error: any) {
+      console.error("Error creating kardex:", error)
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Error al crear el kardex",
+        variant: "destructive",
+      })
+    }
+  }, [kardexCreateForm, toast, filtersByTab.kardex])
+
+  // Handlers para crear Reconciliación
+  const handleCreateReconciliacion = useCallback(() => {
+    setReconciliacionCreateForm({
+      bank: "",
+      reference: "",
+      amount: 0,
+      date: new Date().toISOString().split('T')[0],
+      status: "pendiente",
+      kardex_pago_id: undefined,
+      notes: "",
+    })
+    setShowCreateReconciliacionModal(true)
+  }, [])
+
+  const submitCreateReconciliacion = useCallback(async () => {
+    if (!reconciliacionCreateForm.bank || !reconciliacionCreateForm.reference) {
+      toast({
+        title: "Error",
+        description: "Debe completar banco y referencia",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (reconciliacionCreateForm.amount <= 0) {
+      toast({
+        title: "Error",
+        description: "El monto debe ser mayor a 0",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const payload: ReconciliacionCreatePayload = {
+        bank: reconciliacionCreateForm.bank,
+        reference: reconciliacionCreateForm.reference,
+        amount: reconciliacionCreateForm.amount,
+        date: reconciliacionCreateForm.date,
+        status: reconciliacionCreateForm.status,
+        kardex_pago_id: reconciliacionCreateForm.kardex_pago_id,
+        notes: reconciliacionCreateForm.notes || undefined,
+      }
+
+      await createReconciliacion(payload)
+      toast({
+        title: "Reconciliación creada",
+        description: "La reconciliación se ha creado exitosamente",
+      })
+      setShowCreateReconciliacionModal(false)
+      
+      // Recargar datos
+      const params = buildRequestFilters(filtersByTab.reconciliaciones)
+      const [dashboardResponse, dataResponse] = await Promise.all([
+        getKardexDashboard(params),
+        getKardexData(params),
+      ])
+      setReconciliationTotals(dashboardResponse.reconciliaciones)
+      setReconciliationRows(dataResponse.reconciliaciones)
+      setReconciliacionesLastUpdated(dataResponse.timestamp)
+    } catch (error: any) {
+      console.error("Error creating reconciliation:", error)
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Error al crear la reconciliación",
+        variant: "destructive",
+      })
+    }
+  }, [reconciliacionCreateForm, toast, filtersByTab.reconciliaciones])
 
   const paginatedKardexRows = useMemo(() => {
     const { page, pageSize } = pagination.kardex
@@ -1217,6 +1428,83 @@ export const ReportesFinancieros = () => {
   const activeFormFilters = formFiltersByTab[activeTab]
   const activeLoading = loadingStates[activeTab]
   const activeError = errors[activeTab]
+
+  // Helper functions para renderizado
+  const renderTablePlaceholder = (message: string, columns = 7, isLoading = false) => (
+    <TableRow>
+      <TableCell colSpan={columns} className="py-8 text-center text-sm text-muted-foreground">
+        {isLoading ? "Cargando información..." : message}
+      </TableCell>
+    </TableRow>
+  )
+
+  const renderPaginationControls = (key: PaginationKey, totalItems: number) => {
+    if (totalItems === 0) {
+      return null
+    }
+
+    const { page, pageSize } = pagination[key]
+    const totalPages =
+      typeof pageSize === "number" && pageSize > 0
+        ? Math.max(1, Math.ceil(totalItems / pageSize))
+        : 1
+    const safePage = Math.min(page, totalPages)
+    const start = typeof pageSize === "number" ? (safePage - 1) * pageSize + 1 : 1
+    const end = typeof pageSize === "number" ? Math.min(totalItems, safePage * pageSize) : totalItems
+    const isLoading = getPaginationLoading(key)
+
+    return (
+      <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-sm text-muted-foreground">
+          Mostrando {start}-{end} de {totalItems} registros
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Por página:</span>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(value) => handlePageSizeChange(key, Number(value))}
+              disabled={isLoading}
+            >
+              <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="Elementos" />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((option) => (
+                  <SelectItem key={String(option.value)} value={String(option.value)}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={safePage <= 1 || isLoading}
+              onClick={() => handlePageChange(key, safePage - 1)}
+            >
+              Anterior
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Página {safePage} de {totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={safePage >= totalPages || isLoading}
+              onClick={() => handlePageChange(key, safePage + 1)}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -1442,10 +1730,18 @@ export const ReportesFinancieros = () => {
         <TabsContent value="kardex" className="space-y-4 pt-4">
           <Card>
             <CardHeader>
-              <CardTitle>Movimientos del kardex</CardTitle>
-              <CardDescription>
-                Actualizado {kardexLastUpdated ? formatDateTime(kardexLastUpdated) : "sin información"}
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Movimientos del kardex</CardTitle>
+                  <CardDescription>
+                    Actualizado {kardexLastUpdated ? formatDateTime(kardexLastUpdated) : "sin información"}
+                  </CardDescription>
+                </div>
+                <Button onClick={handleCreateKardex}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nuevo Movimiento
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
@@ -1563,14 +1859,22 @@ export const ReportesFinancieros = () => {
         <TabsContent value="reconciliaciones" className="space-y-4 pt-4">
           <Card>
             <CardHeader>
-              <CardTitle>Conciliaciones bancarias</CardTitle>
-              <CardDescription>
-                Resultado de los registros importados desde las entidades financieras. Actualizado
-                {" "}
-                {reconciliacionesLastUpdated
-                  ? formatDateTime(reconciliacionesLastUpdated)
-                  : "sin información"}
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Conciliaciones bancarias</CardTitle>
+                  <CardDescription>
+                    Resultado de los registros importados desde las entidades financieras. Actualizado
+                    {" "}
+                    {reconciliacionesLastUpdated
+                      ? formatDateTime(reconciliacionesLastUpdated)
+                      : "sin información"}
+                  </CardDescription>
+                </div>
+                <Button onClick={handleCreateReconciliacion}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nueva Reconciliación
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
@@ -2752,6 +3056,243 @@ export const ReportesFinancieros = () => {
         ) : null}
       </Dialog>
 
+      {/* Modal de Crear Kardex */}
+      <Dialog open={showCreateKardexModal} onOpenChange={setShowCreateKardexModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Crear Nuevo Movimiento de Kardex</DialogTitle>
+            <DialogDescription>
+              Registre un nuevo movimiento de pago en el kardex
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="kardex-estudiante">ID Estudiante Programa *</Label>
+              <Input
+                id="kardex-estudiante"
+                type="number"
+                value={kardexCreateForm.estudiante_programa_id || ""}
+                onChange={(e) => setKardexCreateForm({ ...kardexCreateForm, estudiante_programa_id: parseInt(e.target.value) || 0 })}
+                placeholder="ID del programa del estudiante"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="kardex-cuota">ID Cuota (opcional)</Label>
+              <Input
+                id="kardex-cuota"
+                type="number"
+                value={kardexCreateForm.cuota_id || ""}
+                onChange={(e) => setKardexCreateForm({ ...kardexCreateForm, cuota_id: e.target.value ? parseInt(e.target.value) : undefined })}
+                placeholder="Vincular a una cuota específica"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="kardex-monto">Monto Pagado *</Label>
+                <Input
+                  id="kardex-monto"
+                  type="number"
+                  step="0.01"
+                  value={kardexCreateForm.monto_pagado || ""}
+                  onChange={(e) => setKardexCreateForm({ ...kardexCreateForm, monto_pagado: parseFloat(e.target.value) || 0 })}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="kardex-metodo">Método de Pago *</Label>
+                <Select
+                  value={kardexCreateForm.metodo_pago}
+                  onValueChange={(value) => setKardexCreateForm({ ...kardexCreateForm, metodo_pago: value })}
+                >
+                  <SelectTrigger id="kardex-metodo">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="efectivo">Efectivo</SelectItem>
+                    <SelectItem value="tarjeta">Tarjeta</SelectItem>
+                    <SelectItem value="transferencia">Transferencia</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                    <SelectItem value="deposito">Depósito</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="kardex-fecha-pago">Fecha de Pago *</Label>
+                <Input
+                  id="kardex-fecha-pago"
+                  type="date"
+                  value={kardexCreateForm.fecha_pago}
+                  onChange={(e) => setKardexCreateForm({ ...kardexCreateForm, fecha_pago: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="kardex-fecha-recibo">Fecha de Recibo</Label>
+                <Input
+                  id="kardex-fecha-recibo"
+                  type="date"
+                  value={kardexCreateForm.fecha_recibo}
+                  onChange={(e) => setKardexCreateForm({ ...kardexCreateForm, fecha_recibo: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="kardex-estado">Estado de Pago *</Label>
+                <Select
+                  value={kardexCreateForm.estado_pago}
+                  onValueChange={(value) => setKardexCreateForm({ ...kardexCreateForm, estado_pago: value })}
+                >
+                  <SelectTrigger id="kardex-estado">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="aprobado">Aprobado</SelectItem>
+                    <SelectItem value="pendiente_revision">Pendiente de Revisión</SelectItem>
+                    <SelectItem value="rechazado">Rechazado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="kardex-boleta">Número de Boleta</Label>
+                <Input
+                  id="kardex-boleta"
+                  value={kardexCreateForm.numero_boleta}
+                  onChange={(e) => setKardexCreateForm({ ...kardexCreateForm, numero_boleta: e.target.value })}
+                  placeholder="Número de boleta o referencia"
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="kardex-banco">Banco</Label>
+              <Input
+                id="kardex-banco"
+                value={kardexCreateForm.banco}
+                onChange={(e) => setKardexCreateForm({ ...kardexCreateForm, banco: e.target.value })}
+                placeholder="Nombre del banco"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="kardex-observaciones">Observaciones</Label>
+              <Textarea
+                id="kardex-observaciones"
+                value={kardexCreateForm.observaciones}
+                onChange={(e) => setKardexCreateForm({ ...kardexCreateForm, observaciones: e.target.value })}
+                placeholder="Notas adicionales..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateKardexModal(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={submitCreateKardex}>Crear Movimiento</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Crear Reconciliación */}
+      <Dialog open={showCreateReconciliacionModal} onOpenChange={setShowCreateReconciliacionModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Crear Nueva Reconciliación Bancaria</DialogTitle>
+            <DialogDescription>
+              Registre una nueva conciliación bancaria
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="rec-banco">Banco *</Label>
+                <Input
+                  id="rec-banco"
+                  value={reconciliacionCreateForm.bank}
+                  onChange={(e) => setReconciliacionCreateForm({ ...reconciliacionCreateForm, bank: e.target.value })}
+                  placeholder="Nombre del banco"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="rec-referencia">Referencia *</Label>
+                <Input
+                  id="rec-referencia"
+                  value={reconciliacionCreateForm.reference}
+                  onChange={(e) => setReconciliacionCreateForm({ ...reconciliacionCreateForm, reference: e.target.value })}
+                  placeholder="Número de referencia bancaria"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="rec-monto">Monto *</Label>
+                <Input
+                  id="rec-monto"
+                  type="number"
+                  step="0.01"
+                  value={reconciliacionCreateForm.amount || ""}
+                  onChange={(e) => setReconciliacionCreateForm({ ...reconciliacionCreateForm, amount: parseFloat(e.target.value) || 0 })}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="rec-fecha">Fecha *</Label>
+                <Input
+                  id="rec-fecha"
+                  type="date"
+                  value={reconciliacionCreateForm.date}
+                  onChange={(e) => setReconciliacionCreateForm({ ...reconciliacionCreateForm, date: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="rec-estado">Estado</Label>
+              <Select
+                value={reconciliacionCreateForm.status}
+                onValueChange={(value) => setReconciliacionCreateForm({ ...reconciliacionCreateForm, status: value })}
+              >
+                <SelectTrigger id="rec-estado">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pendiente">Pendiente</SelectItem>
+                  <SelectItem value="conciliado">Conciliado</SelectItem>
+                  <SelectItem value="rechazado">Rechazado</SelectItem>
+                  <SelectItem value="sin_coincidencia">Sin Coincidencia</SelectItem>
+                  <SelectItem value="imported">Importado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="rec-kardex">ID Kardex de Pago (opcional)</Label>
+              <Input
+                id="rec-kardex"
+                type="number"
+                value={reconciliacionCreateForm.kardex_pago_id || ""}
+                onChange={(e) => setReconciliacionCreateForm({ ...reconciliacionCreateForm, kardex_pago_id: e.target.value ? parseInt(e.target.value) : undefined })}
+                placeholder="Vincular a un movimiento de kardex"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="rec-notas">Notas</Label>
+              <Textarea
+                id="rec-notas"
+                value={reconciliacionCreateForm.notes}
+                onChange={(e) => setReconciliacionCreateForm({ ...reconciliacionCreateForm, notes: e.target.value })}
+                placeholder="Notas adicionales..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateReconciliacionModal(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={submitCreateReconciliacion}>Crear Reconciliación</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog
         open={Boolean(deleteState)}
         onOpenChange={(open) => {
@@ -2766,8 +3307,7 @@ export const ReportesFinancieros = () => {
             <AlertDialogHeader>
               <AlertDialogTitle>Eliminar {TAB_LABELS[deleteState.tab]}</AlertDialogTitle>
               <AlertDialogDescription>
-                Esta acción eliminará definitivamente {deleteReference}. Esta funcionalidad está pendiente de integración,
-                por lo que no se realizarán cambios reales por ahora.
+                Esta acción eliminará definitivamente {deleteReference}. Esta acción no se puede deshacer.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

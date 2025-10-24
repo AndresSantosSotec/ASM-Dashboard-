@@ -352,3 +352,129 @@ export const updateCuota = async (
 export const deleteCuota = async (id: number, config?: AxiosRequestConfig): Promise<void> => {
   await api.delete(`/mantenimientos/cuotas/${id}`, config)
 }
+
+// CRUD operations for Kardex (Movimientos de Pago)
+
+export interface KardexCreatePayload {
+  estudiante_programa_id: number
+  cuota_id?: number
+  monto_pagado: number
+  fecha_pago: string
+  fecha_recibo?: string
+  metodo_pago: string
+  estado_pago?: string
+  numero_boleta?: string
+  banco?: string
+  observaciones?: string
+}
+
+export interface KardexUpdatePayload {
+  cuota_id?: number
+  monto_pagado?: number
+  fecha_pago?: string
+  fecha_recibo?: string
+  metodo_pago?: string
+  estado_pago?: string
+  numero_boleta?: string
+  banco?: string
+  observaciones?: string
+}
+
+export const getKardex = async (
+  params?: MantenimientosFilters,
+  config?: AxiosRequestConfig,
+): Promise<{ data: KardexPagoResumen[]; pagination?: any }> => {
+  const response = await api.get("/mantenimientos/kardex", {
+    ...(config ?? {}),
+    params: sanitizeParams(params),
+  })
+  return response.data
+}
+
+export const getKardexById = async (id: number, config?: AxiosRequestConfig): Promise<KardexPagoResumen> => {
+  const response = await api.get<KardexPagoResumen>(`/mantenimientos/kardex/${id}`, config)
+  return response.data
+}
+
+export const createKardex = async (
+  payload: KardexCreatePayload,
+  config?: AxiosRequestConfig,
+): Promise<KardexPagoResumen> => {
+  const response = await api.post<KardexPagoResumen>("/mantenimientos/kardex", payload, config)
+  return response.data
+}
+
+export const updateKardex = async (
+  id: number,
+  payload: KardexUpdatePayload,
+  config?: AxiosRequestConfig,
+): Promise<KardexPagoResumen> => {
+  const response = await api.put<KardexPagoResumen>(`/mantenimientos/kardex/${id}`, payload, config)
+  return response.data
+}
+
+export const deleteKardex = async (id: number, config?: AxiosRequestConfig): Promise<void> => {
+  await api.delete(`/mantenimientos/kardex/${id}`, config)
+}
+
+// CRUD operations for Reconciliaciones Bancarias
+
+export interface ReconciliacionCreatePayload {
+  bank: string
+  reference: string
+  amount: number
+  date: string
+  status?: string
+  kardex_pago_id?: number
+  notes?: string
+}
+
+export interface ReconciliacionUpdatePayload {
+  bank?: string
+  reference?: string
+  amount?: number
+  date?: string
+  status?: string
+  kardex_pago_id?: number
+  notes?: string
+}
+
+export const getReconciliaciones = async (
+  params?: MantenimientosFilters,
+  config?: AxiosRequestConfig,
+): Promise<{ data: ReconciliationRecordResumen[]; pagination?: any }> => {
+  const response = await api.get("/mantenimientos/reconciliaciones", {
+    ...(config ?? {}),
+    params: sanitizeParams(params),
+  })
+  return response.data
+}
+
+export const getReconciliacionById = async (
+  id: number,
+  config?: AxiosRequestConfig,
+): Promise<ReconciliationRecordResumen> => {
+  const response = await api.get<ReconciliationRecordResumen>(`/mantenimientos/reconciliaciones/${id}`, config)
+  return response.data
+}
+
+export const createReconciliacion = async (
+  payload: ReconciliacionCreatePayload,
+  config?: AxiosRequestConfig,
+): Promise<ReconciliationRecordResumen> => {
+  const response = await api.post<ReconciliationRecordResumen>("/mantenimientos/reconciliaciones", payload, config)
+  return response.data
+}
+
+export const updateReconciliacion = async (
+  id: number,
+  payload: ReconciliacionUpdatePayload,
+  config?: AxiosRequestConfig,
+): Promise<ReconciliationRecordResumen> => {
+  const response = await api.put<ReconciliationRecordResumen>(`/mantenimientos/reconciliaciones/${id}`, payload, config)
+  return response.data
+}
+
+export const deleteReconciliacion = async (id: number, config?: AxiosRequestConfig): Promise<void> => {
+  await api.delete(`/mantenimientos/reconciliaciones/${id}`, config)
+}
