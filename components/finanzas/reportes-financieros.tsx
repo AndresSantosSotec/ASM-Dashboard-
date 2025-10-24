@@ -429,16 +429,57 @@ export const ReportesFinancieros = () => {
     if (!kardexModal || kardexModal.tab !== "kardex" || !kardexEditForm) return
 
     try {
-      const payload: KardexUpdatePayload = {
-        monto_pagado: parseFloat(kardexEditForm.monto_pagado),
-        fecha_pago: kardexEditForm.fecha_pago,
-        fecha_recibo: kardexEditForm.fecha_recibo || undefined,
-        metodo_pago: kardexEditForm.metodo_pago,
-        estado_pago: kardexEditForm.estado_pago,
-        numero_boleta: kardexEditForm.numero_boleta || undefined,
-        banco: kardexEditForm.banco || undefined,
-        observaciones: kardexEditForm.observaciones || undefined,
+      // Limpiar y validar el payload
+      const payload: KardexUpdatePayload = {}
+      
+      // Solo incluir campos que han sido modificados y son válidos
+      if (kardexEditForm.monto_pagado && kardexEditForm.monto_pagado.trim() !== '') {
+        const monto = parseFloat(kardexEditForm.monto_pagado)
+        if (!isNaN(monto) && monto >= 0) {
+          payload.monto_pagado = monto
+        }
       }
+      
+      if (kardexEditForm.fecha_pago && kardexEditForm.fecha_pago.trim() !== '') {
+        payload.fecha_pago = kardexEditForm.fecha_pago
+      }
+      
+      if (kardexEditForm.fecha_recibo && kardexEditForm.fecha_recibo.trim() !== '') {
+        payload.fecha_recibo = kardexEditForm.fecha_recibo
+      }
+      
+      if (kardexEditForm.metodo_pago && kardexEditForm.metodo_pago.trim() !== '') {
+        payload.metodo_pago = kardexEditForm.metodo_pago
+      }
+      
+      if (kardexEditForm.estado_pago && kardexEditForm.estado_pago.trim() !== '') {
+        payload.estado_pago = kardexEditForm.estado_pago
+      }
+      
+      if (kardexEditForm.numero_boleta && kardexEditForm.numero_boleta.trim() !== '') {
+        payload.numero_boleta = kardexEditForm.numero_boleta
+      }
+      
+      if (kardexEditForm.banco && kardexEditForm.banco.trim() !== '') {
+        payload.banco = kardexEditForm.banco
+      }
+      
+      if (kardexEditForm.observaciones && kardexEditForm.observaciones.trim() !== '') {
+        payload.observaciones = kardexEditForm.observaciones
+      }
+
+      // Validar que al menos un campo fue proporcionado
+      if (Object.keys(payload).length === 0) {
+        toast({
+          title: "Advertencia",
+          description: "Debe modificar al menos un campo para actualizar el kardex",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Debug: mostrar payload
+      console.log('📤 Enviando payload de actualización de kardex:', payload)
 
       await updateKardex(kardexModal.row.id, payload)
       toast({
@@ -458,11 +499,26 @@ export const ReportesFinancieros = () => {
       setKardexLastUpdated(dataResponse.timestamp)
     } catch (error: any) {
       console.error("Error updating kardex:", error)
-      toast({
-        title: "Error",
-        description: error.response?.data?.message || "Error al actualizar el kardex",
-        variant: "destructive",
-      })
+      
+      // Manejar errores de validación (422)
+      if (error.response?.status === 422 && error.response?.data?.errors) {
+        const validationErrors = error.response.data.errors
+        const errorMessages = Object.entries(validationErrors)
+          .map(([field, messages]) => `${field}: ${(messages as string[]).join(', ')}`)
+          .join('\n')
+        
+        toast({
+          title: "Error de validación",
+          description: errorMessages || error.response?.data?.message,
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: error.response?.data?.message || "Error al actualizar el kardex",
+          variant: "destructive",
+        })
+      }
     }
   }
 
@@ -493,7 +549,7 @@ export const ReportesFinancieros = () => {
         getKardexDashboard(params),
         getKardexData(params),
       ])
-      setReconciliationTotals(dashboardResponse.reconciliaciones)
+      setReconciliacionTotals(dashboardResponse.reconciliaciones)
       setReconciliationRows(dataResponse.reconciliaciones)
       setReconciliacionesLastUpdated(dataResponse.timestamp)
     } catch (error: any) {
@@ -504,9 +560,6 @@ export const ReportesFinancieros = () => {
         variant: "destructive",
       })
     }
-  }
-    // For now, just close the modal
-    setReconciliationModal(null)
   }
 
   useEffect(() => {
@@ -739,7 +792,7 @@ export const ReportesFinancieros = () => {
     })
   }
 
-  const handlePageSizeChange = (key: PaginationKey, size: number) => {
+  const handlePageSizeChange = (key: PaginationKey, size: PageSizeValue) => {
     setPagination((prev) => ({
       ...prev,
       [key]: { page: 1, pageSize: size },
@@ -845,7 +898,7 @@ export const ReportesFinancieros = () => {
           getKardexDashboard(params),
           getKardexData(params),
         ])
-        setReconciliationTotals(dashboardResponse.reconciliaciones)
+        setReconciliacionTotals(dashboardResponse.reconciliaciones)
         setReconciliationRows(dataResponse.reconciliaciones)
         setReconciliacionesLastUpdated(dataResponse.timestamp)
       }
@@ -1168,9 +1221,9 @@ export const ReportesFinancieros = () => {
       const carnetLower = bulkGenerationFilters.carnet.toLowerCase()
       
       const matchesSearch = !searchLower || 
-        estudiante.prospecto?.nombre?.toLowerCase().includes(searchLower) ||
+        estudiante.prospecto?.nombre?.toLowerCase().includes(searchLower)
         // estudiante.prospecto?.apellido_paterno?.toLowerCase().includes(searchLower) ||
-        estudiante.prospecto?.apellido_materno?.toLowerCase().includes(searchLower)
+        // estudiante.prospecto?.apellido_materno?.toLowerCase().includes(searchLower)
       
       const matchesCarnet = !carnetLower || 
         (estudiante.prospecto as any)?.carnet?.toLowerCase().includes(carnetLower)
@@ -1312,7 +1365,7 @@ export const ReportesFinancieros = () => {
         getKardexDashboard(params),
         getKardexData(params),
       ])
-      setReconciliationTotals(dashboardResponse.reconciliaciones)
+      setReconciliacionTotals(dashboardResponse.reconciliaciones)
       setReconciliationRows(dataResponse.reconciliaciones)
       setReconciliacionesLastUpdated(dataResponse.timestamp)
     } catch (error: any) {
@@ -1429,78 +1482,68 @@ export const ReportesFinancieros = () => {
   const activeLoading = loadingStates[activeTab]
   const activeError = errors[activeTab]
 
-  // Helper functions para renderizado
-  const renderTablePlaceholder = (message: string, columns = 7, isLoading = false) => (
+  // Helper functions for rendering
+  const renderTablePlaceholder = (message: string, colSpan: number, loading = false) => (
     <TableRow>
-      <TableCell colSpan={columns} className="py-8 text-center text-sm text-muted-foreground">
-        {isLoading ? "Cargando información..." : message}
+      <TableCell colSpan={colSpan} className="h-24 text-center">
+        {loading ? (
+          <div className="flex items-center justify-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>{message}</span>
+          </div>
+        ) : (
+          message
+        )}
       </TableCell>
     </TableRow>
   )
 
   const renderPaginationControls = (key: PaginationKey, totalItems: number) => {
-    if (totalItems === 0) {
-      return null
-    }
-
     const { page, pageSize } = pagination[key]
-    const totalPages =
-      typeof pageSize === "number" && pageSize > 0
-        ? Math.max(1, Math.ceil(totalItems / pageSize))
-        : 1
-    const safePage = Math.min(page, totalPages)
-    const start = typeof pageSize === "number" ? (safePage - 1) * pageSize + 1 : 1
-    const end = typeof pageSize === "number" ? Math.min(totalItems, safePage * pageSize) : totalItems
-    const isLoading = getPaginationLoading(key)
+    const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(totalItems / (pageSize as number)))
+    const loading = getPaginationLoading(key)
 
     return (
-      <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-sm text-muted-foreground">
-          Mostrando {start}-{end} de {totalItems} registros
+      <div className="flex items-center justify-between px-2 py-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Filas por página:</span>
+          <Select
+            value={String(pageSize)}
+            onValueChange={(value) => handlePageSizeChange(key, value === "all" ? "all" : Number(value))}
+            disabled={loading}
+          >
+            <SelectTrigger className="h-8 w-[120px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZE_OPTIONS.map(({ label, value }) => (
+                <SelectItem key={value} value={String(value)}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Por página:</span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(value) => handlePageSizeChange(key, Number(value))}
-              disabled={isLoading}
-            >
-              <SelectTrigger className="w-[120px]">
-                <SelectValue placeholder="Elementos" />
-              </SelectTrigger>
-              <SelectContent>
-                {PAGE_SIZE_OPTIONS.map((option) => (
-                  <SelectItem key={String(option.value)} value={String(option.value)}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={safePage <= 1 || isLoading}
-              onClick={() => handlePageChange(key, safePage - 1)}
-            >
-              Anterior
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              Página {safePage} de {totalPages}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={safePage >= totalPages || isLoading}
-              onClick={() => handlePageChange(key, safePage + 1)}
-            >
-              Siguiente
-            </Button>
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">
+            Página {page} de {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(key, page - 1)}
+            disabled={page <= 1 || loading}
+          >
+            Anterior
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(key, page + 1)}
+            disabled={page >= totalPages || loading}
+          >
+            Siguiente
+          </Button>
         </div>
       </div>
     )
@@ -2297,17 +2340,17 @@ export const ReportesFinancieros = () => {
                             </TableCell>
                             <TableCell>
                               <div className="font-medium">
-                                {estudiante.prospecto?.nombre} {estudiante.prospecto?.apellido_paterno}
+                                {estudiante.prospecto?.nombre}
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                {estudiante.prospecto?.email}
+                                {(estudiante.prospecto as any)?.email || "-"}
                               </div>
                             </TableCell>
                             <TableCell>{(estudiante.prospecto as any)?.carnet || "-"}</TableCell>
                             <TableCell className="text-sm">{estudiante.programa?.nombre}</TableCell>
-                            <TableCell className="text-right">{estudiante.total_cuotas || 0}</TableCell>
+                            <TableCell className="text-right">{(estudiante as any).total_cuotas || 0}</TableCell>
                             <TableCell className="text-right font-medium">
-                              {formatCurrency(parseFloat(estudiante.saldo_pendiente) || 0)}
+                              {formatCurrency(estudiante.saldo_pendiente ? parseFloat(String(estudiante.saldo_pendiente)) : 0)}
                             </TableCell>
                           </TableRow>
                         ))
@@ -3332,3 +3375,4 @@ export const ReportesFinancieros = () => {
     </div>
   )
 }
+
