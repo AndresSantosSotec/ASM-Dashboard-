@@ -60,18 +60,44 @@ export const fetchCourses = async (programId?: number) => {
   let page = 1
   const courses: Course[] = []
   const baseParams = programId ? { program_id: programId } : {}
+  const maxPages = 50 // PROTECCIÓN: Máximo 10,000 cursos (50 páginas × 200)
 
-  while (true) {
-    const res = await api.get('/courses', {
-      params: { ...baseParams, per_page: perPage, page },
-    })
-    const data = Array.isArray(res.data) ? res.data : res.data.data
-    courses.push(...data.map(mapCourseFromApi))
+  while (page <= maxPages) {
+    console.log(`📥 Cargando cursos página ${page}...`);
+    
+    try {
+      const res = await api.get('/courses', {
+        params: { ...baseParams, per_page: perPage, page },
+      })
+      const data = Array.isArray(res.data) ? res.data : res.data.data
+      
+      console.log(`✅ Página ${page}: ${data.length} cursos recibidos`);
+      
+      if (!data || data.length === 0) {
+        console.log('🏁 No hay más cursos');
+        break
+      }
+      
+      courses.push(...data.map(mapCourseFromApi))
 
-    if (data.length < perPage) break
-    page++
+      // Si recibimos menos de perPage, es la última página
+      if (data.length < perPage) {
+        console.log(`🏁 Última página alcanzada (${data.length} < ${perPage})`);
+        break
+      }
+      
+      page++
+    } catch (err) {
+      console.error(`❌ Error cargando página ${page}:`, err);
+      break
+    }
   }
 
+  if (page > maxPages) {
+    console.warn('⚠️ Se alcanzó el límite máximo de páginas');
+  }
+
+  console.log(`📊 Total de cursos cargados: ${courses.length}`);
   return courses
 }
 
