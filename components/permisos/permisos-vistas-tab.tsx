@@ -130,16 +130,14 @@ export default function PermisosVistasTab() {
         );
         if (response.data?.success) {
           const rows: any[] = Array.isArray(response.data.data) ? response.data.data : [];
+
+          // ✅ CORRECCIÓN: Ahora extraemos moduleview_id directamente del row
+          // Ya no usamos permission.module_view.id porque la estructura cambió
           const moduleViewIds = rows
-            .map((row) => {
-              return (
-                row?.permission?.module_view?.id ??
-                row?.permission?.moduleView?.id ??
-                row?.permission?.module_view_id ??
-                null
-              );
-            })
+            .map((row) => row?.moduleview_id)
             .filter((id: any) => typeof id === "number");
+
+          console.log('📊 Permisos cargados:', moduleViewIds); // Debug
           setSelectedPermisos(moduleViewIds as number[]);
         } else {
           setSelectedPermisos([]);
