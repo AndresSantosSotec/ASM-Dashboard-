@@ -195,6 +195,54 @@ export const fetchFacilitators = async () => {
   return res.data
 }
 
+/**
+ * Descarga un blob como archivo CSV
+ * @param blob - Blob con el contenido del archivo
+ * @param filename - Nombre del archivo a descargar
+ */
+export const downloadCSVFile = (blob: Blob, filename: string) => {
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(url)
+}
+
+/**
+ * Exporta y descarga automáticamente cursos de un estudiante
+ * @param carnet - Carnet del estudiante
+ * @returns Promise que se resuelve cuando la descarga se completa
+ */
+export const exportarYDescargarCursos = async (carnet: string): Promise<void> => {
+  try {
+    const blob = await exportCursosCSV(carnet)
+    const filename = `cursos_${carnet.toLowerCase()}_${new Date().toISOString().slice(0, 10)}.csv`
+    downloadCSVFile(blob, filename)
+  } catch (error) {
+    console.error('Error al exportar cursos:', error)
+    throw error
+  }
+}
+
+/**
+ * Exporta y descarga automáticamente cursos de múltiples estudiantes
+ * @param carnets - Array de carnets de estudiantes
+ * @returns Promise que se resuelve cuando la descarga se completa
+ */
+export const exportarYDescargarCursosMasivo = async (carnets: string[]): Promise<void> => {
+  try {
+    const blob = await exportCursosMasivoCSV(carnets)
+    const filename = `cursos_masivo_${new Date().toISOString().slice(0, 10)}.csv`
+    downloadCSVFile(blob, filename)
+  } catch (error) {
+    console.error('Error al exportar cursos masivo:', error)
+    throw error
+  }
+}
+
 
 /** Llama a GET /available-for-students?prospecto_ids[]=1&prospecto_ids[]=2 */
 export const getAvailableCoursesForStudents = async (
@@ -208,4 +256,140 @@ export const getAvailableCoursesForStudents = async (
   const raw = Array.isArray(res.data) ? res.data : (res.data as any).data
   const mapped: Course[] = (raw as any[]).map((c: any) => mapCourseFromApi(c))
   return Array.from(new Map(mapped.map((c: Course) => [c.id, c])).values())
+}
+
+/**
+ * Exporta cursos de un estudiante a CSV para importación a Moodle
+ * @param carnet - Carnet del estudiante
+ * @returns Blob con el archivo CSV
+ */
+export const exportCursosCSV = async (carnet: string): Promise<Blob> => {
+  try {
+    const res = await api.post('/courses/export-cursos', 
+      { carnet }, 
+      { 
+        responseType: 'blob',
+        headers: {
+          'Accept': 'text/csv, application/json'
+        }
+      }
+    )
+    
+    // Verificar el content-type de la respuesta
+    const contentType = res.headers['content-type'] || res.headers['Content-Type']
+    
+    // Si la respuesta es JSON, es un error
+    if (contentType && contentType.includes('application/json')) {
+      const text = await res.data.text()
+      const error = JSON.parse(text)
+      throw new Error(error.error || error.message || 'Error al exportar cursos')
+    }
+    
+    // Verificar si la respuesta es un blob JSON (error disfrazado)
+    if (res.data.type === 'application/json') {
+      const text = await res.data.text()
+      const error = JSON.parse(text)
+      throw new Error(error.error || error.message || 'Error al exportar cursos')
+    }
+    
+    return res.data
+  } catch (error: any) {
+    // Manejar errores de respuesta HTTP
+    if (error.response) {
+      const status = error.response.status
+      
+      // Si es un blob de error JSON
+      if (error.response.data instanceof Blob) {
+        try {
+          const text = await error.response.data.text()
+          const jsonError = JSON.parse(text)
+          throw new Error(jsonError.error || jsonError.message || `Error ${status}: ${text}`)
+        } catch {
+          throw new Error(`Error ${status} al exportar cursos`)
+        }
+      }
+      
+      // Si es un objeto JSON directo
+      if (error.response.data && typeof error.response.data === 'object') {
+        const errorData = error.response.data
+        throw new Error(errorData.error || errorData.message || `Error ${status} al exportar cursos`)
+      }
+      
+      throw new Error(`Error ${status} al exportar cursos`)
+    }
+    
+    throw error
+  }
+}
+
+/**
+ * Exporta cursos de múltiples estudiantes a CSV para importación masiva a Moodle
+ * @param carnets - Array de carnets de estudiantes
+ * @returns Blob con el archivo CSV
+ */
+export const exportCursosMasivoCSV = async (carnets: string[]): Promise<Blob> => {
+  try {
+    const res = await api.post('/courses/export-cursos-masivo', 
+      { carnets }, 
+      { 
+        responseType: 'blob',
+        headers: {
+          'Accept': 'text/csv, application/json'
+        }
+      }
+    )
+    
+    // Verificar el content-type de la respuesta
+    const contentType = res.headers['content-type'] || res.headers['Content-Type']
+    
+    // Si la respuesta es JSON, es un error
+    if (contentType && contentType.includes('application/json')) {
+      const text = await res.data.text()
+      const error = JSON.parse(text)
+      throw new Error(error.error || error.message || 'Error al exportar cursos masivo')
+    }
+    
+    // Verificar si la respuesta es un blob JSON (error disfrazado)
+    if (res.data.type === 'application/json') {
+      const text = await res.data.text()
+      const error = JSON.parse(text)
+      throw new Error(error.error || error.message || 'Error al exportar cursos masivo')
+    }
+    
+    // Verificar headers de información adicional (para logs)
+    const totalProcesados = res.headers['x-total-procesados'] || res.headers['X-Total-Procesados']
+    const totalErrores = res.headers['x-total-errores'] || res.headers['X-Total-Errores']
+    
+    if (totalProcesados && totalErrores) {
+      console.log(`📊 Exportación masiva completada: ${totalProcesados} procesados, ${totalErrores} errores`)
+    }
+    
+    return res.data
+  } catch (error: any) {
+    // Manejar errores de respuesta HTTP
+    if (error.response) {
+      const status = error.response.status
+      
+      // Si es un blob de error JSON
+      if (error.response.data instanceof Blob) {
+        try {
+          const text = await error.response.data.text()
+          const jsonError = JSON.parse(text)
+          throw new Error(jsonError.error || jsonError.message || `Error ${status}: ${text}`)
+        } catch {
+          throw new Error(`Error ${status} al exportar cursos masivo`)
+        }
+      }
+      
+      // Si es un objeto JSON directo
+      if (error.response.data && typeof error.response.data === 'object') {
+        const errorData = error.response.data
+        throw new Error(errorData.error || errorData.message || `Error ${status} al exportar cursos masivo`)
+      }
+      
+      throw new Error(`Error ${status} al exportar cursos masivo`)
+    }
+    
+    throw error
+  }
 }

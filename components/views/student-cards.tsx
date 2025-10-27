@@ -32,7 +32,7 @@ import {
 
 import { Search, Download } from "lucide-react";
 import type { Course } from "@/services/courses";
-import { getAvailableCoursesForStudents } from "@/services/courses";
+import { getAvailableCoursesForStudents, exportCursosMasivoCSV } from "@/services/courses";
 import { bulkAssignCourses, unassignCourses } from "@/services/students";
 import { BulkAssignmentPanel } from "@/components/bulk-assignment-panel";
 import { useToast } from "@/components/ui/use-toast";
@@ -187,7 +187,7 @@ export function StudentCards({
     }
   };
 
-  const handleExportToCSV = () => {
+  const handleExportToCSV = async () => {
     if (selectedIds.length === 0) {
       toast({
         title: "Advertencia",
@@ -199,62 +199,96 @@ export function StudentCards({
 
     const selectedStudents = students.filter((s) => selectedIds.includes(s.id));
     
-    // Crear encabezados CSV
-    const headers = [
-      "ID",
-      "Carnet",
-      "Nombre",
-      "Programa",
-      "Especialidad",
-      "Fecha Inicio",
-      "Cursos Asignados",
-      "Cursos Completados"
-    ];
+    toast({
+      title: "Exportando...",
+      description: `Generando CSV de ${selectedStudents.length} estudiante(s)...`,
+    });
 
-    // Crear filas CSV
-    const rows = selectedStudents.map((student) => [
-      student.id,
-      student.carnet || "",
-      student.name || "",
-      student.program || "",
-      student.specialty || "",
-      student.startDate || "",
-      (student.assignedCourseNames || []).join("; ") || "",
-      (student.completedCourses || []).join("; ") || ""
-    ]);
+    try {
+      // Obtener los carnets de los estudiantes seleccionados
+      const carnets = selectedStudents.map(s => s.carnet);
 
-    // Combinar encabezados y filas
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((row) =>
-        row.map((field) => {
-          // Escapar campos que contengan comas, comillas o saltos de línea
-          const fieldStr = String(field);
-          if (fieldStr.includes(",") || fieldStr.includes('"') || fieldStr.includes("\n")) {
-            return `"${fieldStr.replace(/"/g, '""')}"`;
-          }
-          return fieldStr;
-        }).join(",")
-      )
-    ].join("\n");
+      // Llamar al backend para generar el CSV
+      const blob = await exportCursosMasivoCSV(carnets);
 
-    // Crear y descargar archivo
-    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    const timestamp = new Date().toISOString().split("T")[0];
-    
-    link.setAttribute("href", url);
-    link.setAttribute("download", `estudiantes_seleccionados_${timestamp}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      // Descargar el archivo
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      
+      link.setAttribute("href", url);
+      link.setAttribute("download", `export_cursos_masivo_${timestamp}.csv`);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Éxito",
+        description: `Se exportaron ${selectedStudents.length} estudiante(s) correctamente`,
+      });
+
+    } catch (error: any) {
+      console.error("Error exportando CSV:", error);
+      const errorMessage = error?.response?.data?.error || "Hubo un problema al exportar los cursos";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleExportAllFilteredToCSV = async () => {
+    if (filtered.length === 0) {
+      toast({
+        title: "Advertencia",
+        description: "No hay estudiantes en la vista actual para exportar",
+        variant: "destructive",
+      });
+      return;
+    }
 
     toast({
-      title: "Éxito",
-      description: `Se exportaron ${selectedStudents.length} estudiantes a CSV`,
+      title: "Exportando...",
+      description: `Generando CSV de ${filtered.length} estudiante(s) filtrados...`,
     });
+
+    try {
+      // Obtener los carnets de todos los estudiantes filtrados
+      const carnets = filtered.map(s => s.carnet);
+
+      // Llamar al backend para generar el CSV
+      const blob = await exportCursosMasivoCSV(carnets);
+
+      // Descargar el archivo
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      
+      link.setAttribute("href", url);
+      link.setAttribute("download", `export_cursos_filtrados_${timestamp}.csv`);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Éxito",
+        description: `Se exportaron ${filtered.length} estudiante(s) correctamente`,
+      });
+
+    } catch (error: any) {
+      console.error("Error exportando CSV:", error);
+      const errorMessage = error?.response?.data?.error || "Hubo un problema al exportar los cursos";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -334,6 +368,15 @@ export function StudentCards({
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportAllFilteredToCSV}
+            disabled={filtered.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Exportar Filtrados ({filtered.length})
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="h-8">

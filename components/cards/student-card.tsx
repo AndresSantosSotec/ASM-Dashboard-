@@ -5,7 +5,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { User, Settings } from "lucide-react";
+import { User, Settings, Download } from "lucide-react";
+import { exportarYDescargarCursos } from "@/services/courses";
+import { useToast } from "@/components/ui/use-toast";
 
 interface StudentCardProps {
   student: Student
@@ -20,6 +22,34 @@ export function StudentCard({
   selected = false,
   onSelectChange,
 }: StudentCardProps) {
+  const { toast } = useToast();
+
+  const handleExportCourses = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    toast({
+      title: "Exportando...",
+      description: `Generando CSV para ${student.name}...`,
+    });
+
+    try {
+      await exportarYDescargarCursos(student.carnet);
+
+      toast({
+        title: "✅ Éxito",
+        description: `CSV exportado para ${student.name}`,
+      });
+    } catch (error: any) {
+      console.error("Error exportando CSV:", error);
+      const errorMessage = error?.message || error?.response?.data?.error || "Error al exportar cursos";
+      toast({
+        title: "❌ Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-4">
@@ -48,13 +78,23 @@ export function StudentCard({
           </div>
         </div>
 
-        <Button
-          onClick={() => onViewAssignment(student.id)}
-          className="w-full mt-4"
-        >
-          <Settings className="h-4 w-4 mr-2" />
-          Asignar Cursos
-        </Button>
+        <div className="flex gap-2 mt-4">
+          <Button
+            onClick={() => onViewAssignment(student.id)}
+            className="flex-1"
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            Asignar Cursos
+          </Button>
+          <Button
+            onClick={handleExportCourses}
+            variant="outline"
+            size="icon"
+            title="Exportar cursos a CSV"
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
