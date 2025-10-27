@@ -23,12 +23,32 @@ export interface Student {
 export const fetchStudentPrograms = async (
   studentId: string,
 ): Promise<Program[]> => {
-  const res = await api.get('/estudiante-programa', {
-    params: { prospecto_id: studentId },
-  })
-  const data = Array.isArray(res.data) ? res.data : res.data.data
-  return Array.isArray(data) ? data : []
+  // Simple in-memory cache to avoid duplicate network requests when the
+  // same student's programs are requested multiple times during a session.
+  // This is helpful when users open/close the assignment view repeatedly.
+  if (!(globalThis as any).__studentProgramsCache) {
+    ;(globalThis as any).__studentProgramsCache = new Map<string, Program[]>()
+  }
+  const cache: Map<string, Program[]> = (globalThis as any).__studentProgramsCache
 
+  if (cache.has(studentId)) {
+    return cache.get(studentId)!
+  }
+
+  try {
+    const res = await api.get('/estudiante-programa', {
+      params: { prospecto_id: studentId },
+    })
+    const data = Array.isArray(res.data) ? res.data : res.data.data
+    const result = Array.isArray(data) ? data : []
+    cache.set(studentId, result)
+    return result
+  } catch (err: any) {
+    // Si el backend responde 404 u otro error, devolvemos array vacío
+    // para no romper la carga de la UI. El llamador puede manejarlo.
+    console.error(`Error fetching student programs for ${studentId}:`, err?.message || err)
+    return []
+  }
 }
 
 export const fetchStudentProgram = async (
@@ -55,18 +75,13 @@ export const fetchEnrolledStudents = async (): Promise<Student[]> => {
 
   const students = await Promise.all(
     data.map(async (p: any) => {
-      let progs: any[] = []
-      if (Array.isArray(p.programas) && p.programas.length > 0) {
-        progs = p.programas
-      } else {
-        try {
-          progs = await fetchStudentPrograms(String(p.id))
-        } catch (err) {
-          console.error('Error fetching student programs', err)
-        }
-      }
+      // Evitar llamadas por estudiante en la carga inicial.
+      // Si el objeto ya incluye 'programas', lo usamos.
+      // Si no viene, dejamos la lista vacía y haremos la carga "lazy"
+      // cuando el usuario abra la vista de asignación (mejor rendimiento).
+      const progs: any[] = Array.isArray(p.programas) && p.programas.length > 0 ? p.programas : []
 
-      const first = progs[0]
+  const first = progs[0]
       const info = first?.programa ?? first
 
       return {

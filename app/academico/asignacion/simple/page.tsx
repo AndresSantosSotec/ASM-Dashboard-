@@ -17,6 +17,7 @@ export default function AssignmentPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [downloadState, setDownloadState] = useState<'idle' | 'processing' | 'downloading'>('idle')
   const { toast } = useToast()
 
   useEffect(() => {
@@ -50,28 +51,52 @@ export default function AssignmentPage() {
     : null
 
   const handleExportCourses = async () => {
-    if (!selectedStudent) return;
+    if (!selectedStudent || downloadState !== 'idle') return;
     
-    toast({
-      title: "Exportando...",
+    setDownloadState('processing');
+    
+    const processingToast = toast({
+      title: "🔄 Procesando...",
       description: `Generando CSV para ${selectedStudent.name}...`,
+      duration: 0, // No auto-dismiss
     });
 
     try {
       await exportarYDescargarCursos(selectedStudent.carnet);
 
+      // Dismiss processing toast
+      if (processingToast?.dismiss) {
+        processingToast.dismiss();
+      }
+      
+      setDownloadState('downloading');
+      
       toast({
-        title: "✅ Éxito",
-        description: `CSV exportado para ${selectedStudent.name}`,
+        title: "⬇️ Descargando...",
+        description: `CSV de ${selectedStudent.name} se está descargando`,
+        duration: 3000,
       });
+      
+      // Reset state after download indication
+      setTimeout(() => setDownloadState('idle'), 3000);
+
     } catch (error: any) {
       console.error("Error exportando CSV:", error);
+      
+      // Dismiss processing toast
+      if (processingToast?.dismiss) {
+        processingToast.dismiss();
+      }
+      
       const errorMessage = error?.message || "Error al exportar cursos";
       toast({
         title: "❌ Error",
         description: errorMessage,
         variant: "destructive",
+        duration: 5000,
       });
+      
+      setDownloadState('idle');
     }
   };
 
@@ -95,9 +120,25 @@ export default function AssignmentPage() {
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Volver a Estudiantes
                 </Button>
-                <Button onClick={handleExportCourses} variant="outline" className="bg-blue-50 hover:bg-blue-100">
-                  <Download className="h-4 w-4 mr-2" />
-                  Descargar CSV
+                <Button onClick={handleExportCourses} variant="outline" className="bg-blue-50 hover:bg-blue-100" disabled={downloadState !== 'idle'}>
+                  {downloadState === 'idle' && (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Descargar CSV
+                    </>
+                  )}
+                  {downloadState === 'processing' && (
+                    <>
+                      <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                      Procesando...
+                    </>
+                  )}
+                  {downloadState === 'downloading' && (
+                    <>
+                      <div className="h-4 w-4 mr-2 animate-bounce">⬇️</div>
+                      Descargando...
+                    </>
+                  )}
                 </Button>
               </div>
               <h1 className="text-3xl font-bold">Asignación de Cursos - {selectedStudent.name}</h1>

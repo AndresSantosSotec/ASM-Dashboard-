@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { User, Settings, Download } from "lucide-react";
 import { exportarYDescargarCursos } from "@/services/courses";
 import { useToast } from "@/components/ui/use-toast";
+import { useState } from "react";
 
 interface StudentCardProps {
   student: Student
@@ -23,30 +24,57 @@ export function StudentCard({
   onSelectChange,
 }: StudentCardProps) {
   const { toast } = useToast();
+  const [downloadState, setDownloadState] = useState<'idle' | 'processing' | 'downloading'>('idle');
 
   const handleExportCourses = async (e: React.MouseEvent) => {
     e.stopPropagation();
     
-    toast({
-      title: "Exportando...",
+    if (downloadState !== 'idle') return; // Prevenir múltiples clics
+    
+    setDownloadState('processing');
+    
+    const processingToast = toast({
+      title: "🔄 Procesando...",
       description: `Generando CSV para ${student.name}...`,
+      duration: 0, // No auto-dismiss
     });
 
     try {
       await exportarYDescargarCursos(student.carnet);
-
+      
+      // Dismiss processing toast
+      if (processingToast?.dismiss) {
+        processingToast.dismiss();
+      }
+      
+      setDownloadState('downloading');
+      
       toast({
-        title: "✅ Éxito",
-        description: `CSV exportado para ${student.name}`,
+        title: "⬇️ Descargando...",
+        description: `CSV de ${student.name} se está descargando`,
+        duration: 3000,
       });
+      
+      // Reset state after download indication
+      setTimeout(() => setDownloadState('idle'), 3000);
+
     } catch (error: any) {
       console.error("Error exportando CSV:", error);
+      
+      // Dismiss processing toast
+      if (processingToast?.dismiss) {
+        processingToast.dismiss();
+      }
+      
       const errorMessage = error?.message || error?.response?.data?.error || "Error al exportar cursos";
       toast({
         title: "❌ Error",
         description: errorMessage,
         variant: "destructive",
+        duration: 5000,
       });
+      
+      setDownloadState('idle');
     }
   };
 
@@ -91,8 +119,16 @@ export function StudentCard({
             variant="outline"
             size="icon"
             title="Exportar cursos a CSV"
+            disabled={downloadState !== 'idle'}
+            className={downloadState !== 'idle' ? "opacity-75 cursor-not-allowed" : ""}
           >
-            <Download className="h-4 w-4" />
+            {downloadState === 'idle' && <Download className="h-4 w-4" />}
+            {downloadState === 'processing' && (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+            )}
+            {downloadState === 'downloading' && (
+              <div className="h-4 w-4 animate-bounce">⬇️</div>
+            )}
           </Button>
         </div>
       </CardContent>
