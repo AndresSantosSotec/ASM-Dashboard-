@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import { useDrag, useDrop } from "react-dnd";
 import type { Student } from "@/services/students";
 import type { Course } from "@/services/courses";
@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Award,
   BookOpen,
@@ -28,6 +29,7 @@ import {
   GripVertical,
   User,
   X,
+  Download,
 } from "lucide-react";
 
 const normalizeName = (str: string) =>
@@ -73,15 +75,17 @@ interface CourseCardProps {
   status: "assigned" | "available" | "completed" | "static";
 }
 
-const CourseCard = ({ course, status }: CourseCardProps) => {
+const CourseCard = memo(({ course, status }: CourseCardProps) => {
+  const canDrag = status !== "completed" && status !== "static";
+  
   const [{ isDragging }, drag] = useDrag(() => ({
     type: "course",
     item: { course, status },
-    canDrag: status !== "completed" && status !== "static",
+    canDrag,
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
-  }));
+  }), [course.id, status, canDrag]);
 
   const areaColors: Record<Course["area"], string> = {
     common: "bg-blue-500",
@@ -105,13 +109,19 @@ const CourseCard = ({ course, status }: CourseCardProps) => {
       : "bg-gray-100 border-gray-300 cursor-not-allowed";
 
   const ref = useRef<HTMLDivElement>(null);
-  if (status !== "completed" && status !== "static") drag(ref);
+  
+  // Apply drag ref only if draggable
+  useEffect(() => {
+    if (canDrag && ref.current) {
+      drag(ref);
+    }
+  }, [drag, canDrag]);
 
   return (
     <Card
-      ref={status !== "completed" && status !== "static" ? (ref as any) : undefined}
+      ref={ref}
       className={`border transition-all duration-200 ${
-        status !== "completed" && status !== "static" 
+        canDrag
           ? "cursor-move" 
           : "cursor-not-allowed opacity-75"
       } ${isDragging ? "opacity-50" : ""} ${statusClasses}`}
@@ -119,7 +129,7 @@ const CourseCard = ({ course, status }: CourseCardProps) => {
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-2">
-            {status !== "completed" && status !== "static" && (
+            {canDrag && (
               <GripVertical className="h-4 w-4 text-gray-400" />
             )}
             {status === "assigned" && <Check className="h-4 w-4 text-yellow-600" />}
@@ -138,7 +148,9 @@ const CourseCard = ({ course, status }: CourseCardProps) => {
       </CardContent>
     </Card>
   );
-};
+});
+
+CourseCard.displayName = 'CourseCard';
 
 interface MoodleCourseCardProps {
   course: MoodleQueryCourse;
@@ -174,7 +186,7 @@ interface DropZoneProps {
   children: React.ReactNode;
 }
 
-const DropZone = ({ status, onDrop, title, count, icon, children }: DropZoneProps) => {
+const DropZone = memo(({ status, onDrop, title, count, icon, children }: DropZoneProps) => {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: "course",
     drop: (item: { course: Course; status: "assigned" | "available" | "completed" | "static" }) => {
@@ -183,7 +195,7 @@ const DropZone = ({ status, onDrop, title, count, icon, children }: DropZoneProp
       }
     },
     collect: (monitor) => ({ isOver: monitor.isOver() }),
-  }));
+  }), [status, onDrop]);
 
   const base = "min-h-[400px] p-6 rounded-lg border-2 border-dashed transition-colors duration-200";
   const style = isOver
@@ -195,7 +207,12 @@ const DropZone = ({ status, onDrop, title, count, icon, children }: DropZoneProp
     : "border-blue-200 bg-blue-50";
 
   const ref = useRef<HTMLDivElement>(null);
-  drop(ref);
+  
+  useEffect(() => {
+    if (ref.current) {
+      drop(ref);
+    }
+  }, [drop]);
 
   return (
     <div className="space-y-4">
@@ -210,12 +227,14 @@ const DropZone = ({ status, onDrop, title, count, icon, children }: DropZoneProp
           {count} cursos
         </Badge>
       </div>
-      <div ref={ref as any} className={`${base} ${style}`}>
+      <div ref={ref} className={`${base} ${style}`}>
         <div className="space-y-3">{children}</div>
       </div>
     </div>
   );
-};
+});
+
+DropZone.displayName = 'DropZone';
 
 export function StudentAssignmentView({ student, onCoursesChange }: StudentAssignmentViewProps) {
   const [assigned, setAssigned] = useState<Course[]>([]);
@@ -229,6 +248,7 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
   const [pendingUnassign, setPendingUnassign] = useState<string[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     console.log('[DEBUG] Datos del estudiante:', student);
@@ -298,21 +318,24 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
 
   const handleCourseDrop = useCallback(
     (course: Course, to: "assigned" | "available") => {
-      if (to === "assigned") {
-        setAssigned((prev) => [...prev, course]);
-        setAvailable((prev) => prev.filter((c) => c.id !== course.id));
-        setPendingAssign((prev) =>
-          prev.includes(String(course.id)) ? prev : [...prev, String(course.id)],
-        );
-        setPendingUnassign((prev) => prev.filter((id) => id !== String(course.id)));
-      } else {
-        setAvailable((prev) => [...prev, course]);
-        setAssigned((prev) => prev.filter((c) => c.id !== course.id));
-        setPendingUnassign((prev) =>
-          prev.includes(String(course.id)) ? prev : [...prev, String(course.id)],
-        );
-        setPendingAssign((prev) => prev.filter((id) => id !== String(course.id)));
-      }
+      // Prevent state updates during active drag
+      requestAnimationFrame(() => {
+        if (to === "assigned") {
+          setAssigned((prev) => [...prev, course]);
+          setAvailable((prev) => prev.filter((c) => c.id !== course.id));
+          setPendingAssign((prev) =>
+            prev.includes(String(course.id)) ? prev : [...prev, String(course.id)],
+          );
+          setPendingUnassign((prev) => prev.filter((id) => id !== String(course.id)));
+        } else {
+          setAvailable((prev) => [...prev, course]);
+          setAssigned((prev) => prev.filter((c) => c.id !== course.id));
+          setPendingUnassign((prev) =>
+            prev.includes(String(course.id)) ? prev : [...prev, String(course.id)],
+          );
+          setPendingAssign((prev) => prev.filter((id) => id !== String(course.id)));
+        }
+      });
     },
     [],
   );
@@ -364,6 +387,107 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
     [searchTerm],
   );
 
+  const handleExportStudentCSV = () => {
+    // Crear encabezados CSV
+    const headers = [
+      "Tipo",
+      "ID/Código",
+      "Nombre del Curso",
+      "Área",
+      "Créditos",
+      "Fecha Inicio",
+      "Fecha Fin",
+      "Horario",
+      "Duración",
+      "Nota Final"
+    ];
+
+    const rows: string[][] = [];
+
+    // Cursos asignados
+    assigned.forEach((course) => {
+      rows.push([
+        "Asignado",
+        course.code || "",
+        course.name || "",
+        course.area || "",
+        String(course.credits || ""),
+        course.startDate || "",
+        course.endDate || "",
+        course.schedule || "",
+        course.duration || "",
+        ""
+      ]);
+    });
+
+    // Cursos completados del sistema
+    completed.forEach((course) => {
+      rows.push([
+        "Completado",
+        course.code || "",
+        course.name || "",
+        course.area || "",
+        String(course.credits || ""),
+        course.startDate || "",
+        course.endDate || "",
+        course.schedule || "",
+        course.duration || "",
+        ""
+      ]);
+    });
+
+    // Cursos completados de Moodle
+    moodleCompleted.forEach((course) => {
+      rows.push([
+        "Completado (Moodle)",
+        String(course.courseid || ""),
+        course.coursename || "",
+        "",
+        "",
+        course.fecha_inicio_curso || "",
+        course.fecha_fin_curso || "",
+        "",
+        "",
+        String(course.finalgrade || "N/A")
+      ]);
+    });
+
+    // Combinar encabezados y filas
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) =>
+        row.map((field) => {
+          // Escapar campos que contengan comas, comillas o saltos de línea
+          const fieldStr = String(field);
+          if (fieldStr.includes(",") || fieldStr.includes('"') || fieldStr.includes("\n")) {
+            return `"${fieldStr.replace(/"/g, '""')}"`;
+          }
+          return fieldStr;
+        }).join(",")
+      )
+    ].join("\n");
+
+    // Crear y descargar archivo
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    const timestamp = new Date().toISOString().split("T")[0];
+    const fileName = `${student.carnet}_${student.name.replace(/\s+/g, "_")}_${timestamp}.csv`;
+    
+    link.setAttribute("href", url);
+    link.setAttribute("download", fileName);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    const totalCourses = assigned.length + completed.length + moodleCompleted.length;
+    toast({
+      title: "Éxito",
+      description: `Se exportaron ${totalCourses} cursos del estudiante ${student.name}`,
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -376,15 +500,25 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-3">
-            <User className="h-6 w-6 text-blue-600" />
-            <div>
-              <span className="text-2xl">{student.name}</span>
-              <Badge variant="outline" className="ml-3">
-                {student.carnet}
-              </Badge>
-            </div>
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center space-x-3">
+              <User className="h-6 w-6 text-blue-600" />
+              <div>
+                <span className="text-2xl">{student.name}</span>
+                <Badge variant="outline" className="ml-3">
+                  {student.carnet}
+                </Badge>
+              </div>
+            </CardTitle>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleExportStudentCSV}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Descargar CSV
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">

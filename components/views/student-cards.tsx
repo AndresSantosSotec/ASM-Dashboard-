@@ -30,7 +30,7 @@ import {
   PaginationNext,
 } from "@/components/ui/pagination";
 
-import { Search } from "lucide-react";
+import { Search, Download } from "lucide-react";
 import type { Course } from "@/services/courses";
 import { getAvailableCoursesForStudents } from "@/services/courses";
 import { bulkAssignCourses, unassignCourses } from "@/services/students";
@@ -187,6 +187,76 @@ export function StudentCards({
     }
   };
 
+  const handleExportToCSV = () => {
+    if (selectedIds.length === 0) {
+      toast({
+        title: "Advertencia",
+        description: "No hay estudiantes seleccionados para exportar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const selectedStudents = students.filter((s) => selectedIds.includes(s.id));
+    
+    // Crear encabezados CSV
+    const headers = [
+      "ID",
+      "Carnet",
+      "Nombre",
+      "Programa",
+      "Especialidad",
+      "Fecha Inicio",
+      "Cursos Asignados",
+      "Cursos Completados"
+    ];
+
+    // Crear filas CSV
+    const rows = selectedStudents.map((student) => [
+      student.id,
+      student.carnet || "",
+      student.name || "",
+      student.program || "",
+      student.specialty || "",
+      student.startDate || "",
+      (student.assignedCourseNames || []).join("; ") || "",
+      (student.completedCourses || []).join("; ") || ""
+    ]);
+
+    // Combinar encabezados y filas
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) =>
+        row.map((field) => {
+          // Escapar campos que contengan comas, comillas o saltos de línea
+          const fieldStr = String(field);
+          if (fieldStr.includes(",") || fieldStr.includes('"') || fieldStr.includes("\n")) {
+            return `"${fieldStr.replace(/"/g, '""')}"`;
+          }
+          return fieldStr;
+        }).join(",")
+      )
+    ].join("\n");
+
+    // Crear y descargar archivo
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    const timestamp = new Date().toISOString().split("T")[0];
+    
+    link.setAttribute("href", url);
+    link.setAttribute("download", `estudiantes_seleccionados_${timestamp}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Éxito",
+      description: `Se exportaron ${selectedStudents.length} estudiantes a CSV`,
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
@@ -311,9 +381,19 @@ export function StudentCards({
           <span className="text-sm font-medium">
             {selectedIds.length} seleccionados
           </span>
-          <Button size="sm" onClick={() => setShowBulkPanel(true)}>
-            Asignación Masiva
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={handleExportToCSV}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Descargar CSV Seleccionados
+            </Button>
+            <Button size="sm" onClick={() => setShowBulkPanel(true)}>
+              Asignación Masiva
+            </Button>
+          </div>
         </div>
       )}
 
