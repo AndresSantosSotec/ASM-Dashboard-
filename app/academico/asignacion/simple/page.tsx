@@ -9,13 +9,15 @@ import { fetchEnrolledStudents } from "@/services/students"
 import StudentCards from "@/components/views/student-cards"
 import { StudentAssignmentView } from "@/components/views/student-assignment-view"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Download } from "lucide-react"
+import { exportarYDescargarCursos } from "@/services/courses"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function AssignmentPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
-
   const [isLoading, setIsLoading] = useState(true)
+  const { toast } = useToast()
 
   useEffect(() => {
     ;(async () => {
@@ -47,6 +49,32 @@ export default function AssignmentPage() {
     ? students.find((s) => s.id === selectedStudentId)
     : null
 
+  const handleExportCourses = async () => {
+    if (!selectedStudent) return;
+    
+    toast({
+      title: "Exportando...",
+      description: `Generando CSV para ${selectedStudent.name}...`,
+    });
+
+    try {
+      await exportarYDescargarCursos(selectedStudent.carnet);
+
+      toast({
+        title: "✅ Éxito",
+        description: `CSV exportado para ${selectedStudent.name}`,
+      });
+    } catch (error: any) {
+      console.error("Error exportando CSV:", error);
+      const errorMessage = error?.message || "Error al exportar cursos";
+      toast({
+        title: "❌ Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
+  };
+
 
   if (isLoading) {
     return (
@@ -62,11 +90,18 @@ export default function AssignmentPage() {
         <div className="min-h-screen bg-gray-100">
           <div className="container mx-auto p-4">
             <div className="mb-6">
-              <Button onClick={() => setSelectedStudentId(null)} variant="outline" className="mb-4 bg-transparent">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Volver a Estudiantes
-              </Button>
+              <div className="flex items-center justify-between mb-4">
+                <Button onClick={() => setSelectedStudentId(null)} variant="outline" className="bg-transparent">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Volver a Estudiantes
+                </Button>
+                <Button onClick={handleExportCourses} variant="outline" className="bg-blue-50 hover:bg-blue-100">
+                  <Download className="h-4 w-4 mr-2" />
+                  Descargar CSV
+                </Button>
+              </div>
               <h1 className="text-3xl font-bold">Asignación de Cursos - {selectedStudent.name}</h1>
+              <p className="text-gray-600 mt-2">Carnet: {selectedStudent.carnet} | Programa: {selectedStudent.program}</p>
             </div>
             <StudentAssignmentView student={selectedStudent} />
           </div>

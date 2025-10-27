@@ -32,7 +32,7 @@ import {
 
 import { Search, Download } from "lucide-react";
 import type { Course } from "@/services/courses";
-import { getAvailableCoursesForStudents, exportCursosMasivoCSV } from "@/services/courses";
+import { getAvailableCoursesForStudents, exportarYDescargarCursosMasivo } from "@/services/courses";
 import { bulkAssignCourses, unassignCourses } from "@/services/students";
 import { BulkAssignmentPanel } from "@/components/bulk-assignment-panel";
 import { useToast } from "@/components/ui/use-toast";
@@ -208,32 +208,19 @@ export function StudentCards({
       // Obtener los carnets de los estudiantes seleccionados
       const carnets = selectedStudents.map(s => s.carnet);
 
-      // Llamar al backend para generar el CSV
-      const blob = await exportCursosMasivoCSV(carnets);
-
-      // Descargar el archivo
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-      
-      link.setAttribute("href", url);
-      link.setAttribute("download", `export_cursos_masivo_${timestamp}.csv`);
-      link.style.visibility = "hidden";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      // Llamar a la función mejorada que maneja descarga automáticamente
+      await exportarYDescargarCursosMasivo(carnets);
 
       toast({
-        title: "Éxito",
+        title: "✅ Éxito",
         description: `Se exportaron ${selectedStudents.length} estudiante(s) correctamente`,
       });
 
     } catch (error: any) {
       console.error("Error exportando CSV:", error);
-      const errorMessage = error?.response?.data?.error || "Hubo un problema al exportar los cursos";
+      const errorMessage = error?.message || "Hubo un problema al exportar los cursos";
       toast({
-        title: "Error",
+        title: "❌ Error",
         description: errorMessage,
         variant: "destructive",
       });
@@ -259,32 +246,19 @@ export function StudentCards({
       // Obtener los carnets de todos los estudiantes filtrados
       const carnets = filtered.map(s => s.carnet);
 
-      // Llamar al backend para generar el CSV
-      const blob = await exportCursosMasivoCSV(carnets);
-
-      // Descargar el archivo
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-      
-      link.setAttribute("href", url);
-      link.setAttribute("download", `export_cursos_filtrados_${timestamp}.csv`);
-      link.style.visibility = "hidden";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      // Llamar a la función mejorada que maneja descarga automáticamente
+      await exportarYDescargarCursosMasivo(carnets);
 
       toast({
-        title: "Éxito",
+        title: "✅ Éxito",
         description: `Se exportaron ${filtered.length} estudiante(s) correctamente`,
       });
 
     } catch (error: any) {
       console.error("Error exportando CSV:", error);
-      const errorMessage = error?.response?.data?.error || "Hubo un problema al exportar los cursos";
+      const errorMessage = error?.message || "Hubo un problema al exportar los cursos";
       toast({
-        title: "Error",
+        title: "❌ Error",
         description: errorMessage,
         variant: "destructive",
       });

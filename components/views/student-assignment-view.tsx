@@ -510,14 +510,7 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
                 </Badge>
               </div>
             </CardTitle>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleExportStudentCSV}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Descargar CSV
-            </Button>
+
           </div>
         </CardHeader>
         <CardContent>
