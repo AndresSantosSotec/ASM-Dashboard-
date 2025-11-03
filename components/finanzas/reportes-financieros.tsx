@@ -40,6 +40,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Eye, Loader2, Pencil, Plus, RefreshCw, Trash2, Calendar } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { ReconciliacionModal } from "./modals/ReconciliacionModal"
 import {
   getCuotasDashboard,
   getKardexDashboard,
@@ -50,7 +51,6 @@ import {
   createKardex,
   updateKardex,
   deleteKardex,
-  createReconciliacion,
   updateReconciliacion,
   deleteReconciliacion,
   getEstudiantesProgramaSelect,
@@ -63,7 +63,6 @@ import {
   type CuotaUpdatePayload,
   type KardexCreatePayload,
   type KardexUpdatePayload,
-  type ReconciliacionCreatePayload,
   type ReconciliacionUpdatePayload,
   type KardexDashboardMetrics,
   type KardexPagoResumen,
@@ -344,6 +343,9 @@ export const ReportesFinancieros = () => {
     cuotas: { page: 1, pageSize: 10 },
   })
 
+  // Estado para indicar cuando se están refrescando datos después de operaciones CRUD
+  const [isRefreshingData, setIsRefreshingData] = useState(false)
+
   // Add missing modal and form states
   const [kardexModal, setKardexModal] = useState<DetailModalState>(null)
   const [reconciliationModal, setReconciliationModal] = useState<DetailModalState>(null)
@@ -427,17 +429,8 @@ export const ReportesFinancieros = () => {
       .slice(0, 50) // Solo primeros 50 resultados
   }, [estudiantesProgramaOptions, searchEstudiantePrograma])
 
-  // Estados para crear Reconciliación
+  // Estados para crear Reconciliación - SIMPLIFICADO
   const [showCreateReconciliacionModal, setShowCreateReconciliacionModal] = useState(false)
-  const [reconciliacionCreateForm, setReconciliacionCreateForm] = useState({
-    bank: "",
-    reference: "",
-    amount: 0,
-    date: "",
-    status: "pendiente",
-    kardex_pago_id: undefined as number | undefined,
-    notes: "",
-  })
 
   const closeDetailModal = useCallback(() => {
     setKardexModal(null)
@@ -989,6 +982,36 @@ export const ReportesFinancieros = () => {
     }
   }, [deleteState, deleteReference, toast, filtersByTab])
 
+  // Función para cerrar el modal de cuotas y actualizar datos
+  const handleCloseCuotasModal = useCallback(async () => {
+    setShowCuotasModal(false)
+    setSelectedEstudiante(null)
+    
+    // Si estamos en el tab de cuotas, recargar los datos para sincronizar
+    if (activeTab === 'cuotas') {
+      setIsRefreshingData(true)
+      try {
+        const params = buildRequestFilters(filtersByTab.cuotas)
+        const [dashboardResponse, dataResponse, cuotasDashboardResponse] = await Promise.all([
+          getKardexDashboard(params),
+          getKardexData(params),
+          getCuotasDashboard(params),
+        ])
+
+        setCuotasTotals(dashboardResponse.cuotas)
+        setCuotasRows(dataResponse.cuotas)
+        setCuotasDashboard(cuotasDashboardResponse)
+        setCuotasLastUpdated(dataResponse.timestamp)
+        
+        console.log('✅ Datos sincronizados al cerrar modal de cuotas')
+      } catch (error) {
+        console.error('❌ Error al sincronizar datos al cerrar modal:', error)
+      } finally {
+        setIsRefreshingData(false)
+      }
+    }
+  }, [activeTab, filtersByTab.cuotas])
+
   // Handlers para el modal de cuotas
   const handleViewCuotas = useCallback((estudiante: CuotasDashboardEstudiante) => {
     setSelectedEstudiante(estudiante)
@@ -996,9 +1019,10 @@ export const ReportesFinancieros = () => {
   }, [])
 
   const handleCreateCuota = useCallback(() => {
-    if (!selectedEstudiante) return
+    if (!selectedEstudiante || !selectedEstudiante.estudiante_programa_id) return
     
-    // Calcular el próximo número de cuota
+    // Sugerir el próximo número de cuota basado en las cuotas visibles
+    // pero permitir al usuario cambiarlo manualmente
     const maxCuota = selectedEstudiante.cuotas?.length > 0 
       ? Math.max(...selectedEstudiante.cuotas.map(c => c.numero_cuota))
       : 0
@@ -1058,57 +1082,81 @@ export const ReportesFinancieros = () => {
       
       setShowCreateCuotaModal(false)
       
-      // Agregar la nueva cuota al estudiante seleccionado localmente
-      if (selectedEstudiante) {
-        const cuotaDetallada: CuotaDetalladaResumen = {
-          id: newCuota.id,
-          numero_cuota: newCuota.numero_cuota,
-          fecha_vencimiento: newCuota.fecha_vencimiento,
-          monto: newCuota.monto,
-          estado: newCuota.estado,
-          paid_at: null,
+      // Recargar completamente los datos del tab de cuotas para sincronizar todo
+      setIsRefreshingData(true)
+      try {
+        const params = buildRequestFilters(filtersByTab.cuotas)
+        const [dashboardResponse, dataResponse, cuotasDashboardResponse] = await Promise.all([
+          getKardexDashboard(params),
+          getKardexData(params),
+          getCuotasDashboard(params),
+        ])
+
+        // Actualizar todos los estados relacionados con cuotas
+        setCuotasTotals(dashboardResponse.cuotas)
+        setCuotasRows(dataResponse.cuotas)
+        setCuotasDashboard(cuotasDashboardResponse)
+        setCuotasLastUpdated(dataResponse.timestamp)
+
+        // Actualizar el estudiante seleccionado con los datos frescos
+        if (selectedEstudiante?.estudiante_programa_id) {
+          const updatedEstudiante = cuotasDashboardResponse.estudiantes.find(
+            e => e.estudiante_programa_id === selectedEstudiante.estudiante_programa_id
+          )
+          if (updatedEstudiante) {
+            setSelectedEstudiante(updatedEstudiante)
+          }
         }
-        
-        setSelectedEstudiante(prev => {
-          if (!prev) return prev
-          return {
-            ...prev,
-            cuotas: [...prev.cuotas, cuotaDetallada],
-            cuotas_pendientes: (prev.cuotas_pendientes || 0) + (newCuota.estado === 'pendiente' ? 1 : 0),
-          }
-        })
-        
-        // Actualizar en cuotasDashboard también
-        setCuotasDashboard(prev => {
-          if (!prev) return prev
-          return {
-            ...prev,
-            estudiantes: prev.estudiantes.map(e => {
-              if (e.estudiante_programa_id === selectedEstudiante.estudiante_programa_id) {
-                return {
-                  ...e,
-                  cuotas: [...e.cuotas, cuotaDetallada],
-                  cuotas_pendientes: (e.cuotas_pendientes || 0) + (newCuota.estado === 'pendiente' ? 1 : 0),
-                }
-              }
-              return e
-            })
-          }
-        })
+
+        console.log('✅ Datos de cuotas recargados después de crear nueva cuota')
+      } catch (error) {
+        console.error('❌ Error al recargar datos después de crear cuota:', error)
+        // Fallback: solo recargar métricas
+        const params = buildRequestFilters(filtersByTab.cuotas)
+        const dashboardResponse = await getKardexDashboard(params)
+        setCuotasTotals(dashboardResponse.cuotas)
+      } finally {
+        setIsRefreshingData(false)
       }
-      
-      // Recargar solo las métricas
-      const params = buildRequestFilters(filtersByTab.cuotas)
-      const dashboardResponse = await getKardexDashboard(params)
-      setCuotasTotals(dashboardResponse.cuotas)
       
     } catch (error: any) {
       console.error("Error creating cuota:", error)
-      toast({
-        title: "Error",
-        description: error.response?.data?.message || "Error al crear la cuota",
-        variant: "destructive",
-      })
+      
+      // Manejar específicamente el error de cuota duplicada
+      if (error.response?.status === 422) {
+        const errorData = error.response.data
+        
+        if (errorData.message?.includes('Ya existe una cuota con ese número')) {
+          toast({
+            title: "Número de cuota duplicado",
+            description: `Ya existe una cuota con el número ${cuotaCreateForm.numero_cuota} para este estudiante. Por favor, use un número diferente.`,
+            variant: "destructive",
+          })
+        } else if (errorData.errors) {
+          // Mostrar errores de validación específicos
+          const errorMessages = Object.entries(errorData.errors)
+            .map(([field, messages]) => `${field}: ${(messages as string[]).join(', ')}`)
+            .join('\n')
+          
+          toast({
+            title: "Error de validación",
+            description: errorMessages,
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "Error de validación",
+            description: errorData.message || "Verifique los datos ingresados",
+            variant: "destructive",
+          })
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: error.response?.data?.message || "Error al crear la cuota",
+          variant: "destructive",
+        })
+      }
     }
   }, [selectedEstudiante, cuotaCreateForm, toast, filtersByTab.cuotas])
 
@@ -1132,58 +1180,35 @@ export const ReportesFinancieros = () => {
       
       setShowEditCuotaModal(false)
       
-      // Actualizar el estudiante seleccionado localmente
-      if (selectedEstudiante) {
-        setSelectedEstudiante(prev => {
-          if (!prev) return prev
-          return {
-            ...prev,
-            cuotas: prev.cuotas.map(c => {
-              if (c.id === selectedCuota.id) {
-                return {
-                  ...c,
-                  ...payload,
-                  fecha_vencimiento: payload.fecha_vencimiento || c.fecha_vencimiento,
-                  monto: payload.monto ?? c.monto,
-                }
-              }
-              return c
-            })
+      // Recargar completamente los datos para sincronizar
+      setIsRefreshingData(true)
+      try {
+        const params = buildRequestFilters(filtersByTab.cuotas)
+        const [dashboardResponse, dataResponse, cuotasDashboardResponse] = await Promise.all([
+          getKardexDashboard(params),
+          getKardexData(params),
+          getCuotasDashboard(params),
+        ])
+
+        setCuotasTotals(dashboardResponse.cuotas)
+        setCuotasRows(dataResponse.cuotas)
+        setCuotasDashboard(cuotasDashboardResponse)
+        setCuotasLastUpdated(dataResponse.timestamp)
+
+        // Actualizar estudiante seleccionado
+        if (selectedEstudiante?.estudiante_programa_id) {
+          const updatedEstudiante = cuotasDashboardResponse.estudiantes.find(
+            e => e.estudiante_programa_id === selectedEstudiante.estudiante_programa_id
+          )
+          if (updatedEstudiante) {
+            setSelectedEstudiante(updatedEstudiante)
           }
-        })
-      }
-      
-      // Actualizar en cuotasDashboard también
-      setCuotasDashboard(prev => {
-        if (!prev) return prev
-        return {
-          ...prev,
-          estudiantes: prev.estudiantes.map(e => {
-            if (e.estudiante_programa_id === selectedEstudiante?.estudiante_programa_id) {
-              return {
-                ...e,
-                cuotas: e.cuotas.map(c => {
-                  if (c.id === selectedCuota.id) {
-                    return {
-                      ...c,
-                      ...payload,
-                      fecha_vencimiento: payload.fecha_vencimiento || c.fecha_vencimiento,
-                      monto: payload.monto ?? c.monto,
-                    }
-                  }
-                  return c
-                })
-              }
-            }
-            return e
-          })
         }
-      })
-      
-      // Recargar solo las métricas
-      const params = buildRequestFilters(filtersByTab.cuotas)
-      const dashboardResponse = await getKardexDashboard(params)
-      setCuotasTotals(dashboardResponse.cuotas)
+      } catch (error) {
+        console.error('Error al recargar datos después de editar cuota:', error)
+      } finally {
+        setIsRefreshingData(false)
+      }
       
     } catch (error: any) {
       console.error("Error updating cuota:", error)
@@ -1208,42 +1233,35 @@ export const ReportesFinancieros = () => {
       
       setShowDeleteCuotaDialog(false)
       
-      // Eliminar del estudiante seleccionado localmente
-      if (selectedEstudiante) {
-        setSelectedEstudiante(prev => {
-          if (!prev) return prev
-          return {
-            ...prev,
-            cuotas: prev.cuotas.filter(c => c.id !== selectedCuota.id),
-            cuotas_pendientes: (prev.cuotas_pendientes || 0) - (selectedCuota.estado === 'pendiente' ? 1 : 0),
-            cuotas_pagadas: (prev.cuotas_pagadas || 0) - (selectedCuota.estado === 'pagado' ? 1 : 0),
+      // Recargar completamente los datos para sincronizar
+      setIsRefreshingData(true)
+      try {
+        const params = buildRequestFilters(filtersByTab.cuotas)
+        const [dashboardResponse, dataResponse, cuotasDashboardResponse] = await Promise.all([
+          getKardexDashboard(params),
+          getKardexData(params),
+          getCuotasDashboard(params),
+        ])
+
+        setCuotasTotals(dashboardResponse.cuotas)
+        setCuotasRows(dataResponse.cuotas)
+        setCuotasDashboard(cuotasDashboardResponse)
+        setCuotasLastUpdated(dataResponse.timestamp)
+
+        // Actualizar estudiante seleccionado
+        if (selectedEstudiante?.estudiante_programa_id) {
+          const updatedEstudiante = cuotasDashboardResponse.estudiantes.find(
+            e => e.estudiante_programa_id === selectedEstudiante.estudiante_programa_id
+          )
+          if (updatedEstudiante) {
+            setSelectedEstudiante(updatedEstudiante)
           }
-        })
-      }
-      
-      // Eliminar de cuotasDashboard también
-      setCuotasDashboard(prev => {
-        if (!prev) return prev
-        return {
-          ...prev,
-          estudiantes: prev.estudiantes.map(e => {
-            if (e.estudiante_programa_id === selectedEstudiante?.estudiante_programa_id) {
-              return {
-                ...e,
-                cuotas: e.cuotas.filter(c => c.id !== selectedCuota.id),
-                cuotas_pendientes: (e.cuotas_pendientes || 0) - (selectedCuota.estado === 'pendiente' ? 1 : 0),
-                cuotas_pagadas: (e.cuotas_pagadas || 0) - (selectedCuota.estado === 'pagado' ? 1 : 0),
-              }
-            }
-            return e
-          })
         }
-      })
-      
-      // Recargar solo las métricas
-      const params = buildRequestFilters(filtersByTab.cuotas)
-      const dashboardResponse = await getKardexDashboard(params)
-      setCuotasTotals(dashboardResponse.cuotas)
+      } catch (error) {
+        console.error('Error al recargar datos después de eliminar cuota:', error)
+      } finally {
+        setIsRefreshingData(false)
+      }
       
     } catch (error: any) {
       console.error("Error deleting cuota:", error)
@@ -1511,76 +1529,10 @@ export const ReportesFinancieros = () => {
     }
   }, [kardexCreateForm, toast, filtersByTab.kardex])
 
-  // Handlers para crear Reconciliación
+  // Handlers para crear Reconciliación - SIMPLIFICADO
   const handleCreateReconciliacion = useCallback(() => {
-    setReconciliacionCreateForm({
-      bank: "",
-      reference: "",
-      amount: 0,
-      date: new Date().toISOString().split('T')[0],
-      status: "pendiente",
-      kardex_pago_id: undefined,
-      notes: "",
-    })
     setShowCreateReconciliacionModal(true)
   }, [])
-
-  const submitCreateReconciliacion = useCallback(async () => {
-    if (!reconciliacionCreateForm.bank || !reconciliacionCreateForm.reference) {
-      toast({
-        title: "Error",
-        description: "Debe completar banco y referencia",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (reconciliacionCreateForm.amount <= 0) {
-      toast({
-        title: "Error",
-        description: "El monto debe ser mayor a 0",
-        variant: "destructive",
-      })
-      return
-    }
-
-    try {
-      const payload: ReconciliacionCreatePayload = {
-        bank: reconciliacionCreateForm.bank,
-        reference: reconciliacionCreateForm.reference,
-        amount: reconciliacionCreateForm.amount,
-        date: reconciliacionCreateForm.date,
-        status: reconciliacionCreateForm.status,
-        kardex_pago_id: reconciliacionCreateForm.kardex_pago_id,
-        notes: reconciliacionCreateForm.notes || undefined,
-      }
-
-      const newReconciliacion = await createReconciliacion(payload)
-      
-      toast({
-        title: "Reconciliación creada",
-        description: "La reconciliación se ha creado exitosamente",
-      })
-      
-      setShowCreateReconciliacionModal(false)
-      
-      // Agregar la nueva reconciliación al inicio de la lista (más reciente primero)
-      setReconciliationRows(prevRows => [newReconciliacion, ...prevRows])
-      
-      // Recargar las métricas del dashboard
-      const params = buildRequestFilters(filtersByTab.reconciliaciones)
-      const dashboardResponse = await getKardexDashboard(params)
-      setReconciliacionTotals(dashboardResponse.reconciliaciones)
-      
-    } catch (error: any) {
-      console.error("Error creating reconciliation:", error)
-      toast({
-        title: "Error",
-        description: error.response?.data?.message || "Error al crear la reconciliación",
-        variant: "destructive",
-      })
-    }
-  }, [reconciliacionCreateForm, toast, filtersByTab.reconciliaciones])
 
   const paginatedKardexRows = useMemo(() => {
     const { page, pageSize } = pagination.kardex
@@ -2012,13 +1964,13 @@ export const ReportesFinancieros = () => {
                       loadingStates.kardex,
                     )
                   ) : (
-                    paginatedKardexRows.map((row) => {
+                    paginatedKardexRows.map((row, index) => {
                       const estado = row.estado_pago ?? ""
                       const estadoClase = estadoPagoClasses[estado] ?? "bg-slate-500/15 text-slate-700 border-slate-500/30"
                       const estadoLabel = estadoPagoLabels[estado] ?? (estado ? estado.replace(/_/g, " ") : "Sin estado")
 
                       return (
-                        <TableRow key={row.id}>
+                        <TableRow key={`kardex-${row.id}-${index}`}>
                           <TableCell className="min-w-[200px]">
                             <div className="font-medium">{row.prospecto?.nombre ?? "Sin nombre"}</div>
                             <div className="text-xs text-muted-foreground">
@@ -2144,13 +2096,13 @@ export const ReportesFinancieros = () => {
                       loadingStates.reconciliaciones,
                     )
                   ) : (
-                    paginatedReconciliationRows.map((row) => {
+                    paginatedReconciliationRows.map((row, index) => {
                       const estado = row.status ?? ""
                       const estadoClase = conciliacionClasses[estado] ?? "bg-slate-500/15 text-slate-700 border-slate-500/30"
                       const estadoLabel = conciliacionLabels[estado] ?? (estado ? estado.replace(/_/g, " ") : "Sin estado")
 
                       return (
-                        <TableRow key={row.id}>
+                        <TableRow key={`reconciliation-${row.id}-${index}`}>
                           <TableCell className="min-w-[200px]">
                             <div className="font-medium">{row.reference ?? "Sin referencia"}</div>
                             <div className="text-xs text-muted-foreground">{row.bank ?? "Sin banco"}</div>
@@ -2222,14 +2174,26 @@ export const ReportesFinancieros = () => {
         <TabsContent value="cuotas" className="space-y-4 pt-4">
           <Card>
             <CardHeader>
-              <CardTitle>Seguimiento por estudiante</CardTitle>
-              <CardDescription>
-                Resumen de cuotas pendientes y próximas fechas de pago. Actualizado
-                {" "}
-                {cuotasDashboard?.timestamp
-                  ? formatDateTime(cuotasDashboard.timestamp)
-                  : "sin información"}
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    Seguimiento por estudiante
+                    {isRefreshingData && (
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    Resumen de cuotas pendientes y próximas fechas de pago. Actualizado
+                    {" "}
+                    {cuotasDashboard?.timestamp
+                      ? formatDateTime(cuotasDashboard.timestamp)
+                      : "sin información"}
+                    {isRefreshingData && (
+                      <span className="text-blue-500 ml-2">• Actualizando...</span>
+                    )}
+                  </CardDescription>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
@@ -2569,7 +2533,13 @@ export const ReportesFinancieros = () => {
       </Tabs>
 
       {/* Modal de Cuotas del Estudiante */}
-      <Dialog open={showCuotasModal} onOpenChange={setShowCuotasModal}>
+      <Dialog open={showCuotasModal} onOpenChange={(open) => {
+        if (!open) {
+          handleCloseCuotasModal()
+        } else {
+          setShowCuotasModal(true)
+        }
+      }}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
@@ -2632,13 +2602,13 @@ export const ReportesFinancieros = () => {
                 </TableHeader>
                 <TableBody>
                   {selectedEstudiante?.cuotas && selectedEstudiante.cuotas.length > 0 ? (
-                    selectedEstudiante.cuotas.map((cuota) => {
+                    selectedEstudiante.cuotas.map((cuota, index) => {
                       const estado = cuota.estado ?? ""
                       const estadoClase = cuotaEstadoClasses[estado] ?? "bg-slate-500/15 text-slate-700 border-slate-500/30"
                       const estadoLabel = cuotaEstadoLabels[estado] ?? (estado ? estado.replace(/_/g, " ") : "Sin estado")
 
                       return (
-                        <TableRow key={cuota.id}>
+                        <TableRow key={`cuota-${cuota.id}-${index}`}>
                           <TableCell>{cuota.numero_cuota}</TableCell>
                           <TableCell>{formatDate(cuota.fecha_vencimiento)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(cuota.monto)}</TableCell>
@@ -2684,7 +2654,7 @@ export const ReportesFinancieros = () => {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCuotasModal(false)}>
+            <Button variant="outline" onClick={handleCloseCuotasModal}>
               Cerrar
             </Button>
           </DialogFooter>
@@ -2697,7 +2667,8 @@ export const ReportesFinancieros = () => {
           <DialogHeader>
             <DialogTitle>Crear Nueva Cuota</DialogTitle>
             <DialogDescription>
-              Ingrese los detalles de la nueva cuota para {selectedEstudiante?.prospecto?.nombre}
+              Ingrese los detalles de la nueva cuota para {selectedEstudiante?.prospecto?.nombre}. 
+              Puede cambiar el número de cuota sugerido si es necesario.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -2705,9 +2676,14 @@ export const ReportesFinancieros = () => {
               <Label>Número de Cuota</Label>
               <Input
                 type="number"
+                min="1"
                 value={cuotaCreateForm.numero_cuota}
                 onChange={(e) => setCuotaCreateForm({ ...cuotaCreateForm, numero_cuota: parseInt(e.target.value) || 1 })}
+                placeholder="Ingrese el número de cuota"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Se validará que no exista otra cuota con este número para el estudiante
+              </p>
             </div>
             <div>
               <Label>Fecha de Vencimiento</Label>
@@ -3491,105 +3467,23 @@ export const ReportesFinancieros = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Crear Reconciliación */}
-      <Dialog open={showCreateReconciliacionModal} onOpenChange={setShowCreateReconciliacionModal}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Crear Nueva Reconciliación Bancaria</DialogTitle>
-            <DialogDescription>
-              Registre una nueva conciliación bancaria
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="rec-banco">Banco *</Label>
-                <Input
-                  id="rec-banco"
-                  value={reconciliacionCreateForm.bank}
-                  onChange={(e) => setReconciliacionCreateForm({ ...reconciliacionCreateForm, bank: e.target.value })}
-                  placeholder="Nombre del banco"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="rec-referencia">Referencia *</Label>
-                <Input
-                  id="rec-referencia"
-                  value={reconciliacionCreateForm.reference}
-                  onChange={(e) => setReconciliacionCreateForm({ ...reconciliacionCreateForm, reference: e.target.value })}
-                  placeholder="Número de referencia bancaria"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="rec-monto">Monto *</Label>
-                <Input
-                  id="rec-monto"
-                  type="number"
-                  step="0.01"
-                  value={reconciliacionCreateForm.amount || ""}
-                  onChange={(e) => setReconciliacionCreateForm({ ...reconciliacionCreateForm, amount: parseFloat(e.target.value) || 0 })}
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="rec-fecha">Fecha *</Label>
-                <Input
-                  id="rec-fecha"
-                  type="date"
-                  value={reconciliacionCreateForm.date}
-                  onChange={(e) => setReconciliacionCreateForm({ ...reconciliacionCreateForm, date: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="rec-estado">Estado</Label>
-              <Select
-                value={reconciliacionCreateForm.status}
-                onValueChange={(value) => setReconciliacionCreateForm({ ...reconciliacionCreateForm, status: value })}
-              >
-                <SelectTrigger id="rec-estado">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pendiente">Pendiente</SelectItem>
-                  <SelectItem value="conciliado">Conciliado</SelectItem>
-                  <SelectItem value="rechazado">Rechazado</SelectItem>
-                  <SelectItem value="sin_coincidencia">Sin Coincidencia</SelectItem>
-                  <SelectItem value="imported">Importado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="rec-kardex">ID Kardex de Pago (opcional)</Label>
-              <Input
-                id="rec-kardex"
-                type="number"
-                value={reconciliacionCreateForm.kardex_pago_id || ""}
-                onChange={(e) => setReconciliacionCreateForm({ ...reconciliacionCreateForm, kardex_pago_id: e.target.value ? parseInt(e.target.value) : undefined })}
-                placeholder="Vincular a un movimiento de kardex"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="rec-notas">Notas</Label>
-              <Textarea
-                id="rec-notas"
-                value={reconciliacionCreateForm.notes}
-                onChange={(e) => setReconciliacionCreateForm({ ...reconciliacionCreateForm, notes: e.target.value })}
-                placeholder="Notas adicionales..."
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateReconciliacionModal(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={submitCreateReconciliacion}>Crear Reconciliación</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Modal de Crear Reconciliación - Componente Optimizado */}
+      <ReconciliacionModal
+        open={showCreateReconciliacionModal}
+        onOpenChange={setShowCreateReconciliacionModal}
+        onSuccess={(newReconciliacion) => {
+          // Agregar la nueva reconciliación al inicio de la lista
+          setReconciliationRows(prevRows => [newReconciliacion, ...prevRows])
+          
+          // Recargar las métricas del dashboard
+          const params = buildRequestFilters(filtersByTab.reconciliaciones)
+          getKardexDashboard(params).then(dashboardResponse => {
+            setReconciliacionTotals(dashboardResponse.reconciliaciones)
+          }).catch(error => {
+            console.error("Error reloading dashboard metrics:", error)
+          })
+        }}
+      />
 
       <AlertDialog
         open={Boolean(deleteState)}

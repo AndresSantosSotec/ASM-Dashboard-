@@ -420,23 +420,23 @@ export const deleteKardex = async (id: number, config?: AxiosRequestConfig): Pro
 // CRUD operations for Reconciliaciones Bancarias
 
 export interface ReconciliacionCreatePayload {
+  prospecto_id?: number
   bank: string
   reference: string
   amount: number
   date: string
   status?: string
   kardex_pago_id?: number
-  notes?: string
 }
 
 export interface ReconciliacionUpdatePayload {
+  prospecto_id?: number
   bank?: string
   reference?: string
   amount?: number
   date?: string
   status?: string
   kardex_pago_id?: number
-  notes?: string
 }
 
 export const getReconciliaciones = async (
