@@ -1,6 +1,6 @@
 import api from "./api"
 
-export type MatriculaDateRange = "month" | "quarter" | "semester" | "year" | "custom"
+export type MatriculaDateRange = "all" | "month" | "quarter" | "semester" | "year" | "custom"
 
 export interface MatriculaReportFilters {
   rango?: MatriculaDateRange

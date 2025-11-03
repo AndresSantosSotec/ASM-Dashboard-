@@ -66,44 +66,62 @@ export const fetchStudentProgram = async (
   }
 }
 
-export const fetchEnrolledStudents = async (): Promise<Student[]> => {
+// Caché simple para estudiantes
+let studentsCache: {
+  data: Student[];
+  timestamp: number;
+} | null = null;
+
+const STUDENTS_CACHE_DURATION = 2 * 60 * 1000; // 2 minutos
+
+export const fetchEnrolledStudents = async (forceRefresh = false): Promise<Student[]> => {
+  // Verificar caché
+  if (!forceRefresh && studentsCache && (Date.now() - studentsCache.timestamp) < STUDENTS_CACHE_DURATION) {
+    console.log('[CACHE] Usando estudiantes en caché');
+    return studentsCache.data;
+  }
+
+  console.log('[API] Cargando estudiantes desde servidor...');
+  const startTime = Date.now();
 
   const res = await api.get('/prospectos/status/Inscrito', {
     params: { per_page: 9999 },
   })
   const data = Array.isArray(res.data.data) ? res.data.data : res.data
 
-  const students = await Promise.all(
-    data.map(async (p: any) => {
-      // Evitar llamadas por estudiante en la carga inicial.
-      // Si el objeto ya incluye 'programas', lo usamos.
-      // Si no viene, dejamos la lista vacía y haremos la carga "lazy"
-      // cuando el usuario abra la vista de asignación (mejor rendimiento).
-      const progs: any[] = Array.isArray(p.programas) && p.programas.length > 0 ? p.programas : []
+  const students = data.map((p: any) => {
+    // Procesamiento síncrono para mejor rendimiento
+    const progs: any[] = Array.isArray(p.programas) && p.programas.length > 0 ? p.programas : []
+    const first = progs[0]
+    const info = first?.programa ?? first
 
-  const first = progs[0]
-      const info = first?.programa ?? first
+    return {
+      id: String(p.id),
+      name: p.nombre_completo ?? '',
+      carnet: p.carnet ?? String(p.id),
+      programId: info?.id ?? 0,
+      program: info?.nombre_del_programa ?? '',
+      specialty: info?.abreviatura ?? '',
+      startDate: p.fecha_inicio_especifica ?? first?.fecha_inicio ?? null,
+      programs: progs.map((pr: any) => pr.programa ?? pr),
+      assignedCourses: Array.isArray(p.courses)
+        ? p.courses.map((c: any) => String(c.id))
+        : [],
+      assignedCourseNames: Array.isArray(p.courses)
+        ? p.courses.map((c: any) => c.name)
+        : [],
+      completedCourses: [],
+    }
+  })
 
-      return {
-        id: String(p.id),
-        name: p.nombre_completo ?? '',
-        carnet: p.carnet ?? String(p.id),
-        programId: info?.id ?? 0,
-        program: info?.nombre_del_programa ?? '',
-        specialty: info?.abreviatura ?? '',
-        startDate: p.fecha_inicio_especifica ?? first?.fecha_inicio ?? null,
-        programs: progs.map((pr: any) => pr.programa ?? pr),
-        assignedCourses: Array.isArray(p.courses)
-          ? p.courses.map((c: any) => String(c.id))
-          : [],
-        assignedCourseNames: Array.isArray(p.courses)
-          ? p.courses.map((c: any) => c.name)
-          : [],
-        completedCourses: [],
-      }
-    }),
-  )
+  // Guardar en caché
+  studentsCache = {
+    data: students,
+    timestamp: Date.now(),
+  };
 
+  const loadTime = Date.now() - startTime;
+  console.log(`[PERFORMANCE] Estudiantes cargados en ${loadTime}ms`);
 
   return students
 }
@@ -170,12 +188,13 @@ export const unassignCourses = async (
 }
 
 export const bulkAssignCourses = async (
-  studentIds: string[],
-  courseIds: string[],
+  assignments: Array<{ studentId: string; courseIds: string[] }>
 ) => {
   await api.post('/courses/bulk-assign', {
-    prospecto_ids: studentIds.map(Number),
-    course_ids: courseIds.map(Number),
+    assignments: assignments.map(a => ({
+      studentId: Number(a.studentId),
+      courseIds: a.courseIds.map(Number),
+    })),
   })
 }
 

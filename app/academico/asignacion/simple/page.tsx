@@ -11,19 +11,25 @@ import { StudentAssignmentView } from "@/components/views/student-assignment-vie
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Download } from "lucide-react"
 import { exportarYDescargarCursos } from "@/services/courses"
+import { CourseBasedAssignment } from "@/components/views/course-based-assignment"
 import { useToast } from "@/components/ui/use-toast"
 
 export default function AssignmentPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [loadingProgress, setLoadingProgress] = useState(0)
   const [downloadState, setDownloadState] = useState<'idle' | 'processing' | 'downloading'>('idle')
+  const [showCourseBasedAssignment, setShowCourseBasedAssignment] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
     ;(async () => {
       try {
+        setLoadingProgress(10)
         const data = await fetchEnrolledStudents()
+        setLoadingProgress(60)
+        
         const active = data
           .filter((s: any) => s.is_active !== false && s.activo !== false && s.active !== false)
           .sort((a, b) => {
@@ -35,12 +41,20 @@ export default function AssignmentPage() {
             if (byDate !== 0) return byDate
             return Number(b.id) - Number(a.id)
           })
+        
+        setLoadingProgress(90)
         setStudents(active)
-        console.log('[DEBUG] Estudiantes activos:', active)
+        console.log(`[INFO] ${active.length} estudiantes activos cargados`)
+        setLoadingProgress(100)
       } catch (err) {
-        console.error(err)
+        console.error('[ERROR] Cargando estudiantes:', err)
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar los estudiantes",
+          variant: "destructive",
+        })
       } finally {
-        setIsLoading(false)
+        setTimeout(() => setIsLoading(false), 200) // Pequeña demora para mostrar 100%
       }
     })()
   }, [])
@@ -104,7 +118,17 @@ export default function AssignmentPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <div className="text-center max-w-md w-full px-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4" />
+          <p className="text-gray-600 mb-4">Cargando estudiantes...</p>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div 
+              className="bg-primary h-2 rounded-full transition-all duration-300"
+              style={{ width: `${loadingProgress}%` }}
+            />
+          </div>
+          <p className="text-sm text-gray-500 mt-2">{loadingProgress}%</p>
+        </div>
       </div>
     )
   }
@@ -154,7 +178,41 @@ export default function AssignmentPage() {
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="container mx-auto p-4">
-        <StudentCards students={students} onViewAssignment={setSelectedStudentId} />
+        {!showCourseBasedAssignment ? (
+          <>
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold">Asignación de Cursos</h1>
+                <p className="text-gray-600 mt-2">Selecciona estudiantes para asignar cursos</p>
+              </div>
+              <Button
+                onClick={() => setShowCourseBasedAssignment(true)}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                Asignación por Cursos
+              </Button>
+            </div>
+            <StudentCards students={students} onViewAssignment={setSelectedStudentId} />
+          </>
+        ) : (
+          <>
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold">Asignación por Cursos</h1>
+                <p className="text-gray-600 mt-2">Selecciona cursos para encontrar estudiantes compatibles</p>
+              </div>
+              <Button
+                onClick={() => setShowCourseBasedAssignment(false)}
+                variant="outline"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Asignación por Estudiantes
+              </Button>
+            </div>
+            {/* Componente de asignación por cursos */}
+            <CourseBasedAssignment students={students} />
+          </>
+        )}
       </div>
     </div>
   )

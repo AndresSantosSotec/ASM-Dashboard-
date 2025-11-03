@@ -35,6 +35,7 @@ import type { Course } from "@/services/courses";
 import { getAvailableCoursesForStudents, exportarYDescargarCursosMasivo } from "@/services/courses";
 import { bulkAssignCourses, unassignCourses } from "@/services/students";
 import { BulkAssignmentPanel } from "@/components/bulk-assignment-panel";
+import { BulkAssignmentImprovedPanel } from "@/components/bulk-assignment-improved-panel";
 import { useToast } from "@/components/ui/use-toast";
 
 interface StudentCardsProps {
@@ -56,6 +57,7 @@ export function StudentCards({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const [showBulkPanel, setShowBulkPanel] = useState(false);
+  const [useImprovedPanel, setUseImprovedPanel] = useState(true); // 🆕 Toggle entre paneles
   const [bulkCourses, setBulkCourses] = useState<Course[]>([]);
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
@@ -163,7 +165,12 @@ export function StudentCards({
   ) => {
     try {
       if (assign) {
-        await bulkAssignCourses(studentIds, courseIds);
+        // 🔹 Convertir al nuevo formato: cada estudiante recibe los MISMOS cursos
+        const assignments = studentIds.map(studentId => ({
+          studentId,
+          courseIds,
+        }));
+        await bulkAssignCourses(assignments);
         toast({ title: "Asignación exitosa" });
       } else {
         await unassignCourses(studentIds, courseIds);
@@ -408,21 +415,47 @@ export function StudentCards({
               Descargar CSV Seleccionados
             </Button>
             <Button size="sm" onClick={() => setShowBulkPanel(true)}>
-              Asignación Masiva
+              Asignación Masiva de Cursos
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={() => setUseImprovedPanel(!useImprovedPanel)}
+              title="Cambiar entre panel antiguo y nuevo"
+            >
+              {useImprovedPanel ? "Panel Antiguo" : "Panel Nuevo"}
             </Button>
           </div>
         </div>
       )}
 
       {showBulkPanel && (
-        <BulkAssignmentPanel
-          selectedStudents={students.filter((s) => selectedIds.includes(s.id))}
-          courses={bulkCourses}
-          isLoading={isBulkLoading}
-          error={bulkError}
-          onBulkAssignment={handleBulkAssignment}
-          onClose={() => setShowBulkPanel(false)}
-        />
+        <>
+          {useImprovedPanel ? (
+            <BulkAssignmentImprovedPanel
+              selectedStudents={students.filter((s) => selectedIds.includes(s.id))}
+              courses={bulkCourses}
+              isLoading={isBulkLoading}
+              error={bulkError}
+              onClose={() => {
+                setShowBulkPanel(false);
+                setSelectedIds([]); // Limpiar selecciones al cerrar
+              }}
+            />
+          ) : (
+            <BulkAssignmentPanel
+              selectedStudents={students.filter((s) => selectedIds.includes(s.id))}
+              courses={bulkCourses}
+              isLoading={isBulkLoading}
+              error={bulkError}
+              onBulkAssignment={handleBulkAssignment}
+              onClose={() => {
+                setShowBulkPanel(false);
+                setSelectedIds([]); // Limpiar selecciones al cerrar
+              }}
+            />
+          )}
+        </>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

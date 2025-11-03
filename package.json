@@ -4,9 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:turbo": "next dev --turbo",
     "build": "next build",
+    "build:analyze": "ANALYZE=true next build",
     "start": "next start",
+    "start:prod": "NODE_ENV=production next start -p 3000",
     "lint": "next lint",
+    "clean": "rm -rf .next out node_modules/.cache",
     "test:moodle": "node scripts/test-moodle.js",
     "check:env": "node scripts/check-env.js"
   },

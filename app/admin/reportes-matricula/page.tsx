@@ -63,6 +63,7 @@ const percentFormatter = new Intl.NumberFormat("es-PE", { maximumFractionDigits:
 const dateFormatter = new Intl.DateTimeFormat("es-PE")
 
 const rangeLabels: Record<MatriculaDateRange, string> = {
+  all: "Todos los registros",
   month: "Mes actual",
   quarter: "Trimestre actual",
   semester: "Semestre actual",
@@ -132,7 +133,7 @@ const getErrorMessage = (error: unknown) => {
 }
 
 const DEFAULT_FILTERS: MatriculaReportFilters = {
-  rango: "month",
+  rango: "all",
   programaId: "all",
   tipoAlumno: "all",
   page: 1,
@@ -142,7 +143,7 @@ const DEFAULT_FILTERS: MatriculaReportFilters = {
 export default function ReportesMatriculaPage() {
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<"current" | "comparison" | "trends">("current")
-  const [dateRange, setDateRange] = useState<MatriculaDateRange>(DEFAULT_FILTERS.rango ?? "month")
+  const [dateRange, setDateRange] = useState<MatriculaDateRange>(DEFAULT_FILTERS.rango ?? "all")
   const [startDate, setStartDate] = useState<string>("")
   const [endDate, setEndDate] = useState<string>("")
   const [program, setProgram] = useState<string>(DEFAULT_FILTERS.programaId ?? "all")
@@ -923,12 +924,26 @@ export default function ReportesMatriculaPage() {
             <CardHeader>
               <CardTitle>Comparativa entre períodos</CardTitle>
               <CardDescription>
-                {previousDescription
+                {dateRange === "all" 
+                  ? "La comparativa no está disponible cuando se visualizan todos los registros. Selecciona un rango específico para ver comparaciones."
+                  : previousDescription
                   ? `Comparando con ${previousDescription}`
                   : "Comparación con el período anterior inmediato"}
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {dateRange === "all" || !comparativa ? (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Comparativa no disponible</AlertTitle>
+                  <AlertDescription>
+                    {dateRange === "all" 
+                      ? "Para ver comparativas entre períodos, selecciona un rango de fechas específico (mes, trimestre, semestre, año o personalizado)."
+                      : "No hay datos de comparación disponibles para el período seleccionado."}
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <Card>
                   <CardContent className="p-6">
@@ -1020,9 +1035,12 @@ export default function ReportesMatriculaPage() {
                   </TableBody>
                 </Table>
               </div>
+              </>
+              )}
             </CardContent>
           </Card>
 
+          {dateRange !== "all" && comparativa && (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader>
@@ -1094,6 +1112,7 @@ export default function ReportesMatriculaPage() {
               </CardContent>
             </Card>
           </div>
+          )}
         </TabsContent>
 
         <TabsContent value="trends" className="space-y-4">

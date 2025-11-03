@@ -478,3 +478,21 @@ export const updateReconciliacion = async (
 export const deleteReconciliacion = async (id: number, config?: AxiosRequestConfig): Promise<void> => {
   await api.delete(`/mantenimientos/reconciliaciones/${id}`, config)
 }
+
+// 🔍 Obtener estudiante_programa para Select (más simple que búsqueda)
+export interface EstudianteProgramaSelect {
+  estudiante_programa_id: number
+  estudiante_nombre: string
+  carnet: string
+  correo: string
+  programa_nombre: string
+  programa_abreviatura: string | null
+  label: string // "Juan Pérez (ASM2024123) - Bachelor of Business Administration"
+}
+
+export const getEstudiantesProgramaSelect = async (
+  config?: AxiosRequestConfig,
+): Promise<{ data: EstudianteProgramaSelect[]; total: number }> => {
+  const response = await api.get("/mantenimientos/estudiante-programa/select", config)
+  return response.data
+}

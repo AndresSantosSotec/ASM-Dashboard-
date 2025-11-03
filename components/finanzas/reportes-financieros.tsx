@@ -53,6 +53,7 @@ import {
   createReconciliacion,
   updateReconciliacion,
   deleteReconciliacion,
+  getEstudiantesProgramaSelect,
   type CuotaProgramaResumen,
   type CuotasDashboardEstudiante,
   type CuotasDashboardResponse,
@@ -68,6 +69,7 @@ import {
   type KardexPagoResumen,
   type ReconciliationDashboardMetrics,
   type ReconciliationRecordResumen,
+  type EstudianteProgramaSelect,
 } from "@/services/mantenimientos"
 
 const currencyFormatter = new Intl.NumberFormat("es-GT", {
@@ -404,6 +406,27 @@ export const ReportesFinancieros = () => {
     observaciones: "",
   })
 
+  // 🔍 Select simple de estudiante-programa (cargar una vez, filtrar en frontend)
+  const [estudiantesProgramaOptions, setEstudiantesProgramaOptions] = useState<EstudianteProgramaSelect[]>([])
+  const [loadingEstudiantesPrograma, setLoadingEstudiantesPrograma] = useState(false)
+  const [searchEstudiantePrograma, setSearchEstudiantePrograma] = useState("")
+
+  // Filtrar opciones localmente para mejorar rendimiento
+  const filteredEstudiantesProgramaOptions = useMemo(() => {
+    if (!searchEstudiantePrograma.trim()) {
+      return estudiantesProgramaOptions.slice(0, 100) // Solo primeros 100 si no hay búsqueda
+    }
+    
+    const searchLower = searchEstudiantePrograma.toLowerCase()
+    return estudiantesProgramaOptions
+      .filter(item => 
+        item.estudiante_nombre.toLowerCase().includes(searchLower) ||
+        item.carnet.toLowerCase().includes(searchLower) ||
+        item.programa_nombre.toLowerCase().includes(searchLower)
+      )
+      .slice(0, 50) // Solo primeros 50 resultados
+  }, [estudiantesProgramaOptions, searchEstudiantePrograma])
+
   // Estados para crear Reconciliación
   const [showCreateReconciliacionModal, setShowCreateReconciliacionModal] = useState(false)
   const [reconciliacionCreateForm, setReconciliacionCreateForm] = useState({
@@ -481,22 +504,57 @@ export const ReportesFinancieros = () => {
       // Debug: mostrar payload
       console.log('📤 Enviando payload de actualización de kardex:', payload)
 
-      await updateKardex(kardexModal.row.id, payload)
+      const updatedKardex = await updateKardex(kardexModal.row.id, payload)
+      
+      console.log('📥 Datos recibidos del backend:', updatedKardex)
+      console.log('📋 Estructura del registro actual:', kardexModal.row)
+      
       toast({
         title: "Kardex actualizado",
         description: "El movimiento del kardex se ha actualizado exitosamente",
       })
+      
       closeDetailModal()
       
-      // Recargar datos
+      // Actualizar el registro en el estado local en lugar de recargar todo
+      setKardexRows(prevRows => {
+        return prevRows.map(row => {
+          if (row.id === kardexModal.row.id) {
+            console.log('🔄 Actualizando registro en estado local:', {
+              id: row.id,
+              antes: row,
+              actualizacion: updatedKardex
+            })
+            
+            // Combinar datos actuales con los actualizados
+            const updated = {
+              ...row,
+              fecha_pago: updatedKardex.fecha_pago || row.fecha_pago,
+              fecha_recibo: updatedKardex.fecha_recibo || row.fecha_recibo,
+              monto_pagado: updatedKardex.monto_pagado ?? row.monto_pagado,
+              metodo_pago: updatedKardex.metodo_pago || row.metodo_pago,
+              estado_pago: updatedKardex.estado_pago || row.estado_pago,
+              numero_boleta: updatedKardex.numero_boleta || row.numero_boleta,
+              banco: updatedKardex.banco || row.banco,
+              observaciones: updatedKardex.observaciones || row.observaciones,
+              // Mantener estructuras anidadas si el backend las envía
+              prospecto: updatedKardex.prospecto || row.prospecto,
+              programa: updatedKardex.programa || row.programa,
+              cuota: updatedKardex.cuota || row.cuota,
+            }
+            
+            console.log('✅ Registro actualizado:', updated)
+            return updated
+          }
+          return row
+        })
+      })
+      
+      // Recargar solo las métricas del dashboard
       const params = buildRequestFilters(filtersByTab.kardex)
-      const [dashboardResponse, dataResponse] = await Promise.all([
-        getKardexDashboard(params),
-        getKardexData(params),
-      ])
+      const dashboardResponse = await getKardexDashboard(params)
       setKardexTotals(dashboardResponse.kardex)
-      setKardexRows(dataResponse.kardex)
-      setKardexLastUpdated(dataResponse.timestamp)
+      
     } catch (error: any) {
       console.error("Error updating kardex:", error)
       
@@ -536,22 +594,39 @@ export const ReportesFinancieros = () => {
         reference: reconciliationEditForm.reference || undefined,
       }
 
-      await updateReconciliacion(reconciliationModal.row.id, payload)
+      const updatedReconciliation = await updateReconciliacion(reconciliationModal.row.id, payload)
+      
       toast({
         title: "Reconciliación actualizada",
         description: "La reconciliación se ha actualizado exitosamente",
       })
+      
       closeDetailModal()
       
-      // Recargar datos
+      // Actualizar el registro en el estado local en lugar de recargar todo
+      setReconciliationRows(prevRows => {
+        return prevRows.map(row => {
+          if (row.id === reconciliationModal.row.id) {
+            // Combinar datos actuales con los actualizados
+            return {
+              ...row,
+              ...updatedReconciliation,
+              amount: updatedReconciliation.amount ?? row.amount,
+              date: updatedReconciliation.date || row.date,
+              status: updatedReconciliation.status || row.status,
+              bank: updatedReconciliation.bank || row.bank,
+              reference: updatedReconciliation.reference || row.reference,
+            }
+          }
+          return row
+        })
+      })
+      
+      // Recargar solo las métricas del dashboard
       const params = buildRequestFilters(filtersByTab.reconciliaciones)
-      const [dashboardResponse, dataResponse] = await Promise.all([
-        getKardexDashboard(params),
-        getKardexData(params),
-      ])
+      const dashboardResponse = await getKardexDashboard(params)
       setReconciliacionTotals(dashboardResponse.reconciliaciones)
-      setReconciliationRows(dataResponse.reconciliaciones)
-      setReconciliacionesLastUpdated(dataResponse.timestamp)
+      
     } catch (error: any) {
       console.error("Error updating reconciliation:", error)
       toast({
@@ -871,36 +946,35 @@ export const ReportesFinancieros = () => {
     try {
       if (deleteState.tab === "kardex") {
         await deleteKardex(deleteState.row.id)
+        
         toast({
           title: "Kardex eliminado",
           description: "El movimiento del kardex se ha eliminado exitosamente",
         })
         
-        // Recargar datos
+        // Eliminar del estado local inmediatamente
+        setKardexRows(prevRows => prevRows.filter(row => row.id !== deleteState.row.id))
+        
+        // Recargar solo las métricas del dashboard
         const params = buildRequestFilters(filtersByTab.kardex)
-        const [dashboardResponse, dataResponse] = await Promise.all([
-          getKardexDashboard(params),
-          getKardexData(params),
-        ])
+        const dashboardResponse = await getKardexDashboard(params)
         setKardexTotals(dashboardResponse.kardex)
-        setKardexRows(dataResponse.kardex)
-        setKardexLastUpdated(dataResponse.timestamp)
+        
       } else if (deleteState.tab === "reconciliaciones") {
         await deleteReconciliacion(deleteState.row.id)
+        
         toast({
           title: "Reconciliación eliminada",
           description: "La reconciliación se ha eliminado exitosamente",
         })
         
-        // Recargar datos
+        // Eliminar del estado local inmediatamente
+        setReconciliationRows(prevRows => prevRows.filter(row => row.id !== deleteState.row.id))
+        
+        // Recargar solo las métricas del dashboard
         const params = buildRequestFilters(filtersByTab.reconciliaciones)
-        const [dashboardResponse, dataResponse] = await Promise.all([
-          getKardexDashboard(params),
-          getKardexData(params),
-        ])
+        const dashboardResponse = await getKardexDashboard(params)
         setReconciliacionTotals(dashboardResponse.reconciliaciones)
-        setReconciliationRows(dataResponse.reconciliaciones)
-        setReconciliacionesLastUpdated(dataResponse.timestamp)
       }
     } catch (error: any) {
       console.error("Error deleting:", error)
@@ -975,25 +1049,59 @@ export const ReportesFinancieros = () => {
         observaciones: cuotaCreateForm.observaciones || undefined,
       }
 
-      await createCuota(payload)
+      const newCuota = await createCuota(payload)
+      
       toast({
         title: "Cuota creada",
         description: "La cuota se ha creado exitosamente",
       })
+      
       setShowCreateCuotaModal(false)
       
-      // Recargar los datos
-      const params = buildRequestFilters(filtersByTab.cuotas)
-      const cuotasDashboardResponse = await getCuotasDashboard(params)
-      setCuotasDashboard(cuotasDashboardResponse)
-      
-      // Actualizar el estudiante seleccionado
-      const updatedEstudiante = cuotasDashboardResponse.estudiantes.find(
-        (e) => e.estudiante_programa_id === selectedEstudiante.estudiante_programa_id
-      )
-      if (updatedEstudiante) {
-        setSelectedEstudiante(updatedEstudiante)
+      // Agregar la nueva cuota al estudiante seleccionado localmente
+      if (selectedEstudiante) {
+        const cuotaDetallada: CuotaDetalladaResumen = {
+          id: newCuota.id,
+          numero_cuota: newCuota.numero_cuota,
+          fecha_vencimiento: newCuota.fecha_vencimiento,
+          monto: newCuota.monto,
+          estado: newCuota.estado,
+          paid_at: null,
+        }
+        
+        setSelectedEstudiante(prev => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            cuotas: [...prev.cuotas, cuotaDetallada],
+            cuotas_pendientes: (prev.cuotas_pendientes || 0) + (newCuota.estado === 'pendiente' ? 1 : 0),
+          }
+        })
+        
+        // Actualizar en cuotasDashboard también
+        setCuotasDashboard(prev => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            estudiantes: prev.estudiantes.map(e => {
+              if (e.estudiante_programa_id === selectedEstudiante.estudiante_programa_id) {
+                return {
+                  ...e,
+                  cuotas: [...e.cuotas, cuotaDetallada],
+                  cuotas_pendientes: (e.cuotas_pendientes || 0) + (newCuota.estado === 'pendiente' ? 1 : 0),
+                }
+              }
+              return e
+            })
+          }
+        })
       }
+      
+      // Recargar solo las métricas
+      const params = buildRequestFilters(filtersByTab.cuotas)
+      const dashboardResponse = await getKardexDashboard(params)
+      setCuotasTotals(dashboardResponse.cuotas)
+      
     } catch (error: any) {
       console.error("Error creating cuota:", error)
       toast({
@@ -1016,24 +1124,67 @@ export const ReportesFinancieros = () => {
       }
 
       await updateCuota(selectedCuota.id, payload)
+      
       toast({
         title: "Cuota actualizada",
         description: "La cuota se ha actualizado exitosamente",
       })
+      
       setShowEditCuotaModal(false)
       
-      // Recargar los datos
-      const params = buildRequestFilters(filtersByTab.cuotas)
-      const cuotasDashboardResponse = await getCuotasDashboard(params)
-      setCuotasDashboard(cuotasDashboardResponse)
-      
-      // Actualizar el estudiante seleccionado
-      const updatedEstudiante = cuotasDashboardResponse.estudiantes.find(
-        (e) => e.estudiante_programa_id === selectedEstudiante?.estudiante_programa_id
-      )
-      if (updatedEstudiante) {
-        setSelectedEstudiante(updatedEstudiante)
+      // Actualizar el estudiante seleccionado localmente
+      if (selectedEstudiante) {
+        setSelectedEstudiante(prev => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            cuotas: prev.cuotas.map(c => {
+              if (c.id === selectedCuota.id) {
+                return {
+                  ...c,
+                  ...payload,
+                  fecha_vencimiento: payload.fecha_vencimiento || c.fecha_vencimiento,
+                  monto: payload.monto ?? c.monto,
+                }
+              }
+              return c
+            })
+          }
+        })
       }
+      
+      // Actualizar en cuotasDashboard también
+      setCuotasDashboard(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          estudiantes: prev.estudiantes.map(e => {
+            if (e.estudiante_programa_id === selectedEstudiante?.estudiante_programa_id) {
+              return {
+                ...e,
+                cuotas: e.cuotas.map(c => {
+                  if (c.id === selectedCuota.id) {
+                    return {
+                      ...c,
+                      ...payload,
+                      fecha_vencimiento: payload.fecha_vencimiento || c.fecha_vencimiento,
+                      monto: payload.monto ?? c.monto,
+                    }
+                  }
+                  return c
+                })
+              }
+            }
+            return e
+          })
+        }
+      })
+      
+      // Recargar solo las métricas
+      const params = buildRequestFilters(filtersByTab.cuotas)
+      const dashboardResponse = await getKardexDashboard(params)
+      setCuotasTotals(dashboardResponse.cuotas)
+      
     } catch (error: any) {
       console.error("Error updating cuota:", error)
       toast({
@@ -1049,24 +1200,51 @@ export const ReportesFinancieros = () => {
 
     try {
       await deleteCuota(selectedCuota.id)
+      
       toast({
         title: "Cuota eliminada",
         description: "La cuota se ha eliminado exitosamente",
       })
+      
       setShowDeleteCuotaDialog(false)
       
-      // Recargar los datos
-      const params = buildRequestFilters(filtersByTab.cuotas)
-      const cuotasDashboardResponse = await getCuotasDashboard(params)
-      setCuotasDashboard(cuotasDashboardResponse)
-      
-      // Actualizar el estudiante seleccionado
-      const updatedEstudiante = cuotasDashboardResponse.estudiantes.find(
-        (e) => e.estudiante_programa_id === selectedEstudiante?.estudiante_programa_id
-      )
-      if (updatedEstudiante) {
-        setSelectedEstudiante(updatedEstudiante)
+      // Eliminar del estudiante seleccionado localmente
+      if (selectedEstudiante) {
+        setSelectedEstudiante(prev => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            cuotas: prev.cuotas.filter(c => c.id !== selectedCuota.id),
+            cuotas_pendientes: (prev.cuotas_pendientes || 0) - (selectedCuota.estado === 'pendiente' ? 1 : 0),
+            cuotas_pagadas: (prev.cuotas_pagadas || 0) - (selectedCuota.estado === 'pagado' ? 1 : 0),
+          }
+        })
       }
+      
+      // Eliminar de cuotasDashboard también
+      setCuotasDashboard(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          estudiantes: prev.estudiantes.map(e => {
+            if (e.estudiante_programa_id === selectedEstudiante?.estudiante_programa_id) {
+              return {
+                ...e,
+                cuotas: e.cuotas.filter(c => c.id !== selectedCuota.id),
+                cuotas_pendientes: (e.cuotas_pendientes || 0) - (selectedCuota.estado === 'pendiente' ? 1 : 0),
+                cuotas_pagadas: (e.cuotas_pagadas || 0) - (selectedCuota.estado === 'pagado' ? 1 : 0),
+              }
+            }
+            return e
+          })
+        }
+      })
+      
+      // Recargar solo las métricas
+      const params = buildRequestFilters(filtersByTab.cuotas)
+      const dashboardResponse = await getKardexDashboard(params)
+      setCuotasTotals(dashboardResponse.cuotas)
+      
     } catch (error: any) {
       console.error("Error deleting cuota:", error)
       toast({
@@ -1234,6 +1412,7 @@ export const ReportesFinancieros = () => {
 
   // Handlers para crear Kardex
   const handleCreateKardex = useCallback(() => {
+    // Resetear formulario
     setKardexCreateForm({
       estudiante_programa_id: 0,
       cuota_id: undefined,
@@ -1248,6 +1427,29 @@ export const ReportesFinancieros = () => {
     })
     setShowCreateKardexModal(true)
   }, [])
+
+  // 🚀 Cargar opciones de estudiante-programa UNA SOLA VEZ (caché en memoria)
+  useEffect(() => {
+    if (showCreateKardexModal && estudiantesProgramaOptions.length === 0 && !loadingEstudiantesPrograma) {
+      setLoadingEstudiantesPrograma(true)
+      getEstudiantesProgramaSelect()
+        .then((response) => {
+          console.log(`✅ Cargados ${response.total} estudiantes-programa`)
+          setEstudiantesProgramaOptions(response.data)
+        })
+        .catch((error) => {
+          console.error('❌ Error al cargar estudiantes-programa:', error)
+          toast({
+            title: "Error",
+            description: "No se pudieron cargar los estudiantes. Intente nuevamente.",
+            variant: "destructive",
+          })
+        })
+        .finally(() => {
+          setLoadingEstudiantesPrograma(false)
+        })
+    }
+  }, [showCreateKardexModal, estudiantesProgramaOptions.length, loadingEstudiantesPrograma, toast])
 
   const submitCreateKardex = useCallback(async () => {
     if (kardexCreateForm.estudiante_programa_id === 0) {
@@ -1282,22 +1484,23 @@ export const ReportesFinancieros = () => {
         observaciones: kardexCreateForm.observaciones || undefined,
       }
 
-      await createKardex(payload)
+      const newKardex = await createKardex(payload)
+      
       toast({
         title: "Kardex creado",
         description: "El movimiento del kardex se ha creado exitosamente",
       })
+      
       setShowCreateKardexModal(false)
       
-      // Recargar datos
+      // Agregar el nuevo kardex al inicio de la lista (más reciente primero)
+      setKardexRows(prevRows => [newKardex, ...prevRows])
+      
+      // Recargar las métricas del dashboard
       const params = buildRequestFilters(filtersByTab.kardex)
-      const [dashboardResponse, dataResponse] = await Promise.all([
-        getKardexDashboard(params),
-        getKardexData(params),
-      ])
+      const dashboardResponse = await getKardexDashboard(params)
       setKardexTotals(dashboardResponse.kardex)
-      setKardexRows(dataResponse.kardex)
-      setKardexLastUpdated(dataResponse.timestamp)
+      
     } catch (error: any) {
       console.error("Error creating kardex:", error)
       toast({
@@ -1352,22 +1555,23 @@ export const ReportesFinancieros = () => {
         notes: reconciliacionCreateForm.notes || undefined,
       }
 
-      await createReconciliacion(payload)
+      const newReconciliacion = await createReconciliacion(payload)
+      
       toast({
         title: "Reconciliación creada",
         description: "La reconciliación se ha creado exitosamente",
       })
+      
       setShowCreateReconciliacionModal(false)
       
-      // Recargar datos
+      // Agregar la nueva reconciliación al inicio de la lista (más reciente primero)
+      setReconciliationRows(prevRows => [newReconciliacion, ...prevRows])
+      
+      // Recargar las métricas del dashboard
       const params = buildRequestFilters(filtersByTab.reconciliaciones)
-      const [dashboardResponse, dataResponse] = await Promise.all([
-        getKardexDashboard(params),
-        getKardexData(params),
-      ])
+      const dashboardResponse = await getKardexDashboard(params)
       setReconciliacionTotals(dashboardResponse.reconciliaciones)
-      setReconciliationRows(dataResponse.reconciliaciones)
-      setReconciliacionesLastUpdated(dataResponse.timestamp)
+      
     } catch (error: any) {
       console.error("Error creating reconciliation:", error)
       toast({
@@ -3105,20 +3309,66 @@ export const ReportesFinancieros = () => {
           <DialogHeader>
             <DialogTitle>Crear Nuevo Movimiento de Kardex</DialogTitle>
             <DialogDescription>
-              Registre un nuevo movimiento de pago en el kardex
+              Seleccione el estudiante-programa y registre el pago
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {/* � Select de Estudiante-Programa con búsqueda */}
             <div className="grid gap-2">
-              <Label htmlFor="kardex-estudiante">ID Estudiante Programa *</Label>
-              <Input
-                id="kardex-estudiante"
-                type="number"
-                value={kardexCreateForm.estudiante_programa_id || ""}
-                onChange={(e) => setKardexCreateForm({ ...kardexCreateForm, estudiante_programa_id: parseInt(e.target.value) || 0 })}
-                placeholder="ID del programa del estudiante"
-              />
+              <Label htmlFor="select-estudiante-programa">Estudiante y Programa *</Label>
+              {loadingEstudiantesPrograma ? (
+                <p className="text-sm text-muted-foreground">Cargando estudiantes...</p>
+              ) : (
+                <Select
+                  value={kardexCreateForm.estudiante_programa_id.toString()}
+                  onValueChange={(value) => setKardexCreateForm({ ...kardexCreateForm, estudiante_programa_id: parseInt(value) })}
+                >
+                  <SelectTrigger id="select-estudiante-programa">
+                    <SelectValue placeholder="Buscar por nombre, carnet o programa..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    <div className="px-2 py-1.5 sticky top-0 bg-background z-10 border-b">
+                      <Input
+                        placeholder="Buscar por nombre, carnet o programa..."
+                        className="h-8"
+                        value={searchEstudiantePrograma}
+                        onChange={(e) => {
+                          setSearchEstudiantePrograma(e.target.value)
+                          e.stopPropagation()
+                        }}
+                      />
+                    </div>
+                    {filteredEstudiantesProgramaOptions.length === 0 ? (
+                      <div className="px-2 py-8 text-center text-sm text-muted-foreground">
+                        {searchEstudiantePrograma ? "No se encontraron resultados" : "No hay estudiantes disponibles"}
+                      </div>
+                    ) : (
+                      <>
+                        {filteredEstudiantesProgramaOptions.map((item) => (
+                          <SelectItem key={item.estudiante_programa_id} value={item.estudiante_programa_id.toString()}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{item.estudiante_nombre}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {item.carnet} • {item.programa_nombre}
+                                {item.programa_abreviatura && ` (${item.programa_abreviatura})`}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                        {filteredEstudiantesProgramaOptions.length >= 50 && (
+                          <div className="px-2 py-2 text-xs text-center text-muted-foreground border-t">
+                            Mostrando {filteredEstudiantesProgramaOptions.length} resultados. 
+                            {searchEstudiantePrograma === "" && " Use el buscador para refinar."}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
+
+            {/* Datos del pago */}
             <div className="grid gap-2">
               <Label htmlFor="kardex-cuota">ID Cuota (opcional)</Label>
               <Input
@@ -3231,7 +3481,12 @@ export const ReportesFinancieros = () => {
             <Button variant="outline" onClick={() => setShowCreateKardexModal(false)}>
               Cancelar
             </Button>
-            <Button onClick={submitCreateKardex}>Crear Movimiento</Button>
+            <Button 
+              onClick={submitCreateKardex}
+              disabled={kardexCreateForm.estudiante_programa_id === 0 || kardexCreateForm.monto_pagado <= 0}
+            >
+              Crear Movimiento
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

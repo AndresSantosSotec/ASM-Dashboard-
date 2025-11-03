@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { FileText, Mail, Plus, Send, Trash, Edit, Eye, Calendar, Download, Upload, Copy } from "lucide-react"
+import { Mail, Plus, Send, Trash, Edit, Eye, Copy, Loader2, FileText, Calendar, Activity } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -16,1077 +16,478 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Switch } from "@/components/ui/switch"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
+import {
+  fetchPlantillas,
+  createPlantilla,
+  updatePlantilla,
+  deletePlantilla,
+  duplicatePlantilla,
+  fetchVariables,
+  fetchEnvios,
+  enviarMasivo,
+  cancelarEnvio,
+  previewPlantilla,
+  type EmailTemplate,
+  type EmailSending,
+  type Variable,
+} from "@/services/plantillasMailing"
+// Import new components
+import { KPIDashboard } from "@/components/plantillas-mailing/KPIDashboard"
+import { PlantillasRecientes } from "@/components/plantillas-mailing/PlantillasRecientes"
+import { VariablePicker } from "@/components/plantillas-mailing/VariablePicker"
+import { HistoryPanel } from "@/components/plantillas-mailing/HistoryPanel"
+import { BulkSendModal } from "@/components/plantillas-mailing/BulkSendModal"
+import { SimplifiedBulkSendModal } from "@/components/plantillas-mailing/SimplifiedBulkSendModal"
+import { RichTextEditor } from "@/components/plantillas-mailing/RichTextEditor"
 
 export default function PlantillasMailingPage() {
   const [activeTab, setActiveTab] = useState<string>("templates")
-  const [showNewTemplateDialog, setShowNewTemplateDialog] = useState(false)
-  const [showSendMailDialog, setShowSendMailDialog] = useState(false)
+  const [templates, setTemplates] = useState<EmailTemplate[]>([])
+  const [envios, setEnvios] = useState<EmailSending[]>([])
+  const [variables, setVariables] = useState<Variable[]>([])
+  const [loading, setLoading] = useState(false)
+  const [pagination, setPagination] = useState({ current_page: 1, total: 0, per_page: 10 })
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false)
+  const [showSendDialog, setShowSendDialog] = useState(false) // Legacy - will be replaced by BulkSendModal
+  const [showBulkSendModal, setShowBulkSendModal] = useState(false) // New modal
   const [showPreviewDialog, setShowPreviewDialog] = useState(false)
-  const [selectedTemplate, setSelectedTemplate] = useState<any>(null)
-  const [templateType, setTemplateType] = useState<"email" | "document">("email")
-  const [templateEditor, setTemplateEditor] = useState<"basic" | "advanced">("basic")
-  const [showVariablesPanel, setShowVariablesPanel] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null)
+  const [previewContent, setPreviewContent] = useState<string>("")
 
-  // Datos de ejemplo para plantillas
-  const templates = [
-    { id: 1, name: "Bienvenida a Nuevos Alumnos", type: "Correo", lastModified: "2025-03-10", status: "Activo" },
-    { id: 2, name: "Recordatorio de Pago", type: "Correo", lastModified: "2025-03-12", status: "Activo" },
-    { id: 3, name: "Invitación a Graduación", type: "Correo", lastModified: "2025-03-15", status: "Activo" },
-    { id: 4, name: "Certificado de Finalización", type: "Documento", lastModified: "2025-03-18", status: "Activo" },
-    { id: 5, name: "Diploma Oficial", type: "Documento", lastModified: "2025-03-20", status: "Activo" },
-    { id: 6, name: "Estado de Cuenta", type: "Documento", lastModified: "2025-03-22", status: "Inactivo" },
-  ]
+  const [formData, setFormData] = useState({
+    nombre: "",
+    asunto: "",
+    contenido_html: "",
+    contenido_texto: "",
+    tipo: "correo" as "correo" | "documento",
+    categoria: "general" as EmailTemplate["categoria"],
+    descripcion: "",
+    activo: true,
+  })
 
-  // Datos de ejemplo para historial de envíos
-  const mailingHistory = [
-    {
-      id: 1,
-      template: "Bienvenida a Nuevos Alumnos",
-      recipients: 45,
-      sentDate: "2025-03-15 10:30",
-      status: "Enviado",
-      openRate: "68%",
+  const [sendFormData, setSendFormData] = useState({
+    template_id: 0,
+    tipo_destinatarios: "todos" as "todos" | "filtrado" | "manual",
+    enviar_inmediato: true,
+    filtros: {
+      programa_id: "all" as "all" | number,
+      activo: true,
     },
-    {
-      id: 2,
-      template: "Recordatorio de Pago",
-      recipients: 78,
-      sentDate: "2025-03-16 09:15",
-      status: "Enviado",
-      openRate: "72%",
-    },
-    {
-      id: 3,
-      template: "Invitación a Graduación",
-      recipients: 34,
-      sentDate: "2025-03-18 14:45",
-      status: "Enviado",
-      openRate: "85%",
-    },
-    {
-      id: 4,
-      template: "Bienvenida a Nuevos Alumnos",
-      recipients: 12,
-      sentDate: "2025-03-20 11:20",
-      status: "Enviado",
-      openRate: "75%",
-    },
-    {
-      id: 5,
-      template: "Recordatorio de Pago",
-      recipients: 56,
-      sentDate: "2025-03-25 15:30",
-      status: "Programado",
-      openRate: "-",
-    },
-  ]
+  })
 
-  // Variables disponibles para plantillas
-  const availableVariables = [
-    { name: "nombre_alumno", description: "Nombre completo del alumno", example: "Juan Pérez" },
-    { name: "fecha", description: "Fecha actual", example: new Date().toLocaleDateString() },
-    { name: "programa", description: "Nombre del programa o carrera", example: "Desarrollo Web" },
-    { name: "monto", description: "Monto a pagar (para recordatorios)", example: "$1,500.00" },
-    { name: "fecha_limite", description: "Fecha límite de pago", example: "30/04/2025" },
-    { name: "codigo_alumno", description: "Código o matrícula del alumno", example: "A2025-0123" },
-    { name: "nombre_curso", description: "Nombre del curso", example: "Introducción a JavaScript" },
-    { name: "nombre_docente", description: "Nombre del docente", example: "Dra. María Rodríguez" },
-    { name: "fecha_evento", description: "Fecha de un evento", example: "15/06/2025" },
-    { name: "lugar_evento", description: "Lugar de un evento", example: "Auditorio Principal" },
-  ]
+  const [filters, setFilters] = useState({
+    tipo: "all" as "all" | "correo" | "documento",
+    categoria: "all" as "all" | EmailTemplate["categoria"],
+    activo: undefined as boolean | undefined,
+    search: "",
+    page: 1,
+  })
 
-  // Función para previsualizar una plantilla
-  const handlePreviewTemplate = (template: any) => {
+  useEffect(() => {
+    loadVariables()
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === "templates") {
+      loadPlantillas()
+    } else if (activeTab === "history") {
+      loadEnvios()
+    }
+  }, [activeTab, filters])
+
+  const loadVariables = async () => {
+    try {
+      console.log('Cargando variables...')
+      const data = await fetchVariables()
+      console.log('Variables cargadas:', data)
+      setVariables(data)
+    } catch (error) {
+      console.error('Error cargando variables:', error)
+      toast.error("Error al cargar variables")
+    }
+  }
+
+  const loadPlantillas = async () => {
+    setLoading(true)
+    try {
+      console.log('Cargando plantillas con filtros:', filters)
+      const response = await fetchPlantillas(filters)
+      console.log('Respuesta de plantillas:', response)
+      setTemplates(response.data)
+      setPagination({ current_page: response.current_page, total: response.total, per_page: response.per_page })
+    } catch (error) {
+      console.error('Error cargando plantillas:', error)
+      toast.error("Error al cargar plantillas")
+      setTemplates([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadEnvios = async () => {
+    setLoading(true)
+    try {
+      console.log('Cargando envíos...')
+      const response = await fetchEnvios({ page: filters.page })
+      console.log('Respuesta de envíos:', response)
+      setEnvios(response.data)
+      setPagination({ current_page: response.current_page, total: response.total, per_page: response.per_page })
+    } catch (error) {
+      console.error('Error cargando historial:', error)
+      toast.error("Error al cargar historial")
+      setEnvios([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCreateTemplate = async () => {
+    if (!formData.nombre || !formData.asunto) {
+      toast.error("Complete los campos requeridos")
+      return
+    }
+    try {
+      setLoading(true)
+      await createPlantilla(formData)
+      toast.success("Plantilla creada exitosamente")
+      setShowTemplateDialog(false)
+      resetForm()
+      loadPlantillas()
+    } catch (error) {
+      toast.error("Error al crear plantilla")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleUpdateTemplate = async () => {
+    if (!selectedTemplate) return
+    try {
+      setLoading(true)
+      await updatePlantilla(selectedTemplate.id, formData)
+      toast.success("Plantilla actualizada")
+      setShowTemplateDialog(false)
+      resetForm()
+      loadPlantillas()
+    } catch (error) {
+      toast.error("Error al actualizar plantilla")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteTemplate = async (id: number) => {
+    if (!confirm("¿Eliminar esta plantilla?")) return
+    try {
+      setLoading(true)
+      await deletePlantilla(id)
+      toast.success("Plantilla eliminada")
+      loadPlantillas()
+    } catch (error) {
+      toast.error("Error al eliminar plantilla")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDuplicateTemplate = async (id: number) => {
+    try {
+      setLoading(true)
+      await duplicatePlantilla(id)
+      toast.success("Plantilla duplicada")
+      loadPlantillas()
+    } catch (error) {
+      toast.error("Error al duplicar plantilla")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handlePreview = async (template: EmailTemplate) => {
+    try {
+      setLoading(true)
+      const response = await previewPlantilla(template.id)
+      setPreviewContent(response.preview)
+      setShowPreviewDialog(true)
+    } catch (error) {
+      toast.error("Error al previsualizar")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSendMasivo = async () => {
+    if (!sendFormData.template_id) {
+      toast.error("Seleccione una plantilla")
+      return
+    }
+    try {
+      setLoading(true)
+      const response = await enviarMasivo(sendFormData)
+      toast.success(`Envío programado: ${response.total_destinatarios} destinatarios`)
+      setShowSendDialog(false)
+      setSendFormData({ template_id: 0, tipo_destinatarios: "todos", enviar_inmediato: true, filtros: { programa_id: "all", activo: true } })
+      setActiveTab("history")
+    } catch (error) {
+      toast.error("Error al enviar")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCancelEnvio = async (id: number) => {
+    if (!confirm("¿Cancelar este envío?")) return
+    try {
+      setLoading(true)
+      await cancelarEnvio(id)
+      toast.success("Envío cancelado")
+      loadEnvios()
+    } catch (error) {
+      toast.error("Error al cancelar")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const openEditDialog = (template: EmailTemplate) => {
     setSelectedTemplate(template)
-    setShowPreviewDialog(true)
+    setFormData({
+      nombre: template.nombre,
+      asunto: template.asunto,
+      contenido_html: template.contenido_html,
+      contenido_texto: template.contenido_texto || "",
+      tipo: template.tipo,
+      categoria: template.categoria,
+      descripcion: template.descripcion || "",
+      activo: template.activo,
+    })
+    setShowTemplateDialog(true)
   }
 
-  // Función para insertar una variable en el editor
-  const insertVariable = (variable: string) => {
-    // En una implementación real, esto insertaría la variable en el punto de cursor del editor
-    console.log(`Insertar variable: {{${variable}}}`)
+  const resetForm = () => {
+    setSelectedTemplate(null)
+    setFormData({ nombre: "", asunto: "", contenido_html: "", contenido_texto: "", tipo: "correo", categoria: "general", descripcion: "", activo: true })
   }
 
-  // Dummy data for preview
-  const nombre_alumno = "Juan Pérez"
-  const fecha = new Date().toLocaleDateString()
-  const programa = "Ingeniería Informática"
-  const monto = "$1,500.00"
+  const handleInsertVariable = (variableName: string) => {
+    const variableTag = `{{${variableName}}}`
+    setFormData({ ...formData, contenido_html: formData.contenido_html + variableTag })
+  }
+
+  const getUsedVariables = () => {
+    const regex = /\{\{(\w+)\}\}/g
+    const matches = formData.contenido_html.matchAll(regex)
+    return Array.from(matches).map(m => m[1])
+  }
+
+  const getEstadoBadge = (estado: string) => {
+    const colors: Record<string, string> = { completado: "bg-green-500", enviando: "bg-blue-500", programado: "bg-yellow-500", fallido: "bg-red-500", cancelado: "bg-gray-500" }
+    return <Badge className={colors[estado] || "bg-gray-500"}>{estado.toUpperCase()}</Badge>
+  }
 
   return (
     <div className="p-6 space-y-6">
+      {/* Debug Info */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="bg-gray-100 p-4 rounded text-xs font-mono">
+          <strong>Debug Info:</strong><br />
+          Templates: {templates?.length || 0} | 
+          Envíos: {envios?.length || 0} | 
+          Variables: {variables?.length || 0} | 
+          Loading: {loading ? 'Yes' : 'No'} | 
+          Active Tab: {activeTab}
+        </div>
+      )}
+      
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Plantillas y Mailing</h1>
-        <div className="flex items-center space-x-2">
+        <div className="flex gap-2">
           {activeTab === "templates" && (
-            <Dialog open={showNewTemplateDialog} onOpenChange={setShowNewTemplateDialog}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Nueva Plantilla
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-4xl">
-                <DialogHeader>
-                  <DialogTitle>Crear Nueva Plantilla</DialogTitle>
-                  <DialogDescription>Diseñe una nueva plantilla para correos o documentos.</DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="templateName" className="text-right">
-                      Nombre
-                    </Label>
-                    <Input id="templateName" placeholder="Nombre de la plantilla" className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="templateType" className="text-right">
-                      Tipo
-                    </Label>
-                    <RadioGroup
-                      defaultValue="email"
-                      className="col-span-3 flex space-x-4"
-                      onValueChange={(value) => setTemplateType(value as "email" | "document")}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="email" id="email" />
-                        <Label htmlFor="email">Correo Electrónico</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="document" id="document" />
-                        <Label htmlFor="document">Documento</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  {templateType === "email" && (
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="subject" className="text-right">
-                        Asunto
-                      </Label>
-                      <Input id="subject" placeholder="Asunto del correo" className="col-span-3" />
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-4 items-start gap-4">
-                    <div className="text-right pt-2">
-                      <Label htmlFor="editorType">Tipo de Editor</Label>
-                    </div>
-                    <div className="col-span-3 flex items-center space-x-4">
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem
-                          value="basic"
-                          id="basic"
-                          checked={templateEditor === "basic"}
-                          onClick={() => setTemplateEditor("basic")}
-                        />
-                        <Label htmlFor="basic">Básico</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem
-                          value="advanced"
-                          id="advanced"
-                          checked={templateEditor === "advanced"}
-                          onClick={() => setTemplateEditor("advanced")}
-                        />
-                        <Label htmlFor="advanced">Avanzado (HTML)</Label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-4 items-start gap-4">
-                    <Label htmlFor="content" className="text-right pt-2">
-                      Contenido
-                    </Label>
-                    <div className="col-span-3 space-y-2">
-                      {templateEditor === "basic" ? (
-                        <Textarea
-                          id="content"
-                          placeholder="Contenido de la plantilla. Puede usar variables como {{nombre_alumno}}, {{fecha}}, etc."
-                          className="min-h-[200px]"
-                        />
-                      ) : (
-                        <div className="border rounded-md">
-                          <div className="bg-gray-100 p-2 border-b flex justify-between items-center">
-                            <div className="flex space-x-2">
-                              <Button variant="ghost" size="sm">
-                                B
-                              </Button>
-                              <Button variant="ghost" size="sm">
-                                I
-                              </Button>
-                              <Button variant="ghost" size="sm">
-                                U
-                              </Button>
-                              <Button variant="ghost" size="sm">
-                                A
-                              </Button>
-                              <Button variant="ghost" size="sm">
-                                🔗
-                              </Button>
-                              <Button variant="ghost" size="sm">
-                                📷
-                              </Button>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setShowVariablesPanel(!showVariablesPanel)}
-                            >
-                              Variables
-                            </Button>
-                          </div>
-                          <Textarea
-                            id="htmlContent"
-                            placeholder="<p>Contenido HTML de la plantilla. Puede usar variables como {{nombre_alumno}}, {{fecha}}, etc.</p>"
-                            className="min-h-[200px] border-0 rounded-none"
-                          />
-                        </div>
-                      )}
-
-                      {showVariablesPanel && (
-                        <div className="border p-3 rounded-md bg-gray-50">
-                          <h4 className="font-medium mb-2">Variables Disponibles</h4>
-                          <div className="grid grid-cols-2 gap-2">
-                            {availableVariables.map((variable) => (
-                              <Button
-                                key={variable.name}
-                                variant="outline"
-                                size="sm"
-                                onClick={() => insertVariable(variable.name)}
-                                className="justify-start"
-                              >
-                                <span className="truncate">
-                                  {`{{${variable.name}}}`} - {variable.description}
-                                </span>
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="text-sm text-gray-500">
-                        <p>Variables disponibles:</p>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-1">
-                          {availableVariables.slice(0, 6).map((variable) => (
-                            <div key={variable.name} className="flex items-center">
-                              <span className="text-blue-600 font-mono text-xs">{`{{${variable.name}}}`}:</span>
-                              <span className="ml-1 text-xs">{variable.description}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {templateType === "document" && (
-                    <div className="grid grid-cols-4 items-start gap-4">
-                      <Label htmlFor="documentTemplate" className="text-right pt-2">
-                        Plantilla Base
-                      </Label>
-                      <div className="col-span-3 flex items-center space-x-2">
-                        <Button variant="outline" size="sm">
-                          <Upload className="h-4 w-4 mr-1" />
-                          Subir Plantilla
-                        </Button>
-                        <span className="text-sm text-gray-500">Formatos soportados: PDF, DOCX</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="templateStatus" className="text-right">
-                      Estado
-                    </Label>
-                    <div className="col-span-3 flex items-center space-x-2">
-                      <Switch id="templateStatus" defaultChecked />
-                      <Label htmlFor="templateStatus">Activo</Label>
-                    </div>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setShowNewTemplateDialog(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={() => setShowNewTemplateDialog(false)}>Guardar Plantilla</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Button onClick={() => { resetForm(); setShowTemplateDialog(true) }}>
+              <Plus className="h-4 w-4 mr-2" />Nueva Plantilla
+            </Button>
           )}
-
-          {activeTab === "mailing" && (
-            <Dialog open={showSendMailDialog} onOpenChange={setShowSendMailDialog}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Send className="h-4 w-4 mr-1" />
-                  Enviar Correo
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-4xl">
-                <DialogHeader>
-                  <DialogTitle>Enviar Correo Masivo</DialogTitle>
-                  <DialogDescription>Configure y envíe un correo a múltiples destinatarios.</DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="emailTemplate" className="text-right">
-                      Plantilla
-                    </Label>
-                    <Select>
-                      <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="Seleccionar plantilla" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="welcome">Bienvenida a Nuevos Alumnos</SelectItem>
-                        <SelectItem value="payment">Recordatorio de Pago</SelectItem>
-                        <SelectItem value="graduation">Invitación a Graduación</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="recipients" className="text-right">
-                      Destinatarios
-                    </Label>
-                    <Select>
-                      <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="Seleccionar grupo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos los alumnos</SelectItem>
-                        <SelectItem value="new">Alumnos nuevos</SelectItem>
-                        <SelectItem value="graduating">Alumnos por graduarse</SelectItem>
-                        <SelectItem value="pending">Pagos pendientes</SelectItem>
-                        <SelectItem value="custom">Lista personalizada</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="grid grid-cols-4 items-start gap-4">
-                    <Label htmlFor="recipientFilters" className="text-right pt-2">
-                      Filtros Adicionales
-                    </Label>
-                    <div className="col-span-3 space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <input type="checkbox" id="filterProgram" className="h-4 w-4" />
-                        <Label htmlFor="filterProgram">Filtrar por Programa</Label>
-                        <Select disabled>
-                          <SelectTrigger className="w-[180px] ml-2">
-                            <SelectValue placeholder="Seleccionar programa" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="web">Desarrollo Web</SelectItem>
-                            <SelectItem value="marketing">Marketing Digital</SelectItem>
-                            <SelectItem value="design">Diseño Gráfico</SelectItem>
-                            <SelectItem value="accounting">Contabilidad</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="flex items-center space-x-2">
-                        <input type="checkbox" id="filterStatus" className="h-4 w-4" />
-                        <Label htmlFor="filterStatus">Filtrar por Estado</Label>
-                        <Select disabled>
-                          <SelectTrigger className="w-[180px] ml-2">
-                            <SelectValue placeholder="Seleccionar estado" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="active">Activo</SelectItem>
-                            <SelectItem value="inactive">Inactivo</SelectItem>
-                            <SelectItem value="pending">Pendiente</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="flex items-center space-x-2">
-                        <input type="checkbox" id="filterCustom" className="h-4 w-4" />
-                        <Label htmlFor="filterCustom">Subir Lista Personalizada</Label>
-                        <Button variant="outline" size="sm" className="ml-2" disabled>
-                          <Upload className="h-4 w-4 mr-1" />
-                          Subir CSV
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="scheduledDate" className="text-right">
-                      Programar Envío
-                    </Label>
-                    <div className="col-span-3 flex space-x-2">
-                      <div className="flex items-center space-x-2">
-                        <input type="radio" id="sendNow" name="sendTime" className="h-4 w-4" defaultChecked />
-                        <Label htmlFor="sendNow">Enviar ahora</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <input type="radio" id="sendLater" name="sendTime" className="h-4 w-4" />
-                        <Label htmlFor="sendLater">Programar</Label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <div className="text-right">
-                      <span className="text-transparent">.</span>
-                    </div>
-                    <div className="col-span-3 flex space-x-2">
-                      <Input id="scheduledDate" type="date" className="flex-1" disabled />
-                      <Input id="scheduledTime" type="time" className="w-32" disabled />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="antiSpamSettings" className="text-right">
-                      Configuración Anti-SPAM
-                    </Label>
-                    <div className="col-span-3 space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <Switch id="useInstitutionalEmail" defaultChecked />
-                        <Label htmlFor="useInstitutionalEmail">Usar correo institucional verificado</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Switch id="addUnsubscribeLink" defaultChecked />
-                        <Label htmlFor="addUnsubscribeLink">Incluir enlace para cancelar suscripción</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Switch id="avoidSpamWords" defaultChecked />
-                        <Label htmlFor="avoidSpamWords">Verificar palabras que activan filtros de spam</Label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-4 items-start gap-4">
-                    <Label htmlFor="preview" className="text-right pt-2">
-                      Vista Previa
-                    </Label>
-                    <div className="col-span-3 p-4 border rounded-md bg-gray-50 min-h-[200px]">
-                      <p className="font-medium">Asunto: Bienvenida a Nuevos Alumnos</p>
-                      <div className="mt-2">
-                        <p>Estimado/a {nombre_alumno},</p>
-                        <p className="mt-2">
-                          ¡Te damos la más cordial bienvenida a nuestra institución! Estamos muy contentos de que hayas
-                          decidido formar parte de nuestro programa de {programa}.
-                        </p>
-                        <p className="mt-2">
-                          En los próximos días recibirás información importante sobre el inicio de clases, acceso a
-                          plataformas y recursos académicos.
-                        </p>
-                        <p className="mt-2">Si tienes alguna duda, no dudes en contactarnos.</p>
-                        <p className="mt-2">Saludos cordiales,</p>
-                        <p>Equipo Académico</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setShowSendMailDialog(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={() => setShowSendMailDialog(false)}>Enviar</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+          {activeTab === "templates" && templates?.length > 0 && (
+            <Button onClick={() => setShowBulkSendModal(true)} variant="outline">
+              <Send className="h-4 w-4 mr-2" />Enviar Masivo
+            </Button>
           )}
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="templates">Plantillas</TabsTrigger>
-          <TabsTrigger value="mailing">Historial de Envíos</TabsTrigger>
-          <TabsTrigger value="analytics">Analíticas</TabsTrigger>
-          <TabsTrigger value="settings">Configuración</TabsTrigger>
-        </TabsList>
+      {/* KPI Dashboard */}
+      <KPIDashboard dias={30} onRefresh={() => { loadPlantillas(); loadEnvios(); }} />
 
+      {/* Plantillas Recientes en sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-3">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList>
+              <TabsTrigger value="templates"><FileText className="h-4 w-4 mr-2" />Plantillas</TabsTrigger>
+              <TabsTrigger value="history"><Calendar className="h-4 w-4 mr-2" />Historial</TabsTrigger>
+              <TabsTrigger value="activity"><Activity className="h-4 w-4 mr-2" />Actividad</TabsTrigger>
+            </TabsList>
         <TabsContent value="templates" className="space-y-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle>Plantillas Disponibles</CardTitle>
-              <div className="flex items-center space-x-2">
-                <Select defaultValue="all">
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue placeholder="Filtrar por tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los tipos</SelectItem>
-                    <SelectItem value="email">Correo</SelectItem>
-                    <SelectItem value="document">Documento</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input placeholder="Buscar plantilla..." className="w-[200px]" />
-              </div>
-            </CardHeader>
+            <CardHeader><CardTitle>Filtros</CardTitle></CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Última Modificación</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {templates.map((template) => (
-                    <TableRow key={template.id}>
-                      <TableCell>{template.id}</TableCell>
-                      <TableCell>{template.name}</TableCell>
-                      <TableCell>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${template.type === "Correo" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"}`}
-                        >
-                          {template.type}
-                        </span>
-                      </TableCell>
-                      <TableCell>{template.lastModified}</TableCell>
-                      <TableCell>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${template.status === "Activo" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}
-                        >
-                          {template.status}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button variant="ghost" size="icon" onClick={() => handlePreviewTemplate(template)}>
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon">
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon">
-                            <Trash className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="grid grid-cols-4 gap-4">
+                <div><Label>Búsqueda</Label><Input placeholder="Buscar..." value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} /></div>
+                <div><Label>Tipo</Label><Select value={filters.tipo} onValueChange={(value: any) => setFilters({ ...filters, tipo: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos</SelectItem><SelectItem value="correo">Correo</SelectItem><SelectItem value="documento">Documento</SelectItem></SelectContent></Select></div>
+                <div><Label>Categoría</Label><Select value={filters.categoria} onValueChange={(value: any) => setFilters({ ...filters, categoria: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="bienvenida">Bienvenida</SelectItem><SelectItem value="recordatorio">Recordatorio</SelectItem><SelectItem value="notificacion">Notificación</SelectItem><SelectItem value="invitacion">Invitación</SelectItem><SelectItem value="certificado">Certificado</SelectItem><SelectItem value="general">General</SelectItem></SelectContent></Select></div>
+                <div className="flex items-end"><Button onClick={() => loadPlantillas()} className="w-full">Buscar</Button></div>
+              </div>
             </CardContent>
           </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Plantillas Recientes</CardTitle>
-                <CardDescription>Últimas plantillas creadas o modificadas</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {templates.slice(0, 3).map((template) => (
-                    <div key={template.id} className="flex items-start p-3 bg-gray-50 rounded-md">
-                      {template.type === "Correo" ? (
-                        <Mail className="h-5 w-5 text-blue-500 mr-3 mt-0.5" />
-                      ) : (
-                        <FileText className="h-5 w-5 text-green-500 mr-3 mt-0.5" />
-                      )}
-                      <div>
-                        <h4 className="font-medium">{template.name}</h4>
-                        <p className="text-sm text-gray-600">Modificado: {template.lastModified}</p>
-                        <p className="text-sm text-gray-600">Estado: {template.status}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Variables Disponibles</CardTitle>
-                <CardDescription>Variables que puede usar en sus plantillas</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {availableVariables.map((variable) => (
-                    <div key={variable.name} className="flex items-start p-2 border-b last:border-0">
-                      <div className="flex-1">
-                        <p className="font-medium text-blue-600 font-mono">{`{{${variable.name}}}`}:</p>
-                        <p className="text-sm text-gray-600">{variable.description}</p>
-                      </div>
-                      <div className="text-sm text-gray-500">Ejemplo: {variable.example}</div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="mailing" className="space-y-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle>Historial de Envíos</CardTitle>
-              <div className="flex items-center space-x-2">
-                <Select defaultValue="all">
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue placeholder="Filtrar por estado" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los estados</SelectItem>
-                    <SelectItem value="sent">Enviado</SelectItem>
-                    <SelectItem value="scheduled">Programado</SelectItem>
-                    <SelectItem value="failed">Fallido</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input placeholder="Buscar envío..." className="w-[200px]" />
-              </div>
-            </CardHeader>
+            <CardHeader><CardTitle>Plantillas ({pagination.total})</CardTitle></CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Plantilla</TableHead>
-                    <TableHead>Destinatarios</TableHead>
-                    <TableHead>Fecha de Envío</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Tasa de Apertura</TableHead>
-                    <TableHead>Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {mailingHistory.map((mail) => (
-                    <TableRow key={mail.id}>
-                      <TableCell>{mail.id}</TableCell>
-                      <TableCell>{mail.template}</TableCell>
-                      <TableCell>{mail.recipients}</TableCell>
-                      <TableCell>{mail.sentDate}</TableCell>
-                      <TableCell>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${
-                            mail.status === "Enviado"
-                              ? "bg-green-100 text-green-800"
-                              : mail.status === "Programado"
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {mail.status}
-                        </span>
-                      </TableCell>
-                      <TableCell>{mail.openRate}</TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button variant="ghost" size="icon">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon">
-                            <Send className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon">
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Correos Enviados</p>
-                    <h3 className="text-2xl font-bold mt-1">225</h3>
-                    <p className="text-xs text-gray-500 mt-1">Últimos 30 días</p>
-                  </div>
-                  <Send className="h-10 w-10 text-blue-500" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Tasa de Apertura</p>
-                    <h3 className="text-2xl font-bold mt-1">72.5%</h3>
-                    <p className="text-xs text-gray-500 mt-1">Promedio</p>
-                  </div>
-                  <Eye className="h-10 w-10 text-green-500" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Próximos Envíos</p>
-                    <h3 className="text-2xl font-bold mt-1">3</h3>
-                    <p className="text-xs text-gray-500 mt-1">Programados</p>
-                  </div>
-                  <Calendar className="h-10 w-10 text-purple-500" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Próximos Envíos Programados</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-start p-3 bg-blue-50 rounded-md">
-                  <Calendar className="h-5 w-5 text-blue-500 mr-3 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium">Recordatorio de Pago</h4>
-                    <p className="text-sm text-gray-600">Programado para: 25/03/2025 15:30</p>
-                    <p className="text-sm text-gray-600">Destinatarios: 56 alumnos con pagos pendientes</p>
-                    <div className="flex mt-2">
-                      <Button variant="outline" size="sm" className="mr-2">
-                        <Eye className="h-3 w-3 mr-1" />
-                        Ver
-                      </Button>
-                      <Button variant="outline" size="sm" className="mr-2">
-                        <Edit className="h-3 w-3 mr-1" />
-                        Editar
-                      </Button>
-                      <Button variant="outline" size="sm" className="text-red-500 hover:text-red-600">
-                        <Trash className="h-3 w-3 mr-1" />
-                        Cancelar
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-start p-3 bg-blue-50 rounded-md">
-                  <Calendar className="h-5 w-5 text-blue-500 mr-3 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium">Invitación a Evento</h4>
-                    <p className="text-sm text-gray-600">Programado para: 01/04/2025 09:00</p>
-                    <p className="text-sm text-gray-600">Destinatarios: 120 alumnos activos</p>
-                    <div className="flex mt-2">
-                      <Button variant="outline" size="sm" className="mr-2">
-                        <Eye className="h-3 w-3 mr-1" />
-                        Ver
-                      </Button>
-                      <Button variant="outline" size="sm" className="mr-2">
-                        <Edit className="h-3 w-3 mr-1" />
-                        Editar
-                      </Button>
-                      <Button variant="outline" size="sm" className="text-red-500 hover:text-red-600">
-                        <Trash className="h-3 w-3 mr-1" />
-                        Cancelar
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-start p-3 bg-blue-50 rounded-md">
-                  <Calendar className="h-5 w-5 text-blue-500 mr-3 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium">Notificación de Calificaciones</h4>
-                    <p className="text-sm text-gray-600">Programado para: 10/04/2025 14:00</p>
-                    <p className="text-sm text-gray-600">Destinatarios: 85 alumnos del curso "Desarrollo Web"</p>
-                    <div className="flex mt-2">
-                      <Button variant="outline" size="sm" className="mr-2">
-                        <Eye className="h-3 w-3 mr-1" />
-                        Ver
-                      </Button>
-                      <Button variant="outline" size="sm" className="mr-2">
-                        <Edit className="h-3 w-3 mr-1" />
-                        Editar
-                      </Button>
-                      <Button variant="outline" size="sm" className="text-red-500 hover:text-red-600">
-                        <Trash className="h-3 w-3 mr-1" />
-                        Cancelar
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="analytics" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Analíticas de Envíos</CardTitle>
-              <CardDescription>Estadísticas y métricas de rendimiento de sus envíos de correo</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-80 flex items-center justify-center bg-gray-50 rounded-md mb-6">
-                <p className="text-gray-500">Gráfica de rendimiento de envíos (últimos 6 meses)</p>
-                {/* Aquí iría el componente de gráfica real */}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex flex-col items-center">
-                      <p className="text-sm font-medium text-gray-500">Tasa de Apertura</p>
-                      <h3 className="text-2xl font-bold mt-1">72.5%</h3>
-                      <p className="text-xs text-green-500 mt-1">+5.2% vs. mes anterior</p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex flex-col items-center">
-                      <p className="text-sm font-medium text-gray-500">Tasa de Clics</p>
-                      <h3 className="text-2xl font-bold mt-1">38.2%</h3>
-                      <p className="text-xs text-green-500 mt-1">+2.8% vs. mes anterior</p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex flex-col items-center">
-                      <p className="text-sm font-medium text-gray-500">Rebotes</p>
-                      <h3 className="text-2xl font-bold mt-1">2.1%</h3>
-                      <p className="text-xs text-red-500 mt-1">+0.3% vs. mes anterior</p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex flex-col items-center">
-                      <p className="text-sm font-medium text-gray-500">Cancelaciones</p>
-                      <h3 className="text-2xl font-bold mt-1">0.8%</h3>
-                      <p className="text-xs text-green-500 mt-1">-0.2% vs. mes anterior</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Rendimiento por Plantilla</CardTitle>
-              </CardHeader>
-              <CardContent>
+              {loading ? <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div> : !templates || templates.length === 0 ? <div className="text-center p-8 text-gray-500">No hay plantillas</div> : (
                 <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Plantilla</TableHead>
-                      <TableHead>Envíos</TableHead>
-                      <TableHead>Apertura</TableHead>
-                      <TableHead>Clics</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                  <TableHeader><TableRow><TableHead>Nombre</TableHead><TableHead>Asunto</TableHead><TableHead>Tipo</TableHead><TableHead>Categoría</TableHead><TableHead>Estado</TableHead><TableHead>Actualizado</TableHead><TableHead>Acciones</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    <TableRow>
-                      <TableCell>Bienvenida a Nuevos Alumnos</TableCell>
-                      <TableCell>57</TableCell>
-                      <TableCell>85.2%</TableCell>
-                      <TableCell>42.1%</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Recordatorio de Pago</TableCell>
-                      <TableCell>78</TableCell>
-                      <TableCell>72.8%</TableCell>
-                      <TableCell>38.5%</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Invitación a Graduación</TableCell>
-                      <TableCell>34</TableCell>
-                      <TableCell>91.2%</TableCell>
-                      <TableCell>65.7%</TableCell>
-                    </TableRow>
+                    {templates.map((t) => (
+                      <TableRow key={t.id}>
+                        <TableCell className="font-medium">{t.nombre}</TableCell>
+                        <TableCell>{t.asunto}</TableCell>
+                        <TableCell><Badge variant="outline">{t.tipo}</Badge></TableCell>
+                        <TableCell><Badge variant="secondary">{t.categoria}</Badge></TableCell>
+                        <TableCell><Badge className={t.activo ? "bg-green-500" : "bg-gray-500"}>{t.activo ? "ACTIVO" : "INACTIVO"}</Badge></TableCell>
+                        <TableCell>{t.updated_at ? new Date(t.updated_at).toLocaleDateString() : "-"}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="ghost" onClick={() => handlePreview(t)}><Eye className="h-4 w-4" /></Button>
+                            <Button size="sm" variant="ghost" onClick={() => openEditDialog(t)}><Edit className="h-4 w-4" /></Button>
+                            <Button size="sm" variant="ghost" onClick={() => handleDuplicateTemplate(t.id)}><Copy className="h-4 w-4" /></Button>
+                            <Button size="sm" variant="ghost" onClick={() => handleDeleteTemplate(t.id)}><Trash className="h-4 w-4" /></Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Mejores Horarios de Envío</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-80 flex items-center justify-center bg-gray-50 rounded-md">
-                  <p className="text-gray-500">Gráfica de rendimiento por hora del día</p>
-                  {/* Aquí iría el componente de gráfica real */}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="settings" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Configuración de Correo</CardTitle>
-              <CardDescription>Configure los ajustes para el envío de correos electrónicos</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Configuración del Remitente</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="senderName">Nombre del Remitente</Label>
-                      <Input id="senderName" defaultValue="BlueAtlas Educación" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="senderEmail">Correo del Remitente</Label>
-                      <Input id="senderEmail" defaultValue="notificaciones@blueatlas.edu" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="replyToEmail">Correo de Respuesta</Label>
-                      <Input id="replyToEmail" defaultValue="soporte@blueatlas.edu" />
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Configuración Anti-SPAM</h3>
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Switch id="spfEnabled" defaultChecked />
-                      <Label htmlFor="spfEnabled">Habilitar SPF (Sender Policy Framework)</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Switch id="dkimEnabled" defaultChecked />
-                      <Label htmlFor="dkimEnabled">Habilitar DKIM (DomainKeys Identified Mail)</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Switch id="unsubscribeLink" defaultChecked />
-                      <Label htmlFor="unsubscribeLink">
-                        Incluir enlace para cancelar suscripción en todos los correos
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Switch id="spamCheck" defaultChecked />
-                      <Label htmlFor="spamCheck">Verificar contenido contra filtros de spam comunes</Label>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Límites de Envío</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="dailyLimit">Límite Diario de Envíos</Label>
-                      <Input id="dailyLimit" type="number" defaultValue="1000" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="hourlyLimit">Límite por Hora</Label>
-                      <Input id="hourlyLimit" type="number" defaultValue="200" />
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Firma Institucional</h3>
-                  <div className="space-y-2">
-                    <Label htmlFor="signature">Firma Predeterminada</Label>
-                    <Textarea
-                      id="signature"
-                      className="min-h-[100px]"
-                      defaultValue="BlueAtlas Educación\nTel: (555) 123-4567\nwww.blueatlas.edu\n\nEste correo es confidencial y está dirigido exclusivamente a su destinatario."
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end space-x-2">
-                  <Button variant="outline">Cancelar</Button>
-                  <Button>Guardar Configuración</Button>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
+        <TabsContent value="history" className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle>Historial ({pagination.total})</CardTitle></CardHeader>
+            <CardContent>
+              {loading ? <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div> : !envios || envios.length === 0 ? <div className="text-center p-8 text-gray-500">No hay envíos</div> : (
+                <Table>
+                  <TableHeader><TableRow><TableHead>Plantilla</TableHead><TableHead>Asunto</TableHead><TableHead>Destinatarios</TableHead><TableHead>Enviados</TableHead><TableHead>Fallidos</TableHead><TableHead>Abiertos</TableHead><TableHead>Estado</TableHead><TableHead>Fecha</TableHead><TableHead>Acciones</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {envios.map((e) => (
+                      <TableRow key={e.id}>
+                        <TableCell>{e.template?.nombre || "-"}</TableCell>
+                        <TableCell>{e.asunto}</TableCell>
+                        <TableCell>{e.total_destinatarios}</TableCell>
+                        <TableCell>{e.enviados}</TableCell>
+                        <TableCell>{e.fallidos}</TableCell>
+                        <TableCell>{e.abiertos} ({e.tasa_apertura || 0}%)</TableCell>
+                        <TableCell>{getEstadoBadge(e.estado)}</TableCell>
+                        <TableCell>{e.created_at ? new Date(e.created_at).toLocaleString() : "-"}</TableCell>
+                        <TableCell>{e.estado === "programado" && <Button size="sm" variant="destructive" onClick={() => handleCancelEnvio(e.id)}>Cancelar</Button>}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="activity">
+          <HistoryPanel />
+        </TabsContent>
       </Tabs>
+        </div>
 
-      {/* Modal de vista previa de plantilla */}
-      <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
-        <DialogContent className="max-w-3xl">
+        {/* Sidebar with PlantillasRecientes */}
+        <div className="lg:col-span-1">
+          <PlantillasRecientes
+            plantillas={templates.slice(0, 5) as any}
+            loading={loading}
+            onEdit={(plantilla: any) => openEditDialog(templates.find(t => t.id === plantilla.id)!)}
+          />
+        </div>
+      </div>
+
+      {/* Dialogs */}
+      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Vista Previa de Plantilla</DialogTitle>
+            <DialogTitle>{selectedTemplate ? "Editar" : "Nueva"} Plantilla</DialogTitle>
+            <DialogDescription>Complete los datos de la plantilla</DialogDescription>
           </DialogHeader>
-          {selectedTemplate && (
-            <div className="py-4">
-              <div className="bg-white border rounded-md p-6">
-                {selectedTemplate.type === "Correo" ? (
-                  <>
-                    <div className="border-b pb-2 mb-4">
-                      <p className="font-medium">Asunto: {selectedTemplate.name}</p>
-                      <p className="text-sm text-gray-500">
-                        De: BlueAtlas Educación &lt;notificaciones@blueatlas.edu&gt;
-                      </p>
-                      <p className="text-sm text-gray-500">Para: {nombre_alumno} &lt;juan.perez@example.com&gt;</p>
-                    </div>
-                    <div>
-                      <p>Estimado/a {nombre_alumno},</p>
-                      <p className="mt-2">
-                        ¡Te damos la más cordial bienvenida a nuestra institución! Estamos muy contentos de que hayas
-                        decidido formar parte de nuestro programa de {programa}.
-                      </p>
-                      <p className="mt-2">
-                        En los próximos días recibirás información importante sobre el inicio de clases, acceso a
-                        plataformas y recursos académicos.
-                      </p>
-                      <p className="mt-2">Si tienes alguna duda, no dudes en contactarnos.</p>
-                      <p className="mt-2">Saludos cordiales,</p>
-                      <p>Equipo Académico</p>
-                      <div className="mt-4 pt-4 border-t text-sm text-gray-500">
-                        <p>BlueAtlas Educación</p>
-                        <p>Tel: (555) 123-4567</p>
-                        <p>www.blueatlas.edu</p>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center">
-                    <div className="text-center mb-6">
-                      <h2 className="text-2xl font-bold mb-2">BlueAtlas Educación</h2>
-                      <h3 className="text-xl">{selectedTemplate.name}</h3>
-                    </div>
-                    <div className="w-full max-w-md border-4 border-blue-200 p-8 rounded-md text-center">
-                      <p className="text-lg mb-4">Se certifica que:</p>
-                      <p className="text-xl font-bold mb-6">{nombre_alumno}</p>
-                      <p className="mb-4">Ha completado satisfactoriamente el programa de:</p>
-                      <p className="text-lg font-semibold mb-6">{programa}</p>
-                      <p className="mb-8">Con fecha {fecha}</p>
-                      <div className="flex justify-between mt-12">
-                        <div className="text-center">
-                          <div className="border-t border-black pt-2 w-32 mx-auto">
-                            <p className="text-sm">Director Académico</p>
-                          </div>
-                        </div>
-                        <div className="text-center">
-                          <div className="border-t border-black pt-2 w-32 mx-auto">
-                            <p className="text-sm">Coordinador de Programa</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Nombre *</Label><Input value={formData.nombre} onChange={(e) => setFormData({ ...formData, nombre: e.target.value })} placeholder="Nombre" /></div>
+              <div><Label>Tipo</Label><Select value={formData.tipo} onValueChange={(value: any) => setFormData({ ...formData, tipo: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="correo">Correo</SelectItem><SelectItem value="documento">Documento</SelectItem></SelectContent></Select></div>
             </div>
-          )}
+            <div><Label>Asunto *</Label><Input value={formData.asunto} onChange={(e) => setFormData({ ...formData, asunto: e.target.value })} placeholder="Asunto" /></div>
+            <div><Label>Categoría</Label><Select value={formData.categoria} onValueChange={(value: any) => setFormData({ ...formData, categoria: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="bienvenida">Bienvenida</SelectItem><SelectItem value="recordatorio">Recordatorio</SelectItem><SelectItem value="notificacion">Notificación</SelectItem><SelectItem value="invitacion">Invitación</SelectItem><SelectItem value="certificado">Certificado</SelectItem><SelectItem value="general">General</SelectItem></SelectContent></Select></div>
+            
+            <div>
+              <Label>Contenido del Correo *</Label>
+              <RichTextEditor
+                value={formData.contenido_html}
+                onChange={(html) => setFormData({ ...formData, contenido_html: html })}
+                variables={variables}
+                placeholder="Escribe el contenido de tu correo aquí..."
+              />
+            </div>
+            
+            <div><Label>Descripción</Label><Textarea value={formData.descripcion} onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })} placeholder="Descripción" /></div>
+            <div className="flex items-center space-x-2"><Switch checked={formData.activo} onCheckedChange={(checked) => setFormData({ ...formData, activo: checked })} /><Label>Plantilla activa</Label></div>
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPreviewDialog(false)}>
-              Cerrar
-            </Button>
-            <Button>Editar Plantilla</Button>
+            <Button variant="outline" onClick={() => setShowTemplateDialog(false)}>Cancelar</Button>
+            <Button onClick={selectedTemplate ? handleUpdateTemplate : handleCreateTemplate} disabled={loading}>{loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}{selectedTemplate ? "Actualizar" : "Crear"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog open={showSendDialog} onOpenChange={setShowSendDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Envío Masivo</DialogTitle>
+            <DialogDescription>Configure el envío masivo</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div><Label>Plantilla *</Label><Select value={String(sendFormData.template_id)} onValueChange={(value) => setSendFormData({ ...sendFormData, template_id: parseInt(value) })}><SelectTrigger><SelectValue placeholder="Seleccione" /></SelectTrigger><SelectContent>{(templates || []).filter((t) => t.activo && t.tipo === "correo").map((t) => <SelectItem key={t.id} value={String(t.id)}>{t.nombre}</SelectItem>)}</SelectContent></Select></div>
+            <div><Label>Destinatarios</Label><Select value={sendFormData.tipo_destinatarios} onValueChange={(value: any) => setSendFormData({ ...sendFormData, tipo_destinatarios: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Todos</SelectItem><SelectItem value="filtrado">Filtrados</SelectItem><SelectItem value="manual">Manual</SelectItem></SelectContent></Select></div>
+            {sendFormData.tipo_destinatarios === "filtrado" && <div><Label>Solo activos</Label><div className="flex items-center space-x-2 mt-2"><Switch checked={sendFormData.filtros.activo} onCheckedChange={(checked) => setSendFormData({ ...sendFormData, filtros: { ...sendFormData.filtros, activo: checked } })} /><span className="text-sm">Filtrar solo activos</span></div></div>}
+            <div className="flex items-center space-x-2"><Switch checked={sendFormData.enviar_inmediato} onCheckedChange={(checked) => setSendFormData({ ...sendFormData, enviar_inmediato: checked })} /><Label>Enviar inmediatamente</Label></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSendDialog(false)}>Cancelar</Button>
+            <Button onClick={handleSendMasivo} disabled={loading}>{loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}<Send className="h-4 w-4 mr-2" />Enviar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Vista Previa</DialogTitle></DialogHeader>
+          <div className="border rounded p-4 bg-white" dangerouslySetInnerHTML={{ __html: previewContent }} />
+          <DialogFooter><Button onClick={() => setShowPreviewDialog(false)}>Cerrar</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Simplified Bulk Send Modal */}
+      <SimplifiedBulkSendModal
+        open={showBulkSendModal}
+        onOpenChange={setShowBulkSendModal}
+        onSuccess={() => {
+          loadEnvios()
+          loadPlantillas()
+          setActiveTab("history")
+        }}
+      />
     </div>
   )
 }
-
