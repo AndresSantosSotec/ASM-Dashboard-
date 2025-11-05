@@ -8,13 +8,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { User, Settings, Download } from "lucide-react";
 import { exportarYDescargarCursos } from "@/services/courses";
 import { useToast } from "@/components/ui/use-toast";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { fetchAvailablePensumForStudent } from "@/services/courses";
 
 interface StudentCardProps {
   student: Student
   onViewAssignment: (studentId: string) => void
   selected?: boolean
   onSelectChange?: (checked: boolean) => void
+  lazyLoadPensum?: boolean // Nueva prop para controlar lazy loading
 }
 
 export function StudentCard({
@@ -22,9 +24,52 @@ export function StudentCard({
   onViewAssignment,
   selected = false,
   onSelectChange,
+  lazyLoadPensum = true, // Por defecto, lazy loading activado
 }: StudentCardProps) {
   const { toast } = useToast();
   const [downloadState, setDownloadState] = useState<'idle' | 'processing' | 'downloading'>('idle');
+  const [pendingCoursesCount, setPendingCoursesCount] = useState<number | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Intersection Observer para lazy loading
+  useEffect(() => {
+    if (!lazyLoadPensum) {
+      setIsVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '50px' } // Empezar a cargar 50px antes de que sea visible
+    );
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [lazyLoadPensum]);
+
+  // Obtener el conteo de cursos pendientes solo cuando es visible
+  useEffect(() => {
+    if (!isVisible) return;
+
+    (async () => {
+      try {
+        const pensum = await fetchAvailablePensumForStudent(student.programId, Number(student.id));
+        setPendingCoursesCount(pensum.length);
+      } catch (error) {
+        console.error('[StudentCard] Error fetching pensum:', error);
+        setPendingCoursesCount(null);
+      }
+    })();
+  }, [isVisible, student.programId, student.id]);
 
   const handleExportCourses = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -79,7 +124,7 @@ export function StudentCard({
   };
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card ref={cardRef} className="hover:shadow-md transition-shadow">
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center space-x-2">
@@ -101,7 +146,14 @@ export function StudentCard({
           <div>
 
             <span className="font-medium">Especialidad:</span>{" "}
-            {student.specialty}
+            <span className="inline-flex items-center gap-2">
+              {student.specialty}
+              {pendingCoursesCount !== null && pendingCoursesCount > 0 && (
+                <Badge variant="outline">
+                  {pendingCoursesCount}
+                </Badge>
+              )}
+            </span>
 
           </div>
         </div>
