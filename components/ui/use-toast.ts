@@ -20,26 +20,26 @@ const actionTypes = {
   UPDATE_TOAST: "UPDATE_TOAST",
   DISMISS_TOAST: "DISMISS_TOAST",
   REMOVE_TOAST: "REMOVE_TOAST",
-}
+} as const
 
 type ActionType = typeof actionTypes
 
 type Action =
   | {
-      type: ActionType["ADD_TOAST"]
+      type: typeof actionTypes.ADD_TOAST
       toast: ToasterToast
     }
   | {
-      type: ActionType["UPDATE_TOAST"]
+      type: typeof actionTypes.UPDATE_TOAST
       toast: Partial<ToasterToast>
       id: string
     }
   | {
-      type: ActionType["DISMISS_TOAST"]
+      type: typeof actionTypes.DISMISS_TOAST
       id: string
     }
   | {
-      type: ActionType["REMOVE_TOAST"]
+      type: typeof actionTypes.REMOVE_TOAST
       id: string
     }
 
@@ -51,19 +51,19 @@ const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
 
 const reducer = (state: State, action: Action): State => {
   switch (action.type) {
-    case "ADD_TOAST":
+    case actionTypes.ADD_TOAST:
       return {
         ...state,
         toasts: [action.toast, ...state.toasts].slice(0, TOAST_LIMIT),
       }
 
-    case "UPDATE_TOAST":
+    case actionTypes.UPDATE_TOAST:
       return {
         ...state,
         toasts: state.toasts.map((t) => (t.id === action.id ? { ...t, ...action.toast } : t)),
       }
 
-    case "DISMISS_TOAST": {
+    case actionTypes.DISMISS_TOAST: {
       const { id } = action
 
       if (toastTimeouts.has(id)) {
@@ -84,7 +84,7 @@ const reducer = (state: State, action: Action): State => {
       }
     }
 
-    case "REMOVE_TOAST":
+    case actionTypes.REMOVE_TOAST:
       if (toastTimeouts.has(action.id)) {
         clearTimeout(toastTimeouts.get(action.id))
         toastTimeouts.delete(action.id)
@@ -94,6 +94,9 @@ const reducer = (state: State, action: Action): State => {
         ...state,
         toasts: state.toasts.filter((t) => t.id !== action.id),
       }
+
+    default:
+      return state
   }
 }
 
@@ -107,7 +110,7 @@ const useToast = () => {
       if (toast.open === false && !toastTimeouts.has(toast.id)) {
         const timeout = setTimeout(() => {
           dispatch({
-            type: "REMOVE_TOAST",
+            type: actionTypes.REMOVE_TOAST,
             id: toast.id,
           })
         }, TOAST_REMOVE_DELAY)
@@ -122,7 +125,7 @@ const useToast = () => {
       const id = crypto.randomUUID()
 
       dispatch({
-        type: "ADD_TOAST",
+        type: actionTypes.ADD_TOAST,
         toast: {
           ...props,
           id,
@@ -132,10 +135,10 @@ const useToast = () => {
 
       return {
         id,
-        dismiss: () => dispatch({ type: "DISMISS_TOAST", id }),
+        dismiss: () => dispatch({ type: actionTypes.DISMISS_TOAST, id }),
         update: (props: ToasterToast) =>
           dispatch({
-            type: "UPDATE_TOAST",
+            type: actionTypes.UPDATE_TOAST,
             id,
             toast: props,
           }),
@@ -147,7 +150,7 @@ const useToast = () => {
   return {
     ...state,
     toast,
-    dismiss: (id: string) => dispatch({ type: "DISMISS_TOAST", id }),
+    dismiss: (id: string) => dispatch({ type: actionTypes.DISMISS_TOAST, id }),
   }
 }
 
