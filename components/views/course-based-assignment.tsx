@@ -5,6 +5,8 @@ import type { Student } from "@/services/students";
 import type { Course } from "@/services/courses";
 import { fetchCourses } from "@/services/courses";
 import { fetchStudentCourseLists, bulkAssignCourses } from "@/services/students";
+import { fetchStudentsByCourseDay, type MoodleStudentsByCourseResponse } from "@/services/moodleCourseQueries";
+import { MoodleBasedAssignmentPanel } from "@/components/views/moodle-based-assignment-panel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -102,6 +104,23 @@ const levenshtein = (a: string, b: string) => {
   return matrix[b.length][a.length];
 };
 
+// Función para extraer día de la semana del nombre del curso
+const extractDayFromCourseName = (courseName: string): string | null => {
+  const days = ['lunes', 'martes', 'miércoles', 'miercoles', 'jueves', 'viernes', 'sábado', 'sabado', 'domingo'];
+  const nameLower = courseName.toLowerCase();
+  
+  for (const day of days) {
+    if (nameLower.includes(day)) {
+      // Normalizar días con y sin acento
+      if (day === 'miercoles') return 'miércoles';
+      if (day === 'sabado') return 'sábado';
+      return day;
+    }
+  }
+  
+  return null;
+};
+
 export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) {
   const { toast } = useToast();
 
@@ -112,6 +131,13 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
   const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
   const [studentEligibility, setStudentEligibility] = useState<StudentEligibility[]>([]);
   const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 0 });
+
+  // Estados para filtro por día de Moodle
+  const [filterByDay, setFilterByDay] = useState(true);
+  const [detectedDay, setDetectedDay] = useState<string | null>(null);
+  const [moodleStudents, setMoodleStudents] = useState<MoodleStudentsByCourseResponse | null>(null);
+  const [loadingMoodleStudents, setLoadingMoodleStudents] = useState(false);
+  const [showMoodlePanel, setShowMoodlePanel] = useState(false);
 
   // Filtros
   const [searchName, setSearchName] = useState("");
@@ -169,6 +195,48 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
       }
     })();
   }, []);
+
+  // Detectar día y cargar estudiantes de Moodle cuando se seleccionan cursos
+  useEffect(() => {
+    if (selectedCourseIds.length === 0) {
+      setDetectedDay(null);
+      setMoodleStudents(null);
+      setShowMoodlePanel(false);
+      return;
+    }
+
+    // Detectar día del primer curso seleccionado
+    const firstSelectedCourse = courses.find(c => String(c.id) === selectedCourseIds[0]);
+    if (!firstSelectedCourse) return;
+
+    const day = extractDayFromCourseName(firstSelectedCourse.name);
+    setDetectedDay(day);
+
+    // Cargar estudiantes de Moodle si el filtro está activo
+    const loadMoodleStudents = async () => {
+      setLoadingMoodleStudents(true);
+      try {
+        const result = await fetchStudentsByCourseDay(
+          firstSelectedCourse.name,
+          firstSelectedCourse.programIds?.[0],
+          !filterByDay
+        );
+        setMoodleStudents(result);
+        console.log(`Estudiantes de Moodle cargados: ${result.total_estudiantes}`);
+      } catch (error) {
+        console.error("Error cargando estudiantes de Moodle:", error);
+        toast({
+          title: "Advertencia",
+          description: "No se pudieron cargar estudiantes de Moodle",
+          variant: "default",
+        });
+      } finally {
+        setLoadingMoodleStudents(false);
+      }
+    };
+
+    loadMoodleStudents();
+  }, [selectedCourseIds, courses, filterByDay, toast]);
 
   // Obtener programas únicos de los cursos
   const programOptions = useMemo(() => {
@@ -515,6 +583,59 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
               </span>
             )}
           </p>
+          
+          {/* Toggle de filtro por día y botón de estudiantes Moodle */}
+          {selectedCourseIds.length > 0 && (
+            <div className="mt-4 flex flex-wrap items-center gap-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center space-x-3">
+                <Checkbox 
+                  id="filterByDay" 
+                  checked={filterByDay} 
+                  onCheckedChange={(checked) => setFilterByDay(checked as boolean)}
+                />
+                <label 
+                  htmlFor="filterByDay" 
+                  className="text-sm font-medium cursor-pointer flex items-center gap-2"
+                >
+                  Filtrar estudiantes por día del curso
+                  {detectedDay && (
+                    <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300">
+                      {detectedDay.charAt(0).toUpperCase() + detectedDay.slice(1)}
+                    </Badge>
+                  )}
+                  {!detectedDay && filterByDay && (
+                    <Badge variant="outline" className="bg-yellow-100 text-yellow-700 border-yellow-300">
+                      No se detectó día
+                    </Badge>
+                  )}
+                </label>
+              </div>
+
+              <Button
+                onClick={() => setShowMoodlePanel(!showMoodlePanel)}
+                variant={showMoodlePanel ? "default" : "outline"}
+                className="ml-auto"
+                disabled={loadingMoodleStudents}
+              >
+                {loadingMoodleStudents ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Cargando...
+                  </>
+                ) : (
+                  <>
+                    <Users className="h-4 w-4 mr-2" />
+                    {showMoodlePanel ? 'Ocultar' : 'Mostrar'} Estudiantes de Moodle
+                    {moodleStudents && (
+                      <Badge className="ml-2 bg-white text-blue-600">
+                        {moodleStudents.total_estudiantes}
+                      </Badge>
+                    )}
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </CardHeader>
       </Card>
 
@@ -571,6 +692,28 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
           </div>
         </CardContent>
       </Card>
+
+      {/* Panel de estudiantes de Moodle */}
+      {(() => {
+        console.log('[DEBUG CourseBasedAssignment] Estado del panel Moodle:', {
+          showMoodlePanel,
+          hasMoodleStudents: !!moodleStudents,
+          moodleStudentsCount: moodleStudents?.data?.length || 0,
+          coursesCount: courses.length,
+          selectedCourseIds: selectedCourseIds,
+          detectedDay
+        });
+        return null;
+      })()}
+      {showMoodlePanel && moodleStudents && moodleStudents.data.length > 0 && (
+        <MoodleBasedAssignmentPanel
+          moodleStudents={moodleStudents.data}
+          courses={courses}
+          selectedCourseIds={selectedCourseIds}
+          detectedDay={detectedDay}
+          onClose={() => setShowMoodlePanel(false)}
+        />
+      )}
 
       {/* Lista de cursos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
