@@ -364,11 +364,11 @@ export default function MedalleroClient() {
                                             id="comentarios"
                                             placeholder="Añade cualquier comentario relevante sobre la evaluación"
                                           />
-                                        </div>
                                       </div>
-                                      <Alert variant="outline" className="bg-blue-50 border-blue-200">
-                                        <Info className="h-4 w-4 text-blue-600" />
-                                        <AlertTitle className="text-blue-800">Información importante</AlertTitle>
+                                    </div>
+                                    <Alert className="bg-blue-50 border-blue-200">
+                                      <Info className="h-4 w-4 text-blue-600" />
+                                      <AlertTitle className="text-blue-800">Información importante</AlertTitle>
                                         <AlertDescription className="text-blue-700">
                                           La evaluación será revisada por el departamento académico antes de ser
                                           publicada en tu perfil.

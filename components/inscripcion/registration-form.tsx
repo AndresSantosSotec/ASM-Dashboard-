@@ -101,7 +101,7 @@ export default function RegistrationForm() {
         for (const file of doc.archivos) {
           const formData = new FormData();
           formData.append("prospecto_id", nuevoId.toString());
-          formData.append("tipo_documento", doc.id);
+          formData.append("tipo_documento", String(doc.id));
           formData.append("file", file);
 
           await axios.post(`${API_BASE_URL}/api/documentos`, formData, {
@@ -201,7 +201,6 @@ export default function RegistrationForm() {
                 goPrev={() => changeTab("academico")}
                 goNext={() => changeTab("documentos")}
                 programas={programasParaFinanciero}
-                convenioId={datosFinancieros.convenioId}
               />
             </TabsContent>
 

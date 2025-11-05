@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import type { DateRange } from "react-day-picker"
 import {
   Download,
   Search,
@@ -53,7 +54,7 @@ export function SeguimientoCobros() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTemplate, setSelectedTemplate] = useState<string>("")
   const [messageContent, setMessageContent] = useState<string>("")
-  const [dateRange, setDateRange] = useState({
+  const [dateRange, setDateRange] = useState<DateRange>({
     from: new Date(),
     to: new Date(new Date().setDate(new Date().getDate() + 7)),
   })
@@ -141,7 +142,7 @@ export function SeguimientoCobros() {
       case "B2":
         return "secondary"
       case "B3":
-        return "warning"
+        return "default"
       case "B4":
         return "destructive"
       default:

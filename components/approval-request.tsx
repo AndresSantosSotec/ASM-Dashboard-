@@ -72,8 +72,8 @@ export function ApprovalRequest({ onSubmit }: ApprovalRequestProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <Alert variant="warning" className="mb-4">
-          <AlertCircle className="h-4 w-4" />
+        <Alert className="mb-4 bg-yellow-50 border-yellow-200">
+          <AlertCircle className="h-4 w-4 text-yellow-600" />
           <AlertTitle>Importante</AlertTitle>
           <AlertDescription>
             El proceso de inscripción no podrá continuar hasta que todas las aprobaciones seleccionadas sean

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { Search } from "lucide-react"
 import {
   Pagination,
@@ -94,7 +94,7 @@ export default function AsignacionPage() {
         })
         if (!res.ok) throw new Error("Error al cargar prospectos")
         const json = await res.json()
-        const list: Prospect[] = (json.data || []).map((p: any) => ({
+        const list: Prospect[] = (json.data || []).map((p: Record<string, unknown>) => ({
           id: String(p.id),
           nombre: p.nombre_completo,
           email: p.correo_electronico,
@@ -104,8 +104,8 @@ export default function AsignacionPage() {
           courses: p.courses || [],     // Agregado para cursos asignados
         }))
         setProspects(list)
-      } catch (e: any) {
-        setError(e.message)
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Error desconocido')
       } finally {
         setLoading(false)
       }

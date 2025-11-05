@@ -115,7 +115,7 @@ export function BulkAssignmentPanel({
     if (selectedCourses.length === monthCourses.length) {
       setSelectedCourses([])
     } else {
-      setSelectedCourses(monthCourses.map((c) => c.id))
+      setSelectedCourses(monthCourses.map((c) => String(c.id)))
     }
   }
 
@@ -253,7 +253,7 @@ export function BulkAssignmentPanel({
                 {monthCourses.length > 0 ? (
                   monthCourses.map((course) => {
                     const assignedTo = selectedStudents.filter((s) =>
-                      s.assignedCourses.includes(course.id),
+                      s.assignedCourses.includes(String(course.id)),
                     )
                     return (
                       <div
@@ -261,9 +261,9 @@ export function BulkAssignmentPanel({
                         className="flex items-start space-x-2 p-2 border rounded"
                       >
                         <Checkbox
-                          checked={selectedCourses.includes(course.id)}
+                          checked={selectedCourses.includes(String(course.id))}
                           onCheckedChange={(checked) =>
-                            handleCourseSelect(course.id, checked as boolean)
+                            handleCourseSelect(String(course.id), checked as boolean)
                           }
                         />
                         <div className="flex-1 text-sm">

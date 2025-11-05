@@ -235,6 +235,15 @@ export const fetchNotificationRulesByRule = async (ruleId: string | number) => {
   return Array.isArray(list) ? list : []
 }
 
+export const createNotificationRule = async (ruleId: string | number, data: any) => {
+  const payload: any = {}
+  if (data.type !== undefined) payload.type = data.type
+  if (data.triggerDays !== undefined) payload.offset_days = Number(data.triggerDays)
+  if (data.message !== undefined) payload.message = data.message
+  const res = await api.post(`/payment-rules/${ruleId}/notifications`, payload)
+  return res.data
+}
+
 export const importKardexPagos = async (file: File, tipoArchivo: string = 'cardex_directo') => {
   const formData = new FormData()
   formData.append('file', file)

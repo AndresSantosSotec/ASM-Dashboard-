@@ -198,3 +198,8 @@ export const bulkAssignCourses = async (
   })
 }
 
+export const inactivateStudents = async (studentIds: string[]) => {
+  await api.post('/students/inactivate', {
+    student_ids: studentIds.map(Number),
+  })
+}

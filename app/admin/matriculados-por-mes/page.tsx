@@ -130,7 +130,7 @@ export default function MatriculadosPorMesPage() {
     return monthlyData.map((month) => {
       let count = 0
       selectedPrograms.forEach((program) => {
-        count += month.programs[program] || 0
+        count += (month.programs as Record<string, number>)[program] || 0
       })
 
       return {
@@ -439,7 +439,7 @@ export default function MatriculadosPorMesPage() {
                       {selectedPrograms.includes("all") &&
                         programs.map((program) => (
                           <TableCell key={program} className="text-right">
-                            {month.programs[program]}
+                            {(month.programs as Record<string, number>)[program]}
                           </TableCell>
                         ))}
                     </TableRow>
@@ -458,7 +458,7 @@ export default function MatriculadosPorMesPage() {
                     {selectedPrograms.includes("all") &&
                       programs.map((program) => (
                         <TableCell key={program} className="text-right">
-                          {monthlyData.reduce((sum, month) => sum + month.programs[program], 0)}
+                          {monthlyData.reduce((sum, month) => sum + (month.programs as Record<string, number>)[program], 0)}
                         </TableCell>
                       ))}
                   </TableRow>
@@ -541,7 +541,7 @@ export default function MatriculadosPorMesPage() {
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     {programs.map((program) => {
-                      const totalProgram = monthlyData.reduce((sum, month) => sum + month.programs[program], 0)
+                      const totalProgram = monthlyData.reduce((sum, month) => sum + (month.programs as Record<string, number>)[program], 0)
                       return (
                         <div key={program} className="bg-gray-50 p-2 rounded-md">
                           <p className="text-sm">{program}</p>

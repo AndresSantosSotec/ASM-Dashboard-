@@ -795,7 +795,7 @@ export default function ProgramacionMensualCursosPage() {
                   <h3 className="text-base font-medium mb-2">Sesiones Programadas</h3>
                   <div className="max-h-[200px] overflow-y-auto border rounded-md">
                     <div className="divide-y">
-                      {selectedCourse.days.map((day, index) => (
+                      {selectedCourse.days.map((day: string, index: number) => (
                         <div key={index} className="p-2 hover:bg-gray-50 flex justify-between">
                           <span>
                             {day}, {selectedCourse.time}

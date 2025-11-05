@@ -32,11 +32,7 @@ interface Column {
   state: string             // Se asume siempre "Activo" en el frontend
 }
 
-interface CargaMasivaProspectosProps {
-  onImportSuccess?: () => void
-}
-
-export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaProspectosProps) {
+export default function CargaMasivaProspectos() {
   const [file, setFile] = useState<File | null>(null)
   const [source, setSource] = useState<string>("")
   const [showStructure, setShowStructure] = useState(false)
@@ -279,7 +275,6 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
           title: "Importación completada",
           description: data.message,
         });
-        if (onImportSuccess) onImportSuccess();
         router.refresh();
       } catch (error: any) {
         handleError(error);
