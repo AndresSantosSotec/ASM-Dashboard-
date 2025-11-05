@@ -1,17 +1,5 @@
 import api from './api'
 
-export interface Pensum {
-  id: number
-  codigo: string
-  nombre: string
-  area: 'comun' | 'especialidad' | 'cierre'
-  creditos: number
-  orden: number
-  duracion_semanas: number
-  prerequisitos: string[] | null
-  descripcion: string | null
-}
-
 export interface CourseInput {
   name: string
   code: string
@@ -23,7 +11,6 @@ export interface CourseInput {
   duration: string
   programIds: number[]
   facilitatorId?: number | null
-  pensumId?: number | null
 }
 
 export interface Course extends CourseInput {
@@ -31,7 +18,6 @@ export interface Course extends CourseInput {
   status: 'draft' | 'approved' | 'synced'
   facilitator?: { id: number; name: string } | null
   programas: { id: number; nombre_del_programa: string }[]
-  pensumId?: number | null
 }
 
 const mapCourseFromApi = (course: any): Course => ({
@@ -48,7 +34,6 @@ const mapCourseFromApi = (course: any): Course => ({
     ? course.programas.map((p: any) => p.id)
     : [],
   facilitatorId: course.facilitator_id ?? null,
-  pensumId: course.pensum_id ?? null,
   status: course.status,
   facilitator: course.facilitator ?? null,
   programas: course.programas ?? [],
@@ -405,60 +390,6 @@ export const exportCursosMasivoCSV = async (carnets: string[]): Promise<Blob> =>
       throw new Error(`Error ${status} al exportar cursos masivo`)
     }
     
-    throw error
-  }
-}
-
-/**
- * Obtener catálogo de pensum por programa
- */
-export const fetchPensumByProgram = async (programId: number): Promise<Pensum[]> => {
-  try {
-    const res = await api.get(`/pensum/by-program/${programId}`)
-    return res.data.data || []
-  } catch (error) {
-    console.error('Error al obtener pensum:', error)
-    throw error
-  }
-}
-
-/**
- * Obtener pensum disponible para un estudiante (filtra completados)
- */
-export const fetchAvailablePensumForStudent = async (
-  programId: number,
-  studentId: number
-): Promise<Pensum[]> => {
-  try {
-    const res = await api.get(`/pensum/available/${programId}/${studentId}`)
-    return res.data.data || []
-  } catch (error) {
-    console.error('Error al obtener pensum disponible:', error)
-    throw error
-  }
-}
-
-/**
- * Crear curso desde pensum
- */
-export const createCourseFromPensum = async (data: {
-  pensumId: number
-  startDate: string
-  endDate: string
-  schedule: string
-  facilitatorId?: number | null
-}): Promise<Course> => {
-  try {
-    const res = await api.post('/courses/from-pensum', {
-      pensum_id: data.pensumId,
-      start_date: data.startDate,
-      end_date: data.endDate,
-      schedule: data.schedule,
-      facilitator_id: data.facilitatorId,
-    })
-    return mapCourseFromApi(res.data.course)
-  } catch (error) {
-    console.error('Error al crear curso desde pensum:', error)
     throw error
   }
 }

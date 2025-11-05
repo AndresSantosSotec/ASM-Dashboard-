@@ -11,7 +11,7 @@ import { StudentAssignmentView } from "@/components/views/student-assignment-vie
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Download } from "lucide-react"
 import { exportarYDescargarCursos } from "@/services/courses"
-import { CourseBasedAssignment } from "@/components/views/course-based-assignment-NEW"
+import { CourseBasedAssignment } from "@/components/views/course-based-assignment"
 import { useToast } from "@/components/ui/use-toast"
 
 export default function AssignmentPage() {

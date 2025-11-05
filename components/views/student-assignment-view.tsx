@@ -3,18 +3,13 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import { useDrag, useDrop } from "react-dnd";
 import type { Student } from "@/services/students";
-import type { Course, Pensum } from "@/services/courses";
+import type { Course } from "@/services/courses";
 import {
   fetchStudentCourseLists,
   assignCourses,
   unassignCourses,
 } from "@/services/students";
-import { 
-  fetchStudentCourses, 
-  fetchAvailablePensumForStudent,
-  fetchPensumByProgram,
-  createCourseFromPensum,
-} from "@/services/courses";
+import { fetchStudentCourses } from "@/services/courses";
 
 
 import fetchApprovedMoodleCourses, {
@@ -157,74 +152,6 @@ const CourseCard = memo(({ course, status }: CourseCardProps) => {
 
 CourseCard.displayName = 'CourseCard';
 
-interface PensumCardProps {
-  pensum: Pensum;
-}
-
-const PensumCard = memo(({ pensum }: PensumCardProps) => {
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: "pensum",
-    item: { pensum },
-    collect: (monitor) => ({
-      isDragging: monitor.isDragging(),
-    }),
-  }), [pensum.id]);
-
-  const areaColors: Record<Pensum["area"], string> = {
-    comun: "bg-blue-500",
-    especialidad: "bg-green-500",
-    cierre: "bg-purple-500",
-  };
-
-  const areaLabels: Record<Pensum["area"], string> = {
-    comun: "Común",
-    especialidad: "Especialidad",
-    cierre: "Cierre",
-  };
-
-  const ref = useRef<HTMLDivElement>(null);
-  
-  useEffect(() => {
-    if (ref.current) {
-      drag(ref);
-    }
-  }, [drag]);
-
-  return (
-    <Card
-      ref={ref}
-      className={`border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 cursor-move transition-all duration-200 ${
-        isDragging ? "opacity-50" : ""
-      }`}
-    >
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center space-x-2">
-            <GripVertical className="h-4 w-4 text-gray-400" />
-            <span className="font-medium">{pensum.nombre}</span>
-          </div>
-          <Badge className={`${areaColors[pensum.area]} text-white text-xs`}>
-            {areaLabels[pensum.area]}
-          </Badge>
-        </div>
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-600">{pensum.codigo}</span>
-          <BookOpen className="h-4 w-4 text-indigo-400" />
-        </div>
-        <div className="flex justify-between items-center mt-1">
-          <span className="text-xs text-gray-500">Créditos: {pensum.creditos}</span>
-          <span className="text-xs text-gray-500">{pensum.duracion_semanas} semanas</span>
-        </div>
-        {pensum.descripcion && (
-          <p className="text-xs text-gray-500 mt-2 truncate">{pensum.descripcion}</p>
-        )}
-      </CardContent>
-    </Card>
-  );
-});
-
-PensumCard.displayName = 'PensumCard';
-
 interface MoodleCourseCardProps {
   course: MoodleQueryCourse;
 }
@@ -253,28 +180,22 @@ const MoodleCourseCard = ({ course }: MoodleCourseCardProps) => (
 interface DropZoneProps {
   status: "assigned" | "available";
   onDrop: (course: Course, to: "assigned" | "available") => void;
-  onPensumDrop?: (pensum: Pensum) => void;
   title: string;
   count: number;
   icon: React.ReactNode;
   children: React.ReactNode;
 }
 
-const DropZone = memo(({ status, onDrop, onPensumDrop, title, count, icon, children }: DropZoneProps) => {
+const DropZone = memo(({ status, onDrop, title, count, icon, children }: DropZoneProps) => {
   const [{ isOver }, drop] = useDrop(() => ({
-    accept: ["course", "pensum"],
-    drop: (item: any) => {
-      // Si es un pensum y se suelta en "assigned", crear curso
-      if (item.pensum && status === "assigned" && onPensumDrop) {
-        onPensumDrop(item.pensum);
-      }
-      // Si es un curso, manejar normalmente
-      else if (item.course && item.status !== status && item.status !== "completed" && item.status !== "static") {
+    accept: "course",
+    drop: (item: { course: Course; status: "assigned" | "available" | "completed" | "static" }) => {
+      if (item.status !== status && item.status !== "completed" && item.status !== "static") {
         onDrop(item.course, status);
       }
     },
     collect: (monitor) => ({ isOver: monitor.isOver() }),
-  }), [status, onDrop, onPensumDrop]);
+  }), [status, onDrop]);
 
   const base = "min-h-[400px] p-6 rounded-lg border-2 border-dashed transition-colors duration-200";
   const style = isOver
@@ -322,15 +243,11 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
   const [moodleCourses, setMoodleCourses] = useState<MoodleQueryCourse[]>([]);
   const [allCourses, setAllCourses] = useState<Course[]>([]);
   const [available, setAvailable] = useState<Course[]>([]);
-  const [availablePensum, setAvailablePensum] = useState<Pensum[]>([]);
-  const [totalPensumCourses, setTotalPensumCourses] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [pendingAssign, setPendingAssign] = useState<string[]>([]);
   const [pendingUnassign, setPendingUnassign] = useState<string[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isPensumLoading, setIsPensumLoading] = useState(false);
-  const [isMoodleLoading, setIsMoodleLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -340,49 +257,30 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
   useEffect(() => {
     (async () => {
       try {
-        // Primera carga: Datos esenciales (más rápido)
-        const [lists, courses] = await Promise.all([
+        const [lists, courses, moodle] = await Promise.all([
           fetchStudentCourseLists(student.id),
           fetchStudentCourses(student.id),
+          fetchApprovedMoodleCourses(student.carnet),
         ]);
 
-        setAssigned(lists.assigned);
-        setCompleted(lists.completed);
-        setAllCourses(courses);
-        setIsLoading(false); // UI ya puede mostrar algo
 
-        // Segunda carga: Datos de Moodle (puede ser más lento)
-        setIsMoodleLoading(true);
-        const moodle = await fetchApprovedMoodleCourses(student.carnet);
-        
         console.log('[DEBUG] Cursos aprobados de Moodle:', moodle);
+
         setMoodleCourses(moodle);
 
         const filteredMoodle = moodle.filter(
           (m) => !lists.completed.some((c) => areNamesSimilar(m.coursename, c.name)),
         );
+
+        setAssigned(lists.assigned);
+        setCompleted(lists.completed);
         setMoodleCompleted(filteredMoodle);
-        setIsMoodleLoading(false);
 
-        // Tercera carga: Pensum (lazy loading)
-        setIsPensumLoading(true);
-        const [pensum, totalPensum] = await Promise.all([
-          fetchAvailablePensumForStudent(student.programId, Number(student.id)),
-          fetchPensumByProgram(student.programId),
-        ]);
-
-        console.log('[DEBUG] Pensum disponible:', pensum);
-        console.log('[DEBUG] Pensum total:', totalPensum);
-
-        setAvailablePensum(pensum);
-        setTotalPensumCourses(totalPensum.length);
-        setIsPensumLoading(false);
-
+        setAllCourses(courses);
       } catch (err) {
         console.error(err);
+      } finally {
         setIsLoading(false);
-        setIsMoodleLoading(false);
-        setIsPensumLoading(false);
       }
     })();
   }, [student.id, student.programId, student.carnet]);
@@ -442,59 +340,6 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
     [],
   );
 
-  const handlePensumDrop = useCallback(
-    async (pensum: Pensum) => {
-      try {
-        // Calcular fechas automáticamente (mes actual)
-        const now = new Date();
-        const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        const endDate = new Date(startDate);
-        endDate.setDate(endDate.getDate() + (pensum.duracion_semanas * 7));
-
-        toast({
-          title: "Creando curso...",
-          description: `Creando ${pensum.nombre} desde el pensum`,
-        });
-
-        // Crear curso desde pensum
-        const newCourse = await createCourseFromPensum({
-          pensumId: pensum.id,
-          startDate: startDate.toISOString().split('T')[0],
-          endDate: endDate.toISOString().split('T')[0],
-          schedule: "Por definir", // Puede personalizarse en el modal
-          facilitatorId: null,
-        });
-
-        // Asignar al estudiante
-        await assignCourses([student.id], [String(newCourse.id)]);
-
-        // Actualizar estados
-        setAssigned((prev) => [...prev, newCourse]);
-        setAvailablePensum((prev) => prev.filter((p) => p.id !== pensum.id));
-
-        toast({
-          title: "Éxito",
-          description: `${pensum.nombre} creado y asignado correctamente`,
-        });
-
-        // Recargar pensum disponible
-        const updatedPensum = await fetchAvailablePensumForStudent(
-          student.programId,
-          Number(student.id)
-        );
-        setAvailablePensum(updatedPensum);
-      } catch (error) {
-        console.error('Error al crear curso desde pensum:', error);
-        toast({
-          title: "Error",
-          description: "No se pudo crear el curso desde el pensum",
-          variant: "destructive",
-        });
-      }
-    },
-    [student.id, student.programId, toast],
-  );
-
   const handleSaveChanges = async () => {
     try {
       if (pendingAssign.length) {
@@ -537,19 +382,6 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
         (c) =>
           c.coursename.toLowerCase().includes(term) ||
           String(c.courseid).includes(term),
-      );
-    },
-    [searchTerm],
-  );
-
-  const filterPensum = useCallback(
-    (list: Pensum[]) => {
-      const term = searchTerm.trim().toLowerCase();
-      if (!term) return list;
-      return list.filter(
-        (p) =>
-          p.nombre.toLowerCase().includes(term) ||
-          p.codigo.toLowerCase().includes(term),
       );
     },
     [searchTerm],
@@ -689,14 +521,7 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
             </div>
             <div>
               <span className="font-medium text-gray-600">Especialidad:</span>
-              <div className="text-gray-900 flex items-center gap-2">
-                <span>{student.specialty}</span>
-                {availablePensum.length > 0 && (
-                  <Badge variant="outline">
-                    {availablePensum.length}
-                  </Badge>
-                )}
-              </div>
+              <p className="text-gray-900">{student.specialty}</p>
             </div>
             {student.startDate && (
               <div>
@@ -736,7 +561,6 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
         <DropZone
           status="assigned"
           onDrop={handleCourseDrop}
-          onPensumDrop={handlePensumDrop}
           title="Cursos Asignados"
           count={assigned.length}
           icon={<Check className="h-5 w-5 mr-2" />}
@@ -744,7 +568,7 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
           {filterCourses(assigned).length === 0 ? (
             <div className="text-center py-12">
               <BookOpen className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Arrastra cursos o pensum aquí para asignar</p>
+              <p className="text-gray-500">Arrastra cursos aquí para asignar</p>
             </div>
           ) : (
             filterCourses(assigned).map((course) => (
@@ -772,50 +596,24 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
           )}
         </DropZone>
 
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-lg flex items-center text-indigo-700">
-              <BookOpen className="h-5 w-5 mr-2" />
-              Catálogo Pensum
-            </h3>
-            <Badge variant="outline" className="text-sm">
-              {isPensumLoading ? "Cargando..." : `${availablePensum.length} cursos`}
-            </Badge>
-          </div>
-          <div className="min-h-[400px] p-6 rounded-lg border-2 border-solid border-indigo-200 bg-indigo-50">
-            <div className="space-y-3">
-              {isPensumLoading ? (
-                // Skeleton loader
-                Array.from({ length: 3 }).map((_, idx) => (
-                  <div key={idx} className="bg-white p-4 rounded-lg border-2 border-indigo-100 animate-pulse">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                      <div className="h-5 bg-gray-200 rounded w-16"></div>
-                    </div>
-                    <div className="h-3 bg-gray-200 rounded w-1/4 mb-3"></div>
-                    <div className="flex justify-between items-center">
-                      <div className="h-3 bg-gray-200 rounded w-20"></div>
-                      <div className="h-3 bg-gray-200 rounded w-20"></div>
-                    </div>
-                  </div>
-                ))
-              ) : filterPensum(availablePensum).length === 0 ? (
-                <div className="text-center py-12">
-                  <Check className="h-12 w-12 text-indigo-300 mx-auto mb-4" />
-                  <p className="text-gray-500">
-                    {availablePensum.length === 0 
-                      ? "Todos los cursos del pensum están completados" 
-                      : "No hay resultados para tu búsqueda"}
-                  </p>
-                </div>
-              ) : (
-                filterPensum(availablePensum).map((pensum) => (
-                  <PensumCard key={pensum.id} pensum={pensum} />
-                ))
-              )}
+        <DropZone
+          status="available"
+          onDrop={handleCourseDrop}
+          title="Cursos Pensum/Pendientes"
+          count={available.length}
+          icon={<X className="h-5 w-5 mr-2" />}
+        >
+          {filterCourses(available).length === 0 ? (
+            <div className="text-center py-12">
+              <Check className="h-12 w-12 text-green-300 mx-auto mb-4" />
+              <p className="text-gray-500">Todos los cursos están asignados o completados</p>
             </div>
-          </div>
-        </div>
+          ) : (
+            filterCourses(available).map((course) => (
+              <CourseCard key={course.id} course={course} status="static" />
+            ))
+          )}
+        </DropZone>
 
         <div className="space-y-4">
           <div className="flex items-center justify-between">
