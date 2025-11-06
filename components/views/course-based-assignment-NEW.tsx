@@ -39,6 +39,7 @@ interface StudentWithInternalData {
   internalStudent: InternalStudentEquivalent | null;
   selectedCourseIds: string[]; // IDs de cursos del mes actual a asignar
   completedCourseIds: string[]; // IDs de cursos completados del sistema
+  assignedCourseIds: string[]; // IDs de cursos ya asignados actualmente
   moodleCompletedCourses: MoodleQueryCourse[]; // Cursos aprobados en Moodle
   // 🚀 OPTIMIZACIÓN: Lazy loading de datos pesados
   coursesLoaded?: boolean; // Flag para saber si ya se cargaron los cursos
@@ -106,6 +107,16 @@ const StudentAccordionItem = memo(({
     if (!student.internalStudent) return [];
     
     return currentMonthCourses.filter((course) => {
+      // 🚫 Excluir cursos ya completados
+      if (student.completedCourseIds.includes(String(course.id))) {
+        return false;
+      }
+      
+      // 🚫 Excluir cursos ya asignados actualmente
+      if (student.assignedCourseIds.includes(String(course.id))) {
+        return false;
+      }
+      
       // Si el estudiante no tiene programa interno, mostrar todos los cursos
       if (!student.internalStudent?.programas || student.internalStudent.programas.length === 0) {
         return true;
@@ -194,10 +205,10 @@ const StudentAccordionItem = memo(({
             {!student.coursesLoaded ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-                <span className="ml-2 text-sm text-gray-600">Cargando cursos completados...</span>
+                <span className="ml-2 text-sm text-gray-600">Cargando cursos...</span>
               </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                 {/* Cursos completados */}
                 <div className="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200 rounded-lg p-3 shadow-sm">
                   <h5 className="font-semibold text-xs text-green-800 mb-2 flex items-center">
@@ -241,6 +252,36 @@ const StudentAccordionItem = memo(({
                   </div>
                 </div>
 
+                {/* 🚫 Cursos ya asignados actualmente */}
+                <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-2 border-yellow-200 rounded-lg p-3 shadow-sm">
+                  <h5 className="font-semibold text-xs text-yellow-800 mb-2 flex items-center">
+                    <Calendar className="h-3 w-3 mr-1" />
+                    Ya Asignados ({student.assignedCourseIds.length})
+                  </h5>
+                  <div className="space-y-1 max-h-64 overflow-y-auto">
+                    {currentMonthCourses
+                      .filter(course => student.assignedCourseIds.includes(String(course.id)))
+                      .map((course) => (
+                        <div key={`assigned-${course.id}`} className="bg-white rounded border border-yellow-200 p-2 text-xs hover:shadow-sm transition-shadow">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <p className="font-medium text-yellow-900">{course.name}</p>
+                              <p className="text-yellow-700 mt-0.5">{course.code}</p>
+                              <Badge className="mt-1 text-xs bg-yellow-600 text-white">En curso</Badge>
+                            </div>
+                            <X className="h-4 w-4 text-yellow-600 flex-shrink-0 ml-2" />
+                          </div>
+                        </div>
+                      ))}
+                    {student.assignedCourseIds.length === 0 && (
+                      <div className="text-center py-6">
+                        <Calendar className="h-8 w-8 text-yellow-300 mx-auto mb-2" />
+                        <p className="text-xs text-yellow-700 italic">Sin cursos asignados</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* Cursos disponibles */}
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 rounded-lg p-3 shadow-sm">
                   <h5 className="font-semibold text-xs text-blue-800 mb-2 flex items-center justify-between">
@@ -253,7 +294,7 @@ const StudentAccordionItem = memo(({
                     </Badge>
                   </h5>
                   <div className="text-xs text-blue-700 mb-2 bg-blue-100/70 p-1.5 rounded border border-blue-200">
-                    📅 Solo cursos del programa del estudiante
+                    📅 Solo cursos del programa del estudiante (excluye completados y asignados)
                   </div>
                   <div className="space-y-1 max-h-64 overflow-y-auto">
                     {availableCourses.length === 0 ? (
@@ -418,6 +459,7 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
             internalStudent: internal,
             selectedCourseIds: [],
             completedCourseIds: [],
+            assignedCourseIds: [], // 🚫 Cursos ya asignados
             moodleCompletedCourses: [],
             coursesLoaded: false, // 🚀 Aún no se han cargado
           };
@@ -599,6 +641,10 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
       const completedCourses = Array.isArray(lists?.completed) ? lists.completed : [];
       const completedCourseIds = completedCourses.map((c: any) => String(c.id));
 
+      // 🚫 Cursos ya asignados actualmente (NO completados)
+      const assignedCourses = Array.isArray(lists?.assigned) ? lists.assigned : [];
+      const assignedCourseIds = assignedCourses.map((c: any) => String(c.id));
+
       // Cursos aprobados de Moodle
       const moodleCourses = Array.isArray(moodle) ? moodle : [];
 
@@ -610,11 +656,11 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
       // Actualizar solo este estudiante
       setStudentsData(prev => prev.map(s => 
         s.carnet === studentCarnet 
-          ? { ...s, completedCourseIds, moodleCompletedCourses, coursesLoaded: true }
+          ? { ...s, completedCourseIds, assignedCourseIds, moodleCompletedCourses, coursesLoaded: true }
           : s
       ));
 
-      console.log(`📚 Cursos cargados para ${studentCarnet}: ${completedCourseIds.length} sistema, ${moodleCompletedCourses.length} Moodle`);
+      console.log(`📚 Cursos cargados para ${studentCarnet}: ${completedCourseIds.length} completados, ${assignedCourseIds.length} asignados, ${moodleCompletedCourses.length} Moodle`);
     } catch (err) {
       console.error(`Error cargando cursos para ${studentCarnet}:`, err);
     }

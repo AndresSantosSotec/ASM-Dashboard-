@@ -40,11 +40,7 @@ export default function AdminPanel() {
           <TabsTrigger value="leads" className="py-3">Gestión de Leads</TabsTrigger>
           <TabsTrigger value="asesores" className="py-3">Asesores</TabsTrigger>
           <TabsTrigger value="reportes" className="py-3">Reportes</TabsTrigger>
-          <TabsTrigger value="actividad" className="py-3">Actividad Diaria</TabsTrigger>
-          <TabsTrigger value="alertas" className="py-3">Gestión de Alertas</TabsTrigger>
           <TabsTrigger value="duplicados" className="py-3">Duplicados</TabsTrigger>
-
-          <TabsTrigger value="configuracion" className="py-3">Configuración</TabsTrigger>
         </TabsList>
 
         <TabsContent value="leads" className="border rounded-lg p-6">
