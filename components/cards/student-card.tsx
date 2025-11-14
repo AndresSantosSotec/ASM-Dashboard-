@@ -29,6 +29,7 @@ export function StudentCard({
   const { toast } = useToast();
   const [downloadState, setDownloadState] = useState<'idle' | 'processing' | 'downloading'>('idle');
   const [pendingCoursesCount, setPendingCoursesCount] = useState<number | null>(null);
+  const [pensumProgress, setPensumProgress] = useState<{ completed: number; total: number } | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -56,14 +57,40 @@ export function StudentCard({
     return () => observer.disconnect();
   }, [lazyLoadPensum]);
 
-  // Obtener el conteo de cursos pendientes solo cuando es visible
+  // Obtener el conteo de cursos pendientes y progreso del pensum solo cuando es visible
   useEffect(() => {
     if (!isVisible) return;
 
     (async () => {
       try {
+        // Obtener cursos pendientes del pensum
         const pensum = await fetchAvailablePensumForStudent(student.programId, Number(student.id));
         setPendingCoursesCount(pensum.length);
+        
+        // Obtener progreso completo del pensum (completados vs total)
+        try {
+          const progressResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/completed-courses/student/${student.id}/progress?programa_id=${student.programId}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Accept': 'application/json',
+              }
+            }
+          );
+          
+          if (progressResponse.ok) {
+            const progressData = await progressResponse.json();
+            // El backend devuelve { prospecto_id, programa_id, progress: { total_cursos, completados, ... } }
+            const progress = progressData.progress || progressData;
+            setPensumProgress({
+              completed: progress.completados || 0,
+              total: progress.total_cursos || 0
+            });
+          }
+        } catch (progressError) {
+          console.warn('[StudentCard] Could not fetch pensum progress:', progressError);
+        }
       } catch (error) {
         console.error('[StudentCard] Error fetching pensum:', error);
         setPendingCoursesCount(null);
@@ -144,17 +171,20 @@ export function StudentCard({
             <span className="font-medium">Programa:</span> {student.program}
           </div>
           <div>
-
             <span className="font-medium">Especialidad:</span>{" "}
             <span className="inline-flex items-center gap-2">
               {student.specialty}
-              {pendingCoursesCount !== null && pendingCoursesCount > 0 && (
+              {pensumProgress && (
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
+                  {pensumProgress.completed} de {pensumProgress.total}
+                </Badge>
+              )}
+              {!pensumProgress && pendingCoursesCount !== null && pendingCoursesCount > 0 && (
                 <Badge variant="outline">
                   {pendingCoursesCount}
                 </Badge>
               )}
             </span>
-
           </div>
         </div>
 

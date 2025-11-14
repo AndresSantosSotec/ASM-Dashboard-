@@ -580,7 +580,56 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
     return result;
   }, [studentsData, searchStudent, showOnlyWithInternal, showOnlyWithSelections]);
 
-  // 📄 Paginación de estudiantes
+  // � Calcular resumen de especialidades y cursos disponibles
+  const programSummary = useMemo(() => {
+    const summary = new Map<string, { count: number; totalCourses: number }>();
+    
+    studentsData.forEach(student => {
+      if (!student.internalStudent) return;
+      
+      // Obtener especialidades del estudiante
+      const especialidades = student.internalStudent.programas
+        .map(p => {
+          // Extraer abreviatura del nombre o usar primeras letras
+          const nombre = p.nombre || '';
+          // Buscar patrones comunes: BBA, MBA, DBA, etc.
+          const match = nombre.match(/\b([A-Z]{2,5})\b/);
+          return match ? match[1] : nombre.substring(0, 4).toUpperCase();
+        })
+        .filter(Boolean);
+      
+      // Calcular cursos disponibles para este estudiante
+      const availableCoursesCount = currentMonthCourses.filter((course) => {
+        // Excluir completados y asignados
+        if (student.completedCourseIds.includes(String(course.id))) return false;
+        if (student.assignedCourseIds.includes(String(course.id))) return false;
+        
+        // Verificar programa
+        if (!student.internalStudent?.programas || student.internalStudent.programas.length === 0) return true;
+        if (!course.programas || course.programas.length === 0) return true;
+        
+        const studentProgramIds = student.internalStudent.programas.map(p => p.id);
+        return course.programas.some(p => studentProgramIds.includes(p.id));
+      }).length;
+      
+      // Agregar a resumen por cada especialidad
+      especialidades.forEach(esp => {
+        const current = summary.get(esp) || { count: 0, totalCourses: 0 };
+        summary.set(esp, {
+          count: current.count + 1,
+          totalCourses: current.totalCourses + availableCoursesCount
+        });
+      });
+    });
+    
+    return Array.from(summary.entries()).map(([especialidad, data]) => ({
+      especialidad,
+      studentCount: data.count,
+      totalAvailableCourses: data.totalCourses
+    }));
+  }, [studentsData, currentMonthCourses]);
+
+  // �📄 Paginación de estudiantes
   const paginatedStudents = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
@@ -1170,19 +1219,36 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
                 </div>
 
                 {/* Estadísticas de filtrado */}
-                <div className="flex items-center justify-between bg-gray-50 p-2 rounded text-xs">
-                  <div className="flex items-center space-x-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gray-50 p-3 rounded text-xs gap-2">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     <span className="text-gray-600">
                       Mostrando <strong>{Math.min(ITEMS_PER_PAGE, filteredStudents.length - (currentPage - 1) * ITEMS_PER_PAGE)}</strong> de <strong>{filteredStudents.length}</strong> estudiantes filtrados
                     </span>
-                    <span className="text-gray-400">|</span>
+                    <span className="text-gray-400 hidden sm:inline">|</span>
                     <span className="text-green-700">
                       <strong>{studentsData.filter(s => s.internalStudent).length}</strong> en sistema interno
                     </span>
-                    <span className="text-gray-400">|</span>
+                    <span className="text-gray-400 hidden sm:inline">|</span>
                     <span className="text-blue-700">
                       <strong>{studentsData.filter(s => s.selectedCourseIds.length > 0).length}</strong> con selecciones
                     </span>
+                    
+                    {/* 🎯 Resumen por especialidad con cursos disponibles */}
+                    {programSummary.length > 0 && (
+                      <>
+                        <span className="text-gray-400 hidden sm:inline">|</span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {programSummary.map((prog) => (
+                            <span key={prog.especialidad} className="inline-flex items-center gap-1.5">
+                              <span className="text-gray-700 font-medium">{prog.especialidad}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {prog.totalAvailableCourses}
+                              </Badge>
+                            </span>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
                   {totalPages > 1 && (
                     <span className="text-gray-600">

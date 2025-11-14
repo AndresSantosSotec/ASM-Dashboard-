@@ -4,7 +4,7 @@ import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
-import { ArrowLeft, Loader2 } from "lucide-react"
+import { ArrowLeft, Loader2, Download } from "lucide-react"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
@@ -22,6 +22,59 @@ export default function MigrarEstudiantes() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0]
     if (selected) setFile(selected)
+  }
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const token = localStorage.getItem("token")
+      if (!token) {
+        Swal.fire({
+          icon: "error",
+          title: "No autenticado",
+          text: "Debes iniciar sesión para descargar la plantilla"
+        })
+        return
+      }
+
+      toast({
+        title: "Descargando...",
+        description: "Preparando plantilla de ejemplo",
+      })
+
+      const response = await api.get("/estudiantes/template", {
+        responseType: "blob",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      // Crear un enlace temporal para descargar el archivo
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement("a")
+      link.href = url
+      link.setAttribute("download", "plantilla_estudiantes.xlsx")
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+
+      toast({
+        title: "Éxito",
+        description: "Plantilla descargada correctamente",
+      })
+    } catch (error: any) {
+      console.error("Error downloading template:", error)
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se pudo descargar la plantilla",
+      })
+      toast({
+        title: "Error",
+        description: "No se pudo descargar la plantilla",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleImport = async () => {
@@ -126,6 +179,23 @@ export default function MigrarEstudiantes() {
       </div>
 
       <div className="bg-white p-6 rounded-lg shadow-sm space-y-4">
+        {/* Sección de descarga de plantilla */}
+        <div className="border-b pb-4 mb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-medium">Plantilla de Ejemplo</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Descarga la plantilla con el formato correcto y datos de ejemplo
+              </p>
+            </div>
+            <Button onClick={handleDownloadTemplate} variant="outline">
+              <Download className="h-4 w-4 mr-2" />
+              Descargar Plantilla
+            </Button>
+          </div>
+        </div>
+
+        {/* Sección de importación */}
         <label className="block text-sm font-medium">Archivo CSV o Excel</label>
         <Input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileChange} />
 

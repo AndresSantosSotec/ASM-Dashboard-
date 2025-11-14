@@ -168,7 +168,8 @@ export const listPayments = async (params: {
 
 export const fetchRecentPayments = async (limit = 5) => {
   const res = await api.get("/payments", { params: { per_page: limit } })
-  const data = Array.isArray(res.data) ? res.data : res.data.data
+  // Manejar nueva estructura paginada del backend
+  const data = Array.isArray(res.data) ? res.data : (res.data?.data ?? [])
   return Array.isArray(data) ? data.slice(0, limit) : []
 }
 
