@@ -291,3 +291,244 @@ export const generateDetailedAccountStatePDF = async (data: AccountData) => {
     .toISOString().split('T')[0]}.pdf`
   doc.save(fileName)
 }
+
+// ====================================
+// REPORTE ACADÉMICO DEL ESTUDIANTE
+// ====================================
+
+interface StudentReportData {
+  studentInfo: {
+    name: string
+    carnet: string
+    email: string
+    program: string
+    programCode: string
+    status: string
+  }
+  academicInfo: {
+    coursesApproved: number
+    coursesFailed: number
+    coursesInProgress: number
+    totalCourses: number
+    credits: { completed: number; total: number }
+    gpa: number
+    semester: number
+  } | null
+  financialInfo: {
+    enrollmentFee: number
+    monthlyFee: number
+    pendingPayments: number
+    totalDebt: number
+    paymentStatus: string
+  } | null
+  courses: Array<{
+    name: string
+    code: string
+    credits: number
+    period: string
+    status: string
+    grade: number | null
+  }>
+}
+
+export function generateStudentReport(data: StudentReportData) {
+  const doc = new jsPDF()
+  
+  const primaryColor: RGB = [37, 99, 235]
+  const secondaryColor: RGB = [139, 92, 246]
+  const successColor: RGB = [22, 163, 74]
+  const warningColor: RGB = [234, 179, 8]
+  const dangerColor: RGB = [220, 38, 38]
+  const grayColor: RGB = [107, 114, 128]
+  
+  let yPosition = 20
+
+  // HEADER
+  doc.setFillColor(...primaryColor)
+  doc.rect(0, 0, 210, 40, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(24)
+  doc.setFont('helvetica', 'bold')
+  doc.text('REPORTE ACADÉMICO', 105, 20, { align: 'center' })
+  doc.setFontSize(12)
+  doc.setFont('helvetica', 'normal')
+  doc.text('Sistema de Gestión Estudiantil', 105, 30, { align: 'center' })
+  
+  yPosition = 50
+
+  // INFORMACIÓN DEL ESTUDIANTE
+  doc.setFillColor(243, 244, 246)
+  doc.rect(10, yPosition, 190, 45, 'F')
+  doc.setTextColor(0, 0, 0)
+  doc.setFontSize(16)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Información del Estudiante', 15, yPosition + 10)
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'normal')
+  
+  const studentData = [
+    { label: 'Nombre:', value: data.studentInfo.name },
+    { label: 'Carnet:', value: data.studentInfo.carnet },
+    { label: 'Email:', value: data.studentInfo.email },
+    { label: 'Programa:', value: `${data.studentInfo.program} ${data.studentInfo.programCode ? `(${data.studentInfo.programCode})` : ''}` },
+    { label: 'Estado:', value: data.studentInfo.status === 'active' ? 'Activo' : 
+                                  data.studentInfo.status === 'inactive' ? 'Inactivo' : 
+                                  data.studentInfo.status === 'graduated' ? 'Graduado' : data.studentInfo.status }
+  ]
+  
+  let infoY = yPosition + 20
+  studentData.forEach(item => {
+    doc.setFont('helvetica', 'bold')
+    doc.text(item.label, 15, infoY)
+    doc.setFont('helvetica', 'normal')
+    doc.text(item.value, 50, infoY)
+    infoY += 7
+  })
+  
+  yPosition += 55
+
+  // RESUMEN ACADÉMICO
+  if (data.academicInfo) {
+    doc.setFillColor(...primaryColor)
+    doc.rect(10, yPosition, 190, 8, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Resumen Académico', 15, yPosition + 6)
+    
+    yPosition += 15
+    
+    const cardWidth = 45
+    const cardHeight = 25
+    const cardSpacing = 2
+    const startX = 10
+    
+    const stats = [
+      { label: 'Promedio', value: data.academicInfo.gpa.toFixed(2), color: primaryColor, subtitle: 'GPA' },
+      { label: 'Cursos Aprobados', value: data.academicInfo.coursesApproved.toString(), color: successColor, subtitle: `de ${data.academicInfo.totalCourses}` },
+      { label: 'Créditos', value: data.academicInfo.credits.completed.toString(), color: secondaryColor, subtitle: `de ${data.academicInfo.credits.total}` },
+      { label: 'Semestre', value: data.academicInfo.semester.toString(), color: warningColor, subtitle: 'actual' }
+    ]
+    
+    stats.forEach((stat, index) => {
+      const x = startX + (index * (cardWidth + cardSpacing))
+      doc.setFillColor(250, 250, 250)
+      doc.roundedRect(x, yPosition, cardWidth, cardHeight, 2, 2, 'F')
+      doc.setFillColor(...stat.color)
+      doc.roundedRect(x, yPosition, cardWidth, 3, 1, 1, 'F')
+      doc.setTextColor(...stat.color)
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text(stat.value, x + cardWidth / 2, yPosition + 12, { align: 'center' })
+      doc.setTextColor(0, 0, 0)
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      doc.text(stat.label, x + cardWidth / 2, yPosition + 18, { align: 'center' })
+      doc.setTextColor(...grayColor)
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'normal')
+      doc.text(stat.subtitle, x + cardWidth / 2, yPosition + 22, { align: 'center' })
+    })
+    
+    yPosition += cardHeight + 10
+    
+    const progressPercent = data.academicInfo.credits.total > 0
+      ? (data.academicInfo.credits.completed / data.academicInfo.credits.total) * 100 : 0
+    
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Progreso Académico', 15, yPosition)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`${Math.round(progressPercent)}% Completado`, 195, yPosition, { align: 'right' })
+    yPosition += 5
+    doc.setFillColor(229, 231, 235)
+    doc.roundedRect(15, yPosition, 180, 4, 2, 2, 'F')
+    doc.setFillColor(...primaryColor)
+    doc.roundedRect(15, yPosition, (180 * progressPercent) / 100, 4, 2, 2, 'F')
+    yPosition += 15
+  }
+
+  // TABLA DE CURSOS
+  doc.setFillColor(...secondaryColor)
+  doc.rect(10, yPosition, 190, 8, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(14)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Historial de Cursos', 15, yPosition + 6)
+  yPosition += 12
+
+  if (data.courses.length > 0) {
+    const coursesTableData = data.courses.map(course => [
+      course.name,
+      course.period,
+      course.credits.toString(),
+      course.grade !== null ? course.grade.toFixed(1) : 'N/A',
+      course.status === 'approved' ? 'Aprobado' :
+      course.status === 'failed' ? 'Reprobado' : 'En Progreso'
+    ])
+
+    autoTable(doc, {
+      startY: yPosition,
+      head: [['Curso', 'Período', 'Créd.', 'Nota', 'Estado']],
+      body: coursesTableData,
+      theme: 'grid',
+      headStyles: {
+        fillColor: secondaryColor,
+        textColor: [255, 255, 255] as RGB,
+        fontStyle: 'bold',
+        fontSize: 9
+      },
+      bodyStyles: { fontSize: 8, textColor: [0, 0, 0] as RGB },
+      alternateRowStyles: { fillColor: [249, 250, 251] as RGB },
+      columnStyles: {
+        0: { cellWidth: 80 },
+        1: { cellWidth: 30, halign: 'center' },
+        2: { cellWidth: 20, halign: 'center' },
+        3: { cellWidth: 20, halign: 'center' },
+        4: { cellWidth: 30, halign: 'center' }
+      },
+      didParseCell: function(cellData) {
+        if (cellData.section === 'body' && cellData.column.index === 4) {
+          const status = cellData.cell.raw as string
+          if (status === 'Aprobado') {
+            cellData.cell.styles.textColor = successColor
+            cellData.cell.styles.fontStyle = 'bold'
+          } else if (status === 'Reprobado') {
+            cellData.cell.styles.textColor = dangerColor
+            cellData.cell.styles.fontStyle = 'bold'
+          } else {
+            cellData.cell.styles.textColor = primaryColor
+            cellData.cell.styles.fontStyle = 'bold'
+          }
+        }
+      }
+    })
+    yPosition = (doc as any).lastAutoTable.finalY + 10
+  } else {
+    doc.setTextColor(...grayColor)
+    doc.setFontSize(10)
+    doc.text('No se encontraron cursos registrados', 105, yPosition + 10, { align: 'center' })
+    yPosition += 20
+  }
+
+  // FOOTER
+  const pageCount = doc.getNumberOfPages()
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i)
+    doc.setFillColor(...grayColor)
+    doc.rect(0, 287, 210, 10, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(8)
+    doc.text(
+      `Generado: ${new Date().toLocaleDateString('es-GT', { 
+        year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+      })}`,
+      15, 293
+    )
+    doc.text(`Página ${i} de ${pageCount}`, 195, 293, { align: 'right' })
+  }
+
+  const fileName = `Reporte_${data.studentInfo.carnet}_${new Date().toISOString().split('T')[0]}.pdf`
+  doc.save(fileName)
+}

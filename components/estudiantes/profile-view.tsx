@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Mail,
   Phone,
@@ -16,6 +16,7 @@ import {
   Download,
   Settings,
   AlertCircle,
+  Loader2,
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,76 +28,76 @@ import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-
-// Datos de ejemplo del estudiante
-const studentData = {
-  id: "EST2023-0042",
-  name: "Laura García Martínez",
-  email: "laura.garcia@estudiante.edu",
-  phone: "+123 456 7890",
-  carnet: "202304578",
-  program: "Ingeniería en Sistemas",
-  startDate: "Agosto 2023",
-  endDate: "Junio 2027",
-  semester: "2do Semestre",
-  address: "Av. Principal #123, Zona 10",
-  city: "Ciudad Universitaria",
-  emergencyContact: "Carlos García - +123 456 7891",
-  profileComplete: 85,
-  bio: "Estudiante de Ingeniería en Sistemas con interés en desarrollo web y ciencia de datos. Participante activa en hackatones y proyectos de investigación.",
-  avatarUrl: "/placeholder.svg?height=200&width=200",
-}
-
-// Historial académico de ejemplo
-const academicHistory = [
-  { id: 1, course: "Programación I", grade: 92, credits: 4, status: "Aprobado", semester: "1er Semestre" },
-  { id: 2, course: "Matemáticas Discretas", grade: 88, credits: 4, status: "Aprobado", semester: "1er Semestre" },
-  {
-    id: 3,
-    course: "Introducción a la Ingeniería",
-    grade: 95,
-    credits: 3,
-    status: "Aprobado",
-    semester: "1er Semestre",
-  },
-  {
-    id: 4,
-    course: "Algoritmos y Estructura de Datos",
-    grade: 85,
-    credits: 4,
-    status: "En curso",
-    semester: "2do Semestre",
-  },
-  { id: 5, course: "Bases de Datos", grade: null, credits: 4, status: "En curso", semester: "2do Semestre" },
-  {
-    id: 6,
-    course: "Arquitectura de Computadoras",
-    grade: null,
-    credits: 3,
-    status: "En curso",
-    semester: "2do Semestre",
-  },
-]
+import { useToast } from "@/hooks/use-toast"
+import profileService, { PerfilData, HistorialAcademico } from "@/services/profile"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 
 export default function ProfileView() {
+  const [loading, setLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
+  const [perfilData, setPerfilData] = useState<PerfilData | null>(null)
+  const [historialAcademico, setHistorialAcademico] = useState<HistorialAcademico | null>(null)
+  const { toast } = useToast()
+  
   const [formData, setFormData] = useState({
-    phone: studentData.phone,
-    address: studentData.address,
-    city: studentData.city,
-    emergencyContact: studentData.emergencyContact,
-    bio: studentData.bio,
+    telefono: "",
+    telefono_emergencia: "",
+    nombre_contacto_emergencia: "",
+    parentesco_emergencia: "",
+    direccion: "",
+    ciudad: "",
+    biografia: "",
   })
 
-  // Función para calcular el GPA (suponiendo escala 0-100)
+  useEffect(() => {
+    cargarDatos()
+  }, [])
+
+  const cargarDatos = async () => {
+    try {
+      setLoading(true)
+      
+      // Cargar perfil y historial en paralelo
+      const [perfil, historial] = await Promise.all([
+        profileService.getMiPerfil(),
+        profileService.getHistorialAcademico()
+      ])
+      
+      setPerfilData(perfil)
+      setHistorialAcademico(historial)
+      
+      // Inicializar formData con datos del perfil editable
+      setFormData({
+        telefono: perfil.perfil_editable.telefono || "",
+        telefono_emergencia: perfil.perfil_editable.telefono_emergencia || "",
+        nombre_contacto_emergencia: perfil.perfil_editable.nombre_contacto_emergencia || "",
+        parentesco_emergencia: perfil.perfil_editable.parentesco_emergencia || "",
+        direccion: perfil.perfil_editable.direccion || "",
+        ciudad: perfil.perfil_editable.ciudad || "",
+        biografia: perfil.perfil_editable.biografia || "",
+      })
+    } catch (error: any) {
+      console.error("Error cargando datos:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudieron cargar los datos del perfil",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Función para calcular el GPA desde historial real
   const calculateGPA = () => {
-    const completedCourses = academicHistory.filter((course) => course.grade !== null)
+    if (!historialAcademico || !historialAcademico.cursos) return 0
+    
+    const completedCourses = historialAcademico.cursos.filter((course) => course.calificacion !== null)
     if (completedCourses.length === 0) return 0
 
-    const totalPoints = completedCourses.reduce((sum, course) => sum + (course.grade || 0) * course.credits, 0)
-    const totalCredits = completedCourses.reduce((sum, course) => sum + course.credits, 0)
-
-    return totalPoints / totalCredits
+    const totalGrade = completedCourses.reduce((sum, course) => sum + (course.calificacion || 0), 0)
+    return totalGrade / completedCourses.length
   }
 
   const gpa = calculateGPA()
@@ -104,17 +105,48 @@ export default function ProfileView() {
   // Manejar cambios en el formulario
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData({
-      ...formData,
-      [name]: value,
-    })
+    setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  // Guardar cambios del perfil
-  const handleSaveProfile = () => {
-    // Aquí se implementaría la lógica para guardar en la base de datos
-    // Por ahora, solo cambiamos el estado de edición
-    setIsEditing(false)
+  const handleSaveProfile = async () => {
+    try {
+      setLoading(true)
+      await profileService.actualizarPerfil(formData)
+      
+      toast({
+        title: "Perfil actualizado",
+        description: "Los cambios se guardaron correctamente"
+      })
+      
+      setIsEditing(false)
+      // Recargar datos
+      await cargarDatos()
+    } catch (error: any) {
+      console.error("Error actualizando perfil:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar el perfil",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }  
+  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (!perfilData) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <p className="text-muted-foreground">No se pudo cargar el perfil</p>
+      </div>
+    )
   }
 
   return (
@@ -125,10 +157,11 @@ export default function ProfileView() {
           <div className="relative flex flex-col sm:flex-row items-center">
             <div className="relative mb-4 sm:mb-0">
               <Avatar className="w-24 h-24 border-4 border-white bg-white">
-                <AvatarImage src={studentData.avatarUrl} alt={studentData.name} />
+                <AvatarImage src={perfilData.perfil_editable.foto_perfil || "/placeholder.svg"} alt={perfilData.prospecto.nombre_completo} />
                 <AvatarFallback>
-                  {studentData.name
+                  {perfilData.prospecto.nombre_completo
                     .split(" ")
+                    .slice(0, 2)
                     .map((n) => n[0])
                     .join("")}
                 </AvatarFallback>
@@ -142,35 +175,47 @@ export default function ProfileView() {
               </Button>
             </div>
             <div className="text-center sm:text-left sm:ml-6">
-              <CardTitle className="text-2xl">{studentData.name}</CardTitle>
+              <CardTitle className="text-2xl">{perfilData.prospecto.nombre_completo}</CardTitle>
               <CardDescription>
                 <div className="flex flex-wrap gap-2 mt-2">
                   <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                    {studentData.program}
+                    {perfilData.programa.nombre}
                   </Badge>
                   <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                    {studentData.semester}
+                    {perfilData.programa.estado || "Activo"}
                   </Badge>
                   <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                    Carnet: {studentData.carnet}
+                    Carnet: {perfilData.prospecto.carnet}
                   </Badge>
                 </div>
               </CardDescription>
             </div>
             <div className="sm:ml-auto mt-4 sm:mt-0">
-              <Button variant="outline" className="flex items-center gap-2" onClick={() => setIsEditing(!isEditing)}>
-                {isEditing ? (
-                  <>
-                    <CheckCircle className="h-4 w-4" />
-                    Guardar Cambios
-                  </>
-                ) : (
-                  <>
-                    <Edit2 className="h-4 w-4" />
-                    Editar Perfil
-                  </>
-                )}
-              </Button>
+              {isEditing ? (
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setIsEditing(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleSaveProfile} disabled={loading}>
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Guardando...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Guardar Cambios
+                      </>
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="outline" className="flex items-center gap-2" onClick={() => setIsEditing(true)}>
+                  <Edit2 className="h-4 w-4" />
+                  Editar Perfil
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -187,80 +232,102 @@ export default function ProfileView() {
                 {!isEditing ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-1">
-                      <h3 className="text-sm font-medium text-gray-500">ID Estudiante</h3>
-                      <p>{studentData.id}</p>
+                      <h3 className="text-sm font-medium text-gray-500">Carnet</h3>
+                      <p>{perfilData.prospecto.carnet}</p>
                     </div>
                     <div className="space-y-1">
                       <h3 className="text-sm font-medium text-gray-500">Correo Electrónico</h3>
                       <p className="flex items-center">
                         <Mail className="h-4 w-4 mr-2 text-gray-400" />
-                        {studentData.email}
+                        {perfilData.prospecto.correo_electronico}
                       </p>
                     </div>
                     <div className="space-y-1">
                       <h3 className="text-sm font-medium text-gray-500">Teléfono</h3>
                       <p className="flex items-center">
                         <Phone className="h-4 w-4 mr-2 text-gray-400" />
-                        {formData.phone}
+                        {formData.telefono || "No especificado"}
                       </p>
                     </div>
                     <div className="space-y-1">
                       <h3 className="text-sm font-medium text-gray-500">Programa</h3>
                       <p className="flex items-center">
                         <Book className="h-4 w-4 mr-2 text-gray-400" />
-                        {studentData.program}
+                        {perfilData.programa?.nombre || "No especificado"}
                       </p>
                     </div>
                     <div className="space-y-1">
-                      <h3 className="text-sm font-medium text-gray-500">Período de Estudio</h3>
+                      <h3 className="text-sm font-medium text-gray-500">Fecha de Inicio</h3>
                       <p className="flex items-center">
                         <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-                        {studentData.startDate} - {studentData.endDate}
+                        {perfilData.programa?.fecha_inicio ? format(new Date(perfilData.programa.fecha_inicio), "dd 'de' MMMM, yyyy", { locale: es }) : "No especificado"}
                       </p>
                     </div>
                     <div className="space-y-1">
                       <h3 className="text-sm font-medium text-gray-500">Dirección</h3>
                       <p className="flex items-center">
                         <MapPin className="h-4 w-4 mr-2 text-gray-400" />
-                        {formData.address}, {formData.city}
+                        {formData.direccion && formData.ciudad ? `${formData.direccion}, ${formData.ciudad}` : "No especificado"}
                       </p>
                     </div>
                     <div className="space-y-1">
                       <h3 className="text-sm font-medium text-gray-500">Contacto de Emergencia</h3>
-                      <p>{formData.emergencyContact}</p>
+                      <p>
+                        {formData.nombre_contacto_emergencia && formData.telefono_emergencia 
+                          ? `${formData.nombre_contacto_emergencia} (${formData.parentesco_emergencia || "N/A"}) - ${formData.telefono_emergencia}`
+                          : "No especificado"}
+                      </p>
                     </div>
                     <div className="space-y-1 md:col-span-2">
                       <h3 className="text-sm font-medium text-gray-500">Biografía</h3>
-                      <p>{formData.bio}</p>
+                      <p>{formData.biografia || "No especificado"}</p>
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="phone">Teléfono</Label>
-                        <Input id="phone" name="phone" value={formData.phone} onChange={handleInputChange} />
+                        <Label htmlFor="telefono">Teléfono</Label>
+                        <Input id="telefono" name="telefono" value={formData.telefono} onChange={handleInputChange} />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="emergencyContact">Contacto de Emergencia</Label>
+                        <Label htmlFor="telefono_emergencia">Teléfono de Emergencia</Label>
                         <Input
-                          id="emergencyContact"
-                          name="emergencyContact"
-                          value={formData.emergencyContact}
+                          id="telefono_emergencia"
+                          name="telefono_emergencia"
+                          value={formData.telefono_emergencia}
                           onChange={handleInputChange}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="address">Dirección</Label>
-                        <Input id="address" name="address" value={formData.address} onChange={handleInputChange} />
+                        <Label htmlFor="nombre_contacto_emergencia">Nombre Contacto Emergencia</Label>
+                        <Input
+                          id="nombre_contacto_emergencia"
+                          name="nombre_contacto_emergencia"
+                          value={formData.nombre_contacto_emergencia}
+                          onChange={handleInputChange}
+                        />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="city">Ciudad</Label>
-                        <Input id="city" name="city" value={formData.city} onChange={handleInputChange} />
+                        <Label htmlFor="parentesco_emergencia">Parentesco</Label>
+                        <Input
+                          id="parentesco_emergencia"
+                          name="parentesco_emergencia"
+                          value={formData.parentesco_emergencia}
+                          onChange={handleInputChange}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="direccion">Dirección</Label>
+                        <Input id="direccion" name="direccion" value={formData.direccion} onChange={handleInputChange} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="ciudad">Ciudad</Label>
+                        <Input id="ciudad" name="ciudad" value={formData.ciudad} onChange={handleInputChange} />
                       </div>
                       <div className="space-y-2 md:col-span-2">
-                        <Label htmlFor="bio">Biografía</Label>
-                        <Textarea id="bio" name="bio" value={formData.bio} onChange={handleInputChange} rows={4} />
+                        <Label htmlFor="biografia">Biografía</Label>
+                        <Textarea id="biografia" name="biografia" value={formData.biografia} onChange={handleInputChange} rows={4} />
                       </div>
                     </div>
 
@@ -277,10 +344,35 @@ export default function ProfileView() {
                   <h3 className="text-sm font-medium text-gray-500 mb-2">Completitud del Perfil</h3>
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-sm">Perfil completado al {studentData.profileComplete}%</span>
-                      <span className="text-sm font-medium">{studentData.profileComplete}%</span>
+                      <span className="text-sm">Perfil completado</span>
+                      <span className="text-sm font-medium">
+                        {(() => {
+                          const fields = [
+                            perfilData.perfil_editable.telefono,
+                            perfilData.perfil_editable.telefono_emergencia,
+                            perfilData.perfil_editable.direccion,
+                            perfilData.perfil_editable.ciudad,
+                            perfilData.perfil_editable.biografia,
+                            perfilData.perfil_editable.foto_perfil
+                          ]
+                          const completed = fields.filter(f => f).length
+                          const percentage = Math.round((completed / fields.length) * 100)
+                          return `${percentage}%`
+                        })()}
+                      </span>
                     </div>
-                    <Progress value={studentData.profileComplete} />
+                    <Progress value={(() => {
+                      const fields = [
+                        perfilData.perfil_editable.telefono,
+                        perfilData.perfil_editable.telefono_emergencia,
+                        perfilData.perfil_editable.direccion,
+                        perfilData.perfil_editable.ciudad,
+                        perfilData.perfil_editable.biografia,
+                        perfilData.perfil_editable.foto_perfil
+                      ]
+                      const completed = fields.filter(f => f).length
+                      return Math.round((completed / fields.length) * 100)
+                    })()} />
                   </div>
                 </div>
               </div>
@@ -300,80 +392,90 @@ export default function ProfileView() {
                   </Card>
                   <Card>
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Créditos Aprobados</CardTitle>
+                      <CardTitle className="text-base">Cursos Completados</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="text-3xl font-bold text-green-600">
-                        {academicHistory
-                          .filter((course) => course.status === "Aprobado")
-                          .reduce((sum, course) => sum + course.credits, 0)}
+                        {historialAcademico?.cursos.filter((course) => course.calificacion !== null).length || 0}
                       </div>
-                      <p className="text-sm text-gray-500">De 180 totales</p>
+                      <p className="text-sm text-gray-500">Cursos aprobados</p>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Cursos Actuales</CardTitle>
+                      <CardTitle className="text-base">Total Cursos</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="text-3xl font-bold text-purple-600">
-                        {academicHistory.filter((course) => course.status === "En curso").length}
+                        {historialAcademico?.cursos.length || 0}
                       </div>
-                      <p className="text-sm text-gray-500">En este semestre</p>
+                      <p className="text-sm text-gray-500">En Moodle</p>
                     </CardContent>
                   </Card>
                 </div>
 
                 <div>
                   <h3 className="text-lg font-medium mb-4">Historial de Cursos</h3>
-                  <div className="rounded-lg border overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Curso
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Semestre
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Créditos
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Calificación
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Estado
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {academicHistory.map((course) => (
-                          <tr key={course.id}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{course.course}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{course.semester}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{course.credits}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              {course.grade !== null ? course.grade : "—"}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <Badge
-                                className={
-                                  course.status === "Aprobado"
-                                    ? "bg-green-100 text-green-800 border-green-200"
-                                    : course.status === "En curso"
-                                      ? "bg-blue-100 text-blue-800 border-blue-200"
-                                      : "bg-red-100 text-red-800 border-red-200"
-                                }
-                              >
-                                {course.status}
-                              </Badge>
-                            </td>
+                  {historialAcademico && historialAcademico.cursos.length > 0 ? (
+                    <div className="rounded-lg border overflow-hidden">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Curso
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Código
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Fecha Inicio
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Calificación
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Estado
+                            </th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {historialAcademico.cursos.map((course, index) => (
+                            <tr key={index}>
+                              <td className="px-6 py-4 text-sm font-medium">{course.curso}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{course.codigo_curso || "—"}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {course.fecha_inicio ? format(new Date(course.fecha_inicio), "dd/MM/yyyy") : "—"}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                {course.calificacion !== null && course.calificacion !== undefined ? (
+                                  <span className="font-medium">{course.calificacion.toFixed(1)}</span>
+                                ) : (
+                                  <span className="text-gray-400">—</span>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    course.estado === "Aprobado"
+                                      ? "bg-green-100 text-green-800 border-green-200"
+                                      : course.estado === "En curso"
+                                        ? "bg-blue-100 text-blue-800 border-blue-200"
+                                        : "bg-red-100 text-red-800 border-red-200"
+                                  }
+                                >
+                                  {course.estado}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}\n                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      No se encontraron cursos en el historial académico
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end">

@@ -204,7 +204,57 @@ export default function ReportesMatriculaPage() {
         perPage: filters.perPage,
       })
       
-      const estudiantesData = response.estudiantes ?? response.data ?? []
+      console.log('[FETCH ESTUDIANTES] Response completo:', response)
+      console.log('[FETCH ESTUDIANTES] Tipo de response:', typeof response)
+      console.log('[FETCH ESTUDIANTES] response.alumnos:', response.alumnos)
+      console.log('[FETCH ESTUDIANTES] response.listado:', response.listado)
+      
+      // El backend puede devolver los datos en diferentes estructuras:
+      // 1. response.listado.alumnos (estructura esperada)
+      // 2. response.alumnos (si response ES el listado)
+      // 3. response.estudiantes (alternativa)
+      // 4. response.data.alumnos (otra alternativa)
+      let estudiantesData: any[] = []
+      let paginacionData: any = null
+      
+      if (response.listado && Array.isArray(response.listado.alumnos)) {
+        // Estructura: { listado: { alumnos: [], paginacion: {} } }
+        console.log('[FETCH ESTUDIANTES] ✅ Detectado: response.listado.alumnos')
+        estudiantesData = response.listado.alumnos
+        paginacionData = response.listado.paginacion
+      } else if (Array.isArray(response.alumnos)) {
+        // Estructura: { alumnos: [], paginacion: {} }
+        console.log('[FETCH ESTUDIANTES] ✅ Detectado: response.alumnos (ES ARRAY)')
+        estudiantesData = response.alumnos
+        paginacionData = response.paginacion
+      } else if (Array.isArray(response.estudiantes)) {
+        // Estructura alternativa: { estudiantes: [] }
+        console.log('[FETCH ESTUDIANTES] ✅ Detectado: response.estudiantes')
+        estudiantesData = response.estudiantes
+      } else if (response.data && typeof response.data === 'object' && !Array.isArray(response.data) && 'alumnos' in response.data && Array.isArray((response.data as any).alumnos)) {
+        // Estructura: { data: { alumnos: [] } }
+        console.log('[FETCH ESTUDIANTES] ✅ Detectado: response.data.alumnos')
+        estudiantesData = (response.data as any).alumnos
+        paginacionData = 'paginacion' in response.data ? (response.data as any).paginacion : null
+      } else if (Array.isArray(response.data)) {
+        // Estructura: { data: [] }
+        console.log('[FETCH ESTUDIANTES] ✅ Detectado: response.data (ES ARRAY)')
+        estudiantesData = response.data
+      } else if (Array.isArray(response)) {
+        // Response directo es array
+        console.log('[FETCH ESTUDIANTES] ✅ Detectado: response directo (ES ARRAY)')
+        estudiantesData = response
+      }
+      
+      console.log('[FETCH ESTUDIANTES] Estudiantes extraídos:', estudiantesData)
+      console.log('[FETCH ESTUDIANTES] Total estudiantes:', estudiantesData.length)
+      console.log('[FETCH ESTUDIANTES] Paginación:', paginacionData)
+      
+      // Asegurar que estudiantesData es un array
+      if (!Array.isArray(estudiantesData)) {
+        console.error('[FETCH ESTUDIANTES] ❌ ERROR: estudiantesData NO es array:', typeof estudiantesData, estudiantesData)
+        throw new Error('La respuesta del servidor no contiene un array de estudiantes')
+      }
       
       // Update report data structure to match the existing format
       setReportData((prevData) => {
@@ -220,7 +270,7 @@ export default function ReportesMatriculaPage() {
               programa: est.programa,
               estado: est.estado,
             })),
-            paginacion: response.paginacion,
+            paginacion: paginacionData ?? response.paginacion,
           },
         }
       })
@@ -445,6 +495,21 @@ export default function ReportesMatriculaPage() {
       setShowExportDialog(false)
     } catch (err) {
       const message = getErrorMessage(err)
+      
+      // Manejar error específico de demasiados registros para PDF
+      if (isAxiosError(err) && err.response?.status === 422) {
+        const data = err.response?.data
+        if (data?.error?.includes('Demasiados registros') || data?.message?.includes('Demasiados registros')) {
+          toast({
+            title: "Demasiados registros para PDF",
+            description: data?.message || `El reporte tiene ${data?.total_registros || 'muchos'} registros. Use Excel o CSV para exportaciones grandes, o aplique filtros para reducir los datos.`,
+            variant: "destructive",
+            duration: 8000,
+          })
+          return
+        }
+      }
+      
       toast({
         title: "No se pudo exportar",
         description: message,
@@ -489,6 +554,30 @@ export default function ReportesMatriculaPage() {
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
+                {/* Advertencia para PDFs con muchos registros */}
+                {exportFormat === "pdf" && totalRecords > 10000 && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error: Demasiados registros</AlertTitle>
+                    <AlertDescription>
+                      El reporte contiene {formatNumber(totalRecords)} registros, lo cual excede el límite de 10,000 registros. 
+                      <br /><strong>Use Excel o CSV</strong> para este volumen de datos, o aplique filtros más específicos.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {exportFormat === "pdf" && totalRecords > 500 && totalRecords <= 10000 && (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>PDF Dividido en Múltiples Archivos</AlertTitle>
+                    <AlertDescription>
+                      El reporte contiene {formatNumber(totalRecords)} registros y se generará en <strong>{Math.ceil(totalRecords / 500)} archivos PDF</strong> dentro de un archivo ZIP.
+                      <br />• Cada PDF contendrá hasta 500 registros
+                      <br />• La generación puede tomar 1-3 minutos
+                      <br />• Para exportaciones más rápidas, considere usar Excel o CSV
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="export-format" className="text-right">
                     Formato

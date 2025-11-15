@@ -79,11 +79,24 @@ export interface MatriculaTendencias {
 
 export interface MatriculaStudentItem {
   id?: number
+  prospectoId?: number
   nombre?: string
   fechaMatricula?: string
   tipo?: string
   programa?: string
   estado?: string
+  carnet?: string
+  identificacion?: string
+  telefono?: string
+  telefonoCorporativo?: string
+  correo?: string
+  correoCorporativo?: string
+  modalidad?: string
+  paisResidencia?: string
+  paisOrigen?: string
+  empresa?: string
+  canal?: string
+  asesor?: string
 }
 
 export interface MatriculaPaginationInfo {
@@ -113,6 +126,12 @@ export interface MatriculaReportResponse {
 export type MatriculaExportFormat = "pdf" | "excel" | "csv"
 export type MatriculaExportDetail = "complete" | "summary" | "data"
 
+const EXPORT_EXTENSION_MAP: Record<MatriculaExportFormat, string> = {
+  pdf: "pdf",
+  excel: "xlsx",
+  csv: "csv",
+}
+
 export interface MatriculaExportPayload {
   formato: MatriculaExportFormat
   detalle?: MatriculaExportDetail
@@ -141,11 +160,45 @@ export const fetchMatriculaReport = async (
 }
 
 export const exportMatriculaReport = async (payload: MatriculaExportPayload): Promise<void> => {
-  const response = await api.post("/administracion/reportes-matricula/exportar", payload, {
+  // Sanitizar payload: eliminar "all" y valores vacíos
+  const sanitizedPayload = {
+    formato: payload.formato,
+    detalle: payload.detalle,
+    incluirGraficas: payload.incluirGraficas,
+    rango: payload.rango,
+    fechaInicio: payload.fechaInicio,
+    fechaFin: payload.fechaFin,
+    // Filtrar "all" - el backend no lo acepta
+    programaId: payload.programaId && payload.programaId !== 'all' ? payload.programaId : undefined,
+    tipoAlumno: payload.tipoAlumno && payload.tipoAlumno !== 'all' ? payload.tipoAlumno : undefined,
+    page: payload.page,
+    perPage: payload.perPage,
+  }
+
+  // Remover campos undefined
+  const cleanPayload = Object.fromEntries(
+    Object.entries(sanitizedPayload).filter(([, value]) => value !== undefined)
+  )
+
+  const response = await api.post("/administracion/reportes-matricula/exportar", cleanPayload, {
     responseType: "blob",
   })
 
   const contentType = response.headers["content-type"] || "application/octet-stream"
+  const normalizedContentType = contentType.toLowerCase()
+  const isZipResponse = normalizedContentType.includes("zip")
+  const isExcelResponse = normalizedContentType.includes("spreadsheet") || normalizedContentType.includes("excel")
+  const isCsvResponse = normalizedContentType.includes("csv")
+  const requestedExtension = EXPORT_EXTENSION_MAP[payload.formato ?? "pdf"] ?? (payload.formato ?? "pdf")
+
+  let defaultExtension = requestedExtension
+  if (isZipResponse) {
+    defaultExtension = "zip"
+  } else if (isExcelResponse) {
+    defaultExtension = "xlsx"
+  } else if (isCsvResponse) {
+    defaultExtension = "csv"
+  }
   const blob = new Blob([response.data], { type: contentType })
 
   if (blob.size === 0) {
@@ -153,13 +206,17 @@ export const exportMatriculaReport = async (payload: MatriculaExportPayload): Pr
   }
 
   const contentDisposition = response.headers["content-disposition"]
-  let filename = `reporte_matricula_${new Date().toISOString().replace(/[:]/g, "-")}.${payload.formato}`
+  let filename = `reporte_matricula_${new Date().toISOString().replace(/[:]/g, "-")}.${defaultExtension}`
 
   if (typeof contentDisposition === "string") {
     const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
     if (filenameMatch && filenameMatch[1]) {
       filename = filenameMatch[1].replace(/['"]/g, "")
     }
+  }
+
+  if (isZipResponse && !filename.toLowerCase().endsWith(".zip")) {
+    filename = filename.replace(/\.[^.]+$/, "") + ".zip"
   }
 
   const url = window.URL.createObjectURL(blob)

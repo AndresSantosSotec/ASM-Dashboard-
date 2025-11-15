@@ -400,72 +400,6 @@ export default function GeneracionEnvioMasivoPage() {
     }
   };
 
-  const handleSendEmails = async () => {
-    if (selectedIds.size === 0) {
-      Swal.fire({
-        icon: 'info',
-        title: 'Sin Selección',
-        text: 'Debes seleccionar al menos un prospecto para enviar correos',
-      });
-      return;
-    }
-
-    // Obtener los prospectos seleccionados
-    const selectedProspectos = prospectos.filter(p => selectedIds.has(p.id));
-    
-    const result = await Swal.fire({
-      title: '¿Enviar Correos Masivos?',
-      html: `
-        <div class="text-left space-y-2">
-          <p>Se enviará un correo a <strong>${selectedIds.size} prospectos</strong> seleccionados.</p>
-          <br/>
-          <p class="text-sm text-gray-600">
-            Los correos se enviarán con información relevante según el programa del prospecto.
-          </p>
-          <br/>
-          <p class="text-sm text-yellow-600">
-            ⚠️ Esta acción no se puede deshacer.
-          </p>
-        </div>
-      `,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, Enviar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#3b82f6',
-      cancelButtonColor: '#6b7280',
-    });
-
-    if (!result.isConfirmed) return;
-
-    try {
-      setLoading(true);
-      
-      const response = await api.post('/massive-user-generation/send-emails', {
-        prospecto_ids: Array.from(selectedIds),
-      });
-
-      if (response.data.success) {
-        toast({
-          title: "✅ Correos Enviados",
-          description: `Se enviaron ${response.data.sent} correos exitosamente`,
-        });
-
-        // Limpiar selección
-        setSelectedIds(new Set());
-      }
-    } catch (error: any) {
-      console.error('Error sending emails:', error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: error.response?.data?.message || 'Error al enviar los correos',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const progress = batchStats ? 
     Math.round(((batchStats.success + batchStats.skipped + batchStats.error) / (batchStats.total || 1)) * 100) : 
     0;
@@ -585,38 +519,21 @@ export default function GeneracionEnvioMasivoPage() {
               <Button 
                 onClick={handleStartGeneration}
                 disabled={loading || isMonitoring || selectedIds.size === 0}
-                className="w-full"
+                className="w-full bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
                 size="lg"
               >
                 {loading ? (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Iniciando...
+                    Iniciando generación...
                   </>
                 ) : (
                   <>
                     <Users className="h-4 w-4 mr-2" />
-                    Generar {selectedIds.size} Usuario{selectedIds.size !== 1 ? 's' : ''} Seleccionado{selectedIds.size !== 1 ? 's' : ''}
-                  </>
-                )}
-              </Button>
-
-              <Button 
-                onClick={handleSendEmails}
-                disabled={loading || selectedIds.size === 0}
-                className="w-full bg-blue-600 hover:bg-blue-700"
-                size="lg"
-                variant="default"
-              >
-                {loading ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <Mail className="h-4 w-4 mr-2" />
-                    Enviar Correo a {selectedIds.size} Prospecto{selectedIds.size !== 1 ? 's' : ''} Seleccionado{selectedIds.size !== 1 ? 's' : ''}
+                    {sendEmails 
+                      ? `Generar Usuarios y Enviar Correos a ${selectedIds.size} Prospecto${selectedIds.size !== 1 ? 's' : ''}` 
+                      : `Generar ${selectedIds.size} Usuario${selectedIds.size !== 1 ? 's' : ''} (Sin Envío de Correo)`
+                    }
                   </>
                 )}
               </Button>
