@@ -128,12 +128,65 @@ export async function actualizarPerfil(data: UpdateProfileData): Promise<Profile
 }
 
 /**
+ * Subir foto de perfil
+ */
+export async function subirFotoPerfil(file: File): Promise<{ foto_perfil: string }> {
+  const formData = new FormData()
+  formData.append('foto', file)
+  
+  const response = await api.post('/estudiante/perfil/foto-perfil', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+  
+  if (!response.data.success) {
+    throw new Error(response.data.message || 'Error al subir la foto de perfil')
+  }
+  
+  return response.data.data
+}
+
+/**
+ * Descargar historial académico como PDF
+ */
+export async function descargarHistorialPDF(): Promise<void> {
+  const response = await api.get('/estudiante/perfil/descargar-historial-pdf', {
+    responseType: 'blob', // Importante para archivos binarios
+  })
+  
+  // Crear un enlace temporal para descargar el archivo
+  const url = window.URL.createObjectURL(new Blob([response.data]))
+  const link = document.createElement('a')
+  link.href = url
+  
+  // Obtener el nombre del archivo del header Content-Disposition
+  const contentDisposition = response.headers['content-disposition']
+  let filename = 'Historial_Academico.pdf'
+  
+  if (contentDisposition) {
+    const filenameMatch = contentDisposition.match(/filename="?(.+)"?/)
+    if (filenameMatch && filenameMatch[1]) {
+      filename = filenameMatch[1]
+    }
+  }
+  
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+/**
  * Objeto con todos los servicios de perfil
  */
 const profileService = {
   getMiPerfil,
   getHistorialAcademico,
   actualizarPerfil,
+  subirFotoPerfil,
+  descargarHistorialPDF,
 }
 
 export default profileService

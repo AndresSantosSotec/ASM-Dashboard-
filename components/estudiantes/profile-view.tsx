@@ -32,13 +32,18 @@ import { useToast } from "@/hooks/use-toast"
 import profileService, { PerfilData, HistorialAcademico } from "@/services/profile"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { useRef } from "react"
+import ProfileSkeleton from "./profile-skeleton"
 
 export default function ProfileView() {
   const [loading, setLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
   const [perfilData, setPerfilData] = useState<PerfilData | null>(null)
   const [historialAcademico, setHistorialAcademico] = useState<HistorialAcademico | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [downloadingPDF, setDownloadingPDF] = useState(false)
   const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   
   const [formData, setFormData] = useState({
     telefono: "",
@@ -131,14 +136,110 @@ export default function ProfileView() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handlePhotoClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleDescargarHistorial = async () => {
+    try {
+      setDownloadingPDF(true)
+      
+      toast({
+        title: "Generando PDF...",
+        description: "Por favor espera un momento"
+      })
+
+      await profileService.descargarHistorialPDF()
+      
+      toast({
+        title: "✅ Descarga exitosa",
+        description: "Tu historial académico se descargó correctamente"
+      })
+    } catch (error: any) {
+      console.error("Error descargando historial:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo descargar el historial",
+        variant: "destructive"
+      })
+    } finally {
+      setDownloadingPDF(false)
+    }
+  }
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validar tipo de archivo
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif']
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: "Error",
+        description: "Por favor selecciona una imagen válida (JPG, PNG o GIF)",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Validar tamaño (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: "Error",
+        description: "La imagen no debe superar los 2MB",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setUploadingPhoto(true)
+      
+      toast({
+        title: "Subiendo foto...",
+        description: "Por favor espera un momento"
+      })
+
+      const result = await profileService.subirFotoPerfil(file)
+      
+      toast({
+        title: "✅ Foto actualizada",
+        description: "Tu foto de perfil se actualizó correctamente"
+      })
+
+      // Actualizar el perfil localmente con la URL completa que viene del backend
+      if (perfilData) {
+        // Agregar timestamp para evitar caché del navegador
+        const urlConCache = result.foto_perfil + '?t=' + Date.now()
+        
+        setPerfilData({
+          ...perfilData,
+          perfil_editable: {
+            ...perfilData.perfil_editable,
+            foto_perfil: urlConCache
+          }
+        })
+      }
+    } catch (error: any) {
+      console.error("Error subiendo foto:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo subir la foto",
+        variant: "destructive"
+      })
+    } finally {
+      setUploadingPhoto(false)
+      // Limpiar input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
   }  
   
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
+    return <ProfileSkeleton />
   }
 
   if (!perfilData) {
@@ -166,12 +267,25 @@ export default function ProfileView() {
                     .join("")}
                 </AvatarFallback>
               </Avatar>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoChange}
+              />
               <Button
                 size="icon"
                 variant="secondary"
                 className="absolute bottom-0 right-0 rounded-full w-8 h-8 bg-white shadow-sm"
+                onClick={handlePhotoClick}
+                disabled={uploadingPhoto}
               >
-                <Camera className="h-4 w-4" />
+                {uploadingPhoto ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Camera className="h-4 w-4" />
+                )}
               </Button>
             </div>
             <div className="text-center sm:text-left sm:ml-6">
@@ -479,9 +593,23 @@ export default function ProfileView() {
                 </div>
 
                 <div className="flex justify-end">
-                  <Button variant="outline" className="flex items-center gap-2">
-                    <Download className="h-4 w-4" />
-                    Descargar Historial
+                  <Button 
+                    variant="outline" 
+                    className="flex items-center gap-2"
+                    onClick={handleDescargarHistorial}
+                    disabled={downloadingPDF || !historialAcademico || historialAcademico.cursos.length === 0}
+                  >
+                    {downloadingPDF ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Generando...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4" />
+                        Descargar Historial PDF
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
