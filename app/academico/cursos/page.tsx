@@ -1,8 +1,7 @@
 "use client"
 
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { BookOpen } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
 import { CoursesManagement } from "@/components/courses-management"
 
 export default function CursosPage() {
@@ -21,14 +20,7 @@ export default function CursosPage() {
       </Breadcrumb>
 
       <Card>
-        <CardHeader className="flex flex-row items-center gap-2">
-          <BookOpen className="h-6 w-6" />
-          <div>
-            <CardTitle>Gestión de Cursos</CardTitle>
-            <CardDescription>Administre los cursos ofrecidos y su información básica</CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="p-6">
           <CoursesManagement />
         </CardContent>
       </Card>

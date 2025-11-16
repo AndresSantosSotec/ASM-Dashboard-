@@ -14,10 +14,10 @@ export interface DateRange {
   to?: Date
 }
 
-interface DatePickerWithRangeProps
-  extends React.HTMLAttributes<HTMLDivElement> {
+interface DatePickerWithRangeProps {
   value?: DateRange | undefined
   onChange?: (range: DateRange | undefined) => void
+  className?: string
 }
 
 export function DatePickerWithRange({
@@ -37,12 +37,13 @@ export function DatePickerWithRange({
   }
 
   return (
-    <Popover className={className}>
-      <PopoverTrigger asChild>
-        <Button
-          variant={"outline"}
-          className={cn("w-[300px] justify-start text-left font-normal", !date && "text-muted-foreground")}
-        >
+    <div className={className}>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant={"outline"}
+            className={cn("w-[300px] justify-start text-left font-normal", !date && "text-muted-foreground")}
+          >
           <CalendarIcon className="mr-2 h-4 w-4" />
           {date?.from ? (
             date.to ? (
@@ -65,6 +66,7 @@ export function DatePickerWithRange({
         />
       </PopoverContent>
     </Popover>
+    </div>
   )
 }
 

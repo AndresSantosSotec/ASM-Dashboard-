@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test API Plantillas Mailing</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #0070f3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0051cc;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            color: green;
+        }
+        .error {
+            color: red;
+        }
+        h2 {
+            border-bottom: 2px solid #0070f3;
+            padding-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test API - Plantillas y Mailing</h1>
+        
+        <h2>1. Test de Conexión</h2>
+        <button onclick="testConnection()">Test Backend Connection</button>
+        <div id="connection-result" class="result"></div>
+
+        <h2>2. Plantillas</h2>
+        <button onclick="testGetPlantillas()">GET /plantillas-mailing</button>
+        <button onclick="testGetVariables()">GET /plantillas-mailing/variables</button>
+        <div id="plantillas-result" class="result"></div>
+
+        <h2>3. Crear Plantilla</h2>
+        <button onclick="testCreatePlantilla()">POST /plantillas-mailing</button>
+        <div id="create-result" class="result"></div>
+
+        <h2>4. Envíos</h2>
+        <button onclick="testGetEnvios()">GET /plantillas-mailing/envios</button>
+        <button onclick="testEnviarMasivo()">POST /plantillas-mailing/enviar</button>
+        <div id="envios-result" class="result"></div>
+
+        <h2>5. Logs Completos</h2>
+        <div id="logs" class="result"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000/api/administracion';
+        const TOKEN = localStorage.getItem('token') || 'test-token';
+        
+        let logs = [];
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            logs.push(logEntry);
+            updateLogs();
+            console.log(logEntry);
+        }
+        
+        function updateLogs() {
+            document.getElementById('logs').textContent = logs.join('\n');
+        }
+        
+        async function makeRequest(endpoint, method = 'GET', body = null) {
+            const url = `${API_URL}${endpoint}`;
+            log(`Request: ${method} ${url}`);
+            
+            const options = {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${TOKEN}`
+                }
+            };
+            
+            if (body) {
+                options.body = JSON.stringify(body);
+                log(`Body: ${JSON.stringify(body, null, 2)}`);
+            }
+            
+            try {
+                const response = await fetch(url, options);
+                log(`Response Status: ${response.status} ${response.statusText}`);
+                
+                const text = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    data = text;
+                }
+                
+                return { ok: response.ok, status: response.status, data };
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+        
+        async function testConnection() {
+            const resultDiv = document.getElementById('connection-result');
+            resultDiv.textContent = 'Testing...';
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/health');
+                if (response.ok) {
+                    resultDiv.innerHTML = '<span class="success">✅ Backend conectado correctamente</span>';
+                    log('Backend connection: OK', 'success');
+                } else {
+                    resultDiv.innerHTML = '<span class="error">❌ Backend no responde</span>';
+                    log('Backend connection: FAILED', 'error');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ Error: ${error.message}</span>`;
+                log(`Connection error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testGetPlantillas() {
+            const resultDiv = document.getElementById('plantillas-result');
+            resultDiv.textContent = 'Loading...';
+            
+            try {
+                const result = await makeRequest('/plantillas-mailing');
+                resultDiv.textContent = JSON.stringify(result.data, null, 2);
+                if (result.ok) {
+                    log(`Plantillas loaded: ${result.data.data?.length || 0} items`, 'success');
+                } else {
+                    log(`Failed to load plantillas: ${result.status}`, 'error');
+                }
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+                log(`Error getting plantillas: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testGetVariables() {
+            const resultDiv = document.getElementById('plantillas-result');
+            resultDiv.textContent = 'Loading...';
+            
+            try {
+                const result = await makeRequest('/plantillas-mailing/variables');
+                resultDiv.textContent = JSON.stringify(result.data, null, 2);
+                if (result.ok) {
+                    log(`Variables loaded: ${result.data.variables?.length || 0} items`, 'success');
+                } else {
+                    log(`Failed to load variables: ${result.status}`, 'error');
+                }
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function testCreatePlantilla() {
+            const resultDiv = document.getElementById('create-result');
+            resultDiv.textContent = 'Creating...';
+            
+            const plantilla = {
+                nombre: 'Plantilla Test Frontend',
+                asunto: 'Test desde HTML',
+                contenido_html: '<p>Hola {{nombre_alumno}}, esto es una prueba.</p>',
+                tipo: 'correo',
+                categoria: 'general',
+                activo: true
+            };
+            
+            try {
+                const result = await makeRequest('/plantillas-mailing', 'POST', plantilla);
+                resultDiv.textContent = JSON.stringify(result.data, null, 2);
+                if (result.ok) {
+                    log('Plantilla created successfully', 'success');
+                } else {
+                    log(`Failed to create plantilla: ${result.status}`, 'error');
+                }
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function testGetEnvios() {
+            const resultDiv = document.getElementById('envios-result');
+            resultDiv.textContent = 'Loading...';
+            
+            try {
+                const result = await makeRequest('/plantillas-mailing/envios');
+                resultDiv.textContent = JSON.stringify(result.data, null, 2);
+                if (result.ok) {
+                    log(`Envíos loaded: ${result.data.data?.length || 0} items`, 'success');
+                } else {
+                    log(`Failed to load envíos: ${result.status}`, 'error');
+                }
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function testEnviarMasivo() {
+            const resultDiv = document.getElementById('envios-result');
+            resultDiv.textContent = 'Enviando...';
+            
+            // Primero obtener una plantilla
+            const plantillas = await makeRequest('/plantillas-mailing');
+            if (!plantillas.ok || !plantillas.data.data || plantillas.data.data.length === 0) {
+                resultDiv.textContent = 'Error: No hay plantillas disponibles';
+                return;
+            }
+            
+            const envio = {
+                template_id: plantillas.data.data[0].id,
+                tipo_destinatarios: 'todos',
+                enviar_inmediato: true
+            };
+            
+            try {
+                const result = await makeRequest('/plantillas-mailing/enviar', 'POST', envio);
+                resultDiv.textContent = JSON.stringify(result.data, null, 2);
+                if (result.ok) {
+                    log('Envío masivo iniciado', 'success');
+                } else {
+                    log(`Failed to send: ${result.status}`, 'error');
+                }
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        // Auto-test on load
+        window.onload = () => {
+            log('Test page loaded');
+            testConnection();
+        };
+    </script>
+</body>
+</html>

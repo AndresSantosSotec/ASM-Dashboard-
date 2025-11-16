@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Search, Download, Filter, Trophy, Medal, Award, ArrowUp, ArrowDown, Minus, BookOpen, Loader2 } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { Search, Download, Filter, Trophy, Medal, Award, ArrowUp, ArrowDown, Minus, BookOpen, Loader2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,8 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { toast } from "@/hooks/use-toast"
 import { useDebounce } from "@/hooks/use-debounce"
+import { RankingTableSkeleton, RankingCoursesSkeleton } from "@/components/ui/ranking-skeleton"
+import MoodleConnectionStatus from "@/components/MoodleConnectionStatus"
 import {
   fetchRankingStudents,
   fetchRankingCourses,
@@ -34,49 +37,152 @@ export default function RankingAcademico() {
   const [loadingStudents, setLoadingStudents] = useState(false)
   const [loadingCourses, setLoadingCourses] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const [activeTab, setActiveTab] = useState('students') // Track active tab
+  const [coursesLoaded, setCoursesLoaded] = useState(false) // Lazy load flag
+  const [moodleStatus, setMoodleStatus] = useState<'OK' | 'ERROR' | 'RECOVERED' | null>(null) // Connection status
+  
+  // Paginación
+  const [currentPage, setCurrentPage] = useState(1)
+  const [perPage, setPerPage] = useState(50)
+  const [totalPages, setTotalPages] = useState(1)
+  const [hasMore, setHasMore] = useState(false)
+  const [pagination, setPagination] = useState({
+    current_page: 1,
+    per_page: 50,
+    total: 0,
+    total_pages: 1,
+    from: 0,
+    to: 0,
+    has_more: false
+  })
+  
   const debouncedSearch = useDebounce(searchTerm, 300)
+  
+  // AbortController para cancelar peticiones
+  const abortControllerRef = useRef<AbortController | null>(null)
 
-  // Fetch students whenever filters change
+  // ✅ BLOQUEAR CARGA HASTA QUE PASE EL DIAGNÓSTICO
+  // Fetch students whenever filters change (CON PAGINACIÓN + CANCELACIÓN + VALIDACIÓN CONEXIÓN)
   useEffect(() => {
     const getStudents = async () => {
+      // 🚫 BLOQUEAR si conexión está en ERROR o aún no verificada
+      if (moodleStatus === 'ERROR') {
+        console.warn('[RANKING] ❌ Carga bloqueada: conexión Moodle en ERROR')
+        setStudents([])
+        return
+      }
+
+      if (moodleStatus === null) {
+        console.info('[RANKING] ⏳ Esperando diagnóstico de conexión...')
+        return
+      }
+      
+      // ✅ SOLO SI STATUS = OK o RECOVERED, continuar
+      console.log('[RANKING] ✅ Conexión verificada:', moodleStatus, '- Cargando ranking...')
+      
+      // Cancelar petición anterior si existe
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+      
+      // Crear nuevo AbortController
+      abortControllerRef.current = new AbortController()
+      
       setLoadingStudents(true)
       try {
-        const { data } = await fetchRankingStudents({
+        const response = await fetchRankingStudents({
           search: debouncedSearch || undefined,
           program: programFilter !== 'all' ? programFilter : undefined,
           semester: semesterFilter !== 'all' ? Number(semesterFilter) : undefined,
           sortBy,
+          page: currentPage,
+          perPage: perPage,
         })
 
+        // Manejar respuesta con paginación
+        const data = response.data || []
+        const paginationData = response.pagination
+        
+        // Filtrar estudiantes con cursos
         const withCourses = data.filter((s) => s.totalCourses > 0)
         setStudents(withCourses)
-        setTotalStudents(withCourses.length)
-      } catch (err) {
-        console.error(err)
+        
+        if (paginationData) {
+          setPagination(paginationData)
+          setTotalStudents(paginationData.total)
+          setTotalPages(paginationData.total_pages)
+          setHasMore(paginationData.has_more)
+          console.log('[RANKING] Página', paginationData.current_page, 'de', paginationData.total_pages)
+        } else {
+          setTotalStudents(withCourses.length)
+        }
+        
+        console.log('[RANKING] Estudiantes obtenidos:', withCourses.length)
+      } catch (err: any) {
+        // No mostrar error si fue cancelación intencional
+        if (err.name !== 'AbortError' && err.name !== 'CanceledError') {
+          console.error('[RANKING] Error:', err)
+          toast({
+            title: 'Error',
+            description: 'No se pudo obtener el ranking de estudiantes',
+            variant: 'destructive',
+          })
+        }
       } finally {
         setLoadingStudents(false)
       }
     }
     getStudents()
-  }, [debouncedSearch, programFilter, semesterFilter, sortBy])
-
-  // Fetch courses on mount
-  useEffect(() => {
-    const getCourses = async () => {
-      setLoadingCourses(true)
-      try {
-        const { data } = await fetchRankingCourses({})
-        setCourses(data)
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoadingCourses(false)
+    
+    // Cleanup: cancelar al desmontar
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
       }
     }
-    getCourses()
-  }, [])
+  }, [debouncedSearch, programFilter, semesterFilter, sortBy, currentPage, perPage, moodleStatus]) // ✅ AGREGAR moodleStatus
 
-  // Obtener programas únicos para el filtro
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    if (currentPage !== 1) {
+      setCurrentPage(1)
+    }
+  }, [debouncedSearch, programFilter, semesterFilter, sortBy])
+
+  // 🚀 LAZY LOAD: Solo cargar cursos cuando se abre el tab + CONEXIÓN OK
+  useEffect(() => {
+    // 🚫 BLOQUEAR si conexión no está OK
+    if (moodleStatus !== 'OK' && moodleStatus !== 'RECOVERED') {
+      console.warn('[RANKING] ❌ Cursos bloqueados: conexión no verificada')
+      return
+    }
+
+    // Solo ejecutar si el tab de cursos está activo y aún no se han cargado
+    if (activeTab === 'courses' && !coursesLoaded) {
+      const getCourses = async () => {
+        setLoadingCourses(true)
+        try {
+          const { data } = await fetchRankingCourses({})
+          setCourses(data)
+          setCoursesLoaded(true) // Marcar como cargado
+          console.log('[RANKING] Cursos obtenidos (lazy):', data.length)
+        } catch (err) {
+          console.error('[RANKING] Error cursos:', err)
+          toast({
+            title: 'Error',
+            description: 'No se pudo obtener estadísticas de cursos',
+            variant: 'destructive',
+          })
+        } finally {
+          setLoadingCourses(false)
+        }
+      }
+      getCourses()
+    }
+  }, [activeTab, coursesLoaded, moodleStatus]) // ✅ AGREGAR moodleStatus
+
+  // 🎯 OPTIMIZACIÓN: Obtener programas y semestres únicos SOLO de los datos actuales
+  // (El backend ya filtra, no necesitamos todos los datos)
   const uniquePrograms = Array.from(
     new Set(
       students
@@ -85,7 +191,6 @@ export default function RankingAcademico() {
     )
   )
 
-  // Obtener semestres únicos para el filtro
   const uniqueSemesters = Array.from(
     new Set(
       students
@@ -94,37 +199,10 @@ export default function RankingAcademico() {
     )
   ).sort((a, b) => Number(a) - Number(b))
 
-// Filtrar estudiantes
-const filteredStudents = students.filter(student => {
-    const search = searchTerm.toLowerCase()
-    const nameMatch = student.name
-      ? student.name.toLowerCase().includes(search)
-      : false
-    const programMatch = student.program
-      ? student.program.toLowerCase().includes(search)
-      : false
-    const matchesSearch = nameMatch || programMatch
-    
-    const matchesProgram = programFilter === "all" || student.program === programFilter
-    const matchesSemester = semesterFilter === "all" || student.semester.toString() === semesterFilter
-    
-    return matchesSearch && matchesProgram && matchesSemester
-  })
-
-  // Ordenar estudiantes
-  const sortedStudents = [...filteredStudents].sort((a, b) => {
-    if (sortBy === "ranking") {
-      return a.ranking - b.ranking
-    } else if (sortBy === "gpa") {
-      return b.gpa - a.gpa
-    } else if (sortBy === "name") {
-      return a.name.localeCompare(b.name)
-    } else if (sortBy === "credits") {
-      return b.credits - a.credits
-    } else {
-      return a.ranking - b.ranking
-    }
-  })
+  // ⚡ OPTIMIZACIÓN: Eliminar filtrado en frontend
+  // El backend YA filtra por search, program, semester y sortBy
+  // Solo usamos los datos tal cual vienen del servidor
+  const sortedStudents = students
 
   // Descargar reporte
   const handleDownloadReport = async () => {
@@ -136,19 +214,26 @@ const filteredStudents = students.filter(student => {
         semester: semesterFilter !== 'all' ? Number(semesterFilter) : undefined,
         sortBy,
       })
+      
+      // Crear URL y descargar
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = 'ranking.pdf'
+      link.download = `ranking_academico_${new Date().getTime()}.pdf`
       document.body.appendChild(link)
       link.click()
       link.remove()
-      toast({ title: 'Reporte descargado' })
-    } catch (err) {
-      console.error(err)
+      window.URL.revokeObjectURL(url)
+      
+      toast({ 
+        title: '✅ Reporte descargado',
+        description: 'El archivo PDF se ha descargado correctamente'
+      })
+    } catch (err: any) {
+      console.error('[RANKING] Error descarga:', err)
       toast({
         title: 'Error',
-        description: 'No se pudo descargar el reporte',
+        description: err?.message || 'No se pudo descargar el reporte',
         variant: 'destructive',
       })
     } finally {
@@ -204,7 +289,39 @@ const filteredStudents = students.filter(student => {
         </Button>
       </div>
 
-      <Tabs defaultValue="students">
+      {/* Estado de Conexión Moodle */}
+      <MoodleConnectionStatus 
+        onStatusChange={(status) => setMoodleStatus(status)} 
+        autoCheck={true} // ✅ DIAGNÓSTICO AUTOMÁTICO
+      />
+
+      {/* 🚫 MOSTRAR MENSAJE SI CONEXIÓN FALLA */}
+      {moodleStatus === 'ERROR' && (
+        <Alert variant="destructive" className="mb-6">
+          <XCircle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>No se puede cargar el ranking académico.</strong>
+            <br />
+            La conexión con Moodle está fallando. Por favor, verifica que el servidor esté disponible y presiona "Reintentar" en el diagnóstico.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* 🔄 MOSTRAR LOADING SI AÚN NO HAY DIAGNÓSTICO */}
+      {moodleStatus === null && (
+        <Card className="mb-6">
+          <CardContent className="pt-6 pb-6 text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-blue-500" />
+            <p className="text-sm text-gray-600">Verificando conexión con Moodle antes de cargar datos...</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ✅ SOLO MOSTRAR RANKING SI CONEXIÓN OK O RECOVERED */}
+      {(moodleStatus === 'OK' || moodleStatus === 'RECOVERED') && (
+        <>
+
+      <Tabs defaultValue="students" onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-2 mb-6">
           <TabsTrigger value="students">
             <Trophy className="h-4 w-4 mr-2" />
@@ -219,9 +336,7 @@ const filteredStudents = students.filter(student => {
         <TabsContent value="students">
           {/* Top 3 estudiantes */}
           {loadingStudents ? (
-            <div className="flex justify-center py-6">
-              <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
-            </div>
+            <RankingTableSkeleton />
           ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             {students.slice(0, 3).map((student, index) => (
@@ -453,11 +568,85 @@ const filteredStudents = students.filter(student => {
                   </TableBody>
                 </Table>
               </div>
+              
+              {/* Pagination Controls */}
+              <div className="flex items-center justify-between px-4 py-4 border-t">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Mostrar</span>
+                  <select
+                    value={perPage}
+                    onChange={(e) => {
+                      setPerPage(Number(e.target.value))
+                      setCurrentPage(1) // Reset to first page when changing items per page
+                    }}
+                    className="border rounded px-2 py-1 text-sm"
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <span className="text-sm text-gray-600">estudiantes por página</span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">
+                    Mostrando {pagination.from || 0} - {pagination.to || 0} de {pagination.total || 0} estudiantes
+                  </span>
+                  
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                    >
+                      Anterior
+                    </button>
+                    
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum
+                      if (totalPages <= 5) {
+                        pageNum = i + 1
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i
+                      } else {
+                        pageNum = currentPage - 2 + i
+                      }
+                      
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`px-3 py-1 border rounded ${
+                            currentPage === pageNum
+                              ? 'bg-blue-600 text-white'
+                              : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      )
+                    })}
+                    
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={!hasMore}
+                      className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
         
         <TabsContent value="courses">
+          {loadingCourses ? (
+            <RankingCoursesSkeleton />
+          ) : (
           <Card>
             <CardHeader>
               <CardTitle>Rendimiento por Curso</CardTitle>
@@ -519,8 +708,12 @@ const filteredStudents = students.filter(student => {
               </div>
             </CardContent>
           </Card>
+          )}
         </TabsContent>
       </Tabs>
+      </>
+      )} 
+      {/* ✅ FIN CONDICIONAL RANKING */}
     </div>
   )
 }

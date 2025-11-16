@@ -1,814 +1,763 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Download, BookOpen, DollarSign, CheckCircle, XCircle, AlertTriangle, User } from "lucide-react"
+import { Eye, AlertTriangle, Search, Download, FileSpreadsheet, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Progress } from "@/components/ui/progress"
 import { toast } from "@/hooks/use-toast"
-import { fetchEnrolledStudents, fetchStudentCourseLists } from "@/services/students"
-import type { Course as ServiceCourse } from "@/services/courses"
+import { Input } from "@/components/ui/input"
+import api from "@/services/api"
+import { exportToCSV, exportToExcel } from "@/lib/excel-exporter"
+import { ExportProgressModal } from "@/components/ui/export-progress-modal"
 
-// Tipos
-interface Student {
+interface StudentWithProgress {
   id: string
-  name: string
-  program: string
-  semester: number
-  enrollmentDate: string
-  status: "active" | "inactive" | "graduated" | "on_leave"
-  academicInfo: {
-    coursesApproved: number
-    coursesFailed: number
-    coursesInProgress: number
-    totalCourses: number
-    credits: {
-      completed: number
-      total: number
-    }
-    gpa: number
-  }
-  financialInfo: {
-    enrollmentFee: number
-    monthlyFee: number
-    pendingPayments: number
-    totalDebt: number
-    lastPaymentDate: string | null
-    nextPaymentDate: string | null
-    paymentStatus: "up_to_date" | "pending" | "overdue"
-  }
+  nombre_completo: string
+  carnet: string
+  correo_electronico: string
+  programa: string
+  cursos_aprobados?: number | null
+  cursos_reprobados?: number | null
+  cursos_en_progreso?: number | null
+  total_cursos?: number | null
+  promedio?: number | null
+  creditos_completados?: number | null
+  creditos_totales?: number | null
+  estado: string
 }
-
-interface Course {
-  id: string
-  studentId: string
-  name: string
-  code: string
-  credits: number
-  period: string
-  status: "approved" | "failed" | "in_progress" | "pending"
-  grade: number | null
-  professor: string
-}
-
-interface Payment {
-  id: string
-  studentId: string
-  concept: string
-  amount: number
-  date: string | null
-  status: "paid" | "pending" | "overdue"
-  dueDate: string
-}
-
-// Datos de ejemplo
-const mockStudents: Student[] = [
-  {
-    id: "1",
-    name: "Juan Pérez",
-    program: "Licenciatura en Administración de Empresas",
-    semester: 3,
-    enrollmentDate: "2022-08-15",
-    status: "active",
-    academicInfo: {
-      coursesApproved: 12,
-      coursesFailed: 1,
-      coursesInProgress: 4,
-      totalCourses: 36,
-      credits: {
-        completed: 45,
-        total: 120,
-      },
-      gpa: 8.7,
-    },
-    financialInfo: {
-      enrollmentFee: 5000,
-      monthlyFee: 2500,
-      pendingPayments: 1,
-      totalDebt: 2500,
-      lastPaymentDate: "2023-10-05",
-      nextPaymentDate: "2023-11-05",
-      paymentStatus: "pending",
-    },
-  },
-  {
-    id: "2",
-    name: "María González",
-    program: "Ingeniería en Sistemas Computacionales",
-    semester: 4,
-    enrollmentDate: "2022-01-10",
-    status: "active",
-    academicInfo: {
-      coursesApproved: 18,
-      coursesFailed: 0,
-      coursesInProgress: 5,
-      totalCourses: 45,
-      credits: {
-        completed: 72,
-        total: 180,
-      },
-      gpa: 9.2,
-    },
-    financialInfo: {
-      enrollmentFee: 6000,
-      monthlyFee: 3000,
-      pendingPayments: 0,
-      totalDebt: 0,
-      lastPaymentDate: "2023-11-02",
-      nextPaymentDate: "2023-12-05",
-      paymentStatus: "up_to_date",
-    },
-  },
-  {
-    id: "3",
-    name: "Carlos Rodríguez",
-    program: "Maestría en Educación",
-    semester: 2,
-    enrollmentDate: "2023-01-15",
-    status: "on_leave",
-    academicInfo: {
-      coursesApproved: 6,
-      coursesFailed: 1,
-      coursesInProgress: 0,
-      totalCourses: 15,
-      credits: {
-        completed: 24,
-        total: 60,
-      },
-      gpa: 8.1,
-    },
-    financialInfo: {
-      enrollmentFee: 8000,
-      monthlyFee: 4000,
-      pendingPayments: 2,
-      totalDebt: 8000,
-      lastPaymentDate: "2023-09-05",
-      nextPaymentDate: "2023-10-05",
-      paymentStatus: "overdue",
-    },
-  },
-]
-
-const mockCourses: Course[] = [
-  {
-    id: "c1",
-    studentId: "1",
-    name: "Fundamentos de Administración",
-    code: "ADM101",
-    credits: 4,
-    period: "2022-2",
-    status: "approved",
-    grade: 85,
-    professor: "Ana López",
-  },
-  {
-    id: "c2",
-    studentId: "1",
-    name: "Contabilidad Básica",
-    code: "CONT101",
-    credits: 3,
-    period: "2022-2",
-    status: "approved",
-    grade: 78,
-    professor: "Roberto Méndez",
-  },
-  {
-    id: "c3",
-    studentId: "1",
-    name: "Estadística para Negocios",
-    code: "STAT201",
-    credits: 4,
-    period: "2023-1",
-    status: "failed",
-    grade: 55,
-    professor: "María González",
-  },
-  {
-    id: "c4",
-    studentId: "1",
-    name: "Marketing Digital",
-    code: "MKT301",
-    credits: 3,
-    period: "2023-1",
-    status: "in_progress",
-    grade: null,
-    professor: "Carlos Rodríguez",
-  },
-  {
-    id: "c5",
-    studentId: "1",
-    name: "Gestión de Proyectos",
-    code: "ADM302",
-    credits: 4,
-    period: "2023-2",
-    status: "in_progress",
-    grade: null,
-    professor: "Juan Martínez",
-  },
-]
-
-const mockPayments: Payment[] = [
-  {
-    id: "p1",
-    studentId: "1",
-    concept: "Inscripción 2023-2",
-    amount: 5000,
-    date: "2023-08-01",
-    status: "paid",
-    dueDate: "2023-08-05",
-  },
-  {
-    id: "p2",
-    studentId: "1",
-    concept: "Mensualidad Septiembre 2023",
-    amount: 2500,
-    date: "2023-09-03",
-    status: "paid",
-    dueDate: "2023-09-05",
-  },
-  {
-    id: "p3",
-    studentId: "1",
-    concept: "Mensualidad Octubre 2023",
-    amount: 2500,
-    date: "2023-10-05",
-    status: "paid",
-    dueDate: "2023-10-05",
-  },
-  {
-    id: "p4",
-    studentId: "1",
-    concept: "Mensualidad Noviembre 2023",
-    amount: 2500,
-    date: null,
-    status: "pending",
-    dueDate: "2023-11-05",
-  },
-]
 
 export default function EstatusAcademico() {
-  const [students, setStudents] = useState<Student[]>([])
-  const [courses, setCourses] = useState<Course[]>([])
-  const [payments] = useState<Payment[]>(mockPayments)
+  const [students, setStudents] = useState<StudentWithProgress[]>([])
+  const [filteredStudents, setFilteredStudents] = useState<StudentWithProgress[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
+  
+  // Paginación
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [totalStudents, setTotalStudents] = useState(0)
+  
+  // Filtros
+  const [selectedProgram, setSelectedProgram] = useState<string>("all")
+  const [selectedStatus, setSelectedStatus] = useState<string>("all")
+  const [programs, setPrograms] = useState<string[]>([])
+  const [statuses, setStatuses] = useState<string[]>([])
 
+  // Estados para modal de exportación
+  const [exportModal, setExportModal] = useState({
+    isOpen: false,
+    currentProgress: 0,
+    totalItems: 0,
+    currentPage: 0,
+    totalPages: 0,
+    status: 'loading' as 'loading' | 'success' | 'error',
+    errorMessage: ''
+  })
+
+  // Cargar todos los estudiantes al iniciar
   useEffect(() => {
-    ;(async () => {
-      try {
-        const data = await fetchEnrolledStudents()
-        const mapped: Student[] = data.map((s) => ({
-          id: s.id,
-          name: s.name,
-          program: s.program,
-          semester: 0,
-          enrollmentDate: new Date().toISOString(),
-          status: "active",
-          academicInfo: {
-            coursesApproved: 0,
-            coursesFailed: 0,
-            coursesInProgress: 0,
-            totalCourses: 0,
-            credits: { completed: 0, total: 0 },
-            gpa: 0,
-          },
-          financialInfo: {
-            enrollmentFee: 0,
-            monthlyFee: 0,
-            pendingPayments: 0,
-            totalDebt: 0,
-            lastPaymentDate: null,
-            nextPaymentDate: null,
-            paymentStatus: "up_to_date",
-          },
-        }))
-        setStudents(mapped)
-      } catch (err) {
-        console.error(err)
-      }
-    })()
+    loadAllStudents()
   }, [])
 
+  // Filtrar estudiantes cuando cambia cualquier filtro
   useEffect(() => {
-    if (!selectedStudent) return
-    ;(async () => {
-      try {
-        const lists = await fetchStudentCourseLists(selectedStudent.id)
-        const mapCourse = (c: ServiceCourse): Course => ({
-          id: String(c.id),
-          studentId: selectedStudent.id,
-          name: c.name,
-          code: c.code,
-          credits: c.credits,
-          period: "",
-          status:
-            c.status === "approved"
-              ? "approved"
-              : c.status === "draft"
-                ? "pending"
-                : "in_progress",
-          grade: null,
-          professor: c.facilitator?.name ?? "",
+    let filtered = students
+
+    // Filtro por texto de búsqueda
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase()
+      filtered = filtered.filter(student =>
+        student.nombre_completo.toLowerCase().includes(term) ||
+        student.carnet.toLowerCase().includes(term) ||
+        student.correo_electronico.toLowerCase().includes(term) ||
+        student.programa.toLowerCase().includes(term)
+      )
+    }
+
+    // Filtro por programa
+    if (selectedProgram !== "all") {
+      filtered = filtered.filter(student => student.programa === selectedProgram)
+    }
+
+    // Filtro por estado
+    if (selectedStatus !== "all") {
+      filtered = filtered.filter(student => student.estado === selectedStatus)
+    }
+
+    setFilteredStudents(filtered)
+    // Resetear a página 1 cuando cambia cualquier filtro
+    setCurrentPage(1)
+  }, [searchTerm, selectedProgram, selectedStatus, students])
+
+  const loadAllStudents = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      console.log('[ESTATUS ALUMNO] Cargando lista completa de estudiantes...')
+
+      // Obtener todos los estudiantes con sus estadísticas académicas
+      const response = await api.get('/estudiantes/lista-completa')
+      
+      console.log('[ESTATUS ALUMNO] Respuesta recibida:', {
+        status: response.status,
+        dataType: typeof response.data,
+        isArray: Array.isArray(response.data),
+        dataLength: Array.isArray(response.data) ? response.data.length : 0,
+        firstItem: Array.isArray(response.data) && response.data.length > 0 ? response.data[0] : null
+      })
+      
+      if (response.data && Array.isArray(response.data)) {
+        const studentsData: StudentWithProgress[] = response.data.map((student: any) => ({
+          id: student.id || '',
+          nombre_completo: student.nombre_completo || 'Sin nombre',
+          carnet: student.carnet || 'Sin carnet',
+          correo_electronico: student.correo_electronico || '',
+          programa: student.programa_nombre || 'Sin programa',
+          cursos_aprobados: student.cursos_aprobados,
+          cursos_reprobados: student.cursos_reprobados,
+          cursos_en_progreso: student.cursos_en_progreso,
+          total_cursos: student.total_cursos,
+          promedio: student.promedio,
+          creditos_completados: student.creditos_completados,
+          creditos_totales: student.creditos_totales,
+          estado: student.estado || 'Activo'
+        }))
+        
+        console.log('[ESTATUS ALUMNO] Estudiantes procesados:', studentsData.length)
+        
+        setStudents(studentsData)
+        setFilteredStudents(studentsData)
+        setTotalStudents(studentsData.length)
+        
+        // Extraer programas y estados únicos
+        const uniquePrograms = Array.from(new Set(studentsData.map(s => s.programa))).sort()
+        const uniqueStatuses = Array.from(new Set(studentsData.map(s => s.estado))).sort()
+        setPrograms(uniquePrograms)
+        setStatuses(uniqueStatuses)
+        
+        if (studentsData.length === 0) {
+          toast({
+            title: "Sin datos",
+            description: "No se encontraron estudiantes inscritos con carnet asignado",
+            variant: "default"
+          })
+        } else {
+          toast({
+            title: "Datos cargados",
+            description: `Se cargaron ${studentsData.length} estudiantes correctamente`,
+          })
+        }
+      } else {
+        console.warn('[ESTATUS ALUMNO] Respuesta no es un array:', response.data)
+        toast({
+          title: "Advertencia",
+          description: "La respuesta del servidor no tiene el formato esperado",
+          variant: "default"
         })
-        setCourses([...lists.assigned, ...lists.completed].map(mapCourse))
-      } catch (err) {
-        console.error(err)
       }
-    })()
-  }, [selectedStudent])
 
-  // Filtrar estudiantes
-  const filteredStudents = students.filter(
-    (student) =>
-      student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.program.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
-
-  // Obtener cursos del estudiante seleccionado
-  const studentCourses = selectedStudent ? courses : []
-
-  // Obtener pagos del estudiante seleccionado
-  const studentPayments = selectedStudent ? payments.filter((payment) => payment.studentId === selectedStudent.id) : []
-
-  // Descargar estado de cuenta
-  const handleDownloadStatement = () => {
-    toast({
-      title: "Estado de cuenta descargado",
-      description: "El estado de cuenta ha sido descargado correctamente.",
-    })
+    } catch (err: any) {
+      console.error('[ESTATUS ALUMNO] Error al cargar estudiantes:', err)
+      console.error('[ESTATUS ALUMNO] Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status
+      })
+      
+      setError(err.response?.data?.message || 'Error al cargar la lista de estudiantes')
+      toast({
+        title: "Error",
+        description: err.response?.data?.message || "No se pudieron cargar los estudiantes",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
-  // Descargar historial académico
-  const handleDownloadTranscript = () => {
-    toast({
-      title: "Historial académico descargado",
-      description: "El historial académico ha sido descargado correctamente.",
+  const handleViewDetails = (studentId: string) => {
+    // Navegar a vista detallada del estudiante
+    window.location.href = `/academico/estatus-alumno/${studentId}`
+  }
+
+  /**
+   * ✅ NUEVO: Generar reporte en segundo plano (no bloquea interfaz)
+   */
+  const handleReporteMasivoAsync = async (formato: 'excel' | 'csv') => {
+    if (filteredStudents.length === 0) {
+      toast({
+        title: "Sin datos",
+        description: "No hay estudiantes para exportar",
+        variant: "default"
+      })
+      return
+    }
+
+    try {
+      // Construir filtros
+      const body: any = { formato }
+      if (searchTerm) body.search = searchTerm
+      if (selectedProgram !== 'all') body.programa = selectedProgram
+      if (selectedStatus !== 'all') body.estado = selectedStatus
+
+      const response = await api.post('/estudiantes/reportes/solicitar', body)
+
+      if (response.data.success) {
+        toast({
+          title: "✅ Reporte en proceso",
+          description: `El reporte se está generando en segundo plano. Recibirás un email en ${response.data.email} cuando esté listo. Puedes continuar navegando.`,
+          variant: "default",
+          duration: 7000
+        })
+      } else {
+        throw new Error(response.data.message || 'Error al solicitar reporte')
+      }
+    } catch (error: any) {
+      console.error('[REPORTE MASIVO] Error:', error)
+      toast({
+        title: "Error",
+        description: error?.response?.data?.message || 'No se pudo solicitar el reporte',
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleExportCSV = async () => {
+    if (filteredStudents.length === 0) {
+      toast({
+        title: "Sin datos",
+        description: "No hay estudiantes para exportar",
+        variant: "default"
+      })
+      return
+    }
+
+    try {
+      // ✅ Abrir modal de progreso
+      setExportModal({
+        isOpen: true,
+        currentProgress: 0,
+        totalItems: 0,
+        currentPage: 0,
+        totalPages: 0,
+        status: 'loading',
+        errorMessage: ''
+      })
+
+      // ✅ Obtener datos por chunks con barra de progreso
+      const todosEstudiantes = await obtenerDatosParaReporte('csv')
+      
+      if (todosEstudiantes.length === 0) {
+        setExportModal(prev => ({ ...prev, status: 'error', errorMessage: 'No se obtuvieron datos para el reporte' }))
+        setTimeout(() => setExportModal(prev => ({ ...prev, isOpen: false })), 3000)
+        return
+      }
+
+      // ✅ Exportar archivo
+      exportToCSV(todosEstudiantes)
+      
+      // ✅ Mostrar éxito
+      setExportModal(prev => ({ ...prev, status: 'success', totalItems: todosEstudiantes.length }))
+      setTimeout(() => setExportModal(prev => ({ ...prev, isOpen: false })), 2000)
+
+    } catch (error: any) {
+      console.error('[EXPORT] Error al exportar CSV:', error)
+      setExportModal(prev => ({ 
+        ...prev, 
+        status: 'error', 
+        errorMessage: error?.message || 'No se pudo exportar el archivo CSV'
+      }))
+      setTimeout(() => setExportModal(prev => ({ ...prev, isOpen: false })), 3000)
+    }
+  }
+
+  const handleExportExcel = async () => {
+    if (filteredStudents.length === 0) {
+      toast({
+        title: "Sin datos",
+        description: "No hay estudiantes para exportar",
+        variant: "default"
+      })
+      return
+    }
+
+    try {
+      // ✅ Abrir modal de progreso
+      setExportModal({
+        isOpen: true,
+        currentProgress: 0,
+        totalItems: 0,
+        currentPage: 0,
+        totalPages: 0,
+        status: 'loading',
+        errorMessage: ''
+      })
+
+      // ✅ Obtener datos por chunks con barra de progreso
+      const todosEstudiantes = await obtenerDatosParaReporte('excel')
+      
+      if (todosEstudiantes.length === 0) {
+        setExportModal(prev => ({ ...prev, status: 'error', errorMessage: 'No se obtuvieron datos para el reporte' }))
+        setTimeout(() => setExportModal(prev => ({ ...prev, isOpen: false })), 3000)
+        return
+      }
+
+      // ✅ Exportar archivo
+      exportToExcel(todosEstudiantes)
+      
+      // ✅ Mostrar éxito
+      setExportModal(prev => ({ ...prev, status: 'success', totalItems: todosEstudiantes.length }))
+      setTimeout(() => setExportModal(prev => ({ ...prev, isOpen: false })), 2000)
+
+    } catch (error: any) {
+      console.error('[EXPORT] Error al exportar Excel:', error)
+      setExportModal(prev => ({ 
+        ...prev, 
+        status: 'error', 
+        errorMessage: error?.message || 'No se pudo exportar el archivo Excel'
+      }))
+      setTimeout(() => setExportModal(prev => ({ ...prev, isOpen: false })), 3000)
+    }
+  }
+
+  /**
+   * ⚡ ULTRA-RÁPIDO: Obtener datos académicos por chunks (100 en 100)
+   * Con precalentamiento de cache opcional
+   */
+  const obtenerDatosParaReporte = async (exportType: 'csv' | 'excel'): Promise<any[]> => {
+    const PER_PAGE = 100 // ⚡ Chunks de 100 estudiantes (2x más rápido)
+    let page = 1
+    let hasMore = true
+    let todosEstudiantes: any[] = []
+
+    // Construir parámetros de filtro
+    const params = new URLSearchParams({
+      per_page: PER_PAGE.toString(),
+      ...(searchTerm && { search: searchTerm }),
+      ...(selectedProgram !== 'all' && { programa: selectedProgram }),
+      ...(selectedStatus !== 'all' && { estado: selectedStatus })
     })
+
+    try {
+      // ⚡ PASO 1: Precalentar cache si hay muchos estudiantes
+      const totalEstimado = filteredStudents.length
+      
+      if (totalEstimado > 100) {
+        setExportModal(prev => ({
+          ...prev,
+          currentProgress: 0,
+          totalItems: totalEstimado,
+          currentPage: 0,
+          totalPages: Math.ceil(totalEstimado / PER_PAGE),
+          status: 'loading'
+        }))
+
+        // Precalentar cache en background
+        try {
+          const precalentarParams = new URLSearchParams({
+            ...(searchTerm && { search: searchTerm }),
+            ...(selectedProgram !== 'all' && { programa: selectedProgram }),
+            ...(selectedStatus !== 'all' && { estado: selectedStatus }),
+            limit: '500'
+          })
+
+          await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/estudiantes/precalentar-cache?${precalentarParams}`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          )
+        } catch (e) {
+          console.warn('[PRECALENTAR] Error, continuando sin precalentar:', e)
+        }
+      }
+
+      // ⚡ PASO 2: Obtener datos por chunks (ahora super rápido por el cache)
+      while (hasMore) {
+        params.set('page', page.toString())
+
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/estudiantes/lista-reporte?${params}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+
+        if (!response.ok) throw new Error('Error al obtener chunk de datos')
+
+        const result = await response.json()
+        const chunk = result.data || []
+        const pagination = result.pagination
+
+        todosEstudiantes = [...todosEstudiantes, ...chunk]
+
+        // ✅ Actualizar modal de progreso
+        if (pagination) {
+          setExportModal(prev => ({
+            ...prev,
+            currentProgress: todosEstudiantes.length,
+            totalItems: pagination.total,
+            currentPage: page,
+            totalPages: pagination.total_pages,
+            status: 'loading'
+          }))
+
+          hasMore = pagination.has_more
+          page++
+        } else {
+          hasMore = false
+        }
+
+        // ⚡ Sin pausa - Máxima velocidad de procesamiento
+      }
+
+      return todosEstudiantes
+
+    } catch (error) {
+      console.error('[REPORTE] Error obteniendo chunks:', error)
+      throw error
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="container mx-auto py-6">
+        <div className="flex flex-col justify-center items-center h-64 space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <p className="text-gray-500">Cargando estudiantes...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto py-6">
+        <Card className="max-w-2xl mx-auto">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <AlertTriangle className="h-16 w-16 text-red-500 mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">Error al cargar información</h3>
+            <p className="text-red-600 mb-6 text-center">{error}</p>
+            <div className="flex gap-4">
+              <Button onClick={loadAllStudents} variant="default">
+                Reintentar
+              </Button>
+              <Button onClick={() => window.location.href = '/login'} variant="outline">
+                Ir a Login
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
     <div className="container mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Estatus Académico del Alumno</h1>
+      {/* ✅ Modal de progreso de exportación */}
+      <ExportProgressModal
+        isOpen={exportModal.isOpen}
+        currentProgress={exportModal.currentProgress}
+        totalItems={exportModal.totalItems}
+        currentPage={exportModal.currentPage}
+        totalPages={exportModal.totalPages}
+        status={exportModal.status}
+        errorMessage={exportModal.errorMessage}
+      />
+
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Estatus Académico de Estudiantes</h1>
+          <p className="text-gray-500 mt-1">
+            {filteredStudents.length} de {students.length} estudiantes
+          </p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {/* ✅ NUEVO: Botón para generación en segundo plano */}
+          {/* <Button 
+            onClick={() => handleReporteMasivoAsync('excel')} 
+            variant="default"
+            className="bg-purple-600 hover:bg-purple-700 text-white transition-colors"
+            disabled={filteredStudents.length === 0}
+          >
+            <Clock className="mr-2 h-4 w-4" />
+            Generar en Background
+          </Button> */}
+          
+          <Button 
+            onClick={handleExportExcel} 
+            variant="outline"
+            className="hover:bg-green-50 hover:border-green-500 hover:text-green-700 transition-colors"
+            disabled={filteredStudents.length === 0}
+          >
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Excel
+          </Button>
+          <Button 
+            onClick={handleExportCSV} 
+            variant="outline"
+            className="hover:bg-blue-50 hover:border-blue-500 hover:text-blue-700 transition-colors"
+            disabled={filteredStudents.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            CSV
+          </Button>
+          <Button onClick={loadAllStudents} variant="outline">
+            Actualizar
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {/* Panel de búsqueda de estudiantes */}
-        <Card className="md:col-span-1">
-          <CardHeader>
-            <CardTitle>Estudiantes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="relative mb-4">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+      {/* Búsqueda y Filtros */}
+      <Card className="mb-6">
+        <CardContent className="pt-6">
+          <div className="space-y-4">
+            {/* Búsqueda por texto */}
+            <div className="flex gap-4 items-center">
+              <Search className="h-5 w-5 text-gray-400" />
               <Input
-                placeholder="Buscar estudiante..."
-                className="pl-8"
+                placeholder="Buscar por nombre, carnet, correo o programa..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1"
               />
             </div>
+            
+            {/* Filtros adicionales */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Filtro por programa */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Programa Académico
+                </label>
+                <select
+                  value={selectedProgram}
+                  onChange={(e) => setSelectedProgram(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">Todos los programas ({totalStudents})</option>
+                  {programs.map(programa => (
+                    <option key={programa} value={programa}>
+                      {programa} ({students.filter(s => s.programa === programa).length})
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div className="space-y-2 max-h-[500px] overflow-y-auto">
-              {filteredStudents.length === 0 ? (
-                <div className="text-center py-4 text-gray-500">No se encontraron estudiantes</div>
-              ) : (
-                filteredStudents.map((student) => (
-                  <div
-                    key={student.id}
-                    className={`p-3 rounded-md cursor-pointer ${
-                      selectedStudent?.id === student.id
-                        ? "bg-blue-100 border border-blue-200"
-                        : "hover:bg-gray-100 border border-transparent"
-                    }`}
-                    onClick={() => setSelectedStudent(student)}
-                  >
-                    <div className="font-medium">{student.name}</div>
-                    <div className="text-sm text-gray-500 mb-2">{student.program}</div>
-                    <div className="flex justify-between text-xs">
-                      <span>Semestre: {student.semester}</span>
-                      <Badge
-                        variant={
-                          student.status === "active"
-                            ? "default"
-                            : student.status === "on_leave"
-                              ? "secondary"
-                              : student.status === "graduated"
-                                ? "outline"
-                                : "destructive"
-                        }
-                        className={
-                          student.status === "graduated" ? "bg-green-100 text-green-800 hover:bg-green-100" : ""
-                        }
-                      >
-                        {student.status === "active"
-                          ? "Activo"
-                          : student.status === "on_leave"
-                            ? "Permiso"
-                            : student.status === "graduated"
-                              ? "Graduado"
-                              : "Inactivo"}
-                      </Badge>
-                    </div>
-                  </div>
-                ))
-              )}
+              {/* Filtro por estado */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Estado
+                </label>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">Todos los estados ({totalStudents})</option>
+                  {statuses.map(estado => (
+                    <option key={estado} value={estado}>
+                      {estado} ({students.filter(s => s.estado === estado).length})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Botón limpiar filtros */}
+              <div className="flex items-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearchTerm("")
+                    setSelectedProgram("all")
+                    setSelectedStatus("all")
+                    setCurrentPage(1)
+                  }}
+                  className="w-full"
+                  disabled={searchTerm === "" && selectedProgram === "all" && selectedStatus === "all"}
+                >
+                  Limpiar Filtros
+                </Button>
+              </div>
+            </div>
+
+            {/* Indicador de filtros activos */}
+            {(searchTerm || selectedProgram !== "all" || selectedStatus !== "all") && (
+              <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded">
+                <span className="font-medium">Filtros activos:</span>
+                {searchTerm && <Badge variant="outline">Búsqueda: "{searchTerm}"</Badge>}
+                {selectedProgram !== "all" && <Badge variant="outline">Programa: {selectedProgram}</Badge>}
+                {selectedStatus !== "all" && <Badge variant="outline">Estado: {selectedStatus}</Badge>}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Controles de paginación */}
+      <Card className="mb-6">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600">Mostrar:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value))
+                  setCurrentPage(1)
+                }}
+                className="border border-gray-300 rounded px-3 py-1 text-sm"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span className="text-sm text-gray-600">registros por página</span>
+            </div>
+            <div className="text-sm text-gray-600">
+              Mostrando {filteredStudents.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, filteredStudents.length)} de {filteredStudents.length} registros
+              {searchTerm && ` (filtrados de ${totalStudents} totales)`}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabla de estudiantes */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Lista de Estudiantes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Estudiante</TableHead>
+                  <TableHead>Carnet</TableHead>
+                  <TableHead>Correo</TableHead>
+                  <TableHead>Programa</TableHead>
+                  <TableHead className="text-center">Estado</TableHead>
+                  <TableHead className="text-center">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredStudents.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                      {searchTerm ? 'No se encontraron estudiantes con ese criterio' : 'No hay estudiantes registrados'}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredStudents
+                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                    .map((student, index) => (
+                    <TableRow key={`${student.carnet}-${student.id}-${index}`} className="hover:bg-gray-50">
+                      <TableCell>
+                        <div className="font-medium">{student.nombre_completo}</div>
+                      </TableCell>
+                      <TableCell>
+                        <code className="text-sm bg-gray-100 px-2 py-1 rounded">{student.carnet}</code>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm text-gray-600">{student.correo_electronico}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">{student.programa}</div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant={student.estado === 'Activo' || student.estado === 'Inscrito' ? 'default' : 'secondary'}>
+                          {student.estado}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleViewDetails(student.id)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Ver Detalle Completo
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Navegación de paginación */}
+      {filteredStudents.length > 0 && (
+        <Card className="mt-6">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                ← Anterior
+              </Button>
+              
+              <div className="flex items-center gap-2">
+                {Array.from({ length: Math.ceil(filteredStudents.length / itemsPerPage) }, (_, i) => i + 1)
+                  .filter(page => {
+                    // Mostrar primeras 2, últimas 2, y 2 alrededor de la página actual
+                    const totalPages = Math.ceil(filteredStudents.length / itemsPerPage)
+                    return (
+                      page === 1 ||
+                      page === 2 ||
+                      page === totalPages ||
+                      page === totalPages - 1 ||
+                      Math.abs(page - currentPage) <= 1
+                    )
+                  })
+                  .map((page, index, array) => {
+                    // Agregar puntos suspensivos si hay saltos
+                    const prevPage = array[index - 1]
+                    const showEllipsis = prevPage && page - prevPage > 1
+                    
+                    return (
+                      <div key={page} className="flex items-center gap-2">
+                        {showEllipsis && <span className="text-gray-400">...</span>}
+                        <Button
+                          variant={currentPage === page ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setCurrentPage(page)}
+                          className="min-w-[40px]"
+                        >
+                          {page}
+                        </Button>
+                      </div>
+                    )
+                  })}
+              </div>
+              
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage(prev => Math.min(Math.ceil(filteredStudents.length / itemsPerPage), prev + 1))}
+                disabled={currentPage >= Math.ceil(filteredStudents.length / itemsPerPage)}
+              >
+                Siguiente →
+              </Button>
             </div>
           </CardContent>
         </Card>
-
-        {/* Panel principal */}
-        <div className="md:col-span-3 space-y-6">
-          {selectedStudent ? (
-            <>
-              {/* Información general del estudiante */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-center">
-                    <CardTitle>Información del Estudiante</CardTitle>
-                    <Badge
-                      variant={
-                        selectedStudent.status === "active"
-                          ? "default"
-                          : selectedStudent.status === "on_leave"
-                            ? "secondary"
-                            : selectedStudent.status === "graduated"
-                              ? "outline"
-                              : "destructive"
-                      }
-                      className={
-                        selectedStudent.status === "graduated" ? "bg-green-100 text-green-800 hover:bg-green-100" : ""
-                      }
-                    >
-                      {selectedStudent.status === "active"
-                        ? "Activo"
-                        : selectedStudent.status === "on_leave"
-                          ? "Permiso"
-                          : selectedStudent.status === "graduated"
-                            ? "Graduado"
-                            : "Inactivo"}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-sm text-gray-500">Nombre completo</div>
-                      <div className="font-medium">{selectedStudent.name}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500">Programa</div>
-                      <div className="font-medium">{selectedStudent.program}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500">Semestre actual</div>
-                      <div className="font-medium">{selectedStudent.semester}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500">Fecha de inscripción</div>
-                      <div className="font-medium">{new Date(selectedStudent.enrollmentDate).toLocaleDateString()}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500">Promedio general</div>
-                      <div
-                        className={`font-medium ${
-                          selectedStudent.academicInfo.gpa >= 9
-                            ? "text-green-600"
-                            : selectedStudent.academicInfo.gpa >= 7
-                              ? "text-blue-600"
-                              : "text-amber-600"
-                        }`}
-                      >
-                        {selectedStudent.academicInfo.gpa.toFixed(1)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500">Progreso académico</div>
-                      <div className="flex items-center">
-                        <span className="font-medium mr-2">
-                          {Math.round(
-                            (selectedStudent.academicInfo.credits.completed /
-                              selectedStudent.academicInfo.credits.total) *
-                              100,
-                          )}
-                          %
-                        </span>
-                        <Progress
-                          value={
-                            (selectedStudent.academicInfo.credits.completed /
-                              selectedStudent.academicInfo.credits.total) *
-                            100
-                          }
-                          className="h-2 flex-1"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Pestañas de información académica y financiera */}
-              <Tabs defaultValue="academic">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="academic">
-                    <BookOpen className="h-4 w-4 mr-2" />
-                    Información Académica
-                  </TabsTrigger>
-                  <TabsTrigger value="financial">
-                    <DollarSign className="h-4 w-4 mr-2" />
-                    Información Financiera
-                  </TabsTrigger>
-                </TabsList>
-
-                {/* Pestaña de información académica */}
-                <TabsContent value="academic" className="space-y-4 pt-4">
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <div className="flex justify-between items-center">
-                        <CardTitle>Resumen Académico</CardTitle>
-                        <Button variant="outline" size="sm" onClick={handleDownloadTranscript}>
-                          <Download className="h-4 w-4 mr-2" />
-                          Descargar historial
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-4 gap-4 mb-6">
-                        <div className="bg-blue-50 p-4 rounded-lg text-center">
-                          <div className="text-2xl font-bold text-blue-600">
-                            {selectedStudent.academicInfo.coursesApproved}
-                          </div>
-                          <div className="text-sm text-gray-500">Cursos aprobados</div>
-                        </div>
-                        <div className="bg-red-50 p-4 rounded-lg text-center">
-                          <div className="text-2xl font-bold text-red-600">
-                            {selectedStudent.academicInfo.coursesFailed}
-                          </div>
-                          <div className="text-sm text-gray-500">Cursos reprobados</div>
-                        </div>
-                        <div className="bg-amber-50 p-4 rounded-lg text-center">
-                          <div className="text-2xl font-bold text-amber-600">
-                            {selectedStudent.academicInfo.coursesInProgress}
-                          </div>
-                          <div className="text-sm text-gray-500">Cursos en curso</div>
-                        </div>
-                        <div className="bg-green-50 p-4 rounded-lg text-center">
-                          <div className="text-2xl font-bold text-green-600">
-                            {selectedStudent.academicInfo.credits.completed}
-                          </div>
-                          <div className="text-sm text-gray-500">Créditos completados</div>
-                        </div>
-                      </div>
-
-                      <div className="rounded-md border">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Curso</TableHead>
-                              <TableHead>Periodo</TableHead>
-                              <TableHead>Estado</TableHead>
-                              <TableHead>Calificación</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {studentCourses.length === 0 ? (
-                              <TableRow>
-                                <TableCell colSpan={4} className="text-center py-4 text-gray-500">
-                                  No hay cursos registrados
-                                </TableCell>
-                              </TableRow>
-                            ) : (
-                              studentCourses.map((course) => (
-                                <TableRow key={course.id}>
-                                  <TableCell>
-                                    <div className="font-medium">{course.name}</div>
-                                    <div className="text-sm text-gray-500">
-                                      {course.code} • {course.credits} créditos
-                                    </div>
-                                    <div className="text-xs text-gray-500">Prof. {course.professor}</div>
-                                  </TableCell>
-                                  <TableCell>{course.period}</TableCell>
-                                  <TableCell>
-                                    <Badge
-                                      variant={
-                                        course.status === "approved"
-                                          ? "default"
-                                          : course.status === "failed"
-                                            ? "destructive"
-                                            : course.status === "in_progress"
-                                              ? "secondary"
-                                              : "outline"
-                                      }
-                                      className={
-                                        course.status === "approved"
-                                          ? "bg-green-100 text-green-800 hover:bg-green-100"
-                                          : course.status === "in_progress"
-                                            ? "bg-blue-100 text-blue-800 hover:bg-blue-100"
-                                            : ""
-                                      }
-                                    >
-                                      {course.status === "approved"
-                                        ? "Aprobado"
-                                        : course.status === "failed"
-                                          ? "Reprobado"
-                                          : course.status === "in_progress"
-                                            ? "En curso"
-                                            : "Pendiente"}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell>
-                                    {course.grade !== null ? (
-                                      <div
-                                        className={`font-medium ${
-                                          course.grade >= 70
-                                            ? "text-green-600"
-                                            : course.grade >= 50
-                                              ? "text-amber-600"
-                                              : "text-red-600"
-                                        }`}
-                                      >
-                                        {course.grade}
-                                      </div>
-                                    ) : (
-                                      <span className="text-gray-500">-</span>
-                                    )}
-                                  </TableCell>
-                                </TableRow>
-                              ))
-                            )}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                {/* Pestaña de información financiera */}
-                <TabsContent value="financial" className="space-y-4 pt-4">
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <div className="flex justify-between items-center">
-                        <CardTitle>Resumen Financiero</CardTitle>
-                        <Button variant="outline" size="sm" onClick={handleDownloadStatement}>
-                          <Download className="h-4 w-4 mr-2" />
-                          Descargar estado de cuenta
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 gap-4 mb-6">
-                        <div className="border p-4 rounded-lg">
-                          <div className="text-sm text-gray-500 mb-1">Cuota de inscripción</div>
-                          <div className="text-xl font-bold">
-                            ${selectedStudent.financialInfo.enrollmentFee.toLocaleString()}
-                          </div>
-                        </div>
-                        <div className="border p-4 rounded-lg">
-                          <div className="text-sm text-gray-500 mb-1">Mensualidad</div>
-                          <div className="text-xl font-bold">
-                            ${selectedStudent.financialInfo.monthlyFee.toLocaleString()}
-                          </div>
-                        </div>
-                        <div className="border p-4 rounded-lg">
-                          <div className="text-sm text-gray-500 mb-1">Pagos pendientes</div>
-                          <div className="text-xl font-bold text-amber-600">
-                            {selectedStudent.financialInfo.pendingPayments}
-                          </div>
-                        </div>
-                        <div className="border p-4 rounded-lg">
-                          <div className="text-sm text-gray-500 mb-1">Deuda total</div>
-                          <div
-                            className={`text-xl font-bold ${
-                              selectedStudent.financialInfo.totalDebt > 0 ? "text-red-600" : "text-green-600"
-                            }`}
-                          >
-                            ${selectedStudent.financialInfo.totalDebt.toLocaleString()}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between p-4 mb-4 rounded-lg bg-gray-50">
-                        <div>
-                          <div className="text-sm text-gray-500">Estado de pagos</div>
-                          <div className="font-medium flex items-center">
-                            {selectedStudent.financialInfo.paymentStatus === "up_to_date" ? (
-                              <>
-                                <CheckCircle className="h-4 w-4 mr-1 text-green-600" />
-                                <span className="text-green-600">Al día</span>
-                              </>
-                            ) : selectedStudent.financialInfo.paymentStatus === "pending" ? (
-                              <>
-                                <AlertTriangle className="h-4 w-4 mr-1 text-amber-600" />
-                                <span className="text-amber-600">Pago pendiente</span>
-                              </>
-                            ) : (
-                              <>
-                                <XCircle className="h-4 w-4 mr-1 text-red-600" />
-                                <span className="text-red-600">Pago vencido</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-sm text-gray-500">Próximo pago</div>
-                          <div className="font-medium">
-                            {selectedStudent.financialInfo.nextPaymentDate
-                              ? new Date(selectedStudent.financialInfo.nextPaymentDate).toLocaleDateString()
-                              : "No programado"}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-sm text-gray-500">Último pago</div>
-                          <div className="font-medium">
-                            {selectedStudent.financialInfo.lastPaymentDate
-                              ? new Date(selectedStudent.financialInfo.lastPaymentDate).toLocaleDateString()
-                              : "Sin pagos"}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="rounded-md border">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Concepto</TableHead>
-                              <TableHead>Monto</TableHead>
-                              <TableHead>Fecha límite</TableHead>
-                              <TableHead>Estado</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {studentPayments.length === 0 ? (
-                              <TableRow>
-                                <TableCell colSpan={4} className="text-center py-4 text-gray-500">
-                                  No hay pagos registrados
-                                </TableCell>
-                              </TableRow>
-                            ) : (
-                              studentPayments.map((payment) => (
-                                <TableRow key={payment.id}>
-                                  <TableCell>
-                                    <div className="font-medium">{payment.concept}</div>
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="font-medium">${payment.amount.toLocaleString()}</div>
-                                  </TableCell>
-                                  <TableCell>{new Date(payment.dueDate).toLocaleDateString()}</TableCell>
-                                  <TableCell>
-                                    <Badge
-                                      variant={
-                                        payment.status === "paid"
-                                          ? "default"
-                                          : payment.status === "pending"
-                                            ? "outline"
-                                            : "destructive"
-                                      }
-                                      className={
-                                        payment.status === "paid"
-                                          ? "bg-green-100 text-green-800 hover:bg-green-100"
-                                          : ""
-                                      }
-                                    >
-                                      {payment.status === "paid"
-                                        ? "Pagado"
-                                        : payment.status === "pending"
-                                          ? "Pendiente"
-                                          : "Vencido"}
-                                    </Badge>
-                                    {payment.date && (
-                                      <div className="text-xs text-gray-500 mt-1">
-                                        Pagado: {new Date(payment.date).toLocaleDateString()}
-                                      </div>
-                                    )}
-                                  </TableCell>
-                                </TableRow>
-                              ))
-                            )}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            </>
-          ) : (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <User className="h-16 w-16 text-gray-300 mb-4" />
-                <h3 className="text-xl font-medium text-gray-700 mb-2">Seleccione un estudiante</h3>
-                <p className="text-gray-500 text-center max-w-md">
-                  Seleccione un estudiante del panel izquierdo para ver su información académica y financiera.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   )
 }

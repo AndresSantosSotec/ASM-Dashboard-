@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test API Graduaciones</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        #results {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.loading { background: #d1ecf1; color: #0c5460; }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .filter-group {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
+        label {
+            display: inline-block;
+            width: 120px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎓 Test API de Reportes de Graduaciones</h1>
+        
+        <div class="filter-group">
+            <div>
+                <label>API URL:</label>
+                <input type="text" id="apiUrl" value="http://localhost:8000" style="width: 300px;">
+            </div>
+            <div>
+                <label>Token:</label>
+                <input type="text" id="token" placeholder="Bearer token (opcional)" style="width: 400px;">
+                <button onclick="getTokenFromLocalStorage()">Obtener de localStorage</button>
+            </div>
+            <div>
+                <label>Año:</label>
+                <select id="anio">
+                    <option value="2023">2023</option>
+                    <option value="2024">2024</option>
+                    <option value="2025" selected>2025</option>
+                    <option value="2026">2026</option>
+                </select>
+            </div>
+            <div>
+                <label>Período:</label>
+                <select id="periodo">
+                    <option value="all" selected>Todo el año</option>
+                    <option value="Q1">Q1 (Ene-Mar)</option>
+                    <option value="Q2">Q2 (Abr-Jun)</option>
+                    <option value="Q3">Q3 (Jul-Sep)</option>
+                    <option value="Q4">Q4 (Oct-Dic)</option>
+                </select>
+            </div>
+            <div>
+                <label>Programa:</label>
+                <input type="text" id="programaId" value="all" placeholder="all o ID del programa">
+            </div>
+        </div>
+
+        <button onclick="testAPI()">🚀 Probar API</button>
+        <button onclick="testWithoutAuth()">🔓 Probar sin autenticación</button>
+        <button onclick="clearResults()">🗑️ Limpiar</button>
+        
+        <div id="status"></div>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function getTokenFromLocalStorage() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                document.getElementById('token').value = token;
+                showStatus('Token obtenido de localStorage', 'success');
+            } else {
+                showStatus('No hay token en localStorage', 'error');
+            }
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('status').innerHTML = '';
+        }
+
+        async function testWithoutAuth() {
+            await testAPI(false);
+        }
+
+        async function testAPI(useAuth = true) {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const token = document.getElementById('token').value;
+            const anio = document.getElementById('anio').value;
+            const periodo = document.getElementById('periodo').value;
+            const programaId = document.getElementById('programaId').value;
+
+            const resultsDiv = document.getElementById('results');
+            
+            showStatus('🔄 Haciendo petición al backend...', 'loading');
+            
+            const url = `${apiUrl}/api/administracion/reportes-graduaciones?anio=${anio}&periodo=${periodo}&programaId=${programaId}`;
+            
+            resultsDiv.innerHTML = `📡 REQUEST:\nURL: ${url}\n`;
+            
+            const headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            };
+            
+            if (useAuth && token) {
+                headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+                resultsDiv.innerHTML += `Authorization: ${headers['Authorization'].substring(0, 50)}...\n`;
+            } else {
+                resultsDiv.innerHTML += `Sin autenticación\n`;
+            }
+            
+            resultsDiv.innerHTML += `\n${'='.repeat(80)}\n\n`;
+
+            try {
+                const startTime = Date.now();
+                const response = await fetch(url, { 
+                    method: 'GET',
+                    headers: headers
+                });
+                const endTime = Date.now();
+                
+                const data = await response.json();
+                
+                resultsDiv.innerHTML += `⏱️ TIEMPO DE RESPUESTA: ${endTime - startTime}ms\n\n`;
+                resultsDiv.innerHTML += `📊 STATUS: ${response.status} ${response.statusText}\n\n`;
+                
+                if (response.ok) {
+                    showStatus('✅ Petición exitosa', 'success');
+                    
+                    resultsDiv.innerHTML += `📈 RESUMEN DE DATOS:\n`;
+                    resultsDiv.innerHTML += `- Total graduados: ${data.graduados?.paginacion?.total || 0}\n`;
+                    resultsDiv.innerHTML += `- Graduados en página: ${data.graduados?.graduados?.length || 0}\n`;
+                    resultsDiv.innerHTML += `- Total estadísticas: ${data.estadisticas?.totalGraduados || 0}\n`;
+                    resultsDiv.innerHTML += `- Tiempo promedio: ${data.estadisticas?.tiempoPromedioMeses || 0} meses\n`;
+                    resultsDiv.innerHTML += `- Programas: ${data.estadisticas?.distribucionProgramas?.length || 0}\n\n`;
+                    
+                    if (data.graduados?.graduados?.length > 0) {
+                        resultsDiv.innerHTML += `👨‍🎓 PRIMER GRADUADO (ejemplo):\n`;
+                        const primerGraduado = data.graduados.graduados[0];
+                        resultsDiv.innerHTML += JSON.stringify(primerGraduado, null, 2) + '\n\n';
+                    }
+                    
+                    resultsDiv.innerHTML += `📦 RESPUESTA COMPLETA:\n`;
+                    resultsDiv.innerHTML += JSON.stringify(data, null, 2);
+                } else {
+                    showStatus(`❌ Error ${response.status}: ${response.statusText}`, 'error');
+                    resultsDiv.innerHTML += `⚠️ ERROR:\n`;
+                    resultsDiv.innerHTML += JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                showStatus('❌ Error de red o CORS', 'error');
+                resultsDiv.innerHTML += `💥 EXCEPTION:\n${error.message}\n\n`;
+                resultsDiv.innerHTML += `⚠️ POSIBLES CAUSAS:\n`;
+                resultsDiv.innerHTML += `1. El backend no está corriendo en ${apiUrl}\n`;
+                resultsDiv.innerHTML += `2. Problema de CORS (verifica que el backend permita localhost:3000)\n`;
+                resultsDiv.innerHTML += `3. La ruta /api/administracion/reportes-graduaciones no existe\n`;
+                resultsDiv.innerHTML += `4. Token de autenticación inválido o expirado\n`;
+            }
+        }
+
+        // Auto-obtener token al cargar la página si estamos en localhost:3000
+        window.addEventListener('load', () => {
+            if (window.location.hostname === 'localhost' && window.location.port === '3000') {
+                getTokenFromLocalStorage();
+            }
+        });
+    </script>
+</body>
+</html>

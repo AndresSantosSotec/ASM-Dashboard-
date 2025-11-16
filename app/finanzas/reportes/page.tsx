@@ -2,8 +2,9 @@ import type { Metadata } from "next"
 import { ReportesFinancieros } from "@/components/finanzas/reportes-financieros"
 
 export const metadata: Metadata = {
-  title: "Reportes Financieros",
-  description: "Generación de reportes financieros, estados de cuenta y libros contables",
+  title: "Mantenimientos Financieros",
+  description:
+    "Administre el kardex de pagos, las cuotas de estudiantes y la generación de reportes financieros oficiales",
 }
 
 export default function ReportesFinancierosPage() {

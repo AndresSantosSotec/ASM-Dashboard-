@@ -1,15 +1,16 @@
 import { PerfilEstudiante } from "@/components/estudiantes/perfil-estudiante"
 
 interface PerfilEstudiantePageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
-export default function PerfilEstudiantePage({ params }: PerfilEstudiantePageProps) {
+export default async function PerfilEstudiantePage({ params }: PerfilEstudiantePageProps) {
+  const { id } = await params
   return (
     <div className="container mx-auto py-6">
-      <PerfilEstudiante estudianteId={params.id} />
+      <PerfilEstudiante estudianteId={id} />
     </div>
   )
 }

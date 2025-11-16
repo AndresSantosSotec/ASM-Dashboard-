@@ -115,7 +115,7 @@ export function GestionFichas() {
   }
 
   const handleSolicitarCorreccion = () => {
-    if (selectedFicha && comentarioRevision.trim() !== "") {
+    if (selectedFicha) {
       // Aquí iría la lógica para enviar la solicitud de corrección
       setShowSuccessMessage(true)
       setTimeout(() => {

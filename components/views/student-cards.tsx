@@ -30,11 +30,12 @@ import {
   PaginationNext,
 } from "@/components/ui/pagination";
 
-import { Search } from "lucide-react";
+import { Search, Download } from "lucide-react";
 import type { Course } from "@/services/courses";
-import { getAvailableCoursesForStudents } from "@/services/courses";
+import { getAvailableCoursesForStudents, exportarYDescargarCursosMasivo } from "@/services/courses";
 import { bulkAssignCourses, unassignCourses } from "@/services/students";
 import { BulkAssignmentPanel } from "@/components/bulk-assignment-panel";
+import { BulkAssignmentImprovedPanel } from "@/components/bulk-assignment-improved-panel";
 import { useToast } from "@/components/ui/use-toast";
 
 interface StudentCardsProps {
@@ -56,6 +57,7 @@ export function StudentCards({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const [showBulkPanel, setShowBulkPanel] = useState(false);
+  const [useImprovedPanel, setUseImprovedPanel] = useState(true); // 🆕 Toggle entre paneles
   const [bulkCourses, setBulkCourses] = useState<Course[]>([]);
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
@@ -163,7 +165,12 @@ export function StudentCards({
   ) => {
     try {
       if (assign) {
-        await bulkAssignCourses(studentIds, courseIds);
+        // 🔹 Convertir al nuevo formato: cada estudiante recibe los MISMOS cursos
+        const assignments = studentIds.map(studentId => ({
+          studentId,
+          courseIds,
+        }));
+        await bulkAssignCourses(assignments);
         toast({ title: "Asignación exitosa" });
       } else {
         await unassignCourses(studentIds, courseIds);
@@ -184,6 +191,84 @@ export function StudentCards({
     if (!isNaN(size)) {
       setPageSize(size);
       setPage(1);
+    }
+  };
+
+  const handleExportToCSV = async () => {
+    if (selectedIds.length === 0) {
+      toast({
+        title: "Advertencia",
+        description: "No hay estudiantes seleccionados para exportar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const selectedStudents = students.filter((s) => selectedIds.includes(s.id));
+    
+    toast({
+      title: "Exportando...",
+      description: `Generando CSV de ${selectedStudents.length} estudiante(s)...`,
+    });
+
+    try {
+      // Obtener los carnets de los estudiantes seleccionados
+      const carnets = selectedStudents.map(s => s.carnet);
+
+      // Llamar a la función mejorada que maneja descarga automáticamente
+      await exportarYDescargarCursosMasivo(carnets);
+
+      toast({
+        title: "✅ Éxito",
+        description: `Se exportaron ${selectedStudents.length} estudiante(s) correctamente`,
+      });
+
+    } catch (error: any) {
+      console.error("Error exportando CSV:", error);
+      const errorMessage = error?.message || "Hubo un problema al exportar los cursos";
+      toast({
+        title: "❌ Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleExportAllFilteredToCSV = async () => {
+    if (filtered.length === 0) {
+      toast({
+        title: "Advertencia",
+        description: "No hay estudiantes en la vista actual para exportar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Exportando...",
+      description: `Generando CSV de ${filtered.length} estudiante(s) filtrados...`,
+    });
+
+    try {
+      // Obtener los carnets de todos los estudiantes filtrados
+      const carnets = filtered.map(s => s.carnet);
+
+      // Llamar a la función mejorada que maneja descarga automáticamente
+      await exportarYDescargarCursosMasivo(carnets);
+
+      toast({
+        title: "✅ Éxito",
+        description: `Se exportaron ${filtered.length} estudiante(s) correctamente`,
+      });
+
+    } catch (error: any) {
+      console.error("Error exportando CSV:", error);
+      const errorMessage = error?.message || "Hubo un problema al exportar los cursos";
+      toast({
+        title: "❌ Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     }
   };
 
@@ -264,6 +349,15 @@ export function StudentCards({
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportAllFilteredToCSV}
+            disabled={filtered.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Exportar Filtrados ({filtered.length})
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="h-8">
@@ -311,21 +405,57 @@ export function StudentCards({
           <span className="text-sm font-medium">
             {selectedIds.length} seleccionados
           </span>
-          <Button size="sm" onClick={() => setShowBulkPanel(true)}>
-            Asignación Masiva
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={handleExportToCSV}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Descargar CSV Seleccionados
+            </Button>
+            <Button size="sm" onClick={() => setShowBulkPanel(true)}>
+              Asignación Masiva de Cursos
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={() => setUseImprovedPanel(!useImprovedPanel)}
+              title="Cambiar entre panel antiguo y nuevo"
+            >
+              {useImprovedPanel ? "Panel Antiguo" : "Panel Nuevo"}
+            </Button>
+          </div>
         </div>
       )}
 
       {showBulkPanel && (
-        <BulkAssignmentPanel
-          selectedStudents={students.filter((s) => selectedIds.includes(s.id))}
-          courses={bulkCourses}
-          isLoading={isBulkLoading}
-          error={bulkError}
-          onBulkAssignment={handleBulkAssignment}
-          onClose={() => setShowBulkPanel(false)}
-        />
+        <>
+          {useImprovedPanel ? (
+            <BulkAssignmentImprovedPanel
+              selectedStudents={students.filter((s) => selectedIds.includes(s.id))}
+              courses={bulkCourses}
+              isLoading={isBulkLoading}
+              error={bulkError}
+              onClose={() => {
+                setShowBulkPanel(false);
+                setSelectedIds([]); // Limpiar selecciones al cerrar
+              }}
+            />
+          ) : (
+            <BulkAssignmentPanel
+              selectedStudents={students.filter((s) => selectedIds.includes(s.id))}
+              courses={bulkCourses}
+              isLoading={isBulkLoading}
+              error={bulkError}
+              onBulkAssignment={handleBulkAssignment}
+              onClose={() => {
+                setShowBulkPanel(false);
+                setSelectedIds([]); // Limpiar selecciones al cerrar
+              }}
+            />
+          )}
+        </>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

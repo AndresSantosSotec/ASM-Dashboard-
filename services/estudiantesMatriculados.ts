@@ -28,6 +28,16 @@ export interface EstudiantesMatriculadosParams {
 export interface EstudiantesMatriculadosResponse {
   data?: EstudianteMatriculado[]
   estudiantes?: EstudianteMatriculado[]
+  alumnos?: EstudianteMatriculado[]
+  listado?: {
+    alumnos?: EstudianteMatriculado[]
+    paginacion?: {
+      pagina?: number
+      porPagina?: number
+      total?: number
+      totalPaginas?: number
+    }
+  }
   paginacion?: {
     pagina?: number
     porPagina?: number

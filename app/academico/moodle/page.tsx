@@ -68,6 +68,9 @@ interface MoodleCourse {
 
 export default function MoodleCoursesPage() {
   const [courses, setCourses] = useState<MoodleCourse[]>([])
+  
+  console.log('🎬 Componente renderizado. Cursos en state:', courses.length);
+  
   const [search, setSearch] = useState<string>("")
   const [selectedYear, setSelectedYear] = useState<string>("all")
 
@@ -82,13 +85,18 @@ export default function MoodleCoursesPage() {
   const [bulkSyncing, setBulkSyncing] = useState(false)
   const [existingNames, setExistingNames] = useState<Set<string>>(new Set())
 
+  console.log('⚙️ Registrando useEffect...');
+
   useEffect(() => {
+    console.log('🎯 useEffect EJECUTÁNDOSE');
     const load = async () => {
       try {
-        const [moodleData, localCourses] = await Promise.all([
-          fetchMoodleCourses(),
-          fetchCourses(),
-        ])
+        console.log('🚀 Iniciando carga de cursos...');
+        
+        // Cargar cursos de Moodle PRIMERO (independiente)
+        const moodleData = await fetchMoodleCourses();
+        console.log('✅ Moodle data recibida:', moodleData?.length || 0);
+        
         const mapped = Array.isArray(moodleData)
           ? moodleData.map((c: any) => ({
               id: c.id,
@@ -100,13 +108,35 @@ export default function MoodleCoursesPage() {
               timecreated: c.timecreated ?? 0,
             }))
           : []
+        
+        console.log('📊 Cursos mapeados:', {
+          total: mapped.length,
+          primerCurso: mapped[0],
+          timecreatedEjemplos: mapped.slice(0, 3).map(c => ({
+            id: c.id,
+            fullname: c.fullname,
+            timecreated: c.timecreated,
+            fecha: new Date(c.timecreated * 1000).toISOString()
+          }))
+        });
+        
         mapped.sort((a, b) => b.timecreated - a.timecreated)
         setCourses(mapped)
+        
+        console.log('✅ State actualizado con', mapped.length, 'cursos');
 
-        const names = localCourses.map((c: Course) =>
-          c.name.trim().toLowerCase(),
-        )
-        setExistingNames(new Set(names))
+        // Cargar cursos locales DESPUÉS (puede fallar sin afectar Moodle)
+        try {
+          const localCourses = await fetchCourses();
+          const names = localCourses.map((c: Course) =>
+            c.name.trim().toLowerCase(),
+          )
+          setExistingNames(new Set(names))
+          console.log('✅ Cursos locales cargados:', localCourses.length);
+        } catch (localErr) {
+          console.warn('⚠️ Error cargando cursos locales (no crítico):', localErr);
+          setExistingNames(new Set())
+        }
 
         toast({
           title: "Cursos obtenidos",
@@ -154,11 +184,20 @@ export default function MoodleCoursesPage() {
 
   // Agrupa y filtra por search, año, mes y selección
   const groups = useMemo(() => {
+    console.log('🔍 Filtrando cursos:', {
+      totalCursos: courses.length,
+      selectedYear,
+      selectedMonth,
+      showMode,
+      searchTerm: search,
+      selectedCoursesCount: selectedCourses.size
+    });
+
     const filtered = courses.filter(c => {
+      // DIAGNÓSTICO: Ver por qué se filtran
       const byYear =
         selectedYear === "all" ||
         new Date(c.timecreated * 1000).getFullYear().toString() ===
-
           selectedYear
       const byMonth =
         selectedMonth === "all" ||
@@ -170,8 +209,28 @@ export default function MoodleCoursesPage() {
       const byText = c.fullname
         .toLowerCase()
         .includes(search.toLowerCase())
+      
+      // Log del primer curso que falla
+      if (courses.indexOf(c) === 0) {
+        console.log('🧪 Filtros del primer curso:', {
+          id: c.id,
+          nombre: c.fullname?.substring(0, 40),
+          timecreated: c.timecreated,
+          fecha: new Date(c.timecreated * 1000).toISOString(),
+          año: new Date(c.timecreated * 1000).getFullYear(),
+          mes: new Date(c.timecreated * 1000).getMonth() + 1,
+          byYear,
+          byMonth,
+          bySelected,
+          byText,
+          pasaFiltro: byYear && byMonth && byText && bySelected
+        });
+      }
+      
       return byYear && byMonth && byText && bySelected
     })
+
+    console.log('✅ Cursos después de filtrar:', filtered.length);
 
     const map = new Map<string, { date: Date; courses: MoodleCourse[] }>()
     for (const c of filtered) {

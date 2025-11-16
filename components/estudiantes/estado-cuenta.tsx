@@ -215,24 +215,22 @@ export function EstadoCuenta({ estudianteId, nombreEstudiante = "Estudiante" }: 
                         <TableCell>{pago.concepto}</TableCell>
                         <TableCell>
                           {pago.comprobante ? (
-                            <div className="flex items-center gap-1">
+                            <span className="flex items-center gap-1">
                               <FileTextIcon className="h-4 w-4 text-muted-foreground" />
                               {pago.comprobante}
-                            </div>
+                            </span>
                           ) : (
                             "N/A"
                           )}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={getEstadoColor(pago.estado)}>
-                            <span className="flex items-center gap-1">
-                              {getEstadoIcon(pago.estado)}
-                              {pago.estado === "pagado"
-                                ? "Pagado"
-                                : pago.estado === "pendiente"
-                                  ? "Pendiente"
-                                  : "Vencido"}
-                            </span>
+                          <Badge variant="outline" className={`flex items-center gap-1 ${getEstadoColor(pago.estado)}`}>
+                            {getEstadoIcon(pago.estado)}
+                            {pago.estado === "pagado"
+                              ? "Pagado"
+                              : pago.estado === "pendiente"
+                                ? "Pendiente"
+                                : "Vencido"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">Q {pago.monto.toLocaleString("es-GT")}</TableCell>
@@ -263,22 +261,20 @@ export function EstadoCuenta({ estudianteId, nombreEstudiante = "Estudiante" }: 
                     .map((pago) => (
                       <TableRow key={pago.id}>
                         <TableCell>
-                          <div className="flex items-center gap-1">
+                          <span className="flex items-center gap-1">
                             <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                             {pago.fechaVencimiento}
-                          </div>
+                          </span>
                         </TableCell>
                         <TableCell>{pago.concepto}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={getEstadoColor(pago.estado)}>
-                            <span className="flex items-center gap-1">
-                              {getEstadoIcon(pago.estado)}
-                              {pago.estado === "pagado"
-                                ? "Pagado"
-                                : pago.estado === "pendiente"
-                                  ? "Pendiente"
-                                  : "Vencido"}
-                            </span>
+                          <Badge variant="outline" className={`flex items-center gap-1 ${getEstadoColor(pago.estado)}`}>
+                            {getEstadoIcon(pago.estado)}
+                            {pago.estado === "pagado"
+                              ? "Pagado"
+                              : pago.estado === "pendiente"
+                                ? "Pendiente"
+                                : "Vencido"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">Q {pago.monto.toLocaleString("es-GT")}</TableCell>

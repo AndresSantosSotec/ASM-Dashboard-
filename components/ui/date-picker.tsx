@@ -10,12 +10,16 @@ import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
-interface DatePickerProps extends React.HTMLAttributes<HTMLDivElement> {
+interface DatePickerProps {
   value?: string
   onChange?: (value: string) => void
+  fromYear?: number
+  toYear?: number
+  captionLayout?: "label" | "dropdown" | "dropdown-months"
+  className?: string
 }
 
-export function DatePicker({ value, onChange, className }: DatePickerProps) {
+export function DatePicker({ value, onChange, className, fromYear, toYear, captionLayout = "label" }: DatePickerProps) {
   const [date, setDate] = React.useState<Date | undefined>(
     value ? new Date(value) : undefined
   )
@@ -56,6 +60,9 @@ export function DatePicker({ value, onChange, className }: DatePickerProps) {
           weekStartsOn={0}
           locale={es}
           initialFocus
+          captionLayout={captionLayout}
+          fromYear={fromYear}
+          toYear={toYear}
         />
       </PopoverContent>
     </Popover>

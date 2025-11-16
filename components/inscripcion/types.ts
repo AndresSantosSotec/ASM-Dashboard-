@@ -86,7 +86,7 @@ export interface DatosFinancieros {
 }
 
 export interface Documento {
-  id: string | number;
+  id: string;
   nombre: string;
   descripcion: string;
   estado: "pendiente" | "cargado";

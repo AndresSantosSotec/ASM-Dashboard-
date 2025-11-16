@@ -21,10 +21,11 @@ import ReactSelect from "react-select"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Edit, Trash2, CheckCircle, UploadCloud, Loader2 } from "lucide-react"
+import { Plus, Edit, Trash2, CheckCircle, UploadCloud, Loader2, Search, Filter } from "lucide-react"
 import Swal from "sweetalert2"
 import { useToast } from "@/components/ui/use-toast"
 import { format } from "date-fns"
+import api from "@/services/api"
 
 interface Facilitator {
   id: number
@@ -34,6 +35,15 @@ interface Facilitator {
 interface ProgramOption {
   id: number
   nombre_del_programa: string
+}
+
+interface PaginationData {
+  current_page: number
+  last_page: number
+  per_page: number
+  total: number
+  from: number
+  to: number
 }
 
 const formatDate = (date: string) => format(new Date(date), "yyyy-MM-dd")
@@ -50,12 +60,19 @@ export function CoursesManagement() {
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // Filtros
   const [search, setSearch] = useState("")
-  const [filterArea, setFilterArea] = useState<'all' | 'common' | 'specialty' | 'closure'>("all")
+  const [filterCode, setFilterCode] = useState("")
+  const [filterArea, setFilterArea] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [filterProgram, setFilterProgram] = useState<string>("all")
+  const [filterFacilitator, setFilterFacilitator] = useState<string>("all")
+  
+  // Paginación del backend
   const [page, setPage] = useState(1)
-  const perPage = 10
+  const [perPage, setPerPage] = useState(15)
+  const [pagination, setPagination] = useState<PaginationData | null>(null)
 
   const [formMode, setFormMode] = useState<"create" | "edit">("create")
   const [isOpen, setIsOpen] = useState(false)
@@ -78,26 +95,108 @@ export function CoursesManagement() {
   })
 
   useEffect(() => {
-    loadData()
+    loadInitialData()
   }, [])
 
-  async function loadData() {
-    setLoading(true)
+  useEffect(() => {
+    loadCoursesFromBackend()
+  }, [page, perPage, search, filterCode, filterArea, filterStatus, filterProgram, filterFacilitator])
+
+  async function loadInitialData() {
     try {
-      const [crs, facs, progs] = await Promise.all([
-        fetchCourses(),
+      const [facs, progs] = await Promise.all([
         fetchFacilitators(),
         fetchPrograms(),
       ])
-      setCourses(crs)
       setFacilitators(facs)
       setPrograms(progs)
     } catch (e) {
       console.error(e)
-      setError("No se pudieron cargar los datos")
       toast({
         title: "Error",
-        description: "No se pudieron cargar los datos",
+        description: "No se pudieron cargar los datos iniciales",
+        variant: "destructive",
+      })
+    }
+  }
+
+  async function loadCoursesFromBackend() {
+    setLoading(true)
+    setError(null)
+    try {
+      const params: any = {
+        per_page: perPage,
+        page: page,
+      }
+
+      // Filtros opcionales que empatan con el backend
+      if (search.trim()) {
+        params.search = search.trim()
+      }
+      if (filterArea && filterArea !== "all") {
+        params.area = filterArea
+      }
+      if (filterStatus && filterStatus !== "all") {
+        params.status = filterStatus
+      }
+      if (filterProgram && filterProgram !== "all") {
+        params.program_id = parseInt(filterProgram)
+      }
+      // Nota: El backend no tiene filtro por facilitator_id en el index,
+      // lo filtramos en el frontend
+      
+      const res = await api.get('/courses', { params })
+      
+      if (res.data.data) {
+        // Paginación Laravel
+        let coursesData = res.data.data.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          code: c.code,
+          area: c.area,
+          credits: c.credits,
+          startDate: c.start_date,
+          endDate: c.end_date,
+          schedule: c.schedule,
+          duration: c.duration,
+          programIds: Array.isArray(c.programas) ? c.programas.map((p: any) => p.id) : [],
+          facilitatorId: c.facilitator_id ?? null,
+          status: c.status,
+          facilitator: c.facilitator ?? null,
+          programas: c.programas ?? [],
+        }))
+
+        // Filtro adicional por código (frontend)
+        if (filterCode.trim()) {
+          coursesData = coursesData.filter((c: Course) => 
+            c.code.toLowerCase().includes(filterCode.toLowerCase())
+          )
+        }
+
+        // Filtro adicional por facilitador (frontend)
+        if (filterFacilitator && filterFacilitator !== "all") {
+          coursesData = coursesData.filter((c: Course) => 
+            c.facilitatorId === parseInt(filterFacilitator)
+          )
+        }
+        
+        setCourses(coursesData)
+        
+        setPagination({
+          current_page: res.data.current_page,
+          last_page: res.data.last_page,
+          per_page: res.data.per_page,
+          total: res.data.total,
+          from: res.data.from,
+          to: res.data.to,
+        })
+      }
+    } catch (e) {
+      console.error(e)
+      setError("No se pudieron cargar los cursos")
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los cursos",
         variant: "destructive",
       })
     } finally {
@@ -117,24 +216,9 @@ export function CoursesManagement() {
     return `CRS-${String(max + 1).padStart(4, '0')}`
   }
 
-  // Filtros y paginación
-  const filtered = courses.filter((c) => {
-    const term = search.toLowerCase()
-    const matchText =
-      c.name.toLowerCase().includes(term) || c.code.toLowerCase().includes(term)
-    const matchArea = filterArea === "all" || c.area === filterArea
-    const matchStatus = filterStatus === "all" || c.status === filterStatus
-    const matchProgram =
-      filterProgram === "all" ||
-      c.programas.some((p) => p.nombre_del_programa === filterProgram)
-    return matchText && matchArea && matchStatus && matchProgram
-  })
-  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage))
-  const paged = filtered.slice((page - 1) * perPage, page * perPage)
-
-  useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [totalPages])
+  const handleFilterChange = () => {
+    setPage(1) // Resetear a página 1 cuando cambian los filtros
+  }
 
   const openCreate = () => {
     setForm({
@@ -176,12 +260,12 @@ export function CoursesManagement() {
     try {
       if (formMode === "create") {
         const newCourse = await createCourse(form)
-        setCourses([...courses, newCourse])
         toast({ title: "Curso creado", description: `Se creó ${newCourse.name}.` })
+        await loadCoursesFromBackend() // Recargar desde backend
       } else if (active) {
         const updated = await updateCourse(active.id, form)
-        setCourses(courses.map((c) => (c.id === active.id ? updated : c)))
         toast({ title: "Curso actualizado", description: `Se actualizó ${updated.name}.` })
+        await loadCoursesFromBackend() // Recargar desde backend
       }
       setIsOpen(false)
     } catch (e) {
@@ -195,8 +279,8 @@ export function CoursesManagement() {
     if (!confirm(`¿Eliminar curso "${course.name}"?`)) return
     try {
       await deleteCourse(course.id)
-      setCourses(courses.filter((c) => c.id !== course.id))
       toast({ title: "Curso eliminado", description: `Se eliminó ${course.name}.` })
+      await loadCoursesFromBackend() // Recargar desde backend
     } catch (e) {
       console.error(e)
       setError("No se pudo eliminar el curso")
@@ -206,9 +290,9 @@ export function CoursesManagement() {
 
   const handleApprove = async (course: Course) => {
     try {
-      const updated = await approveCourse(course.id)
-      setCourses(courses.map((c) => (c.id === updated.id ? updated : c)))
-      toast({ title: "Curso aprobado", description: `Se aprobó ${updated.name}.` })
+      await approveCourse(course.id)
+      toast({ title: "Curso aprobado", description: `Se aprobó ${course.name}.` })
+      await loadCoursesFromBackend() // Recargar desde backend
     } catch (e) {
       console.error(e)
       toast({ title: "Error", description: "No se pudo aprobar el curso", variant: "destructive" })
@@ -218,13 +302,13 @@ export function CoursesManagement() {
   const handleSync = async (course: Course) => {
     setSyncingId(course.id)
     try {
-      const updated = await syncCourseToMoodle(course.id)
-      setCourses(courses.map((c) => (c.id === updated.id ? updated : c)))
+      await syncCourseToMoodle(course.id)
       Swal.fire({
         icon: "success",
         title: "Sincronizado",
-        text: `Se sincronizó ${updated.name} correctamente`,
+        text: `Se sincronizó ${course.name} correctamente`,
       })
+      await loadCoursesFromBackend() // Recargar desde backend
     } catch (e) {
       console.error(e)
       Swal.fire({
@@ -238,7 +322,15 @@ export function CoursesManagement() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="border-b pb-4">
+        <h1 className="text-2xl font-bold text-gray-900">Gestión de Cursos</h1>
+        <p className="text-sm text-gray-600 mt-1">
+          Administre los cursos ofrecidos y su información básica
+        </p>
+      </div>
+
       {loading && (
         <div className="flex justify-center py-6">
           <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
@@ -246,50 +338,161 @@ export function CoursesManagement() {
       )}
       {error && !loading && <p className="text-sm text-red-500">{error}</p>}
 
-      <div className="flex flex-wrap justify-between items-end gap-2">
-        <div className="flex flex-wrap gap-2">
-          <Input
-            placeholder="Buscar curso..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            className="w-full sm:w-48"
-          />
-          <Select value={filterArea} onValueChange={(v) => { setFilterArea(v as 'all' | 'common' | 'specialty' | 'closure'); setPage(1) }}>
-            <SelectTrigger className="w-32"><SelectValue placeholder="Área" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              <SelectItem value="common">Común</SelectItem>
-              <SelectItem value="specialty">Especialidad</SelectItem>
-              <SelectItem value="closure">Cierre del Programa</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setPage(1) }}>
-            <SelectTrigger className="w-32"><SelectValue placeholder="Estado" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="draft">Borrador</SelectItem>
-              <SelectItem value="approved">Aprobado</SelectItem>
-              <SelectItem value="synced">Sincronizado</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={filterProgram} onValueChange={(v) => { setFilterProgram(v); setPage(1) }}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Programa" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              {programs.map((p) => (
-                <SelectItem key={p.id} value={p.nombre_del_programa}>
-                  {p.nombre_del_programa}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* Filtros y Búsqueda */}
+      <div className="bg-white border rounded-lg p-4 space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Filter className="h-4 w-4 text-gray-500" />
+          <span className="text-sm font-medium text-gray-700">Filtros de Búsqueda</span>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-2" /> Nuevo Curso
-        </Button>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          {/* Búsqueda por nombre */}
+          <div className="space-y-1">
+            <Label className="text-xs text-gray-600">Nombre</Label>
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Buscar por nombre..."
+                value={search}
+                onChange={(e) => { 
+                  setSearch(e.target.value)
+                  handleFilterChange()
+                }}
+                className="pl-8"
+              />
+            </div>
+          </div>
+
+          {/* Búsqueda por código */}
+          <div className="space-y-1">
+            <Label className="text-xs text-gray-600">Código</Label>
+            <Input
+              placeholder="Código del curso..."
+              value={filterCode}
+              onChange={(e) => { 
+                setFilterCode(e.target.value)
+                handleFilterChange()
+              }}
+            />
+          </div>
+
+          {/* Filtro por Área */}
+          <div className="space-y-1">
+            <Label className="text-xs text-gray-600">Área</Label>
+            <Select 
+              value={filterArea} 
+              onValueChange={(v) => { 
+                setFilterArea(v)
+                handleFilterChange()
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Área" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las áreas</SelectItem>
+                <SelectItem value="common">Común</SelectItem>
+                <SelectItem value="specialty">Especialidad</SelectItem>
+                <SelectItem value="closure">Cierre del Programa</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Filtro por Programa */}
+          <div className="space-y-1">
+            <Label className="text-xs text-gray-600">Programa</Label>
+            <Select 
+              value={filterProgram} 
+              onValueChange={(v) => { 
+                setFilterProgram(v)
+                handleFilterChange()
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Programa" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los programas</SelectItem>
+                {programs.map((p) => (
+                  <SelectItem key={p.id} value={String(p.id)}>
+                    {p.nombre_del_programa}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Filtro por Facilitador */}
+          <div className="space-y-1">
+            <Label className="text-xs text-gray-600">Facilitador</Label>
+            <Select 
+              value={filterFacilitator} 
+              onValueChange={(v) => { 
+                setFilterFacilitator(v)
+                handleFilterChange()
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Facilitador" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {facilitators.map((f) => (
+                  <SelectItem key={f.id} value={String(f.id)}>
+                    {f.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Filtro por Estado */}
+          <div className="space-y-1">
+            <Label className="text-xs text-gray-600">Estado</Label>
+            <Select 
+              value={filterStatus} 
+              onValueChange={(v) => { 
+                setFilterStatus(v)
+                handleFilterChange()
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="draft">Borrador</SelectItem>
+                <SelectItem value="approved">Aprobado</SelectItem>
+                <SelectItem value="synced">Sincronizado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex justify-between items-center pt-2 border-t">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSearch("")
+              setFilterCode("")
+              setFilterArea("all")
+              setFilterProgram("all")
+              setFilterFacilitator("all")
+              setFilterStatus("all")
+              setPage(1)
+            }}
+          >
+            Limpiar Filtros
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4 mr-2" /> Nuevo Curso
+          </Button>
+        </div>
       </div>
 
-      <div className="border rounded-md overflow-x-auto">
+      {/* Tabla de Cursos */}
+      <div className="border rounded-md overflow-x-auto bg-white">
         <Table>
           <TableHeader>
             <TableRow>
@@ -304,18 +507,18 @@ export function CoursesManagement() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paged.map((c) => (
+            {courses.map((c) => (
               <TableRow key={c.id} className="hover:bg-gray-50">
-                <TableCell>{c.code}</TableCell>
-                <TableCell>{c.name}</TableCell>
+                <TableCell className="font-mono text-sm">{c.code}</TableCell>
+                <TableCell className="font-medium">{c.name}</TableCell>
                 <TableCell>
                   <Badge variant={c.area === 'common' ? 'secondary' : c.area === 'specialty' ? 'default' : 'outline'}>
                     {areaLabels[c.area]}
                   </Badge>
                 </TableCell>
-                <TableCell>{c.credits}</TableCell>
-                <TableCell>
-                  {c.programas.map((p) => p.nombre_del_programa).join(', ') || '-'}
+                <TableCell className="text-center">{c.credits}</TableCell>
+                <TableCell className="max-w-xs truncate">
+                  {c.programas.map((p: any) => p.nombre_del_programa).join(', ') || '-'}
                 </TableCell>
                 <TableCell>{c.facilitator?.name ?? "-"}</TableCell>
                 <TableCell>
@@ -369,9 +572,9 @@ export function CoursesManagement() {
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && (
+            {courses.length === 0 && !loading && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-4">
+                <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                   No se encontraron cursos
                 </TableCell>
               </TableRow>
@@ -380,29 +583,77 @@ export function CoursesManagement() {
         </Table>
       </div>
 
-      <div className="flex justify-between items-center text-sm">
-        <div>
-          Página {page} de {totalPages}
+      {/* Paginación */}
+      {pagination && (
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white border rounded-lg p-4">
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-gray-600">
+              Mostrando <span className="font-medium">{pagination.from || 0}</span> a{" "}
+              <span className="font-medium">{pagination.to || 0}</span> de{" "}
+              <span className="font-medium">{pagination.total}</span> cursos
+            </div>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-gray-600">Por página:</Label>
+              <Select
+                value={String(perPage)}
+                onValueChange={(v) => {
+                  setPerPage(parseInt(v))
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">15</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">
+              Página {pagination.current_page} de {pagination.last_page}
+            </span>
+            <div className="flex gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page === 1}
+                onClick={() => setPage(1)}
+              >
+                Primera
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page === 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page === pagination.last_page}
+                onClick={() => setPage((p) => Math.min(pagination.last_page, p + 1))}
+              >
+                Siguiente
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page === pagination.last_page}
+                onClick={() => setPage(pagination.last_page)}
+              >
+                Última
+              </Button>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page === 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            Anterior
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page === totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          >
-            Siguiente
-          </Button>
-        </div>
-      </div>
+      )}
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[700px]">

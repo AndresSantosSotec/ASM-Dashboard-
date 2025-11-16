@@ -97,7 +97,8 @@ const evaluaciones = [
   },
 ]
 
-export default function DetalleCurso({ params }: { params: { id: string } }) {
+export default async function DetalleCurso({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   return (
     <DocenteLayout>
       <div className="space-y-6">

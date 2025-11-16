@@ -157,14 +157,11 @@ export default function ConciliacionClient() {
   const [toDate, setToDate] = useState<string>("") // YYYY-MM-DD
 
   const [expectedStructure] = useState<StructureItem[]>([
-    { id: 1, name: "Carnet", column: 1 },
-    { id: 2, name: "Nombre del Alumno", column: 2 },
-    { id: 3, name: "Carrera", column: 3 },
-    { id: 4, name: "Banco", column: 4 },
-    { id: 5, name: "Número de Recibo / Referencia", column: 5 },
-    { id: 6, name: "Monto", column: 6 },
-    { id: 7, name: "Fecha de Pago", column: 7 },
-    { id: 8, name: "Número de Autorización", column: 8 },
+    { id: 1, name: "Banco", column: 1 },
+    { id: 2, name: "Referencia / Boleta", column: 2 },
+    { id: 3, name: "Monto", column: 3 },
+    { id: 4, name: "Fecha de Pago", column: 4 },
+    { id: 5, name: "Número de Autorización (Opcional)", column: 5 },
   ])
 
   const [previewPendientes, setPreviewPendientes] = useState<PreviewResponse | null>(null)
@@ -543,7 +540,7 @@ export default function ConciliacionClient() {
         <TabsList className="grid grid-cols-3 w-full sm:w-[700px] rounded-xl">
           <TabsTrigger value="pendientes">Pendientes</TabsTrigger>
           <TabsTrigger value="conciliados">Conciliados</TabsTrigger>
-          <TabsTrigger value="importar">Importar Recibos</TabsTrigger>
+          <TabsTrigger value="importar">Importar Estados de cuenta</TabsTrigger>
         </TabsList>
 
         {/* Pendientes */}
@@ -730,9 +727,10 @@ export default function ConciliacionClient() {
         <TabsContent value="importar">
           <Card className="rounded-2xl overflow-hidden shadow-sm">
             <CardHeader>
-              <CardTitle>Importar Estado de Cuenta con los Pagos</CardTitle>
+              <CardTitle>Importar Estado de Cuenta Bancario</CardTitle>
               <CardDescription>
-                Carga un archivo <strong>Excel (XLSX)</strong> o <strong>CSV</strong> para realizar la conciliación automática.
+                Carga un archivo <strong>Excel (XLSX)</strong> o <strong>CSV</strong> con los pagos bancarios para conciliar automáticamente con el Kardex.
+                Solo se requieren las columnas: <strong>Banco</strong>, <strong>Referencia/Boleta</strong>, <strong>Monto</strong> y <strong>Fecha</strong>.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -839,10 +837,17 @@ export default function ConciliacionClient() {
                     </div>
                     <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
                       <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
-                      <p className="text-sm text-amber-900">
-                        Asegúrate de que el archivo tenga estas columnas. La conciliación compara <strong>Referencia/Boleta</strong>, <strong>Monto</strong> y <strong>Fecha</strong>,
-                        con normalización de banco y boleta para evitar errores de formato.
-                      </p>
+                      <div className="text-sm text-amber-900 space-y-2">
+                        <p className="font-semibold">📋 Instrucciones importantes:</p>
+                        <ul className="list-disc list-inside space-y-1 ml-2">
+                          <li>El archivo debe contener <strong>solo las columnas del estado de cuenta bancario</strong></li>
+                          <li>El sistema busca automáticamente las columnas: <strong>Banco</strong>, <strong>Referencia/Boleta</strong>, <strong>Monto</strong> y <strong>Fecha</strong></li>
+                          <li>Los nombres de columnas pueden variar (ej: "Banco", "Bank", "Entidad" son aceptados)</li>
+                          <li>La conciliación compara: <strong>Banco + Referencia + Monto + Fecha</strong> contra el Kardex</li>
+                          <li>Se normalizan automáticamente los nombres de bancos y referencias para evitar errores</li>
+                          <li>El número de autorización es <strong>opcional</strong></li>
+                        </ul>
+                      </div>
                     </div>
                   </div>
                 )}

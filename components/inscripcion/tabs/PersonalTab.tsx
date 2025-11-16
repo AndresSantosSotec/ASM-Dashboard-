@@ -196,6 +196,9 @@ export default function PersonalTab({
           <DatePicker
             value={datos.fechaNacimiento}
             onChange={(v) => setDatos({ ...datos, fechaNacimiento: v })}
+            captionLayout="dropdown"
+            fromYear={1920}
+            toYear={new Date().getFullYear()}
           />
         </div>
 

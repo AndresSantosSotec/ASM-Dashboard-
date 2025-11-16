@@ -35,7 +35,7 @@ import {
   CalendarDays,
 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { DatePickerWithRange } from "@/components/ui/date-range-picker"
+import { DatePickerWithRange, DateRange } from "@/components/ui/date-range-picker"
 import { Separator } from "@/components/ui/separator"
 import {
   getPendingReconciliation,
@@ -53,7 +53,7 @@ export function ConciliacionBancaria() {
   const [showReceiptDetailsDialog, setShowReceiptDetailsDialog] = useState(false)
   const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [dateRange, setDateRange] = useState({
+  const [dateRange, setDateRange] = useState<DateRange>({
     from: new Date(new Date().setDate(new Date().getDate() - 7)),
     to: new Date(),
   })

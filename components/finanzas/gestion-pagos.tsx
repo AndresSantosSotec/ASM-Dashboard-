@@ -9,17 +9,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Download,
   Search,
   Phone,
   Mail,
   MessageSquare,
+  Loader2,
 } from "lucide-react"
 
 // servicios
 import {
   getPayments,
+  listPayments,
   fetchLatePayments,
   fetchStudentSnapshot,
 } from "@/services/finance"
@@ -27,6 +30,40 @@ import {
 import type { LatePaymentStudent } from "@/types/collections"
 import { toast } from "@/hooks/use-toast"
 import ContactProspectDialog from "@/components/finanzas/ContactProspectDialog"
+
+// 🎨 Skeleton Components
+function TableSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center space-x-4 py-3 border-b">
+          <Skeleton className="h-4 w-4 rounded" />
+          <Skeleton className="h-4 w-[180px]" />
+          <Skeleton className="h-4 w-[120px]" />
+          <Skeleton className="h-4 w-[100px]" />
+          <Skeleton className="h-4 w-[80px]" />
+          <Skeleton className="h-8 w-[100px] rounded-full" />
+          <Skeleton className="h-8 w-[80px] rounded" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function CardSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <Skeleton className="h-5 w-[200px]" />
+        <Skeleton className="h-4 w-[150px] mt-2" />
+      </CardHeader>
+      <CardContent>
+        <Skeleton className="h-[200px] w-full" />
+      </CardContent>
+    </Card>
+  )
+}
+
 export function GestionPagos() {
   const [activeTab, setActiveTab] = useState<"late-payments" | "upcoming-payments" | "recent-payments">("late-payments")
 
@@ -44,6 +81,7 @@ export function GestionPagos() {
   const [payments, setPayments] = useState<any[]>([]) // listado general (para "siguientes pagos")
 
   const [loading, setLoading] = useState(true)
+  const [latePaymentsLoading, setLatePaymentsLoading] = useState(false) // 🆕 Loading específico
 
   // ---------- estado para ContactProspectDialog ----------
   const [contactOpen, setContactOpen] = useState(false)
@@ -69,52 +107,69 @@ export function GestionPagos() {
     return () => clearTimeout(t)
   }, [searchQuery])
 
-  // carga - atrasados + otros
+  // 🚀 OPTIMIZACIÓN: Cargar solo late payments al inicio
   const loadLatePayments = async () => {
-    const latePaymentsParams = {
-      q: debouncedSearch || searchQuery || undefined,
-      bucket: bucketFilter !== 'all' ? bucketFilter : undefined,
-      programa_id: programaFilter || undefined,
-      page,
-      per_page: perPage,
-    }
-
-    const late = await fetchLatePayments(latePaymentsParams)
-    // Normalize rows so they conform to LatePaymentStudent (ensure lastContact is string | null)
-    const normalizedLate = Array.isArray(late.data)
-      ? late.data.map((r: any) => ({
-          ...r,
-          lastContact: r.lastContact ?? null,
-        }))
-      : []
-    setLatePayments(normalizedLate as LatePaymentStudent[])
-    setTotalRows(late.meta?.total || (Array.isArray(late.data) ? late.data.length : 0))
-  }
-
-  const loadOthers = async () => {
-    const pay = await getPayments({})
-    setPayments(Array.isArray(pay) ? pay : (pay?.data ?? []))
-  }
-
-  useEffect(() => {
-    const loadAll = async () => {
-      setLoading(true)
-      try {
-        await Promise.all([loadLatePayments(), loadOthers()])
-      } catch (e) {
-        console.error('Error loading payment data:', e)
-        toast({
-          title: "Error",
-          description: "No se pudieron cargar los datos de pagos",
-          variant: 'destructive',
-        })
-      } finally {
-        setLoading(false)
+    setLatePaymentsLoading(true)
+    try {
+      const latePaymentsParams = {
+        q: debouncedSearch || searchQuery || undefined,
+        bucket: bucketFilter !== 'all' ? bucketFilter : undefined,
+        programa_id: programaFilter || undefined,
+        page,
+        per_page: perPage,
       }
+
+      const late = await fetchLatePayments(latePaymentsParams)
+      // Normalize rows so they conform to LatePaymentStudent (ensure lastContact is string | null)
+      const normalizedLate = Array.isArray(late.data)
+        ? late.data.map((r: any) => ({
+            ...r,
+            lastContact: r.lastContact ?? null,
+          }))
+        : []
+      setLatePayments(normalizedLate as LatePaymentStudent[])
+      setTotalRows(late.meta?.total || (Array.isArray(late.data) ? late.data.length : 0))
+    } catch (e) {
+      console.error('Error loading late payments:', e)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los pagos atrasados",
+        variant: 'destructive',
+      })
+    } finally {
+      setLatePaymentsLoading(false)
     }
-    loadAll()
+  }
+
+  // 🚀 LAZY LOADING: Solo cargar payments cuando se active el tab
+  const loadOthers = async () => {
+    try {
+      // Usar listPayments con paginación en lugar de getPayments
+      const { data } = await listPayments({ 
+        per_page: 100,  // Cargar primeros 100 registros para otros tabs
+        sort: '-fecha_pago' 
+      })
+      setPayments(data)
+    } catch (e) {
+      console.error('Error loading payment data:', e)
+      // No mostrar toast aquí, puede ser que no se necesiten aún
+    }
+  }
+
+  // 🚀 Cargar solo late payments al inicio
+  useEffect(() => {
+    setLoading(true)
+    loadLatePayments().finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, searchQuery, bucketFilter, programaFilter, page, perPage])
+
+  // 🚀 Cargar otros datos solo cuando se cambie de tab
+  useEffect(() => {
+    if (activeTab !== 'late-payments' && payments.length === 0) {
+      loadOthers()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
 
   // UI helpers
   const getBadgeVariant = (status: string) => {
@@ -377,27 +432,27 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
             </CardHeader>
 
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[50px]"></TableHead>
-                    <TableHead>Alumno</TableHead>
-                    <TableHead>Deuda Total</TableHead>
-                    <TableHead>Meses</TableHead>
-                    <TableHead>Días Atraso</TableHead>
-                    <TableHead>Bucket</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
+              {/* 🎨 Skeleton Loader Moderno */}
+              {latePaymentsLoading || loading ? (
+                <TableSkeleton rows={perPage} />
+              ) : (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-4">Cargando...</TableCell>
+                      <TableHead className="w-[50px]"></TableHead>
+                      <TableHead>Alumno</TableHead>
+                      <TableHead>Deuda Total</TableHead>
+                      <TableHead>Meses</TableHead>
+                      <TableHead>Días Atraso</TableHead>
+                      <TableHead>Bucket</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
-                  ) : studentsData.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  </TableHeader>
+                  <TableBody>
+                    {studentsData.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         No hay alumnos con pagos atrasados
                       </TableCell>
                     </TableRow>
@@ -435,7 +490,8 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
                     ))
                   )}
                 </TableBody>
-              </Table>
+                </Table>
+              )}
             </CardContent>
 
             <CardFooter className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -487,23 +543,25 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Alumno</TableHead>
-                    <TableHead>Programa</TableHead>
-                    <TableHead>Monto</TableHead>
-                    <TableHead>Vence</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-4">Cargando...</TableCell></TableRow>
-                  ) : upcomingPayments.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin vencimientos próximos</TableCell></TableRow>
-                  ) : (
+              {/* 🎨 Skeleton para tab de "Siguientes pagos" */}
+              {loading && payments.length === 0 ? (
+                <TableSkeleton rows={5} />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Alumno</TableHead>
+                      <TableHead>Programa</TableHead>
+                      <TableHead>Monto</TableHead>
+                      <TableHead>Vence</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {upcomingPayments.length === 0 ? (
+                      <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin vencimientos próximos</TableCell></TableRow>
+                    ) : (
                     upcomingPayments.map((p: any, idx: number) => (
                       <TableRow key={idx}>
                         <TableCell>
@@ -523,7 +581,8 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
                     ))
                   )}
                 </TableBody>
-              </Table>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -582,7 +641,7 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
                 </TableHeader>
                 <TableBody>
                   {rpLoading ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-4">Cargando...</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7}><TableSkeleton rows={rpPerPage} /></TableCell></TableRow>
                   ) : rpRows.length === 0 ? (
                     <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No hay pagos recientes</TableCell></TableRow>
                   ) : (

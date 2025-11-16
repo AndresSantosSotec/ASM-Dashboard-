@@ -1,5 +1,17 @@
 import api from './api'
 
+export interface Pensum {
+  id: number
+  codigo: string
+  nombre: string
+  area: 'comun' | 'especialidad' | 'cierre'
+  creditos: number
+  orden: number
+  duracion_semanas: number
+  prerequisitos: string[] | null
+  descripcion: string | null
+}
+
 export interface CourseInput {
   name: string
   code: string
@@ -11,6 +23,7 @@ export interface CourseInput {
   duration: string
   programIds: number[]
   facilitatorId?: number | null
+  pensumId?: number | null
 }
 
 export interface Course extends CourseInput {
@@ -18,6 +31,7 @@ export interface Course extends CourseInput {
   status: 'draft' | 'approved' | 'synced'
   facilitator?: { id: number; name: string } | null
   programas: { id: number; nombre_del_programa: string }[]
+  pensumId?: number | null
 }
 
 const mapCourseFromApi = (course: any): Course => ({
@@ -34,6 +48,7 @@ const mapCourseFromApi = (course: any): Course => ({
     ? course.programas.map((p: any) => p.id)
     : [],
   facilitatorId: course.facilitator_id ?? null,
+  pensumId: course.pensum_id ?? null,
   status: course.status,
   facilitator: course.facilitator ?? null,
   programas: course.programas ?? [],
@@ -60,18 +75,44 @@ export const fetchCourses = async (programId?: number) => {
   let page = 1
   const courses: Course[] = []
   const baseParams = programId ? { program_id: programId } : {}
+  const maxPages = 50 // PROTECCIÓN: Máximo 10,000 cursos (50 páginas × 200)
 
-  while (true) {
-    const res = await api.get('/courses', {
-      params: { ...baseParams, per_page: perPage, page },
-    })
-    const data = Array.isArray(res.data) ? res.data : res.data.data
-    courses.push(...data.map(mapCourseFromApi))
+  while (page <= maxPages) {
+    console.log(`📥 Cargando cursos página ${page}...`);
+    
+    try {
+      const res = await api.get('/courses', {
+        params: { ...baseParams, per_page: perPage, page },
+      })
+      const data = Array.isArray(res.data) ? res.data : res.data.data
+      
+      console.log(`✅ Página ${page}: ${data.length} cursos recibidos`);
+      
+      if (!data || data.length === 0) {
+        console.log('🏁 No hay más cursos');
+        break
+      }
+      
+      courses.push(...data.map(mapCourseFromApi))
 
-    if (data.length < perPage) break
-    page++
+      // Si recibimos menos de perPage, es la última página
+      if (data.length < perPage) {
+        console.log(`🏁 Última página alcanzada (${data.length} < ${perPage})`);
+        break
+      }
+      
+      page++
+    } catch (err) {
+      console.error(`❌ Error cargando página ${page}:`, err);
+      break
+    }
   }
 
+  if (page > maxPages) {
+    console.warn('⚠️ Se alcanzó el límite máximo de páginas');
+  }
+
+  console.log(`📊 Total de cursos cargados: ${courses.length}`);
   return courses
 }
 
@@ -169,6 +210,54 @@ export const fetchFacilitators = async () => {
   return res.data
 }
 
+/**
+ * Descarga un blob como archivo CSV
+ * @param blob - Blob con el contenido del archivo
+ * @param filename - Nombre del archivo a descargar
+ */
+export const downloadCSVFile = (blob: Blob, filename: string) => {
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(url)
+}
+
+/**
+ * Exporta y descarga automáticamente cursos de un estudiante
+ * @param carnet - Carnet del estudiante
+ * @returns Promise que se resuelve cuando la descarga se completa
+ */
+export const exportarYDescargarCursos = async (carnet: string): Promise<void> => {
+  try {
+    const blob = await exportCursosCSV(carnet)
+    const filename = `cursos_${carnet.toLowerCase()}_${new Date().toISOString().slice(0, 10)}.csv`
+    downloadCSVFile(blob, filename)
+  } catch (error) {
+    console.error('Error al exportar cursos:', error)
+    throw error
+  }
+}
+
+/**
+ * Exporta y descarga automáticamente cursos de múltiples estudiantes
+ * @param carnets - Array de carnets de estudiantes
+ * @returns Promise que se resuelve cuando la descarga se completa
+ */
+export const exportarYDescargarCursosMasivo = async (carnets: string[]): Promise<void> => {
+  try {
+    const blob = await exportCursosMasivoCSV(carnets)
+    const filename = `cursos_masivo_${new Date().toISOString().slice(0, 10)}.csv`
+    downloadCSVFile(blob, filename)
+  } catch (error) {
+    console.error('Error al exportar cursos masivo:', error)
+    throw error
+  }
+}
+
 
 /** Llama a GET /available-for-students?prospecto_ids[]=1&prospecto_ids[]=2 */
 export const getAvailableCoursesForStudents = async (
@@ -182,4 +271,194 @@ export const getAvailableCoursesForStudents = async (
   const raw = Array.isArray(res.data) ? res.data : (res.data as any).data
   const mapped: Course[] = (raw as any[]).map((c: any) => mapCourseFromApi(c))
   return Array.from(new Map(mapped.map((c: Course) => [c.id, c])).values())
+}
+
+/**
+ * Exporta cursos de un estudiante a CSV para importación a Moodle
+ * @param carnet - Carnet del estudiante
+ * @returns Blob con el archivo CSV
+ */
+export const exportCursosCSV = async (carnet: string): Promise<Blob> => {
+  try {
+    const res = await api.post('/courses/export-cursos', 
+      { carnet }, 
+      { 
+        responseType: 'blob',
+        headers: {
+          'Accept': 'text/csv, application/json'
+        }
+      }
+    )
+    
+    // Verificar el content-type de la respuesta
+    const contentType = res.headers['content-type'] || res.headers['Content-Type']
+    
+    // Si la respuesta es JSON, es un error
+    if (contentType && contentType.includes('application/json')) {
+      const text = await res.data.text()
+      const error = JSON.parse(text)
+      throw new Error(error.error || error.message || 'Error al exportar cursos')
+    }
+    
+    // Verificar si la respuesta es un blob JSON (error disfrazado)
+    if (res.data.type === 'application/json') {
+      const text = await res.data.text()
+      const error = JSON.parse(text)
+      throw new Error(error.error || error.message || 'Error al exportar cursos')
+    }
+    
+    return res.data
+  } catch (error: any) {
+    // Manejar errores de respuesta HTTP
+    if (error.response) {
+      const status = error.response.status
+      
+      // Si es un blob de error JSON
+      if (error.response.data instanceof Blob) {
+        try {
+          const text = await error.response.data.text()
+          const jsonError = JSON.parse(text)
+          throw new Error(jsonError.error || jsonError.message || `Error ${status}: ${text}`)
+        } catch {
+          throw new Error(`Error ${status} al exportar cursos`)
+        }
+      }
+      
+      // Si es un objeto JSON directo
+      if (error.response.data && typeof error.response.data === 'object') {
+        const errorData = error.response.data
+        throw new Error(errorData.error || errorData.message || `Error ${status} al exportar cursos`)
+      }
+      
+      throw new Error(`Error ${status} al exportar cursos`)
+    }
+    
+    throw error
+  }
+}
+
+/**
+ * Exporta cursos de múltiples estudiantes a CSV para importación masiva a Moodle
+ * @param carnets - Array de carnets de estudiantes
+ * @returns Blob con el archivo CSV
+ */
+export const exportCursosMasivoCSV = async (carnets: string[]): Promise<Blob> => {
+  try {
+    const res = await api.post('/courses/export-cursos-masivo', 
+      { carnets }, 
+      { 
+        responseType: 'blob',
+        headers: {
+          'Accept': 'text/csv, application/json'
+        }
+      }
+    )
+    
+    // Verificar el content-type de la respuesta
+    const contentType = res.headers['content-type'] || res.headers['Content-Type']
+    
+    // Si la respuesta es JSON, es un error
+    if (contentType && contentType.includes('application/json')) {
+      const text = await res.data.text()
+      const error = JSON.parse(text)
+      throw new Error(error.error || error.message || 'Error al exportar cursos masivo')
+    }
+    
+    // Verificar si la respuesta es un blob JSON (error disfrazado)
+    if (res.data.type === 'application/json') {
+      const text = await res.data.text()
+      const error = JSON.parse(text)
+      throw new Error(error.error || error.message || 'Error al exportar cursos masivo')
+    }
+    
+    // Verificar headers de información adicional (para logs)
+    const totalProcesados = res.headers['x-total-procesados'] || res.headers['X-Total-Procesados']
+    const totalErrores = res.headers['x-total-errores'] || res.headers['X-Total-Errores']
+    
+    if (totalProcesados && totalErrores) {
+      console.log(`📊 Exportación masiva completada: ${totalProcesados} procesados, ${totalErrores} errores`)
+    }
+    
+    return res.data
+  } catch (error: any) {
+    // Manejar errores de respuesta HTTP
+    if (error.response) {
+      const status = error.response.status
+      
+      // Si es un blob de error JSON
+      if (error.response.data instanceof Blob) {
+        try {
+          const text = await error.response.data.text()
+          const jsonError = JSON.parse(text)
+          throw new Error(jsonError.error || jsonError.message || `Error ${status}: ${text}`)
+        } catch {
+          throw new Error(`Error ${status} al exportar cursos masivo`)
+        }
+      }
+      
+      // Si es un objeto JSON directo
+      if (error.response.data && typeof error.response.data === 'object') {
+        const errorData = error.response.data
+        throw new Error(errorData.error || errorData.message || `Error ${status} al exportar cursos masivo`)
+      }
+      
+      throw new Error(`Error ${status} al exportar cursos masivo`)
+    }
+    
+    throw error
+  }
+}
+
+/**
+ * Obtener catálogo de pensum por programa
+ */
+export const fetchPensumByProgram = async (programId: number): Promise<Pensum[]> => {
+  try {
+    const res = await api.get(`/pensum/by-program/${programId}`)
+    return res.data.data || []
+  } catch (error) {
+    console.error('Error al obtener pensum:', error)
+    throw error
+  }
+}
+
+/**
+ * Obtener pensum disponible para un estudiante (filtra completados)
+ */
+export const fetchAvailablePensumForStudent = async (
+  programId: number,
+  studentId: number
+): Promise<Pensum[]> => {
+  try {
+    const res = await api.get(`/pensum/available/${programId}/${studentId}`)
+    return res.data.data || []
+  } catch (error) {
+    console.error('Error al obtener pensum disponible:', error)
+    throw error
+  }
+}
+
+/**
+ * Crear curso desde pensum
+ */
+export const createCourseFromPensum = async (data: {
+  pensumId: number
+  startDate: string
+  endDate: string
+  schedule: string
+  facilitatorId?: number | null
+}): Promise<Course> => {
+  try {
+    const res = await api.post('/courses/from-pensum', {
+      pensum_id: data.pensumId,
+      start_date: data.startDate,
+      end_date: data.endDate,
+      schedule: data.schedule,
+      facilitator_id: data.facilitatorId,
+    })
+    return mapCourseFromApi(res.data.course)
+  } catch (error) {
+    console.error('Error al crear curso desde pensum:', error)
+    throw error
+  }
 }

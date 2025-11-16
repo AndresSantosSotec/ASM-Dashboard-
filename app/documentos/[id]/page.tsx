@@ -1,5 +1,6 @@
 "use client"
 
+import { use } from "react"
 import { Header } from "@/components/header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -29,7 +30,19 @@ import Image from "next/image"
 import Link from "next/link"
 import { useState } from "react"
 
-export default function DocumentosEstudiantePage({ params }: { params: { id: string } }) {
+interface Documento {
+  id: number
+  nombre: string
+  tipo: string
+  icono: any
+  fecha: string
+  estado: string
+  comentarios: number
+  thumbnail: string
+}
+
+export default function DocumentosEstudiantePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   // Estado para controlar qué modal está abierto
   const [openModalId, setOpenModalId] = useState<number | null>(null)
 
@@ -45,7 +58,7 @@ export default function DocumentosEstudiantePage({ params }: { params: { id: str
 
   // Datos de ejemplo para el estudiante
   const estudiante = {
-    id: params.id,
+    id,
     nombre: "Juan Pérez García",
     programa: "MBA Ejecutivo",
     fechaInscripcion: "12/03/2023",
@@ -149,7 +162,7 @@ export default function DocumentosEstudiantePage({ params }: { params: { id: str
   ]
 
   // Función para renderizar el modal de un documento
-  const renderDocumentModal = (documento) => (
+  const renderDocumentModal = (documento: Documento) => (
     <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
