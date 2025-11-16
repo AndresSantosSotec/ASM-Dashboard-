@@ -14,7 +14,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { toast } from "@/hooks/use-toast"
 import { useDebounce } from "@/hooks/use-debounce"
 import { RankingTableSkeleton, RankingCoursesSkeleton } from "@/components/ui/ranking-skeleton"
-import MoodleConnectionStatus from "@/components/MoodleConnectionStatus"
 import {
   fetchRankingStudents,
   fetchRankingCourses,
@@ -39,7 +38,6 @@ export default function RankingAcademico() {
   const [downloading, setDownloading] = useState(false)
   const [activeTab, setActiveTab] = useState('students') // Track active tab
   const [coursesLoaded, setCoursesLoaded] = useState(false) // Lazy load flag
-  const [moodleStatus, setMoodleStatus] = useState<'OK' | 'ERROR' | 'RECOVERED' | null>(null) // Connection status
   
   // Paginación
   const [currentPage, setCurrentPage] = useState(1)
@@ -65,21 +63,6 @@ export default function RankingAcademico() {
   // Fetch students whenever filters change (CON PAGINACIÓN + CANCELACIÓN + VALIDACIÓN CONEXIÓN)
   useEffect(() => {
     const getStudents = async () => {
-      // 🚫 BLOQUEAR si conexión está en ERROR o aún no verificada
-      if (moodleStatus === 'ERROR') {
-        console.warn('[RANKING] ❌ Carga bloqueada: conexión Moodle en ERROR')
-        setStudents([])
-        return
-      }
-
-      if (moodleStatus === null) {
-        console.info('[RANKING] ⏳ Esperando diagnóstico de conexión...')
-        return
-      }
-      
-      // ✅ SOLO SI STATUS = OK o RECOVERED, continuar
-      console.log('[RANKING] ✅ Conexión verificada:', moodleStatus, '- Cargando ranking...')
-      
       // Cancelar petición anterior si existe
       if (abortControllerRef.current) {
         abortControllerRef.current.abort()
@@ -140,7 +123,7 @@ export default function RankingAcademico() {
         abortControllerRef.current.abort()
       }
     }
-  }, [debouncedSearch, programFilter, semesterFilter, sortBy, currentPage, perPage, moodleStatus]) // ✅ AGREGAR moodleStatus
+  }, [debouncedSearch, programFilter, semesterFilter, sortBy, currentPage, perPage])
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -149,14 +132,8 @@ export default function RankingAcademico() {
     }
   }, [debouncedSearch, programFilter, semesterFilter, sortBy])
 
-  // 🚀 LAZY LOAD: Solo cargar cursos cuando se abre el tab + CONEXIÓN OK
+  // 🚀 LAZY LOAD: Solo cargar cursos cuando se abre el tab
   useEffect(() => {
-    // 🚫 BLOQUEAR si conexión no está OK
-    if (moodleStatus !== 'OK' && moodleStatus !== 'RECOVERED') {
-      console.warn('[RANKING] ❌ Cursos bloqueados: conexión no verificada')
-      return
-    }
-
     // Solo ejecutar si el tab de cursos está activo y aún no se han cargado
     if (activeTab === 'courses' && !coursesLoaded) {
       const getCourses = async () => {
@@ -179,7 +156,7 @@ export default function RankingAcademico() {
       }
       getCourses()
     }
-  }, [activeTab, coursesLoaded, moodleStatus]) // ✅ AGREGAR moodleStatus
+  }, [activeTab, coursesLoaded])
 
   // 🎯 OPTIMIZACIÓN: Obtener programas y semestres únicos SOLO de los datos actuales
   // (El backend ya filtra, no necesitamos todos los datos)
@@ -288,38 +265,6 @@ export default function RankingAcademico() {
           {downloading ? 'Descargando...' : 'Descargar Reporte'}
         </Button>
       </div>
-
-      {/* Estado de Conexión Moodle */}
-      <MoodleConnectionStatus 
-        onStatusChange={(status) => setMoodleStatus(status)} 
-        autoCheck={true} // ✅ DIAGNÓSTICO AUTOMÁTICO
-      />
-
-      {/* 🚫 MOSTRAR MENSAJE SI CONEXIÓN FALLA */}
-      {moodleStatus === 'ERROR' && (
-        <Alert variant="destructive" className="mb-6">
-          <XCircle className="h-4 w-4" />
-          <AlertDescription>
-            <strong>No se puede cargar el ranking académico.</strong>
-            <br />
-            La conexión con Moodle está fallando. Por favor, verifica que el servidor esté disponible y presiona "Reintentar" en el diagnóstico.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* 🔄 MOSTRAR LOADING SI AÚN NO HAY DIAGNÓSTICO */}
-      {moodleStatus === null && (
-        <Card className="mb-6">
-          <CardContent className="pt-6 pb-6 text-center">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-blue-500" />
-            <p className="text-sm text-gray-600">Verificando conexión con Moodle antes de cargar datos...</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ✅ SOLO MOSTRAR RANKING SI CONEXIÓN OK O RECOVERED */}
-      {(moodleStatus === 'OK' || moodleStatus === 'RECOVERED') && (
-        <>
 
       <Tabs defaultValue="students" onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-2 mb-6">
@@ -711,9 +656,6 @@ export default function RankingAcademico() {
           )}
         </TabsContent>
       </Tabs>
-      </>
-      )} 
-      {/* ✅ FIN CONDICIONAL RANKING */}
     </div>
   )
 }
