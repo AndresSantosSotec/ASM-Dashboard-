@@ -84,6 +84,12 @@ export interface UpdateProfileData {
   foto_perfil?: string
 }
 
+export interface CambiarContrasenaData {
+  contrasena_actual: string
+  contrasena_nueva: string
+  contrasena_nueva_confirmation: string
+}
+
 // ===============================
 // SERVICIOS API
 // ===============================
@@ -179,6 +185,17 @@ export async function descargarHistorialPDF(): Promise<void> {
 }
 
 /**
+ * Cambiar contraseña del estudiante
+ */
+export async function cambiarContrasena(data: CambiarContrasenaData): Promise<void> {
+  const response = await api.post('/estudiante/perfil/cambiar-contrasena', data)
+  
+  if (!response.data.success) {
+    throw new Error(response.data.message || 'Error al cambiar la contraseña')
+  }
+}
+
+/**
  * Objeto con todos los servicios de perfil
  */
 const profileService = {
@@ -187,6 +204,7 @@ const profileService = {
   actualizarPerfil,
   subirFotoPerfil,
   descargarHistorialPDF,
+  cambiarContrasena,
 }
 
 export default profileService

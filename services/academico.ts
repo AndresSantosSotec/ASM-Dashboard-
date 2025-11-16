@@ -32,12 +32,19 @@ export interface ResumenCalificaciones {
 export interface EventoCalendario {
   event_id: number
   titulo: string
-  descripcion?: string
-  fecha: string
-  hora: string
-  duracion_minutos?: number
+  descripcion?: string | null
+  fecha: string | null
+  hora: string | null
+  fecha_fin?: string | null
+  hora_fin?: string | null
+  duracion_minutos?: number | null
   tipo: string
-  curso?: string
+  curso?: string | null
+  curso_codigo?: string | null
+  ubicacion?: string | null
+  inicio_timestamp?: number | null
+  fin_timestamp?: number | null
+  origen?: 'curso' | 'personal' | 'grupo' | 'global' | 'categoria'
 }
 
 // ===============================

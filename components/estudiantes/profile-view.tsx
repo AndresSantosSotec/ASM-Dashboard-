@@ -42,8 +42,15 @@ export default function ProfileView() {
   const [historialAcademico, setHistorialAcademico] = useState<HistorialAcademico | null>(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [downloadingPDF, setDownloadingPDF] = useState(false)
+  const [changingPassword, setChangingPassword] = useState(false)
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  const [passwordData, setPasswordData] = useState({
+    contrasena_actual: "",
+    contrasena_nueva: "",
+    contrasena_nueva_confirmation: ""
+  })
   
   const [formData, setFormData] = useState({
     telefono: "",
@@ -166,6 +173,65 @@ export default function ProfileView() {
       })
     } finally {
       setDownloadingPDF(false)
+    }
+  }
+
+  const handlePasswordChange = async () => {
+    // Validar que todos los campos estén llenos
+    if (!passwordData.contrasena_actual || !passwordData.contrasena_nueva || !passwordData.contrasena_nueva_confirmation) {
+      toast({
+        title: "Error",
+        description: "Todos los campos son obligatorios",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Validar que las contraseñas nuevas coincidan
+    if (passwordData.contrasena_nueva !== passwordData.contrasena_nueva_confirmation) {
+      toast({
+        title: "Error",
+        description: "Las contraseñas nuevas no coinciden",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Validar longitud mínima
+    if (passwordData.contrasena_nueva.length < 6) {
+      toast({
+        title: "Error",
+        description: "La contraseña debe tener al menos 6 caracteres",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setChangingPassword(true)
+      
+      await profileService.cambiarContrasena(passwordData)
+      
+      toast({
+        title: "✅ Contraseña actualizada",
+        description: "Tu contraseña se cambió correctamente"
+      })
+      
+      // Limpiar formulario
+      setPasswordData({
+        contrasena_actual: "",
+        contrasena_nueva: "",
+        contrasena_nueva_confirmation: ""
+      })
+    } catch (error: any) {
+      console.error("Error cambiando contraseña:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo cambiar la contraseña",
+        variant: "destructive"
+      })
+    } finally {
+      setChangingPassword(false)
     }
   }
 
@@ -627,90 +693,47 @@ export default function ProfileView() {
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="current-password">Contraseña Actual</Label>
-                      <Input id="current-password" type="password" />
+                      <Input 
+                        id="current-password" 
+                        type="password" 
+                        value={passwordData.contrasena_actual}
+                        onChange={(e) => setPasswordData(prev => ({ ...prev, contrasena_actual: e.target.value }))}
+                        disabled={changingPassword}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="new-password">Nueva Contraseña</Label>
-                      <Input id="new-password" type="password" />
+                      <Input 
+                        id="new-password" 
+                        type="password" 
+                        value={passwordData.contrasena_nueva}
+                        onChange={(e) => setPasswordData(prev => ({ ...prev, contrasena_nueva: e.target.value }))}
+                        disabled={changingPassword}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="confirm-password">Confirmar Contraseña</Label>
-                      <Input id="confirm-password" type="password" />
+                      <Input 
+                        id="confirm-password" 
+                        type="password" 
+                        value={passwordData.contrasena_nueva_confirmation}
+                        onChange={(e) => setPasswordData(prev => ({ ...prev, contrasena_nueva_confirmation: e.target.value }))}
+                        disabled={changingPassword}
+                      />
                     </div>
                   </CardContent>
                   <CardFooter>
-                    <Button>Actualizar Contraseña</Button>
-                  </CardFooter>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Verificación en Dos Pasos</CardTitle>
-                    <CardDescription>Añade una capa adicional de seguridad a tu cuenta</CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex justify-between items-center">
-                    <div className="flex items-center space-x-3">
-                      <Shield className="h-8 w-8 text-blue-500" />
-                      <div>
-                        <h4 className="font-medium">Autenticación de Dos Factores</h4>
-                        <p className="text-sm text-gray-500">Protege tu cuenta con verificación adicional</p>
-                      </div>
-                    </div>
-                    <Switch id="2fa" />
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Sesiones Activas</CardTitle>
-                    <CardDescription>Dispositivos donde has iniciado sesión recientemente</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex justify-between items-center p-3 border rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-blue-50 rounded-full">
-                          <Settings className="h-5 w-5 text-blue-500" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium">Windows PC - Chrome</h4>
-                          <p className="text-sm text-gray-500">Ciudad Universitaria, Guatemala • Activo ahora</p>
-                        </div>
-                      </div>
-                      <Badge className="bg-green-100 text-green-800 border-green-200">Actual</Badge>
-                    </div>
-                    <div className="flex justify-between items-center p-3 border rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-gray-50 rounded-full">
-                          <Settings className="h-5 w-5 text-gray-500" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium">iPhone - Safari</h4>
-                          <p className="text-sm text-gray-500">Ciudad Universitaria, Guatemala • Hace 2 días</p>
-                        </div>
-                      </div>
-                      <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700">
-                        Cerrar Sesión
-                      </Button>
-                    </div>
-                  </CardContent>
-                  <CardFooter>
-                    <Button variant="outline" className="w-full">
-                      Cerrar Todas las Sesiones
+                    <Button onClick={handlePasswordChange} disabled={changingPassword}>
+                      {changingPassword ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Actualizando...
+                        </>
+                      ) : (
+                        "Actualizar Contraseña"
+                      )}
                     </Button>
                   </CardFooter>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center text-base">
-                      <AlertCircle className="h-5 w-5 mr-2 text-red-500" />
-                      Zona de Peligro
-                    </CardTitle>
-                    <CardDescription>Acciones que afectan permanentemente a tu cuenta</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button variant="destructive">Desactivar Cuenta</Button>
-                  </CardContent>
                 </Card>
               </div>
             </TabsContent>

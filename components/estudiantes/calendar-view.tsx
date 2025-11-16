@@ -1,193 +1,262 @@
 "use client"
 
-import { useState } from "react"
-import { Calendar, Clock, MapPin, ChevronLeft, ChevronRight } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import DOMPurify from "dompurify"
+import { Calendar, Clock, MapPin, ChevronLeft, ChevronRight, Loader2, AlertCircle } from "lucide-react"
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from "date-fns"
 import { es } from "date-fns/locale"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { getMisEventos, EventoCalendario } from "@/services/academico"
 
-// Datos de ejemplo para eventos académicos
-const events = [
-  {
-    id: 1,
-    title: "Examen Parcial I",
-    description: "Programación Orientada a Objetos",
-    date: new Date(2025, 2, 15), // 15 de marzo de 2025
-    time: "09:00 - 11:00",
-    location: "Laboratorio 3A",
-    type: "exam",
-  },
-  {
-    id: 2,
-    title: "Entrega de Proyecto",
-    description: "Diseño de Bases de Datos",
-    date: new Date(2025, 2, 18), // 18 de marzo de 2025
-    time: "23:59",
-    location: "Virtual - Plataforma",
-    type: "assignment",
-  },
-  {
-    id: 3,
-    title: "Conferencia: IA y su futuro",
-    description: "Ponente: Dr. Ricardo Mendoza",
-    date: new Date(2025, 2, 20), // 20 de marzo de 2025
-    time: "14:00 - 16:00",
-    location: "Auditorio Principal",
-    type: "event",
-  },
-  {
-    id: 4,
-    title: "Taller de React",
-    description: "Desarrollo de interfaces modernas",
-    date: new Date(2025, 2, 25), // 25 de marzo de 2025
-    time: "10:00 - 13:00",
-    location: "Aula 205",
-    type: "workshop",
-  },
-  {
-    id: 5,
-    title: "Examen Final",
-    description: "Metodologías Ágiles",
-    date: new Date(2025, 2, 30), // 30 de marzo de 2025
-    time: "11:00 - 13:00",
-    location: "Edificio B - Aula 301",
-    type: "exam",
-  },
-]
+type BadgeMeta = {
+  className: string
+  label: string
+}
+
+const getEventBadgeMeta = (event: EventoCalendario): BadgeMeta => {
+  const type = (event.tipo || "").toLowerCase()
+
+  if (["exam", "quiz", "assessment", "test"].some((token) => type.includes(token))) {
+    return { className: "bg-red-50 text-red-800 border-red-200", label: "Evaluación" }
+  }
+
+  if (["due", "assignment", "submission", "close"].some((token) => type.includes(token))) {
+    return { className: "bg-blue-50 text-blue-800 border-blue-200", label: "Entrega" }
+  }
+
+  if (type.includes("workshop")) {
+    return { className: "bg-green-50 text-green-800 border-green-200", label: "Taller" }
+  }
+
+  if (event.origen === "grupo") {
+    return { className: "bg-amber-50 text-amber-800 border-amber-200", label: "Grupo" }
+  }
+
+  if (event.origen === "personal") {
+    return { className: "bg-purple-50 text-purple-800 border-purple-200", label: "Personal" }
+  }
+
+  if (event.origen === "global") {
+    return { className: "bg-gray-100 text-gray-800 border-gray-200", label: "General" }
+  }
+
+  return { className: "bg-emerald-50 text-emerald-800 border-emerald-200", label: "Curso" }
+}
+
+const formatEventTimeRange = (event: EventoCalendario) => {
+  if (event.hora && event.hora_fin) {
+    return `${event.hora} - ${event.hora_fin}`
+  }
+
+  if (event.hora) {
+    return `${event.hora}${event.duracion_minutos ? ` · ${event.duracion_minutos} min` : ""}`
+  }
+
+  if (event.duracion_minutos) {
+    return `${event.duracion_minutos} min`
+  }
+
+  return "Horario por definir"
+}
+
+const getEventDate = (event: EventoCalendario): Date | null => {
+  if (event.inicio_timestamp) {
+    return new Date(event.inicio_timestamp * 1000)
+  }
+
+  if (event.fecha) {
+    const iso = `${event.fecha}${event.hora ? `T${event.hora}` : "T00:00:00"}`
+    const parsed = new Date(iso)
+
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
+
+  return null
+}
+
+const sanitizeEventDescription = (html?: string | null) =>
+  html ? DOMPurify.sanitize(html, { USE_PROFILES: { html: true } }) : null
 
 export default function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [events, setEvents] = useState<EventoCalendario[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const monthStart = startOfMonth(currentDate)
   const monthEnd = endOfMonth(currentDate)
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd })
 
-  // Ir al mes anterior
+  useEffect(() => {
+    let isMounted = true
+
+    async function fetchEvents() {
+      try {
+        setIsLoading(true)
+        setError(null)
+
+        const data = await getMisEventos({
+          fecha_inicio: format(startOfMonth(currentDate), "yyyy-MM-dd"),
+          fecha_fin: format(endOfMonth(currentDate), "yyyy-MM-dd"),
+        })
+
+        if (!isMounted) {
+          return
+        }
+
+        setEvents(data)
+      } catch (err: any) {
+        if (!isMounted) {
+          return
+        }
+
+        const message =
+          err?.response?.data?.message ??
+          err?.message ??
+          "No se pudo cargar el calendario académico"
+
+        setError(message)
+        setEvents([])
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    fetchEvents()
+
+    return () => {
+      isMounted = false
+    }
+  }, [currentDate])
+
   const prevMonth = () => {
     setCurrentDate(subMonths(currentDate, 1))
     setSelectedDate(null)
   }
 
-  // Ir al mes siguiente
   const nextMonth = () => {
     setCurrentDate(addMonths(currentDate, 1))
     setSelectedDate(null)
   }
 
-  // Determinar eventos para una fecha específica
-  const getEventsForDate = (date: Date) => {
-    return events.filter(
-      (event) =>
-        event.date.getDate() === date.getDate() &&
-        event.date.getMonth() === date.getMonth() &&
-        event.date.getFullYear() === date.getFullYear(),
-    )
-  }
+  const getEventsForDate = (date: Date) =>
+    events.filter((event) => {
+      const eventDate = getEventDate(event)
+      if (!eventDate) return false
 
-  // Eventos para la fecha seleccionada
+      return (
+        eventDate.getDate() === date.getDate() &&
+        eventDate.getMonth() === date.getMonth() &&
+        eventDate.getFullYear() === date.getFullYear()
+      )
+    })
+
   const selectedDateEvents = selectedDate ? getEventsForDate(selectedDate) : []
 
-  // Determinar el color de badge según el tipo de evento
-  const getEventTypeColor = (type: string) => {
-    switch (type) {
-      case "exam":
-        return "bg-red-100 text-red-800 border-red-200"
-      case "assignment":
-        return "bg-blue-100 text-blue-800 border-blue-200"
-      case "workshop":
-        return "bg-green-100 text-green-800 border-green-200"
-      case "event":
-        return "bg-purple-100 text-purple-800 border-purple-200"
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200"
-    }
-  }
+  const upcomingEvents = useMemo(() => {
+    const now = Date.now()
 
-  // Texto descriptivo para el tipo de evento
-  const getEventTypeText = (type: string) => {
-    switch (type) {
-      case "exam":
-        return "Examen"
-      case "assignment":
-        return "Entrega"
-      case "workshop":
-        return "Taller"
-      case "event":
-        return "Evento"
-      default:
-        return "Actividad"
-    }
-  }
+    return events
+      .filter((event) => {
+        const eventDate = getEventDate(event)
+        return eventDate ? eventDate.getTime() >= now : false
+      })
+      .sort((a, b) => {
+        const dateA = getEventDate(a)?.getTime() ?? 0
+        const dateB = getEventDate(b)?.getTime() ?? 0
+        return dateA - dateB
+      })
+      .slice(0, 3)
+  }, [events])
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4" />
+          <span>{error}</span>
+        </div>
+      )}
+
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle>Calendario Académico</CardTitle>
+          <CardTitle>Calendario académico</CardTitle>
+          <CardDescription>Eventos sincronizados desde Moodle filtrados por tu usuario</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex items-center space-x-2">
-              <Button variant="outline" size="icon" onClick={prevMonth}>
+              <Button variant="outline" size="icon" onClick={prevMonth} aria-label="Mes anterior">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="font-medium">{format(currentDate, "MMMM yyyy", { locale: es })}</span>
-              <Button variant="outline" size="icon" onClick={nextMonth}>
+              <div className="text-center">
+                <CardTitle className="text-lg">
+                  {format(currentDate, "MMMM yyyy", { locale: es }).replace(/^\w/, (c) => c.toUpperCase())}
+                </CardTitle>
+                <CardDescription>Selecciona un día para ver más detalles</CardDescription>
+              </div>
+              <Button variant="outline" size="icon" onClick={nextMonth} aria-label="Mes siguiente">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
+
+            <div className="text-sm text-muted-foreground">
+              {isLoading ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Sincronizando con Moodle...
+                </span>
+              ) : (
+                `${events.length} evento${events.length === 1 ? "" : "s"} en este rango`
+              )}
+            </div>
           </div>
-          <CardDescription>Visualiza tus exámenes, entregas y eventos importantes</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* Encabezados de los días de la semana */}
-          <div className="grid grid-cols-7 gap-1 text-center mb-2">
+
+          <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground">
             {["D", "L", "M", "M", "J", "V", "S"].map((day, i) => (
-              <div key={i} className="py-2 text-sm font-medium text-gray-500">
+              <div key={i} className="py-2">
                 {day}
               </div>
             ))}
           </div>
 
-          {/* Cuadrícula del calendario */}
           <div className="grid grid-cols-7 gap-1">
-            {/* Espacios en blanco para alinear los días correctamente */}
             {Array.from({ length: getDay(monthStart) }).map((_, i) => (
               <div key={`empty-${i}`} className="h-12 md:h-16 p-1" />
             ))}
 
-            {/* Días del mes */}
             {days.map((day) => {
               const dayEvents = getEventsForDate(day)
               const hasEvents = dayEvents.length > 0
               const isSelected =
-                selectedDate && selectedDate.getDate() === day.getDate() && selectedDate.getMonth() === day.getMonth()
+                selectedDate &&
+                selectedDate.getDate() === day.getDate() &&
+                selectedDate.getMonth() === day.getMonth() &&
+                selectedDate.getFullYear() === day.getFullYear()
 
               return (
-                <div
-                  key={day.toString()}
+                <button
+                  key={day.toISOString()}
+                  type="button"
                   onClick={() => setSelectedDate(day)}
-                  className={`h-12 md:h-16 p-1 border rounded-md cursor-pointer transition-colors relative ${
-                    isSelected ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:bg-gray-50"
+                  className={`h-12 md:h-16 w-full rounded-md border text-left p-1 text-sm transition-colors ${
+                    isSelected ? "border-primary bg-primary/10" : "border-border hover:bg-muted/50"
                   }`}
                 >
-                  <div className="text-sm font-medium">{format(day, "d")}</div>
-
-                  {/* Indicador de eventos */}
-                  {hasEvents && (
-                    <div className="absolute bottom-1 right-1">
-                      <div className={`w-2 h-2 rounded-full ${dayEvents.length > 0 ? "bg-blue-500" : ""}`}></div>
-                    </div>
-                  )}
-                </div>
+                  <div className="font-medium">{format(day, "d")}</div>
+                  {hasEvents && <div className="mt-1 h-1.5 w-full rounded-full bg-sky-500" />}
+                </button>
               )
             })}
           </div>
         </CardContent>
       </Card>
 
-      {/* Lista de eventos para la fecha seleccionada */}
       {selectedDate && (
         <Card>
           <CardHeader>
@@ -196,78 +265,130 @@ export default function CalendarView() {
               {format(selectedDate, "EEEE, d 'de' MMMM, yyyy", { locale: es })}
             </CardTitle>
             <CardDescription>
-              {selectedDateEvents.length > 0
-                ? `${selectedDateEvents.length} actividad${selectedDateEvents.length !== 1 ? "es" : ""} programada${selectedDateEvents.length !== 1 ? "s" : ""}`
-                : "No hay actividades programadas para este día"}
+              {isLoading
+                ? "Cargando actividades..."
+                : selectedDateEvents.length > 0
+                  ? `${selectedDateEvents.length} actividad${
+                      selectedDateEvents.length === 1 ? "" : "es"
+                    } programada${selectedDateEvents.length === 1 ? "" : "s"}`
+                  : "No se registran actividades para este día"}
             </CardDescription>
           </CardHeader>
-          {selectedDateEvents.length > 0 && (
-            <CardContent className="space-y-4">
-              {selectedDateEvents.map((event) => (
-                <div key={event.id} className="border rounded-lg p-4 hover:shadow-sm transition-shadow">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-semibold">{event.title}</h3>
-                    <Badge className={getEventTypeColor(event.type)}>{getEventTypeText(event.type)}</Badge>
-                  </div>
-                  <p className="text-sm text-gray-600 mb-3">{event.description}</p>
-                  <div className="flex flex-col space-y-2 text-sm">
-                    <div className="flex items-center">
-                      <Clock className="h-4 w-4 mr-2 text-gray-500" />
-                      <span>{event.time}</span>
+          <CardContent className="space-y-4">
+            {isLoading && (
+              <div className="flex items-center text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Sincronizando información...
+              </div>
+            )}
+            {!isLoading && selectedDateEvents.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No hay eventos para este día. Selecciona otra fecha o vuelve más tarde.
+              </p>
+            )}
+            {!isLoading &&
+              selectedDateEvents.map((event) => {
+                const badge = getEventBadgeMeta(event)
+                const sanitizedDescription = sanitizeEventDescription(event.descripcion)
+                return (
+                  <div
+                    key={event.event_id}
+                    className="border rounded-lg p-4 hover:shadow-sm transition-shadow space-y-2"
+                  >
+                    <div className="flex justify-between items-start gap-3">
+                      <div>
+                        <h3 className="font-semibold leading-tight">{event.titulo}</h3>
+                        {event.curso && <p className="text-sm text-muted-foreground">{event.curso}</p>}
+                      </div>
+                      <Badge className={badge.className}>{badge.label}</Badge>
                     </div>
-                    <div className="flex items-center">
-                      <MapPin className="h-4 w-4 mr-2 text-gray-500" />
-                      <span>{event.location}</span>
+                    {sanitizedDescription ? (
+                      <div
+                        className="text-sm text-muted-foreground leading-relaxed space-y-1"
+                        dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
+                      />
+                    ) : null}
+                    <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+                      <div className="flex items-center">
+                        <Clock className="h-4 w-4 mr-2" />
+                        <span>{formatEventTimeRange(event)}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <MapPin className="h-4 w-4 mr-2" />
+                        <span>{event.ubicacion || (event.origen === "curso" ? "Aula virtual" : "Por definir")}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </CardContent>
-          )}
+                )
+              })}
+          </CardContent>
         </Card>
       )}
 
-      {/* Próximos eventos importantes */}
       <Card>
         <CardHeader>
-          <CardTitle>Próximos Eventos Importantes</CardTitle>
-          <CardDescription>Actividades académicas en las próximas semanas</CardDescription>
+          <CardTitle>Próximos eventos importantes</CardTitle>
+          <CardDescription>Fechas relevantes de las siguientes semanas</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {events
-            .sort((a, b) => a.date.getTime() - b.date.getTime())
-            .slice(0, 3)
-            .map((event) => (
-              <div
-                key={event.id}
-                className="flex items-start space-x-4 p-3 border rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <div className="min-w-11 h-11 flex flex-col items-center justify-center bg-blue-50 rounded-md border border-blue-100">
-                  <span className="text-xs font-semibold text-blue-600">
-                    {format(event.date, "MMM", { locale: es })}
-                  </span>
-                  <span className="text-lg font-bold text-blue-800">{format(event.date, "d")}</span>
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start">
-                    <h4 className="font-medium text-sm">{event.title}</h4>
-                    <Badge className={getEventTypeColor(event.type)} variant="outline">
-                      {getEventTypeText(event.type)}
-                    </Badge>
+          {isLoading && (
+            <div className="flex items-center text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Buscando eventos próximos...
+            </div>
+          )}
+
+          {!isLoading && upcomingEvents.length === 0 && (
+            <p className="text-sm text-muted-foreground">No se encontraron eventos próximos en Moodle.</p>
+          )}
+
+          {!isLoading &&
+            upcomingEvents.map((event) => {
+              const badge = getEventBadgeMeta(event)
+              const eventDate = getEventDate(event)
+              const sanitizedDescription = sanitizeEventDescription(event.descripcion)
+
+              return (
+                <div
+                  key={`upcoming-${event.event_id}`}
+                  className="flex items-start space-x-4 p-3 border rounded-lg hover:bg-muted/40 transition-colors"
+                >
+                  <div className="min-w-11 h-11 flex flex-col items-center justify-center bg-primary/5 rounded-md border border-primary/20">
+                    <span className="text-xs font-semibold text-primary">
+                      {eventDate ? format(eventDate, "MMM", { locale: es }) : "--"}
+                    </span>
+                    <span className="text-lg font-bold text-primary">
+                      {eventDate ? format(eventDate, "d") : "--"}
+                    </span>
                   </div>
-                  <p className="text-sm text-gray-600 mt-1">{event.description}</p>
-                  <div className="flex items-center mt-2 text-xs text-gray-500">
-                    <Clock className="h-3 w-3 mr-1" />
-                    <span className="mr-3">{event.time}</span>
-                    <MapPin className="h-3 w-3 mr-1" />
-                    <span>{event.location}</span>
+                  <div className="flex-1 space-y-1">
+                    <div className="flex justify-between items-start gap-2">
+                      <h4 className="font-medium text-sm leading-tight">{event.titulo}</h4>
+                      <Badge className={badge.className}>{badge.label}</Badge>
+                    </div>
+                    {event.curso && <p className="text-xs uppercase text-muted-foreground">{event.curso}</p>}
+                    {sanitizedDescription ? (
+                      <div
+                        className="text-sm text-muted-foreground line-clamp-3 [&_a]:text-primary [&_a]:underline"
+                        dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
+                      />
+                    ) : null}
+                    <div className="flex items-center flex-wrap gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {formatEventTimeRange(event)}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {event.ubicacion || (event.origen === "curso" ? "Aula virtual" : "Por definir")}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
         </CardContent>
       </Card>
     </div>
   )
 }
-
