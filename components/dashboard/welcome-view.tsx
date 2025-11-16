@@ -26,16 +26,57 @@ interface WelcomeData {
     carnet?: string
   }
   stats: {
+    // Estadísticas de estudiante (Rol 3)
     cursos_activos?: number
     tareas_pendientes?: number
+    promedio_general?: number
+    cursos_completados?: number
+    total_cursos?: number
+    
+    // Estadísticas de admin (Rol 1) y asesor (Rol 7)
     prospectos_asignados?: number
     estudiantes_total?: number
+    prospectos_nuevos?: number
+    total_prospectos?: number
+    tareas_atrasadas?: number
+    
+    // Estadísticas de finanzas (Rol 5)
+    pagos_procesados_mes?: number
+    monto_total_mes?: number
+    pagos_pendientes?: number
+    monto_pendiente?: number
+    pagos_vencidos?: number
+    
+    // Estadísticas de seguridad (Rol 6)
+    sesiones_activas?: number
+    sesiones_hoy?: number
+    usuarios_unicos_hoy?: number
+    tiempo_promedio_sesion?: number
+    dispositivo_mas_usado?: string
+    
+    // Estadísticas de administrativo (Rol 4)
+    estudiantes_activos?: number
+    estudiantes_nuevos_mes?: number
+    programas_activos?: number
+    cursos_programados?: number
+    
+    // Estadísticas de docente (Rol 2)
+    cursos_asignados?: number
+    total_estudiantes?: number
+    promedio_asistencia?: number
   }
   recentActivity: {
     icon: React.ReactNode
     title: string
     description: string
     time: string
+  }[]
+  quickAccess?: {
+    id: number
+    title: string
+    description: string
+    path: string
+    icon: string
   }[]
 }
 
@@ -92,13 +133,15 @@ export default function WelcomeView() {
             title: activity.title,
             description: activity.description,
             time: formatActivityTime(activity.timestamp)
-          })) || getDefaultActivities(dashboardData.user.rol || "Usuario")
+          })) || getDefaultActivities(dashboardData.user.rol || "Usuario"),
+          quickAccess: dashboardData.quickAccess || []
         })
         
         setLoading(false)
         return
-      } catch (apiError) {
-        console.log("API no disponible, usando datos locales:", apiError)
+      } catch (apiError: any) {
+        console.error("⚠️ Error al cargar datos del dashboard desde API:", apiError?.message || apiError)
+        console.log("📦 Usando datos locales como fallback...")
       }
 
       // Si la API falla, usar datos del localStorage
@@ -133,6 +176,7 @@ export default function WelcomeView() {
 
       const activities = getDefaultActivities(rol)
 
+      // ⚠️ FALLBACK: Si la API falló, intentar obtener datos básicos sin estadísticas hardcodeadas
       setWelcomeData({
         user: {
           name: userData?.name || userData?.nombre || userData?.nombres || "Usuario",
@@ -140,12 +184,7 @@ export default function WelcomeView() {
           rol: rol,
           carnet: userData?.carnet || userData?.username || undefined
         },
-        stats: {
-          cursos_activos: hasStudentAccess ? 6 : undefined,
-          tareas_pendientes: hasStudentAccess ? 3 : undefined,
-          prospectos_asignados: hasAdminAccess ? 12 : undefined,
-          estudiantes_total: hasAdminAccess ? 152 : undefined
-        },
+        stats: {}, // Sin estadísticas si la API falló - se mostrarán como vacías
         recentActivity: activities
       })
     } catch (error) {
@@ -162,7 +201,44 @@ export default function WelcomeView() {
       case 'prospect': return <Users className="h-5 w-5 text-purple-500" />
       case 'graduation': return <GraduationCap className="h-5 w-5 text-orange-500" />
       case 'notification': return <Bell className="h-5 w-5 text-yellow-500" />
+      case 'payment': return <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+      case 'warning': return <Bell className="h-5 w-5 text-red-500" />
+      case 'login': return <Users className="h-5 w-5 text-cyan-500" />
       default: return <CheckCircle2 className="h-5 w-5 text-blue-500" />
+    }
+  }
+
+  const getIconComponent = (iconName: string) => {
+    const iconClass = "h-5 w-5"
+    switch(iconName) {
+      case 'Users': return <Users className={iconClass} />
+      case 'Plus': return <Sparkles className={iconClass} />
+      case 'FileText': return <FileText className={iconClass} />
+      case 'ClipboardList': return <FileText className={iconClass} />
+      case 'Activities': return <Calendar className={iconClass} />
+      case 'Calendar': return <Calendar className={iconClass} />
+      case 'BookOpen': return <BookOpen className={iconClass} />
+      case 'UserCheck': return <Users className={iconClass} />
+      case 'LayoutDashboard': return <TrendingUp className={iconClass} />
+      case 'Mail': return <Bell className={iconClass} />
+      case 'Medal': return <CheckCircle2 className={iconClass} />
+      case 'Award': return <CheckCircle2 className={iconClass} />
+      case 'Bell': return <Bell className={iconClass} />
+      case 'DollarSign': return <Clock className={iconClass} />
+      case 'CreditCard': return <Clock className={iconClass} />
+      case 'PieChart': return <TrendingUp className={iconClass} />
+      case 'RefreshCw': return <TrendingUp className={iconClass} />
+      case 'BarChart': return <TrendingUp className={iconClass} />
+      case 'Settings': return <FileText className={iconClass} />
+      case 'FileCheck': return <FileText className={iconClass} />
+      case 'Send': return <Bell className={iconClass} />
+      case 'Shield': return <CheckCircle2 className={iconClass} />
+      case 'Activity': return <TrendingUp className={iconClass} />
+      case 'Key': return <CheckCircle2 className={iconClass} />
+      case 'LogIn': return <Users className={iconClass} />
+      case 'Database': return <FileText className={iconClass} />
+      case 'FileSignature': return <FileText className={iconClass} />
+      default: return <FileText className={iconClass} />
     }
   }
 
@@ -373,6 +449,353 @@ export default function WelcomeView() {
             </CardContent>
           </Card>
         )}
+
+        {/* Nuevas tarjetas dinámicas */}
+        {welcomeData.stats.promedio_general !== undefined && welcomeData.stats.promedio_general > 0 && (
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Promedio General
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-indigo-600">
+                  {welcomeData.stats.promedio_general.toFixed(1)}
+                </div>
+                <TrendingUp className="h-8 w-8 text-indigo-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {welcomeData.stats.cursos_completados !== undefined && welcomeData.stats.cursos_completados > 0 && (
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Cursos Completados
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-green-600">
+                  {welcomeData.stats.cursos_completados}
+                </div>
+                <CheckCircle2 className="h-8 w-8 text-green-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {welcomeData.stats.prospectos_nuevos !== undefined && welcomeData.stats.prospectos_nuevos > 0 && (
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Prospectos Nuevos (7 días)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-cyan-600">
+                  {welcomeData.stats.prospectos_nuevos}
+                </div>
+                <Sparkles className="h-8 w-8 text-cyan-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {welcomeData.stats.total_prospectos !== undefined && welcomeData.stats.total_prospectos > 0 && (
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Total Prospectos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-slate-600">
+                  {welcomeData.stats.total_prospectos}
+                </div>
+                <Users className="h-8 w-8 text-slate-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Estadísticas de Finanzas (Rol 5) */}
+        {welcomeData.stats.pagos_procesados_mes !== undefined && welcomeData.stats.pagos_procesados_mes > 0 && (
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Pagos del Mes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-emerald-600">
+                  {welcomeData.stats.pagos_procesados_mes}
+                </div>
+                <CheckCircle2 className="h-8 w-8 text-emerald-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {welcomeData.stats.monto_total_mes !== undefined && welcomeData.stats.monto_total_mes > 0 && (
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Monto Total Mes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-2xl font-bold text-green-600">
+                  Q{welcomeData.stats.monto_total_mes.toLocaleString('es-GT', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                </div>
+                <TrendingUp className="h-8 w-8 text-green-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {welcomeData.stats.pagos_pendientes !== undefined && welcomeData.stats.pagos_pendientes > 0 && (
+          <Card className="hover:shadow-lg transition-shadow border-amber-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Pagos Pendientes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-amber-600">
+                  {welcomeData.stats.pagos_pendientes}
+                </div>
+                <Clock className="h-8 w-8 text-amber-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {welcomeData.stats.pagos_vencidos !== undefined && welcomeData.stats.pagos_vencidos > 0 && (
+          <Card className="hover:shadow-lg transition-shadow border-red-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Pagos Vencidos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-red-600">
+                  {welcomeData.stats.pagos_vencidos}
+                </div>
+                <Bell className="h-8 w-8 text-red-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Estadísticas de Seguridad (Rol 6) */}
+        {welcomeData.stats.sesiones_activas !== undefined && (
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Sesiones Activas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-blue-600">
+                  {welcomeData.stats.sesiones_activas}
+                </div>
+                <Users className="h-8 w-8 text-blue-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {welcomeData.stats.sesiones_hoy !== undefined && welcomeData.stats.sesiones_hoy > 0 && (
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Sesiones Hoy
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-cyan-600">
+                  {welcomeData.stats.sesiones_hoy}
+                </div>
+                <Calendar className="h-8 w-8 text-cyan-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {welcomeData.stats.usuarios_unicos_hoy !== undefined && welcomeData.stats.usuarios_unicos_hoy > 0 && (
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Usuarios Únicos Hoy
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-indigo-600">
+                  {welcomeData.stats.usuarios_unicos_hoy}
+                </div>
+                <Users className="h-8 w-8 text-indigo-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {welcomeData.stats.tiempo_promedio_sesion !== undefined && welcomeData.stats.tiempo_promedio_sesion > 0 && (
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Tiempo Promedio Sesión
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-violet-600">
+                  {welcomeData.stats.tiempo_promedio_sesion.toFixed(1)}m
+                </div>
+                <Clock className="h-8 w-8 text-violet-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Estadísticas de Administrativo (Rol 4) */}
+        {welcomeData.stats.estudiantes_activos !== undefined && welcomeData.stats.estudiantes_activos > 0 && (
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Estudiantes Activos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-teal-600">
+                  {welcomeData.stats.estudiantes_activos}
+                </div>
+                <GraduationCap className="h-8 w-8 text-teal-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {welcomeData.stats.estudiantes_nuevos_mes !== undefined && welcomeData.stats.estudiantes_nuevos_mes > 0 && (
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Estudiantes Nuevos (Mes)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-lime-600">
+                  {welcomeData.stats.estudiantes_nuevos_mes}
+                </div>
+                <Sparkles className="h-8 w-8 text-lime-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {welcomeData.stats.programas_activos !== undefined && welcomeData.stats.programas_activos > 0 && (
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Programas Activos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-orange-600">
+                  {welcomeData.stats.programas_activos}
+                </div>
+                <BookOpen className="h-8 w-8 text-orange-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {welcomeData.stats.cursos_programados !== undefined && welcomeData.stats.cursos_programados > 0 && (
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Cursos Programados
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-fuchsia-600">
+                  {welcomeData.stats.cursos_programados}
+                </div>
+                <Calendar className="h-8 w-8 text-fuchsia-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Estadísticas de Docente (Rol 2) */}
+        {welcomeData.stats.cursos_asignados !== undefined && welcomeData.stats.cursos_asignados > 0 && (
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Cursos Asignados
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-rose-600">
+                  {welcomeData.stats.cursos_asignados}
+                </div>
+                <BookOpen className="h-8 w-8 text-rose-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {welcomeData.stats.total_estudiantes !== undefined && welcomeData.stats.total_estudiantes > 0 && (
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Total Estudiantes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-sky-600">
+                  {welcomeData.stats.total_estudiantes}
+                </div>
+                <Users className="h-8 w-8 text-sky-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {welcomeData.stats.tareas_atrasadas !== undefined && welcomeData.stats.tareas_atrasadas > 0 && (
+          <Card className="hover:shadow-lg transition-shadow border-red-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Tareas Atrasadas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-red-600">
+                  {welcomeData.stats.tareas_atrasadas}
+                </div>
+                <Bell className="h-8 w-8 text-red-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Actividad Reciente */}
@@ -421,46 +844,24 @@ export default function WelcomeView() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {welcomeData.user.rol === "Estudiante" ? (
-              <>
+            {welcomeData.quickAccess && welcomeData.quickAccess.length > 0 ? (
+              welcomeData.quickAccess.map((access) => (
                 <QuickAccessButton
-                  href="/estudiantes/perfil"
-                  icon={<Users className="h-5 w-5" />}
-                  title="Mi Perfil"
-                  description="Ver información personal"
+                  key={access.id}
+                  href={access.path}
+                  icon={getIconComponent(access.icon)}
+                  title={access.title}
+                  description={access.description}
                 />
-                <QuickAccessButton
-                  href="/estudiantes/cursos"
-                  icon={<BookOpen className="h-5 w-5" />}
-                  title="Mis Cursos"
-                  description="Cursos matriculados"
-                />
-                <QuickAccessButton
-                  href="/estudiantes/calendario"
-                  icon={<Calendar className="h-5 w-5" />}
-                  title="Calendario"
-                  description="Horarios y eventos"
-                />
-              </>
+              ))
             ) : (
+              // Fallback si no hay quickAccess del backend
               <>
                 <QuickAccessButton
-                  href="/admin/prospectos"
+                  href="/dashboard"
                   icon={<Users className="h-5 w-5" />}
-                  title="Prospectos"
-                  description="Gestión de prospectos"
-                />
-                <QuickAccessButton
-                  href="/admin/estudiantes"
-                  icon={<GraduationCap className="h-5 w-5" />}
-                  title="Estudiantes"
-                  description="Gestión de estudiantes"
-                />
-                <QuickAccessButton
-                  href="/admin/reportes"
-                  icon={<FileText className="h-5 w-5" />}
-                  title="Reportes"
-                  description="Informes y estadísticas"
+                  title="Dashboard"
+                  description="Volver al inicio"
                 />
               </>
             )}
