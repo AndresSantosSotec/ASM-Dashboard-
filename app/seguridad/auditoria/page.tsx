@@ -1,124 +1,96 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Clock, Download, FileText, Filter, Search } from "lucide-react"
+import { Clock, Download, FileText, Filter, Search, Loader2, AlertCircle } from "lucide-react"
+import * as auditoriaService from "@/services/auditoria"
+import type { LogAuditoria, EstadisticasAuditoria } from "@/services/auditoria"
 
 export default function LogsAuditoria() {
   const [searchTerm, setSearchTerm] = useState("")
-  const [activeTab, setActiveTab] = useState("todos")
-
-  // Datos de ejemplo
-  const logs = [
-    {
-      id: 1,
-      usuario: "Juan Pérez",
-      accion: "Inicio de sesión",
-      modulo: "Seguridad",
-      detalles: "Inicio de sesión exitoso",
-      fecha: "2023-05-15",
-      hora: "10:30:45",
-      nivel: "Info",
-      ip: "192.168.1.100",
-    },
-    {
-      id: 2,
-      usuario: "María López",
-      accion: "Creación de registro",
-      modulo: "Académico",
-      detalles: "Creación de nuevo curso",
-      fecha: "2023-05-15",
-      hora: "09:15:22",
-      nivel: "Info",
-      ip: "192.168.1.101",
-    },
-    {
-      id: 3,
-      usuario: "Carlos Rodríguez",
-      accion: "Eliminación de registro",
-      modulo: "Estudiantes",
-      detalles: "Eliminación de estudiante #1234",
-      fecha: "2023-05-15",
-      hora: "08:45:10",
-      nivel: "Alerta",
-      ip: "192.168.1.102",
-    },
-    {
-      id: 4,
-      usuario: "Ana Martínez",
-      accion: "Modificación de registro",
-      modulo: "Finanzas",
-      detalles: "Actualización de estado de pago",
-      fecha: "2023-05-14",
-      hora: "16:20:33",
-      nivel: "Info",
-      ip: "192.168.1.103",
-    },
-    {
-      id: 5,
-      usuario: "Roberto Sánchez",
-      accion: "Acceso denegado",
-      modulo: "Seguridad",
-      detalles: "Intento de acceso a módulo restringido",
-      fecha: "2023-05-14",
-      hora: "14:10:05",
-      nivel: "Error",
-      ip: "192.168.1.104",
-    },
-    {
-      id: 6,
-      usuario: "Laura Gómez",
-      accion: "Descarga de reporte",
-      modulo: "Reportes",
-      detalles: "Descarga de reporte financiero",
-      fecha: "2023-05-14",
-      hora: "12:05:18",
-      nivel: "Info",
-      ip: "192.168.1.105",
-    },
-    {
-      id: 7,
-      usuario: "Pedro Díaz",
-      accion: "Cambio de configuración",
-      modulo: "Administración",
-      detalles: "Modificación de parámetros del sistema",
-      fecha: "2023-05-13",
-      hora: "17:30:42",
-      nivel: "Alerta",
-      ip: "192.168.1.106",
-    },
-    {
-      id: 8,
-      usuario: "Sofía Hernández",
-      accion: "Error del sistema",
-      modulo: "Seguridad",
-      detalles: "Error en la validación de credenciales",
-      fecha: "2023-05-13",
-      hora: "11:25:37",
-      nivel: "Error",
-      ip: "192.168.1.107",
-    },
-  ]
-
-  // Filtrar logs según la búsqueda y la pestaña activa
-  const filteredLogs = logs.filter((log) => {
-    const matchesSearch =
-      log.usuario.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.accion.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.modulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.detalles.toLowerCase().includes(searchTerm.toLowerCase())
-
-    if (activeTab === "todos") return matchesSearch
-    if (activeTab === "info") return matchesSearch && log.nivel === "Info"
-    if (activeTab === "alertas") return matchesSearch && log.nivel === "Alerta"
-    if (activeTab === "errores") return matchesSearch && log.nivel === "Error"
-    return matchesSearch
+  const [activeTab, setActiveTab] = useState<"todos" | "activity" | "email" | "collection">("todos")
+  const [nivelFilter, setNivelFilter] = useState<"todos" | "info" | "warning" | "error">("todos")
+  const [logs, setLogs] = useState<LogAuditoria[]>([])
+  const [estadisticas, setEstadisticas] = useState<EstadisticasAuditoria>({
+    total: 0,
+    activity: 0,
+    email: 0,
+    collection: 0,
+    hoy: 0
   })
+  const [pagination, setPagination] = useState({
+    current_page: 1,
+    per_page: 50,
+    total: 0,
+    has_more: false
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const cargarLogs = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const data = await auditoriaService.obtenerLogs({
+        search: searchTerm || undefined,
+        tipo: activeTab,
+        nivel: nivelFilter === "todos" ? undefined : nivelFilter,
+        page: pagination.current_page,
+        per_page: 50
+      })
+      
+      setLogs(data.logs)
+      setEstadisticas(data.estadisticas)
+      setPagination(data.pagination)
+    } catch (err: any) {
+      console.error("Error cargando logs:", err)
+      setError(err.message || "Error al cargar logs de auditoría")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    cargarLogs()
+  }, [activeTab, nivelFilter, pagination.current_page])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchTerm !== undefined) {
+        setPagination(prev => ({ ...prev, current_page: 1 }))
+        cargarLogs()
+      }
+    }, 500)
+    
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  const getNivelBadgeVariant = (nivel: string) => {
+    switch (nivel?.toLowerCase()) {
+      case 'error':
+        return 'destructive'
+      case 'warning':
+        return 'default'
+      case 'info':
+      default:
+        return 'secondary'
+    }
+  }
+
+  const getTipoLabel = (tipo: string) => {
+    switch (tipo) {
+      case 'activity': return 'Actividad'
+      case 'email': return 'Email'
+      case 'collection': return 'Cobranza'
+      default: return tipo
+    }
+  }
 
   return (
     <div className="container mx-auto py-6">
@@ -141,13 +113,22 @@ export default function LogsAuditoria() {
           <CardTitle>Resumen de Actividad</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="bg-blue-50 p-4 rounded-lg">
               <div className="flex items-center">
                 <FileText className="h-8 w-8 text-blue-600 mr-3" />
                 <div>
                   <p className="text-sm text-gray-500">Total Registros</p>
-                  <p className="text-2xl font-bold">{logs.length}</p>
+                  <p className="text-2xl font-bold">{loading ? "-" : estadisticas.total.toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-purple-50 p-4 rounded-lg">
+              <div className="flex items-center">
+                <FileText className="h-8 w-8 text-purple-600 mr-3" />
+                <div>
+                  <p className="text-sm text-gray-500">Actividad</p>
+                  <p className="text-2xl font-bold">{loading ? "-" : estadisticas.activity.toLocaleString()}</p>
                 </div>
               </div>
             </div>
@@ -155,26 +136,26 @@ export default function LogsAuditoria() {
               <div className="flex items-center">
                 <FileText className="h-8 w-8 text-green-600 mr-3" />
                 <div>
-                  <p className="text-sm text-gray-500">Info</p>
-                  <p className="text-2xl font-bold">{logs.filter((l) => l.nivel === "Info").length}</p>
+                  <p className="text-sm text-gray-500">Emails</p>
+                  <p className="text-2xl font-bold">{loading ? "-" : estadisticas.email.toLocaleString()}</p>
                 </div>
               </div>
             </div>
-            <div className="bg-yellow-50 p-4 rounded-lg">
+            <div className="bg-amber-50 p-4 rounded-lg">
               <div className="flex items-center">
-                <FileText className="h-8 w-8 text-yellow-600 mr-3" />
+                <FileText className="h-8 w-8 text-amber-600 mr-3" />
                 <div>
-                  <p className="text-sm text-gray-500">Alertas</p>
-                  <p className="text-2xl font-bold">{logs.filter((l) => l.nivel === "Alerta").length}</p>
+                  <p className="text-sm text-gray-500">Cobranza</p>
+                  <p className="text-2xl font-bold">{loading ? "-" : estadisticas.collection.toLocaleString()}</p>
                 </div>
               </div>
             </div>
-            <div className="bg-red-50 p-4 rounded-lg">
+            <div className="bg-cyan-50 p-4 rounded-lg">
               <div className="flex items-center">
-                <FileText className="h-8 w-8 text-red-600 mr-3" />
+                <Clock className="h-8 w-8 text-cyan-600 mr-3" />
                 <div>
-                  <p className="text-sm text-gray-500">Errores</p>
-                  <p className="text-2xl font-bold">{logs.filter((l) => l.nivel === "Error").length}</p>
+                  <p className="text-sm text-gray-500">Hoy</p>
+                  <p className="text-2xl font-bold">{loading ? "-" : estadisticas.hoy.toLocaleString()}</p>
                 </div>
               </div>
             </div>
@@ -183,12 +164,20 @@ export default function LogsAuditoria() {
       </Card>
 
       <div className="flex justify-between items-center mb-4">
-        <Tabs defaultValue="todos" className="w-[400px]" onValueChange={setActiveTab}>
+        <Tabs value={activeTab} className="w-[500px]" onValueChange={(v) => setActiveTab(v as any)}>
+          <TabsList>
+            <TabsTrigger value="todos">Todos</TabsTrigger>
+            <TabsTrigger value="activity">Actividad</TabsTrigger>
+            <TabsTrigger value="email">Emails</TabsTrigger>
+            <TabsTrigger value="collection">Cobranza</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <Tabs value={nivelFilter} className="w-[300px]" onValueChange={(v) => setNivelFilter(v as any)}>
           <TabsList>
             <TabsTrigger value="todos">Todos</TabsTrigger>
             <TabsTrigger value="info">Info</TabsTrigger>
-            <TabsTrigger value="alertas">Alertas</TabsTrigger>
-            <TabsTrigger value="errores">Errores</TabsTrigger>
+            <TabsTrigger value="warning">Alertas</TabsTrigger>
+            <TabsTrigger value="error">Errores</TabsTrigger>
           </TabsList>
         </Tabs>
         <div className="relative">
@@ -205,45 +194,95 @@ export default function LogsAuditoria() {
 
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Usuario</TableHead>
-                <TableHead>Acción</TableHead>
-                <TableHead>Módulo</TableHead>
-                <TableHead>Fecha</TableHead>
-                <TableHead>Hora</TableHead>
-                <TableHead>IP</TableHead>
-                <TableHead>Nivel</TableHead>
-                <TableHead>Detalles</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredLogs.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell className="font-medium">{log.usuario}</TableCell>
-                  <TableCell>{log.accion}</TableCell>
-                  <TableCell>{log.modulo}</TableCell>
-                  <TableCell>{log.fecha}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center">
-                      <Clock className="h-3 w-3 mr-1 text-gray-500" />
-                      {log.hora}
-                    </div>
-                  </TableCell>
-                  <TableCell>{log.ip}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={log.nivel === "Info" ? "default" : log.nivel === "Alerta" ? "secondary" : "destructive"}
-                    >
-                      {log.nivel}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="max-w-xs truncate">{log.detalles}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              <span className="ml-2">Cargando logs...</span>
+            </div>
+          ) : error ? (
+            <div className="flex justify-center items-center py-12 text-red-600">
+              <AlertCircle className="h-8 w-8 mr-2" />
+              <span>{error}</span>
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="flex justify-center items-center py-12 text-gray-500">
+              <FileText className="h-8 w-8 mr-2" />
+              <span>No se encontraron logs</span>
+            </div>
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Usuario</TableHead>
+                    <TableHead>Acción</TableHead>
+                    <TableHead>Módulo</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Hora</TableHead>
+                    <TableHead>IP</TableHead>
+                    <TableHead>Nivel</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Detalles</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {logs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell className="font-medium">
+                        <div>{log.usuario}</div>
+                        <div className="text-xs text-gray-500">{log.email}</div>
+                      </TableCell>
+                      <TableCell>{log.accion}</TableCell>
+                      <TableCell>{log.modulo}</TableCell>
+                      <TableCell>{log.fecha}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center">
+                          <Clock className="h-3 w-3 mr-1 text-gray-500" />
+                          {log.hora}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs text-gray-600">{log.ip || "-"}</TableCell>
+                      <TableCell>
+                        <Badge variant={getNivelBadgeVariant(log.nivel)}>
+                          {log.nivel}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          {getTipoLabel(log.tipo_log)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="max-w-xs truncate">{log.detalles || "-"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              
+              <div className="flex items-center justify-between px-6 py-4 border-t">
+                <div className="text-sm text-gray-500">
+                  Mostrando {pagination.from} - {pagination.to} de {pagination.total.toLocaleString()} logs
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPagination(p => ({ ...p, current_page: p.current_page - 1 }))}
+                    disabled={pagination.current_page === 1 || loading}
+                  >
+                    Anterior
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPagination(p => ({ ...p, current_page: p.current_page + 1 }))}
+                    disabled={!pagination.has_more || loading}
+                  >
+                    Siguiente
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

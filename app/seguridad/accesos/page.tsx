@@ -1,123 +1,126 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CalendarIcon, Clock, Eye, Lock, Search, Shield, User } from "lucide-react"
+import { CalendarIcon, Clock, Download, Lock, Search, Shield, User, X, Loader2, AlertCircle, Eye } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
+import seguridadService, { type AccesoSesion, type ResumenAccesos } from "@/services/seguridad"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function ControlAccesos() {
   const [searchTerm, setSearchTerm] = useState("")
-  const [activeTab, setActiveTab] = useState("todos")
-
-  // Datos de ejemplo
-  const accesos = [
-    {
-      id: 1,
-      usuario: "Juan Pérez",
-      email: "juan.perez@ejemplo.com",
-      rol: "Administrador",
-      ip: "192.168.1.100",
-      fecha: "2023-05-15",
-      hora: "10:30:45",
-      estado: "Exitoso",
-      dispositivo: "Windows / Chrome",
-    },
-    {
-      id: 2,
-      usuario: "María López",
-      email: "maria.lopez@ejemplo.com",
-      rol: "Docente",
-      ip: "192.168.1.101",
-      fecha: "2023-05-15",
-      hora: "09:15:22",
-      estado: "Exitoso",
-      dispositivo: "MacOS / Safari",
-    },
-    {
-      id: 3,
-      usuario: "Carlos Rodríguez",
-      email: "carlos.rodriguez@ejemplo.com",
-      rol: "Estudiante",
-      ip: "192.168.1.102",
-      fecha: "2023-05-15",
-      hora: "08:45:10",
-      estado: "Fallido",
-      dispositivo: "Android / Chrome",
-    },
-    {
-      id: 4,
-      usuario: "Ana Martínez",
-      email: "ana.martinez@ejemplo.com",
-      rol: "Administrativo",
-      ip: "192.168.1.103",
-      fecha: "2023-05-14",
-      hora: "16:20:33",
-      estado: "Exitoso",
-      dispositivo: "Windows / Edge",
-    },
-    {
-      id: 5,
-      usuario: "Roberto Sánchez",
-      email: "roberto.sanchez@ejemplo.com",
-      rol: "Docente",
-      ip: "192.168.1.104",
-      fecha: "2023-05-14",
-      hora: "14:10:05",
-      estado: "Exitoso",
-      dispositivo: "iOS / Safari",
-    },
-    {
-      id: 6,
-      usuario: "Laura Gómez",
-      email: "laura.gomez@ejemplo.com",
-      rol: "Estudiante",
-      ip: "192.168.1.105",
-      fecha: "2023-05-14",
-      hora: "12:05:18",
-      estado: "Fallido",
-      dispositivo: "Windows / Firefox",
-    },
-    {
-      id: 7,
-      usuario: "Pedro Díaz",
-      email: "pedro.diaz@ejemplo.com",
-      rol: "Administrativo",
-      ip: "192.168.1.106",
-      fecha: "2023-05-13",
-      hora: "17:30:42",
-      estado: "Exitoso",
-      dispositivo: "Linux / Chrome",
-    },
-    {
-      id: 8,
-      usuario: "Sofía Hernández",
-      email: "sofia.hernandez@ejemplo.com",
-      rol: "Docente",
-      ip: "192.168.1.107",
-      fecha: "2023-05-13",
-      hora: "11:25:37",
-      estado: "Fallido",
-      dispositivo: "MacOS / Chrome",
-    },
-  ]
-
-  // Filtrar accesos según la búsqueda y la pestaña activa
-  const filteredAccesos = accesos.filter((acceso) => {
-    const matchesSearch =
-      acceso.usuario.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      acceso.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      acceso.ip.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      acceso.dispositivo.toLowerCase().includes(searchTerm.toLowerCase())
-
-    if (activeTab === "todos") return matchesSearch
-    if (activeTab === "exitosos") return matchesSearch && acceso.estado === "Exitoso"
-    if (activeTab === "fallidos") return matchesSearch && acceso.estado === "Fallido"
-    return matchesSearch
+  const [activeTab, setActiveTab] = useState<"todos" | "activo" | "cerrado">("todos")
+  const [accesos, setAccesos] = useState<AccesoSesion[]>([])
+  const [resumen, setResumen] = useState<ResumenAccesos>({ total: 0, activos: 0, cerrados: 0, hoy: 0 })
+  const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
+  const [sessionToClose, setSessionToClose] = useState<number | null>(null)
+  const [closingSession, setClosingSession] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [perPage, setPerPage] = useState(50)
+  const [pagination, setPagination] = useState({
+    current_page: 1,
+    per_page: 50,
+    total: 0,
+    total_pages: 1,
+    from: 0,
+    to: 0,
+    has_more: false
   })
+
+  // Cargar accesos desde el backend
+  useEffect(() => {
+    cargarAccesos()
+  }, [activeTab, searchTerm, currentPage, perPage])
+
+  const cargarAccesos = async () => {
+    try {
+      setLoading(true)
+      const response = await seguridadService.obtenerAccesos({
+        search: searchTerm || undefined,
+        estado: activeTab,
+        page: currentPage,
+        per_page: perPage
+      })
+
+      setAccesos(response.accesos)
+      setResumen(response.resumen)
+      setPagination(response.pagination)
+      setTotalPages(response.pagination.total_pages)
+    } catch (error: any) {
+      console.error("Error cargando accesos:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudieron cargar los accesos",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDescargarReporte = async () => {
+    try {
+      setDownloading(true)
+      await seguridadService.descargarReporteAccesos({
+        search: searchTerm || undefined,
+        estado: activeTab
+      })
+      toast({
+        title: "✅ Reporte descargado",
+        description: "El archivo PDF se descargó correctamente"
+      })
+    } catch (error: any) {
+      console.error("Error descargando reporte:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo descargar el reporte",
+        variant: "destructive"
+      })
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  const handleCerrarSesion = async () => {
+    if (!sessionToClose) return
+
+    try {
+      setClosingSession(true)
+      await seguridadService.cerrarSesion(sessionToClose)
+      toast({
+        title: "✅ Sesión cerrada",
+        description: "La sesión se cerró correctamente"
+      })
+      setSessionToClose(null)
+      // Recargar lista
+      cargarAccesos()
+    } catch (error: any) {
+      console.error("Error cerrando sesión:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo cerrar la sesión",
+        variant: "destructive"
+      })
+    } finally {
+      setClosingSession(false)
+    }
+  }
 
   return (
     <div className="container mx-auto py-6">
@@ -140,7 +143,7 @@ export default function ControlAccesos() {
                 <User className="h-8 w-8 text-blue-600 mr-3" />
                 <div>
                   <p className="text-sm text-gray-500">Total Accesos</p>
-                  <p className="text-2xl font-bold">{accesos.length}</p>
+                  <p className="text-2xl font-bold">{loading ? "-" : resumen.total}</p>
                 </div>
               </div>
             </div>
@@ -148,8 +151,8 @@ export default function ControlAccesos() {
               <div className="flex items-center">
                 <Shield className="h-8 w-8 text-green-600 mr-3" />
                 <div>
-                  <p className="text-sm text-gray-500">Accesos Exitosos</p>
-                  <p className="text-2xl font-bold">{accesos.filter((a) => a.estado === "Exitoso").length}</p>
+                  <p className="text-sm text-gray-500">Sesiones Activas</p>
+                  <p className="text-2xl font-bold">{loading ? "-" : resumen.activos}</p>
                 </div>
               </div>
             </div>
@@ -157,8 +160,8 @@ export default function ControlAccesos() {
               <div className="flex items-center">
                 <Lock className="h-8 w-8 text-red-600 mr-3" />
                 <div>
-                  <p className="text-sm text-gray-500">Accesos Fallidos</p>
-                  <p className="text-2xl font-bold">{accesos.filter((a) => a.estado === "Fallido").length}</p>
+                  <p className="text-sm text-gray-500">Sesiones Cerradas</p>
+                  <p className="text-2xl font-bold">{loading ? "-" : resumen.cerrados}</p>
                 </div>
               </div>
             </div>
@@ -167,7 +170,7 @@ export default function ControlAccesos() {
                 <CalendarIcon className="h-8 w-8 text-purple-600 mr-3" />
                 <div>
                   <p className="text-sm text-gray-500">Hoy</p>
-                  <p className="text-2xl font-bold">{accesos.filter((a) => a.fecha === "2023-05-15").length}</p>
+                  <p className="text-2xl font-bold">{loading ? "-" : resumen.hoy}</p>
                 </div>
               </div>
             </div>
@@ -176,22 +179,32 @@ export default function ControlAccesos() {
       </Card>
 
       <div className="flex justify-between items-center mb-4">
-        <Tabs defaultValue="todos" className="w-[400px]" onValueChange={setActiveTab}>
+        <Tabs defaultValue="todos" className="w-[400px]" onValueChange={(v) => setActiveTab(v as "todos" | "activo" | "cerrado")}>
           <TabsList>
             <TabsTrigger value="todos">Todos</TabsTrigger>
-            <TabsTrigger value="exitosos">Exitosos</TabsTrigger>
-            <TabsTrigger value="fallidos">Fallidos</TabsTrigger>
+            <TabsTrigger value="activo">Activos</TabsTrigger>
+            <TabsTrigger value="cerrado">Cerrados</TabsTrigger>
           </TabsList>
         </Tabs>
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-          <Input
-            type="search"
-            placeholder="Buscar accesos..."
-            className="pl-8 w-[300px]"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="flex gap-2 items-center">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+            <Input
+              type="search"
+              placeholder="Buscar accesos..."
+              className="pl-8 w-[300px]"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <Button onClick={handleDescargarReporte} disabled={downloading} variant="outline">
+            {downloading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
+            {downloading ? "Descargando..." : "Descargar Reporte"}
+          </Button>
         </div>
       </div>
 
@@ -207,10 +220,26 @@ export default function ControlAccesos() {
                 <TableHead>Hora</TableHead>
                 <TableHead>Dispositivo</TableHead>
                 <TableHead>Estado</TableHead>
+                <TableHead>Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredAccesos.map((acceso) => (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">Cargando accesos...</p>
+                  </TableCell>
+                </TableRow>
+              ) : accesos.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8">
+                    <AlertCircle className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">No se encontraron accesos</p>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                accesos.map((acceso) => (
                 <TableRow key={acceso.id}>
                   <TableCell>
                     <div>
@@ -229,14 +258,80 @@ export default function ControlAccesos() {
                   </TableCell>
                   <TableCell>{acceso.dispositivo}</TableCell>
                   <TableCell>
-                    <Badge variant={acceso.estado === "Exitoso" ? "success" : "destructive"}>{acceso.estado}</Badge>
+                    <Badge variant={acceso.estado === "Activo" ? "default" : "secondary"}>
+                      {acceso.estado}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {acceso.estado === "Activo" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSessionToClose(acceso.id)}
+                      >
+                        <X className="h-4 w-4 text-red-500" />
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
-              ))}
+              ))
+              )}
             </TableBody>
           </Table>
+
+          {/* Pagination */}
+          {!loading && accesos.length > 0 && (
+            <div className="flex items-center justify-between px-4 py-4 border-t">
+              <div className="text-sm text-gray-600">
+                Mostrando {pagination.from} - {pagination.to} de {pagination.total} accesos
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  disabled={!pagination.has_more}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Dialog para cerrar sesión */}
+      <AlertDialog open={sessionToClose !== null} onOpenChange={(open) => !open && setSessionToClose(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cerrar esta sesión?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción cerrará la sesión del usuario. El usuario deberá iniciar sesión nuevamente para acceder al sistema.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={closingSession}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCerrarSesion} disabled={closingSession}>
+              {closingSession ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Cerrando...
+                </>
+              ) : (
+                "Cerrar Sesión"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

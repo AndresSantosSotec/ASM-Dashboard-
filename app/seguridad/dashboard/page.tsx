@@ -1,3 +1,6 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import type { Metadata } from "next"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -25,14 +28,77 @@ import {
   Settings,
   Bell,
   CheckCircle,
+  Loader2,
 } from "lucide-react"
-
-export const metadata: Metadata = {
-  title: "Dashboard de Seguridad | Blue Atlas",
-  description: "Panel de control de seguridad del sistema",
-}
+import { seguridadDashboardService, type RespuestaDashboard } from "@/services/seguridad-dashboard"
+import { toast } from "sonner"
 
 export default function SeguridadDashboardPage() {
+  const [datos, setDatos] = useState<RespuestaDashboard | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [cerrandoSesion, setCerrandoSesion] = useState<string | null>(null)
+
+  useEffect(() => {
+    cargarDatos()
+  }, [])
+
+  const cargarDatos = async () => {
+    try {
+      setLoading(true)
+      const response = await seguridadDashboardService.obtenerDashboard()
+      setDatos(response)
+    } catch (error) {
+      console.error('Error cargando dashboard:', error)
+      toast.error('Error al cargar el dashboard de seguridad')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const cerrarSesion = async (sessionId: string) => {
+    try {
+      setCerrandoSesion(sessionId)
+      await seguridadDashboardService.cerrarSesion(sessionId)
+      toast.success('Sesión cerrada exitosamente')
+      cargarDatos()
+    } catch (error) {
+      console.error('Error cerrando sesión:', error)
+      toast.error('Error al cerrar la sesión')
+    } finally {
+      setCerrandoSesion(null)
+    }
+  }
+
+  const cerrarTodasLasSesiones = async () => {
+    if (!confirm('¿Estás seguro de cerrar todas las sesiones activas?')) return
+    
+    try {
+      await seguridadDashboardService.cerrarTodasLasSesiones()
+      toast.success('Todas las sesiones han sido cerradas')
+      cargarDatos()
+    } catch (error) {
+      console.error('Error cerrando todas las sesiones:', error)
+      toast.error('Error al cerrar las sesiones')
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <span className="ml-2">Cargando dashboard...</span>
+      </div>
+    )
+  }
+
+  if (!datos) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <AlertTriangle className="h-8 w-8 text-red-600 mr-2" />
+        <span>Error al cargar los datos del dashboard</span>
+      </div>
+    )
+  }
   return (
     <div className="container mx-auto py-6 space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -53,16 +119,18 @@ export default function SeguridadDashboardPage() {
       </div>
 
       {/* Alertas de seguridad */}
-      <Alert variant="default" className="bg-amber-50 border-amber-200">
-        <AlertTriangle className="h-4 w-4 text-amber-600" />
-        <AlertTitle className="text-amber-800">Atención</AlertTitle>
-        <AlertDescription className="text-amber-700">
-          Se han detectado 3 intentos fallidos de inicio de sesión en las últimas 24 horas.
-          <Button variant="link" className="h-auto p-0 text-amber-800 font-medium ml-1">
-            Ver detalles
-          </Button>
-        </AlertDescription>
-      </Alert>
+      {datos.alertas.length > 0 && (
+        <Alert variant="default" className="bg-amber-50 border-amber-200">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertTitle className="text-amber-800">Atención</AlertTitle>
+          <AlertDescription className="text-amber-700">
+            {datos.alertas[0].descripcion}
+            <Button variant="link" className="h-auto p-0 text-amber-800 font-medium ml-1">
+              Ver detalles
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Tarjetas de estadísticas */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -72,11 +140,11 @@ export default function SeguridadDashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">152</div>
+            <div className="text-2xl font-bold">{datos.estadisticas.usuarios_activos}</div>
             <div className="flex items-center pt-1">
-              <span className="text-xs text-green-600 font-medium flex items-center">
-                <ArrowRight className="h-3 w-3 mr-1 rotate-45" />
-                +5 en el último mes
+              <span className={`text-xs font-medium flex items-center ${datos.estadisticas.usuarios_activos_cambio >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <ArrowRight className={`h-3 w-3 mr-1 ${datos.estadisticas.usuarios_activos_cambio >= 0 ? 'rotate-45' : '-rotate-45'}`} />
+                {datos.estadisticas.usuarios_activos_cambio >= 0 ? '+' : ''}{datos.estadisticas.usuarios_activos_cambio} en el último mes
               </span>
             </div>
           </CardContent>
@@ -87,11 +155,11 @@ export default function SeguridadDashboardPage() {
             <ShieldCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">7</div>
+            <div className="text-2xl font-bold">{datos.estadisticas.roles_configurados}</div>
             <div className="flex items-center pt-1">
-              <span className="text-xs text-green-600 font-medium flex items-center">
-                <ArrowRight className="h-3 w-3 mr-1 rotate-45" />
-                +1 en el último mes
+              <span className={`text-xs font-medium flex items-center ${datos.estadisticas.roles_configurados_cambio >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <ArrowRight className={`h-3 w-3 mr-1 ${datos.estadisticas.roles_configurados_cambio >= 0 ? 'rotate-45' : '-rotate-45'}`} />
+                {datos.estadisticas.roles_configurados_cambio >= 0 ? '+' : ''}{datos.estadisticas.roles_configurados_cambio} en el último mes
               </span>
             </div>
           </CardContent>
@@ -102,11 +170,11 @@ export default function SeguridadDashboardPage() {
             <Lock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">45</div>
+            <div className="text-2xl font-bold">{datos.estadisticas.permisos_totales}</div>
             <div className="flex items-center pt-1">
-              <span className="text-xs text-green-600 font-medium flex items-center">
-                <ArrowRight className="h-3 w-3 mr-1 rotate-45" />
-                +3 en el último mes
+              <span className={`text-xs font-medium flex items-center ${datos.estadisticas.permisos_totales_cambio >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <ArrowRight className={`h-3 w-3 mr-1 ${datos.estadisticas.permisos_totales_cambio >= 0 ? 'rotate-45' : '-rotate-45'}`} />
+                {datos.estadisticas.permisos_totales_cambio >= 0 ? '+' : ''}{datos.estadisticas.permisos_totales_cambio} en el último mes
               </span>
             </div>
           </CardContent>
@@ -117,11 +185,11 @@ export default function SeguridadDashboardPage() {
             <History className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,284</div>
+            <div className="text-2xl font-bold">{datos.estadisticas.eventos_auditoria.toLocaleString()}</div>
             <div className="flex items-center pt-1">
-              <span className="text-xs text-green-600 font-medium flex items-center">
-                <ArrowRight className="h-3 w-3 mr-1 rotate-45" />
-                +324 en el último mes
+              <span className={`text-xs font-medium flex items-center ${datos.estadisticas.eventos_auditoria_cambio >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <ArrowRight className={`h-3 w-3 mr-1 ${datos.estadisticas.eventos_auditoria_cambio >= 0 ? 'rotate-45' : '-rotate-45'}`} />
+                {datos.estadisticas.eventos_auditoria_cambio >= 0 ? '+' : ''}{datos.estadisticas.eventos_auditoria_cambio} en el último mes
               </span>
             </div>
           </CardContent>
@@ -145,10 +213,10 @@ export default function SeguridadDashboardPage() {
                       <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
                       <span className="text-sm">Inicios de sesión</span>
                     </div>
-                    <span className="text-sm font-medium">452</span>
+                    <span className="text-sm font-medium">{datos.actividad.inicios_sesion}</span>
                   </div>
-                  <Progress value={75} className="h-2 bg-blue-100">
-                    <div className="h-2 bg-blue-500" style={{ width: '75%' }}></div>
+                  <Progress value={(datos.actividad.inicios_sesion / (datos.actividad.inicios_sesion + datos.actividad.cambios_permisos + datos.actividad.cambios_configuracion + datos.actividad.intentos_fallidos)) * 100} className="h-2 bg-blue-100">
+                    <div className="h-2 bg-blue-500" style={{ width: `${(datos.actividad.inicios_sesion / (datos.actividad.inicios_sesion + datos.actividad.cambios_permisos + datos.actividad.cambios_configuracion + datos.actividad.intentos_fallidos)) * 100}%` }}></div>
                   </Progress>
                 </div>
 
@@ -158,10 +226,10 @@ export default function SeguridadDashboardPage() {
                       <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
                       <span className="text-sm">Cambios de permisos</span>
                     </div>
-                    <span className="text-sm font-medium">128</span>
+                    <span className="text-sm font-medium">{datos.actividad.cambios_permisos}</span>
                   </div>
-                  <Progress value={35} className="h-2 bg-green-100">
-                    <div className="h-2 bg-green-500" style={{ width: '35%' }}></div>
+                  <Progress value={(datos.actividad.cambios_permisos / (datos.actividad.inicios_sesion + datos.actividad.cambios_permisos + datos.actividad.cambios_configuracion + datos.actividad.intentos_fallidos)) * 100} className="h-2 bg-green-100">
+                    <div className="h-2 bg-green-500" style={{ width: `${(datos.actividad.cambios_permisos / (datos.actividad.inicios_sesion + datos.actividad.cambios_permisos + datos.actividad.cambios_configuracion + datos.actividad.intentos_fallidos)) * 100}%` }}></div>
                   </Progress>
                 </div>
 
@@ -171,10 +239,10 @@ export default function SeguridadDashboardPage() {
                       <div className="w-3 h-3 rounded-full bg-amber-500 mr-2"></div>
                       <span className="text-sm">Cambios de configuración</span>
                     </div>
-                    <span className="text-sm font-medium">86</span>
+                    <span className="text-sm font-medium">{datos.actividad.cambios_configuracion}</span>
                   </div>
-                  <Progress value={25} className="h-2 bg-amber-100">
-                    <div className="h-2 bg-amber-500" style={{ width: '25%' }}></div>
+                  <Progress value={(datos.actividad.cambios_configuracion / (datos.actividad.inicios_sesion + datos.actividad.cambios_permisos + datos.actividad.cambios_configuracion + datos.actividad.intentos_fallidos)) * 100} className="h-2 bg-amber-100">
+                    <div className="h-2 bg-amber-500" style={{ width: `${(datos.actividad.cambios_configuracion / (datos.actividad.inicios_sesion + datos.actividad.cambios_permisos + datos.actividad.cambios_configuracion + datos.actividad.intentos_fallidos)) * 100}%` }}></div>
                   </Progress>
                 </div>
 
@@ -184,10 +252,10 @@ export default function SeguridadDashboardPage() {
                       <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
                       <span className="text-sm">Intentos fallidos</span>
                     </div>
-                    <span className="text-sm font-medium">24</span>
+                    <span className="text-sm font-medium">{datos.actividad.intentos_fallidos}</span>
                   </div>
-                  <Progress value={10} className="h-2 bg-red-100">
-                    <div className="h-2 bg-red-500" style={{ width: '10%' }}></div>
+                  <Progress value={(datos.actividad.intentos_fallidos / (datos.actividad.inicios_sesion + datos.actividad.cambios_permisos + datos.actividad.cambios_configuracion + datos.actividad.intentos_fallidos)) * 100} className="h-2 bg-red-100">
+                    <div className="h-2 bg-red-500" style={{ width: `${(datos.actividad.intentos_fallidos / (datos.actividad.inicios_sesion + datos.actividad.cambios_permisos + datos.actividad.cambios_configuracion + datos.actividad.intentos_fallidos)) * 100}%` }}></div>
                   </Progress>
                 </div>
               </div>
@@ -212,51 +280,31 @@ export default function SeguridadDashboardPage() {
             <CardDescription>Últimas acciones realizadas en el sistema</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-start space-x-4">
-              <div className="bg-blue-100 p-2 rounded-full">
-                <UserCheck className="h-5 w-5 text-blue-600" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Nuevo usuario creado</p>
-                <p className="text-xs text-muted-foreground">
-                  El administrador Juan Pérez creó el usuario "María López"
-                </p>
-                <p className="text-xs text-muted-foreground">Hace 35 minutos</p>
-              </div>
-            </div>
+            {datos.actividad_reciente.slice(0, 4).map((actividad) => {
+              const iconConfig = {
+                'usuario_creado': { bg: 'bg-blue-100', icon: UserCheck, color: 'text-blue-600' },
+                'rol_modificado': { bg: 'bg-amber-100', icon: ShieldCheck, color: 'text-amber-600' },
+                'usuario_desactivado': { bg: 'bg-red-100', icon: UserX, color: 'text-red-600' },
+                'politica_actualizada': { bg: 'bg-green-100', icon: FileText, color: 'text-green-600' },
+                'permiso_modificado': { bg: 'bg-purple-100', icon: Lock, color: 'text-purple-600' },
+                'login_fallido': { bg: 'bg-red-100', icon: AlertTriangle, color: 'text-red-600' },
+              }
+              const config = iconConfig[actividad.tipo] || iconConfig['permiso_modificado']
+              const Icon = config.icon
 
-            <div className="flex items-start space-x-4">
-              <div className="bg-amber-100 p-2 rounded-full">
-                <ShieldCheck className="h-5 w-5 text-amber-600" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Rol modificado</p>
-                <p className="text-xs text-muted-foreground">Se actualizaron los permisos del rol "Asesor"</p>
-                <p className="text-xs text-muted-foreground">Hace 2 horas</p>
-              </div>
-            </div>
-
-            <div className="flex items-start space-x-4">
-              <div className="bg-red-100 p-2 rounded-full">
-                <UserX className="h-5 w-5 text-red-600" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Usuario desactivado</p>
-                <p className="text-xs text-muted-foreground">El usuario "Carlos Rodríguez" fue desactivado</p>
-                <p className="text-xs text-muted-foreground">Hace 5 horas</p>
-              </div>
-            </div>
-
-            <div className="flex items-start space-x-4">
-              <div className="bg-green-100 p-2 rounded-full">
-                <FileText className="h-5 w-5 text-green-600" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Política actualizada</p>
-                <p className="text-xs text-muted-foreground">Se actualizó la política de contraseñas</p>
-                <p className="text-xs text-muted-foreground">Hace 1 día</p>
-              </div>
-            </div>
+              return (
+                <div key={actividad.id} className="flex items-start space-x-4">
+                  <div className={`${config.bg} p-2 rounded-full`}>
+                    <Icon className={`h-5 w-5 ${config.color}`} />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">{actividad.titulo}</p>
+                    <p className="text-xs text-muted-foreground">{actividad.descripcion}</p>
+                    <p className="text-xs text-muted-foreground">{actividad.tiempo_relativo}</p>
+                  </div>
+                </div>
+              )
+            })}
           </CardContent>
           <CardFooter className="border-t px-6 py-4">
             <Button variant="ghost" className="w-full" asChild>
@@ -280,78 +328,64 @@ export default function SeguridadDashboardPage() {
             <Users className="mr-2 h-4 w-4" />
             Sesiones Activas
           </TabsTrigger>
-          <TabsTrigger value="politicas">
-            <KeyRound className="mr-2 h-4 w-4" />
-            Estado de Políticas
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="alertas" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Alertas de Seguridad</CardTitle>
-              <CardDescription>Eventos que requieren atención</CardDescription>
+              <CardDescription>Eventos detectados automáticamente que requieren atención</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-start space-x-4">
-                <div className="bg-red-100 p-2 rounded-full">
-                  <AlertTriangle className="h-5 w-5 text-red-600" />
+              {datos.alertas.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <CheckCircle className="h-12 w-12 mx-auto mb-2 text-green-500" />
+                  <p>No hay alertas de seguridad en este momento</p>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Múltiples intentos fallidos</p>
-                  <p className="text-xs text-muted-foreground">
-                    3 intentos fallidos de inicio de sesión para el usuario "admin@example.com"
-                  </p>
-                  <p className="text-xs text-muted-foreground">Hace 2 horas - IP: 192.168.1.105</p>
-                  <div className="flex gap-2 mt-1">
-                    <Button variant="outline" size="sm">
-                      Bloquear IP
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      Bloquear Usuario
-                    </Button>
-                    <Button size="sm">Investigar</Button>
-                  </div>
-                </div>
-              </div>
+              ) : (
+                datos.alertas.map((alerta) => {
+                  const iconConfig = {
+                    critico: { bg: 'bg-red-100', icon: AlertTriangle, color: 'text-red-600' },
+                    alto: { bg: 'bg-amber-100', icon: ShieldAlert, color: 'text-amber-600' },
+                    medio: { bg: 'bg-yellow-100', icon: Clock, color: 'text-yellow-600' },
+                    bajo: { bg: 'bg-blue-100', icon: Eye, color: 'text-blue-600' },
+                  }
+                  const config = iconConfig[alerta.nivel]
+                  const Icon = config.icon
 
-              <div className="flex items-start space-x-4">
-                <div className="bg-amber-100 p-2 rounded-full">
-                  <ShieldAlert className="h-5 w-5 text-amber-600" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Permiso sensible modificado</p>
-                  <p className="text-xs text-muted-foreground">
-                    El permiso "usuarios.eliminar" fue asignado al rol "Asesor"
-                  </p>
-                  <p className="text-xs text-muted-foreground">Hace 1 día</p>
-                  <div className="flex gap-2 mt-1">
-                    <Button variant="outline" size="sm">
-                      Revertir Cambio
-                    </Button>
-                    <Button size="sm">Revisar</Button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-start space-x-4">
-                <div className="bg-amber-100 p-2 rounded-full">
-                  <Clock className="h-5 w-5 text-amber-600" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Contraseñas próximas a expirar</p>
-                  <p className="text-xs text-muted-foreground">
-                    5 usuarios tienen contraseñas que expirarán en los próximos 7 días
-                  </p>
-                  <p className="text-xs text-muted-foreground">Verificado hoy</p>
-                  <div className="flex gap-2 mt-1">
-                    <Button variant="outline" size="sm">
-                      Ver Usuarios
-                    </Button>
-                    <Button size="sm">Enviar Notificación</Button>
-                  </div>
-                </div>
-              </div>
+                  return (
+                    <div key={alerta.id} className="flex items-start space-x-4">
+                      <div className={`${config.bg} p-2 rounded-full`}>
+                        <Icon className={`h-5 w-5 ${config.color}`} />
+                      </div>
+                      <div className="space-y-1 flex-1">
+                        <p className="text-sm font-medium">{alerta.titulo}</p>
+                        <p className="text-xs text-muted-foreground">{alerta.descripcion}</p>
+                        <p className="text-xs text-muted-foreground">{alerta.tiempo_relativo}</p>
+                        {alerta.requiere_accion && (
+                          <div className="flex gap-2 mt-1">
+                            {alerta.acciones_disponibles.includes('bloquear_ip') && (
+                              <Button variant="outline" size="sm">Bloquear IP</Button>
+                            )}
+                            {alerta.acciones_disponibles.includes('bloquear_usuario') && (
+                              <Button variant="outline" size="sm">Bloquear Usuario</Button>
+                            )}
+                            {alerta.acciones_disponibles.includes('investigar') && (
+                              <Button size="sm">Investigar</Button>
+                            )}
+                            {alerta.acciones_disponibles.includes('revertir') && (
+                              <Button variant="outline" size="sm">Revertir Cambio</Button>
+                            )}
+                            {alerta.acciones_disponibles.includes('revisar') && (
+                              <Button size="sm">Revisar</Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -364,69 +398,53 @@ export default function SeguridadDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                      <span className="font-semibold text-blue-600">JP</span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Juan Pérez</p>
-                      <p className="text-xs text-muted-foreground">Administrador</p>
-                    </div>
+                {datos.sesiones_activas.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-2" />
+                    <p>No hay sesiones activas en este momento</p>
                   </div>
-                  <div className="text-xs text-muted-foreground text-right">
-                    <p>192.168.1.100</p>
-                    <p>Conectado hace 35 min</p>
-                    <Button variant="ghost" size="sm" className="h-7 mt-1">
-                      <LogOut className="mr-1 h-3 w-3" />
-                      Cerrar sesión
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                      <span className="font-semibold text-green-600">ML</span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">María López</p>
-                      <p className="text-xs text-muted-foreground">Asesor</p>
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground text-right">
-                    <p>192.168.1.120</p>
-                    <p>Conectado hace 15 min</p>
-                    <Button variant="ghost" size="sm" className="h-7 mt-1">
-                      <LogOut className="mr-1 h-3 w-3" />
-                      Cerrar sesión
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
-                      <span className="font-semibold text-purple-600">RS</span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Roberto Sánchez</p>
-                      <p className="text-xs text-muted-foreground">Administrativo</p>
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground text-right">
-                    <p>192.168.1.110</p>
-                    <p>Conectado hace 5 min</p>
-                    <Button variant="ghost" size="sm" className="h-7 mt-1">
-                      <LogOut className="mr-1 h-3 w-3" />
-                      Cerrar sesión
-                    </Button>
-                  </div>
-                </div>
+                ) : (
+                  datos.sesiones_activas.map((sesion) => {
+                    const colors = ['blue', 'green', 'purple', 'amber', 'pink', 'indigo']
+                    const color = colors[parseInt(sesion.id) % colors.length]
+                    
+                    return (
+                      <div key={sesion.id} className="flex justify-between items-center">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-8 h-8 rounded-full bg-${color}-100 flex items-center justify-center`}>
+                            <span className={`font-semibold text-${color}-600`}>{sesion.iniciales}</span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{sesion.usuario}</p>
+                            <p className="text-xs text-muted-foreground">{sesion.rol}</p>
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground text-right">
+                          <p>{sesion.ip_address}</p>
+                          <p>Conectado {sesion.tiempo_conectado}</p>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-7 mt-1"
+                            onClick={() => cerrarSesion(sesion.id)}
+                            disabled={cerrandoSesion === sesion.id}
+                          >
+                            {cerrandoSesion === sesion.id ? (
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                            ) : (
+                              <LogOut className="mr-1 h-3 w-3" />
+                            )}
+                            Cerrar sesión
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
               </div>
             </CardContent>
             <CardFooter className="border-t px-6 py-4">
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full" onClick={cerrarTodasLasSesiones}>
                 Cerrar todas las sesiones
               </Button>
             </CardFooter>
