@@ -25,6 +25,55 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
+// 💀 Componente Skeleton para estados de carga
+const Skeleton = ({ className = "" }: { className?: string }) => (
+  <div className={`animate-pulse bg-gray-200 rounded ${className}`} />
+);
+
+const TableSkeleton = () => (
+  <TableBody>
+    {[1, 2, 3, 4, 5].map((i) => (
+      <TableRow key={i}>
+        <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+        <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+        <TableCell><Skeleton className="h-6 w-20" /></TableCell>
+        <TableCell><Skeleton className="h-8 w-24" /></TableCell>
+      </TableRow>
+    ))}
+  </TableBody>
+);
+
+const InteractionsSkeleton = () => (
+  <div className="space-y-4">
+    {[1, 2, 3].map((i) => (
+      <div key={i} className="border rounded p-3 space-y-2">
+        <div className="flex justify-between">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-3/4" />
+        <div className="flex justify-between">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-3 w-24" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+const CitasSkeleton = () => (
+  <div className="space-y-2">
+    {[1, 2, 3].map((i) => (
+      <div key={i} className="flex justify-between items-center border-b py-2">
+        <Skeleton className="h-4 w-36" />
+        <Skeleton className="h-4 w-24" />
+      </div>
+    ))}
+  </div>
+);
+
 interface Prospecto {
   id: string;
   nombre: string;
@@ -45,6 +94,10 @@ export default function SeguimientoPage() {
   const [prospectos, setProspectos] = useState<Prospecto[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
+  
+  // 💀 Estados de carga granulares
+  const [loadingInteracciones, setLoadingInteracciones] = useState<boolean>(false);
+  const [loadingCitas, setLoadingCitas] = useState<boolean>(false);
 
   // Estado para el prospecto seleccionado
   const [selectedProspecto, setSelectedProspecto] = useState<Prospecto | null>(null);
@@ -80,6 +133,9 @@ export default function SeguimientoPage() {
   // Token desde contexto y estado para user_id
   const { token } = useAuth();
   const [userId, setUserId] = useState<string | null>(null);
+
+  // 🔄 Estado para controlar cierre automático del modal
+  const [shouldCloseModal, setShouldCloseModal] = useState<boolean>(false);
 
   // Agrega estos estados nuevos cerca de los demás useState existentes:
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -178,6 +234,7 @@ export default function SeguimientoPage() {
     if (!token || !selectedProspecto) return;
 
     const fetchInteracciones = async () => {
+      setLoadingInteracciones(true);
       try {
         const response = await api.get(`/interacciones?id_lead=${selectedProspecto.id}`);
         console.log("Interacciones recibidas:", response.data);
@@ -189,6 +246,8 @@ export default function SeguimientoPage() {
         }
       } catch (err: any) {
         console.error("Error en fetchInteracciones:", JSON.stringify(err.response || err, null, 2));
+      } finally {
+        setLoadingInteracciones(false);
       }
     };
     fetchInteracciones();
@@ -218,6 +277,7 @@ export default function SeguimientoPage() {
   useEffect(() => {
     if (!token) return;
     const fetchCitas = async () => {
+      setLoadingCitas(true);
       try {
         const response = await api.get("/citas");
         console.log("Citas recibidas:", response.data);
@@ -227,6 +287,8 @@ export default function SeguimientoPage() {
         setCitas(citasArray);
       } catch (err: any) {
         console.error("Error en fetchCitas:", JSON.stringify(err.response || err, null, 2));
+      } finally {
+        setLoadingCitas(false);
       }
     };
     fetchCitas();
@@ -285,17 +347,26 @@ export default function SeguimientoPage() {
         newInteraction
       );
       console.log("✅ Interacción guardada:", response.data);
+      
+      // ⚡ OPTIMIZACIÓN: Solo actualizar estado sin recargar todo
       setInteracciones((prev) => Array.isArray(prev) ? [...prev, response.data] : [response.data]);
       setInteractionType("");
       setInteractionDate("");
       setInteractionDuration("");
       setInteractionNotes("");
-      Swal.fire({
-        icon: "success",
-        title: "¡Hecho!",
-        text: "Interacción guardada correctamente",
+      
+      // ✅ Toast ligero para mejor UX
+      const Toast = Swal.mixin({
+        toast: true,
+        position: 'top-end',
         showConfirmButton: false,
-        timer: 1500,
+        timer: 2000,
+        timerProgressBar: true,
+      });
+      
+      Toast.fire({
+        icon: 'success',
+        title: 'Interacción guardada'
       });
     } catch (err: any) {
       console.error("❌ Error al guardar interacción:", JSON.stringify(err.response || err, null, 2));
@@ -326,36 +397,41 @@ export default function SeguimientoPage() {
       });
       return;
     }
-    const date = new Date(appointmentDate);
-    if (isNaN(date.getTime())) {
-      Swal.fire({
-        icon: "error",
-        title: "Fecha inválida",
-        text: "Selecciona una fecha válida",
-      });
-      return;
-    }
-    const formattedDate = date.toISOString();
+    
+    // 🕒 CORRECCIÓN: Mantener la hora local sin conversión a UTC
+    // El input datetime-local ya viene en formato "YYYY-MM-DDTHH:mm"
+    // Solo necesitamos agregar segundos para formato ISO completo
+    const formattedDate = appointmentDate + ":00"; // Agregar segundos
+    
     const newCita = {
       datecita: formattedDate,
       descricita: appointmentDescription.trim(),
     };
 
-    console.log("Enviando cita:", JSON.stringify(newCita, null, 2));
+    console.log("Enviando cita (hora local):", JSON.stringify(newCita, null, 2));
 
     try {
       const response = await api.post("/citas", newCita);
       const saved = response.data?.data ?? response.data;
       console.log("✅ Cita guardada:", response.data);
+      
+      // ⚡ OPTIMIZACIÓN: Actualizar solo el estado con la nueva cita
       setCitas((prev) => [...prev, saved]);
       setAppointmentDescription("");
       setAppointmentDate(getDefaultAppointmentDate());
-      Swal.fire({
-        icon: "success",
-        title: "¡Cita Agendada!",
-        text: "Cita agendada correctamente",
+      
+      // ✅ Toast ligero en lugar de Swal
+      const Toast = Swal.mixin({
+        toast: true,
+        position: 'top-end',
         showConfirmButton: false,
-        timer: 1500,
+        timer: 2000,
+        timerProgressBar: true,
+      });
+      
+      Toast.fire({
+        icon: 'success',
+        title: 'Cita agendada correctamente'
       });
     } catch (err: any) {
       console.error("❌ Error al guardar cita:", JSON.stringify(err.response || err, null, 2));
@@ -368,13 +444,14 @@ export default function SeguimientoPage() {
   };
 
   return (
-    <div className="p-4 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Panel de Seguimiento del Asesor</h1>
-          <p className="text-sm text-gray-500">Gestione el seguimiento de sus prospectos asignados</p>
+    <>
+      <div className="p-4 space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">Panel de Seguimiento del Asesor</h1>
+            <p className="text-sm text-gray-500">Gestione el seguimiento de sus prospectos asignados</p>
+          </div>
         </div>
-      </div>
 
       <div className="flex flex-col sm:flex-row gap-4 mb-4">
         <Input
@@ -426,23 +503,24 @@ export default function SeguimientoPage() {
         </Select>
       </div>
 
-      {loading && <p>Cargando prospectos...</p>}
       {error && <p className="text-red-500">{error}</p>}
 
-      {!loading && !error && (
-        <div className="bg-white p-6 rounded-lg shadow-sm">
-          <h2 className="text-lg font-semibold mb-4">Lista de Prospectos</h2>
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Teléfono</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Acción</TableHead>
-                </TableRow>
-              </TableHeader>
+      <div className="bg-white p-6 rounded-lg shadow-sm">
+        <h2 className="text-lg font-semibold mb-4">Lista de Prospectos</h2>
+        <div className="border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nombre</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Teléfono</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Acción</TableHead>
+              </TableRow>
+            </TableHeader>
+            {loading ? (
+              <TableSkeleton />
+            ) : (
               <TableBody>
                 {filteredProspectos
                   .slice((currentPage - 1) * pageSize, currentPage * pageSize)
@@ -464,8 +542,9 @@ export default function SeguimientoPage() {
                     </TableRow>
                   ))}
               </TableBody>
-            </Table>
-          </div>
+            )}
+          </Table>
+        </div>
           <div className="flex justify-end space-x-4 mt-4">
             <Button onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1}>
               Anterior
@@ -478,7 +557,7 @@ export default function SeguimientoPage() {
             </Button>
           </div>
         </div>
-      )}
+      </div>
 
       <Dialog open={!!selectedProspecto} onOpenChange={() => setSelectedProspecto(null)}>
         {/* Ajuste general del modal para que no exceda el 80% del alto de la ventana */}
@@ -506,7 +585,9 @@ export default function SeguimientoPage() {
                   <h3 className="text-md font-semibold mb-2">Historial de Actividades</h3>
                   {/* Contenedor con scroll para interacciones */}
                   <div className="max-h-72 overflow-y-auto space-y-4">
-                    {selectedProspecto &&
+                    {loadingInteracciones ? (
+                      <InteractionsSkeleton />
+                    ) : selectedProspecto &&
                       Array.isArray(interacciones) &&
                       interacciones.filter((inter) => inter.id_lead === parseInt(selectedProspecto.id, 10)).length > 0 ? (
                       interacciones
@@ -602,7 +683,9 @@ export default function SeguimientoPage() {
                     <h4 className="text-sm font-medium mb-2">Citas agendadas:</h4>
                     {/* Contenedor con scroll para citas */}
                     <div className="max-h-56 overflow-y-auto space-y-2">
-                      {citas.length > 0 ? (
+                      {loadingCitas ? (
+                        <CitasSkeleton />
+                      ) : citas.length > 0 ? (
                         citas.map((cita, index) => (
                           <div
                             key={cita.id ?? `${cita.datecita}-${index}`}
@@ -623,6 +706,6 @@ export default function SeguimientoPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

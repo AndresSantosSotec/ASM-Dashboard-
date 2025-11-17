@@ -40,10 +40,15 @@ export default function CalendarioPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [citaModalOpen, setCitaModalOpen] = useState(false);
+  const [dayActivitiesModalOpen, setDayActivitiesModalOpen] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTarea, setSelectedTarea] = useState<Tarea | null>(null);
   const [selectedCita, setSelectedCita] = useState<Cita | null>(null);
+  const [selectedDayActivities, setSelectedDayActivities] = useState<{
+    date: Date;
+    items: Array<{ kind: 'tarea' | 'cita'; item: Tarea | Cita }>;
+  } | null>(null);
 
   const [nuevaTarea, setNuevaTarea] = useState<Partial<Tarea>>({
     titulo: "",
@@ -56,6 +61,8 @@ export default function CalendarioPage() {
   });
 
   const [token, setToken] = useState<string | null>(null);
+  const [loadingTareas, setLoadingTareas] = useState(true);
+  const [loadingCitas, setLoadingCitas] = useState(true);
 
   const colorTipoTarea = {
     reunion: "bg-blue-100 text-blue-800 border-blue-200",
@@ -74,24 +81,28 @@ export default function CalendarioPage() {
   // --- Fetch tareas ---
   useEffect(() => {
     if (!token) return;
+    setLoadingTareas(true);
     api
       .get("/tareas", {
         withCredentials: true,
       })
       .then((res) => setTareas(res.data.data))
-      .catch(console.error);
+      .catch(console.error)
+      .finally(() => setLoadingTareas(false));
   }, [token]);
 
   // --- Fetch citas ---
   useEffect(() => {
     if (!token) return;
+    setLoadingCitas(true);
     api
       .get("/citas")
       .then((res) => {
         const arr = Array.isArray(res.data) ? res.data : res.data.data || [];
         setCitas(arr);
       })
-      .catch(console.error);
+      .catch(console.error)
+      .finally(() => setLoadingCitas(false));
   }, [token]);
 
   // --- Calendar days ---
@@ -134,6 +145,11 @@ export default function CalendarioPage() {
   const openCitaDetails = (c: Cita) => {
     setSelectedCita(c);
     setCitaModalOpen(true);
+  };
+
+  const openDayActivities = (day: Date, items: Array<{ kind: 'tarea' | 'cita'; item: Tarea | Cita }>) => {
+    setSelectedDayActivities({ date: day, items });
+    setDayActivitiesModalOpen(true);
   };
 
   // --- Handlers: API calls ---
@@ -288,6 +304,22 @@ export default function CalendarioPage() {
               </div>
             ))}
           </div>
+          {(loadingTareas || loadingCitas) ? (
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: 35 }).map((_, i) => (
+                <div key={i} className="h-32 p-2 rounded-md border bg-gray-50">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="w-6 h-6 bg-gray-200 rounded-full animate-pulse" />
+                    <div className="w-6 h-6 bg-gray-200 rounded animate-pulse" />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-5 bg-gray-200 rounded animate-pulse" />
+                    <div className="h-5 bg-gray-200 rounded animate-pulse w-3/4" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
           <div className="grid grid-cols-7 gap-1">
             {Array.from({ length: monthStart.getDay() }).map((_, i) => (
               <div key={i} className="h-32 p-1 bg-gray-50 rounded-md" />
@@ -307,8 +339,16 @@ export default function CalendarioPage() {
                 <div
                   key={day.toString()}
                   className={`h-32 p-1 rounded-md border transition-colors ${
-                    isCurr ? "bg-white" : "bg-gray-50 text-gray-400"
-                  } ${isTod ? "bg-blue-50" : ""}`}
+                    isCurr ? "bg-white hover:bg-gray-50" : "bg-gray-50 text-gray-400"
+                  } ${isTod ? "bg-blue-50" : ""} ${
+                    items.length > 0 ? "cursor-pointer" : ""
+                  }`}
+                  onClick={(e) => {
+                    // Solo abrir si se hace click en el fondo del día y hay items
+                    if (items.length > 0 && e.target === e.currentTarget) {
+                      openDayActivities(day, items);
+                    }
+                  }}
                 >
                   <div className="flex justify-between items-start">
                     <span
@@ -322,7 +362,10 @@ export default function CalendarioPage() {
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6"
-                      onClick={() => openNewTareaModal(day)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openNewTareaModal(day);
+                      }}
                     >
                       <Plus className="h-4 w-4" />
                     </Button>
@@ -335,7 +378,10 @@ export default function CalendarioPage() {
                           className={`px-2 py-1 text-xs rounded-md cursor-pointer truncate ${
                             colorTipoTarea[item.tipo]
                           } ${item.completada ? "opacity-60 line-through" : ""}`}
-                          onClick={() => openTareaDetails(item)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openTareaDetails(item);
+                          }}
                         >
                           {item.horaInicio} - {item.titulo}
                         </div>
@@ -343,7 +389,10 @@ export default function CalendarioPage() {
                         <div
                           key={item.id}
                           className="px-2 py-1 text-xs rounded-md cursor-pointer truncate bg-green-100 text-green-800 border-green-200"
-                          onClick={() => openCitaDetails(item)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openCitaDetails(item);
+                          }}
                         >
                           {format(parseISO(item.datecita), "HH:mm")} -{" "}
                           {item.descricita}
@@ -351,8 +400,14 @@ export default function CalendarioPage() {
                       )
                     )}
                     {items.length > 3 && (
-                      <div className="text-xs text-center text-gray-500">
-                        +{items.length - 3} más
+                      <div 
+                        className="text-xs text-center text-blue-600 hover:text-blue-800 cursor-pointer font-medium"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDayActivities(day, items);
+                        }}
+                      >
+                        +{items.length - 3} más • Ver todas
                       </div>
                     )}
                   </div>
@@ -363,6 +418,7 @@ export default function CalendarioPage() {
               <div key={i} className="h-32 p-1 bg-gray-50 rounded-md" />
             ))}
           </div>
+          )}
         </CardContent>
       </Card>
 
@@ -409,23 +465,18 @@ export default function CalendarioPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="fecha">Fecha</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button className="w-full justify-start text-left">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {nuevaTarea.fecha
-                        ? format(parseISO(nuevaTarea.fecha), "dd/MM/yyyy")
-                        : "Seleccionar fecha"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <div className="p-4">
-                      <p className="text-sm text-gray-500">
-                        Selector en desarrollo
-                      </p>
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                <Input
+                  id="fecha"
+                  type="date"
+                  value={nuevaTarea.fecha ? format(parseISO(nuevaTarea.fecha), "yyyy-MM-dd") : ""}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const date = new Date(e.target.value + "T00:00:00");
+                      setNuevaTarea({ ...nuevaTarea, fecha: date.toISOString() });
+                    }
+                  }}
+                  className="w-full"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="tipo">Tipo</Label>
@@ -596,6 +647,131 @@ export default function CalendarioPage() {
                 <Trash2 className="mr-2 h-4 w-4" />
                 Eliminar Cita
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      {/* Modal Actividades del Día */}
+      <Dialog open={dayActivitiesModalOpen} onOpenChange={setDayActivitiesModalOpen}>
+        {selectedDayActivities && (
+          <DialogContent className="sm:max-w-[600px] max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CalendarIcon className="h-5 w-5" />
+                Actividades del día
+              </DialogTitle>
+              <DialogDescription>
+                {format(selectedDayActivities.date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: es })}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-3 overflow-y-auto max-h-[60vh]">
+              {selectedDayActivities.items.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">No hay actividades para este día</p>
+              ) : (
+                selectedDayActivities.items.map(({ kind, item }) => {
+                  if (kind === "tarea") {
+                    const tarea = item as Tarea;
+                    return (
+                      <div
+                        key={tarea.id}
+                        className={`p-4 rounded-lg border-2 cursor-pointer hover:shadow-md transition-shadow ${
+                          colorTipoTarea[tarea.tipo]
+                        } ${tarea.completada ? "opacity-60" : ""}`}
+                        onClick={() => {
+                          setDayActivitiesModalOpen(false);
+                          openTareaDetails(tarea);
+                        }}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="outline" className="text-xs">
+                                {tarea.tipo === "reunion"
+                                  ? "Reunión"
+                                  : tarea.tipo === "llamada"
+                                  ? "Llamada"
+                                  : tarea.tipo === "recordatorio"
+                                  ? "Recordatorio"
+                                  : "Tarea"}
+                              </Badge>
+                              {tarea.completada && (
+                                <Badge variant="outline" className="text-xs bg-green-50">
+                                  ✓ Completada
+                                </Badge>
+                              )}
+                            </div>
+                            <h4 className={`font-semibold ${tarea.completada ? "line-through" : ""}`}>
+                              {tarea.titulo}
+                            </h4>
+                          </div>
+                        </div>
+                        <div className="flex items-center text-sm gap-2 mt-2">
+                          <Clock className="h-4 w-4" />
+                          <span>{tarea.horaInicio} - {tarea.horaFin}</span>
+                        </div>
+                        {tarea.descripcion && (
+                          <p className="text-sm mt-2 text-gray-700 line-clamp-2">
+                            {tarea.descripcion}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  } else {
+                    const cita = item as Cita;
+                    return (
+                      <div
+                        key={cita.id}
+                        className="p-4 rounded-lg border-2 cursor-pointer hover:shadow-md transition-shadow bg-green-50 border-green-200"
+                        onClick={() => {
+                          setDayActivitiesModalOpen(false);
+                          openCitaDetails(cita);
+                        }}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1">
+                            <Badge variant="outline" className="text-xs bg-green-100 mb-2">
+                              📅 Cita
+                            </Badge>
+                            <h4 className="font-semibold text-green-900">
+                              {cita.descricita}
+                            </h4>
+                          </div>
+                        </div>
+                        <div className="flex items-center text-sm gap-2 mt-2 text-green-800">
+                          <Clock className="h-4 w-4" />
+                          <span>{format(parseISO(cita.datecita), "HH:mm")}</span>
+                        </div>
+                      </div>
+                    );
+                  }
+                })
+              )}
+            </div>
+            <DialogFooter>
+              <div className="flex justify-between items-center w-full">
+                <p className="text-sm text-gray-500">
+                  {selectedDayActivities.items.length} {selectedDayActivities.items.length === 1 ? 'actividad' : 'actividades'} en total
+                </p>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setDayActivitiesModalOpen(false)}
+                  >
+                    Cerrar
+                  </Button>
+                  <Button
+                    className="bg-[#1e3a8a] hover:bg-[#152b67]"
+                    onClick={() => {
+                      setDayActivitiesModalOpen(false);
+                      openNewTareaModal(selectedDayActivities.date);
+                    }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Nueva Tarea
+                  </Button>
+                </div>
+              </div>
             </DialogFooter>
           </DialogContent>
         )}

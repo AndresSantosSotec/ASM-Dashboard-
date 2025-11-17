@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import { Textarea } from "@/components/ui/textarea"
+import { geoNamesService, type Country, type Region, type Municipality } from "@/services/geonames"
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from "@/components/ui/form"
@@ -60,20 +61,24 @@ export default function CapturaProspectos() {
     { id: number; abreviatura: string; nombre_del_programa: string; meses: number }[]
   >([])
 
-  // Estados para la ubicación (Guatemala)
-  const [departamentos, setDepartamentos] = useState<
-    { id: number; nombre: string; municipios: { id: number; nombre: string }[] }[]
-  >([])
-  const [municipios, setMunicipios] = useState<{ id: number; nombre: string }[]>(
-    []
-  )
+  // Estados para GeoNames
+  const [paises, setPaises] = useState<Country[]>([])
+  const [departamentos, setDepartamentos] = useState<Region[]>([])
+  const [municipios, setMunicipios] = useState<Municipality[]>([])
+  const [loadingDepartamentos, setLoadingDepartamentos] = useState(false)
+  const [loadingMunicipios, setLoadingMunicipios] = useState(false)
+  
+  // Estados para búsqueda/filtrado
+  const [searchPais, setSearchPais] = useState("")
+  const [searchDepartamento, setSearchDepartamento] = useState("")
+  const [searchMunicipio, setSearchMunicipio] = useState("")
 
   const [empresas, setEmpresas] = useState<{ id: number; nombre: string; descripcion: string | null; activo: boolean }[]>([])
 
   const [showOtherCompany, setShowOtherCompany] = useState(false);
   const [showOtherOrigin, setShowOtherOrigin] = useState(false);
 
-  // useForm con defaultValues para país=1 (Guatemala)
+  // useForm with GeoNames support
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -87,13 +92,13 @@ export default function CapturaProspectos() {
       Origen: "",
       notasGenerales: "",
       observaciones: "",
-      interes: "",         // tu campo original
-      mesesPrograma: "",   // ← lo agregas aquí
+      interes: "",
+      mesesPrograma: "",
       nota1: "",
       nota2: "",
       nota3: "",
       cierre: "",
-      pais: "1",           // Guatemala
+      pais: "",
       departamento: "",
       municipio: "",
     },
@@ -126,35 +131,126 @@ export default function CapturaProspectos() {
   }, [])
 
 
-  // Obtener la estructura de departamentos y municipios de Guatemala
+  // Cargar países al montar el componente
   useEffect(() => {
-    const fetchUbicacionGuatemala = async () => {
+    const loadPaises = async () => {
       try {
-        const response = await axios.get(`${API_BASE_URL}/api/ubicacion/1`)
-        setDepartamentos(response.data.departamentos)
+        const paisesData = await geoNamesService.getCountries()
+        setPaises(paisesData)
+        
+        // 🚀 OPTIMIZACIÓN: Pre-cargar Guatemala automáticamente
+        const guatemala = paisesData.find(p => p.countryCode === 'GT')
+        if (guatemala) {
+          form.setValue("pais", guatemala.geonameId.toString())
+          await cargarGuatemalaCompleta(guatemala.geonameId)
+        }
       } catch (error) {
-        console.error("❌ Error al obtener ubicación de Guatemala:", error)
+        console.error("❌ Error al obtener países:", error)
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'No se pudieron cargar los países'
+        })
       }
     }
-    fetchUbicacionGuatemala()
+    loadPaises()
   }, [])
 
-  // Función para cuando el usuario seleccione un departamento
-  const handleDepartamentoChange = (value: string) => {
-    form.setValue("departamento", value)
-    const dept = departamentos.find((d) => d.id.toString() === value)
-    if (dept) {
-      setMunicipios(dept.municipios)
-    } else {
-      setMunicipios([])
+  // 🚀 Función optimizada para cargar Guatemala completa
+  const cargarGuatemalaCompleta = async (geonameId: number) => {
+    setLoadingDepartamentos(true)
+    try {
+      // Usar endpoint especial que trae todo pre-cacheado
+      const guatemalaData = await geoNamesService.getGuatemalaData()
+      if (guatemalaData && guatemalaData.departamentos) {
+        setDepartamentos(guatemalaData.departamentos)
+      }
+    } catch (error) {
+      console.error("❌ Error al cargar Guatemala:", error)
+      // Fallback a carga normal si falla
+      const regionesData = await geoNamesService.getRegions(geonameId)
+      setDepartamentos(regionesData)
+    } finally {
+      setLoadingDepartamentos(false)
     }
-    form.setValue("municipio", "")
   }
 
-  // Función para cuando el usuario seleccione un municipio
-  const handleMunicipioChange = (value: string) => {
-    form.setValue("municipio", value)
+  // Función para cuando el usuario seleccione un país
+  const handlePaisChange = async (value: string) => {
+    form.setValue("pais", value)
+    form.setValue("departamento", "")
+    form.setValue("municipio", "")
+    setDepartamentos([])
+    setMunicipios([])
+    setSearchDepartamento("")
+    setSearchMunicipio("")
+    
+    if (!value) return
+
+    const geonameId = parseInt(value)
+    const paisSeleccionado = paises.find(p => p.geonameId === geonameId)
+    
+    // 🚀 OPTIMIZACIÓN: Si es Guatemala, usar endpoint especial
+    if (paisSeleccionado?.countryCode === 'GT') {
+      await cargarGuatemalaCompleta(geonameId)
+      return
+    }
+
+    // Para otros países, carga normal
+    setLoadingDepartamentos(true)
+    try {
+      const regionesData = await geoNamesService.getRegions(geonameId)
+      setDepartamentos(regionesData)
+    } catch (error) {
+      console.error("❌ Error al obtener departamentos:", error)
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudieron cargar los departamentos'
+      })
+    } finally {
+      setLoadingDepartamentos(false)
+    }
   }
+
+  // Función para cuando el usuario seleccione un departamento
+  const handleDepartamentoChange = async (value: string) => {
+    form.setValue("departamento", value)
+    form.setValue("municipio", "")
+    setMunicipios([])
+    setSearchMunicipio("")
+    
+    if (!value) return
+
+    setLoadingMunicipios(true)
+    try {
+      const geonameId = parseInt(value)
+      const municipiosData = await geoNamesService.getMunicipalities(geonameId)
+      setMunicipios(municipiosData)
+    } catch (error) {
+      console.error("❌ Error al obtener municipios:", error)
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudieron cargar los municipios'
+      })
+    } finally {
+      setLoadingMunicipios(false)
+    }
+  }
+
+  // 🔍 Funciones de filtrado
+  const paisesFiltrados = paises.filter(p => 
+    p.countryName.toLowerCase().includes(searchPais.toLowerCase())
+  )
+  
+  const departamentosFiltrados = departamentos.filter(d => 
+    d.name.toLowerCase().includes(searchDepartamento.toLowerCase())
+  )
+  
+  const municipiosFiltrados = municipios.filter(m => 
+    m.name.toLowerCase().includes(searchMunicipio.toLowerCase())
+  )
 
 
   // Manejo de envío del formulario
@@ -163,11 +259,25 @@ export default function CapturaProspectos() {
       setLoading(true)
       const fechaFormateada = data.fecha.toISOString().split("T")[0]
       const token = localStorage.getItem("token")
+      
+      // Obtener nombres de las ubicaciones seleccionadas
+      const paisSeleccionado = paises.find(p => p.geonameId.toString() === data.pais)
+      const departamentoSeleccionado = departamentos.find(d => d.geonameId.toString() === data.departamento)
+      const municipioSeleccionado = municipios.find(m => m.geonameId.toString() === data.municipio)
+      
       const payload = {
         ...data,
         fecha: fechaFormateada,
         medio_conocimiento_institucion: data.Origen,
+        // Enviar tanto los IDs como los nombres
+        pais: data.pais,
+        paisNombre: paisSeleccionado?.countryName || '',
+        departamento: data.departamento,
+        departamentoNombre: departamentoSeleccionado?.name || '',
+        municipio: data.municipio,
+        municipioNombre: municipioSeleccionado?.name || '',
       }
+      
       await axios.post(`${API_BASE_URL}/api/prospectos`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -177,6 +287,9 @@ export default function CapturaProspectos() {
         text: "Prospecto guardado exitosamente",
       })
       form.reset()
+      // Limpiar estados de ubicación
+      setDepartamentos([])
+      setMunicipios([])
     } catch (error: any) {
       let errorMessage =
         error.response?.data?.message || error.message || "Error desconocido"
@@ -576,7 +689,7 @@ export default function CapturaProspectos() {
               </div>
 
               {/* Cierre */}
-              <FormField
+              {/* <FormField
                 control={form.control}
                 name="cierre"
                 render={({ field }) => (
@@ -588,25 +701,49 @@ export default function CapturaProspectos() {
                     <FormMessage />
                   </FormItem>
                 )}
-              />
+              /> */}
 
               {/* Sección de Ubicación */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* País (Fijo Guatemala) */}
+                {/* País */}
                 <FormField
                   control={form.control}
                   name="pais"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>País</FormLabel>
-                      <Select disabled value={field.value}>
+                      <Select
+                        onValueChange={handlePaisChange}
+                        value={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Guatemala" />
+                            <SelectValue placeholder="Seleccione un país" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="1">Guatemala</SelectItem>
+                          <div className="px-2 py-1.5">
+                            <Input
+                              placeholder="🔍 Buscar país..."
+                              value={searchPais}
+                              onChange={(e) => setSearchPais(e.target.value)}
+                              className="h-8"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                          <div className="max-h-[200px] overflow-y-auto">
+                            {paisesFiltrados.length === 0 ? (
+                              <div className="px-2 py-6 text-center text-sm text-gray-500">
+                                No se encontraron países
+                              </div>
+                            ) : (
+                              paisesFiltrados.map((pais) => (
+                                <SelectItem key={pais.geonameId} value={pais.geonameId.toString()}>
+                                  {pais.countryName}
+                                </SelectItem>
+                              ))
+                            )}
+                          </div>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -623,19 +760,45 @@ export default function CapturaProspectos() {
                       <FormLabel>Departamento</FormLabel>
                       <Select
                         onValueChange={handleDepartamentoChange}
-                        defaultValue={field.value}
+                        value={field.value}
+                        disabled={!form.watch("pais") || loadingDepartamentos}
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Seleccione un departamento" />
+                            <SelectValue placeholder={
+                              loadingDepartamentos 
+                                ? "Cargando..." 
+                                : departamentos.length === 0 
+                                  ? "Seleccione un país primero" 
+                                  : "Seleccione un departamento"
+                            } />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {departamentos.map((dept) => (
-                            <SelectItem key={dept.id} value={dept.id.toString()}>
-                              {dept.nombre}
-                            </SelectItem>
-                          ))}
+                          {departamentos.length > 0 && (
+                            <div className="px-2 py-1.5">
+                              <Input
+                                placeholder="🔍 Buscar departamento..."
+                                value={searchDepartamento}
+                                onChange={(e) => setSearchDepartamento(e.target.value)}
+                                className="h-8"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                          )}
+                          <div className="max-h-[200px] overflow-y-auto">
+                            {departamentosFiltrados.length === 0 && departamentos.length > 0 ? (
+                              <div className="px-2 py-6 text-center text-sm text-gray-500">
+                                No se encontraron departamentos
+                              </div>
+                            ) : (
+                              departamentosFiltrados.map((dept) => (
+                                <SelectItem key={dept.geonameId} value={dept.geonameId.toString()}>
+                                  {dept.name}
+                                </SelectItem>
+                              ))
+                            )}
+                          </div>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -651,20 +814,46 @@ export default function CapturaProspectos() {
                     <FormItem>
                       <FormLabel>Municipio</FormLabel>
                       <Select
-                        onValueChange={handleMunicipioChange}
-                        defaultValue={field.value}
+                        onValueChange={(value) => form.setValue("municipio", value)}
+                        value={field.value}
+                        disabled={!form.watch("departamento") || loadingMunicipios}
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Seleccione un municipio" />
+                            <SelectValue placeholder={
+                              loadingMunicipios 
+                                ? "Cargando..." 
+                                : municipios.length === 0 
+                                  ? "Seleccione un departamento primero" 
+                                  : "Seleccione un municipio"
+                            } />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {municipios.map((mun) => (
-                            <SelectItem key={mun.id} value={mun.id.toString()}>
-                              {mun.nombre}
-                            </SelectItem>
-                          ))}
+                          {municipios.length > 0 && (
+                            <div className="px-2 py-1.5">
+                              <Input
+                                placeholder="🔍 Buscar municipio..."
+                                value={searchMunicipio}
+                                onChange={(e) => setSearchMunicipio(e.target.value)}
+                                className="h-8"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                          )}
+                          <div className="max-h-[200px] overflow-y-auto">
+                            {municipiosFiltrados.length === 0 && municipios.length > 0 ? (
+                              <div className="px-2 py-6 text-center text-sm text-gray-500">
+                                No se encontraron municipios
+                              </div>
+                            ) : (
+                              municipiosFiltrados.map((mun) => (
+                                <SelectItem key={mun.geonameId} value={mun.geonameId.toString()}>
+                                  {mun.name}
+                                </SelectItem>
+                              ))
+                            )}
+                          </div>
                         </SelectContent>
                       </Select>
                       <FormMessage />
