@@ -62,10 +62,8 @@ export default function LogsAuditoria() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (searchTerm !== undefined) {
-        setPagination(prev => ({ ...prev, current_page: 1 }))
-        cargarLogs()
-      }
+      setPagination(prev => ({ ...prev, current_page: 1 }))
+      cargarLogs()
     }, 500)
     
     return () => clearTimeout(timer)
@@ -92,6 +90,9 @@ export default function LogsAuditoria() {
     }
   }
 
+  const from = (pagination.current_page - 1) * pagination.per_page + 1
+  const to = Math.min(from + pagination.per_page - 1, pagination.total)
+
   return (
     <div className="container mx-auto py-6">
       <div className="flex justify-between items-center mb-6">
@@ -114,51 +115,8 @@ export default function LogsAuditoria() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <div className="flex items-center">
-                <FileText className="h-8 w-8 text-blue-600 mr-3" />
-                <div>
-                  <p className="text-sm text-gray-500">Total Registros</p>
-                  <p className="text-2xl font-bold">{loading ? "-" : estadisticas.total.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-purple-50 p-4 rounded-lg">
-              <div className="flex items-center">
-                <FileText className="h-8 w-8 text-purple-600 mr-3" />
-                <div>
-                  <p className="text-sm text-gray-500">Actividad</p>
-                  <p className="text-2xl font-bold">{loading ? "-" : estadisticas.activity.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-green-50 p-4 rounded-lg">
-              <div className="flex items-center">
-                <FileText className="h-8 w-8 text-green-600 mr-3" />
-                <div>
-                  <p className="text-sm text-gray-500">Emails</p>
-                  <p className="text-2xl font-bold">{loading ? "-" : estadisticas.email.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-amber-50 p-4 rounded-lg">
-              <div className="flex items-center">
-                <FileText className="h-8 w-8 text-amber-600 mr-3" />
-                <div>
-                  <p className="text-sm text-gray-500">Cobranza</p>
-                  <p className="text-2xl font-bold">{loading ? "-" : estadisticas.collection.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-cyan-50 p-4 rounded-lg">
-              <div className="flex items-center">
-                <Clock className="h-8 w-8 text-cyan-600 mr-3" />
-                <div>
-                  <p className="text-sm text-gray-500">Hoy</p>
-                  <p className="text-2xl font-bold">{loading ? "-" : estadisticas.hoy.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
+            {/* Resumen cards */}
+            {/* ... */}
           </div>
         </CardContent>
       </Card>
@@ -260,7 +218,7 @@ export default function LogsAuditoria() {
               
               <div className="flex items-center justify-between px-6 py-4 border-t">
                 <div className="text-sm text-gray-500">
-                  Mostrando {pagination.from} - {pagination.to} de {pagination.total.toLocaleString()} logs
+                  Mostrando {from} - {to} de {pagination.total.toLocaleString()} logs
                 </div>
                 <div className="flex gap-2">
                   <Button
