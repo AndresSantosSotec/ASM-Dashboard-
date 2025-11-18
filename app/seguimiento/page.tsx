@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import Swal from "sweetalert2";
@@ -82,6 +82,8 @@ interface Prospecto {
   ultimoCambio: string;
   estado: "Contactado" | "Interesado" | "En proceso";
   asesor: string;
+  notasGenerales?: string;
+  observaciones?: string;
 }
 
 interface Actividad {
@@ -154,14 +156,28 @@ export default function SeguimientoPage() {
     estado: "",
   });
 
-  // Crea un array derivado en base a los filtros aplicados:
-  const filteredProspectos = prospectos.filter((p) => {
-    const matchesNombre = p.nombre.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesEmail = p.email.toLowerCase().includes(emailFilter.toLowerCase());
-    const matchesTelefono = p.telefono.includes(phoneFilter);
-    const matchesEstado = estadoFilter === "all" ? true : p.estado === estadoFilter;
-    return matchesNombre && matchesEmail && matchesTelefono && matchesEstado;
-  });
+  // Optimización: memorizar prospectos filtrados para evitar recalcular en cada render
+  const filteredProspectos = useMemo(() => {
+    return prospectos.filter((p) => {
+      const matchesNombre = p.nombre.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesEmail = p.email.toLowerCase().includes(emailFilter.toLowerCase());
+      const matchesTelefono = p.telefono.includes(phoneFilter);
+      const matchesEstado = estadoFilter === "all" ? true : p.estado === estadoFilter;
+      return matchesNombre && matchesEmail && matchesTelefono && matchesEstado;
+    });
+  }, [prospectos, searchTerm, emailFilter, phoneFilter, estadoFilter]);
+
+  // Optimización: memorizar prospectos paginados
+  const paginatedProspectos = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = currentPage * pageSize;
+    return filteredProspectos.slice(startIndex, endIndex);
+  }, [filteredProspectos, currentPage, pageSize]);
+
+  // Optimización: memorizar total de páginas
+  const totalPages = useMemo(() => {
+    return Math.ceil(filteredProspectos.length / pageSize);
+  }, [filteredProspectos.length, pageSize]);
 
   // Obtener user_id del localStorage solo en el cliente
   useEffect(() => {
@@ -210,6 +226,8 @@ export default function SeguimientoPage() {
             estado: item.status,
             asesor: item.asesor || "Sin asignar",
             ultimoCambio: item.updated_at ?? "N/A",
+            notasGenerales: item.notas_generales ?? "",
+            observaciones: item.observaciones ?? "",
           }))
           .sort((a, b) => {
             const getTime = (d: string) => {
@@ -522,9 +540,7 @@ export default function SeguimientoPage() {
               <TableSkeleton />
             ) : (
               <TableBody>
-                {filteredProspectos
-                  .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-                  .map((prospecto) => (
+                {paginatedProspectos.map((prospecto) => (
                     <TableRow key={prospecto.id}>
                       <TableCell>{prospecto.nombre}</TableCell>
                       <TableCell>{prospecto.email}</TableCell>
@@ -550,9 +566,9 @@ export default function SeguimientoPage() {
               Anterior
             </Button>
             <span className="self-center">
-              Página {currentPage} de {Math.ceil(prospectos.length / pageSize)}
+              Página {currentPage} de {totalPages}
             </span>
-            <Button onClick={() => setCurrentPage((prev) => (prev < Math.ceil(prospectos.length / pageSize) ? prev + 1 : prev))} disabled={currentPage === Math.ceil(prospectos.length / pageSize)}>
+            <Button onClick={() => setCurrentPage((prev) => (prev < totalPages ? prev + 1 : prev))} disabled={currentPage === totalPages}>
               Siguiente
             </Button>
           </div>
@@ -579,7 +595,29 @@ export default function SeguimientoPage() {
                   </div>
                 </div>
                 <div>
-
+                  {(selectedProspecto?.notasGenerales || selectedProspecto?.observaciones) && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                      <h3 className="text-md font-semibold text-blue-900 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                          <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                        </svg>
+                        Notas del Prospecto
+                      </h3>
+                      {selectedProspecto?.notasGenerales && (
+                        <div>
+                          <p className="text-xs font-semibold text-blue-700 mb-1">Notas Generales:</p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedProspecto.notasGenerales}</p>
+                        </div>
+                      )}
+                      {selectedProspecto?.observaciones && (
+                        <div>
+                          <p className="text-xs font-semibold text-blue-700 mb-1">Observaciones:</p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedProspecto.observaciones}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <h3 className="text-md font-semibold mb-2">Historial de Actividades</h3>

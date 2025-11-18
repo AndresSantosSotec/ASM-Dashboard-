@@ -42,7 +42,7 @@ export interface DatosLaborales {
 export interface DatosAcademicos {
   programa: string;
   duracion: string;
-  ultimoTitulo: "diversificado" | "tecnico" | "licenciatura" | "maestria" | "doctorado";
+  ultimoTitulo: "diversificado" | "tecnico" | "licenciatura" | "maestria" | "doctorado" | "cierre_pensum";
   modalidad: "sincronica";
   fechaInicio: string;
   diaEstudio: "lunes" | "martes" | "miercoles" | "jueves" | "viernes" | "sabado";
@@ -51,6 +51,7 @@ export interface DatosAcademicos {
   fechaTallerIntegracion: string;
   institucionAnterior: string;
   añoGraduacion: string;
+  carrera?: string;
   medioConocio: "redes" | "amigo" | "empresa" | "evento" | "busqueda" | "otros";
   observaciones: string;
   cursosAprobados: string;

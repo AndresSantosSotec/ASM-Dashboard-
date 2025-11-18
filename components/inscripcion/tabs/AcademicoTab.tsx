@@ -38,7 +38,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
     "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
   ]
   const dias = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado"]
-  const titulos = ["diversificado", "tecnico", "licenciatura", "maestria", "doctorado"] as const
+  const titulos = ["diversificado", "tecnico", "licenciatura", "maestria", "doctorado", "cierre_pensum"] as const
   const medios = ["redes", "amigo", "empresa", "evento", "busqueda", "otros"] as const
 
   const [programas, setProgramas] = useState<Programa[]>([])

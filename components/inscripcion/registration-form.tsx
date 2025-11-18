@@ -49,6 +49,7 @@ export default function RegistrationForm() {
     añoGraduacion: "", medioConocio: "redes", observaciones: "",
     cursosAprobados: "", titulo1: "", titulo1_duracion: "",
     titulo2: "", titulo2_duracion: "", titulo3: "", titulo3_duracion: "",
+    carrera: "",
   })
 
   const programasParaFinanciero: ProgramaConDuracion[] = [

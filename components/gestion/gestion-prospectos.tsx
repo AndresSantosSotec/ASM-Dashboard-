@@ -42,7 +42,13 @@ interface Prospecto {
   estado: string
   origen?: string
   observaciones?: string
+  notasGenerales?: string
   ultimoCambio: string
+  programa?: string
+  ciudad?: string
+  pais?: string
+  fechaCaptura?: string
+  asesor?: string
 }
 
 export default function GestionProspectos() {
@@ -127,7 +133,13 @@ export default function GestionProspectos() {
             estado: item.status || "No contactado",
             origen: item.medio_conocimiento_institucion ?? "—",
             observaciones: item.observaciones ?? "",
+            notasGenerales: item.notas_generales ?? "",
             ultimoCambio: item.updated_at ?? "N/A",
+            programa: item.programa_interes ?? "—",
+            ciudad: item.ciudad ?? "—",
+            pais: item.pais ?? "—",
+            fechaCaptura: item.created_at ?? "—",
+            asesor: item.asesor ?? "Sin asignar",
           }))
           .filter((p: any) => p.estado.toLowerCase() !== "preinscripción")
           .sort((a: Prospecto, b: Prospecto) => {
@@ -423,10 +435,30 @@ export default function GestionProspectos() {
 
       </div>
 
-      {loading && <p className="p-4">Cargando prospectos...</p>}
+      {loading && (
+        <div className="p-4">
+          <div className="animate-pulse space-y-4">
+            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="grid grid-cols-9 gap-4">
+                  <div className="h-4 bg-gray-200 rounded"></div>
+                  <div className="h-4 bg-gray-200 rounded col-span-2"></div>
+                  <div className="h-4 bg-gray-200 rounded col-span-2"></div>
+                  <div className="h-4 bg-gray-200 rounded"></div>
+                  <div className="h-4 bg-gray-200 rounded"></div>
+                  <div className="h-4 bg-gray-200 rounded"></div>
+                  <div className="h-4 bg-gray-200 rounded"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       {error && <p className="p-4 text-red-500">{error}</p>}
 
       {/* Tabla */}
+      {!loading && (
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600">
@@ -443,6 +475,7 @@ export default function GestionProspectos() {
               <th className="py-3 px-4 text-left">Empresa</th>
               <th className="py-3 px-4 text-left">Puesto</th>
               <th className="py-3 px-4 text-left">Origen</th>
+              <th className="py-3 px-4 text-left">Notas</th>
               <th className="py-3 px-4 text-left">Estado</th>
               <th className="py-3 px-4 text-left">Acciones</th>
             </tr>
@@ -462,6 +495,40 @@ export default function GestionProspectos() {
               <td className="py-3 px-4">{p.departamento}</td>
               <td className="py-3 px-4">{p.puesto}</td>
               <td className="py-3 px-4">{p.origen}</td>
+              <td className="py-3 px-4">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="max-w-[150px] truncate cursor-help">
+                        {p.notasGenerales || p.observaciones ? (
+                          <span className="text-xs text-gray-600">
+                            {p.notasGenerales || p.observaciones}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">Sin notas</span>
+                        )}
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      {p.notasGenerales && (
+                        <div className="mb-2">
+                          <strong>Notas Generales:</strong>
+                          <p className="text-sm">{p.notasGenerales}</p>
+                        </div>
+                      )}
+                      {p.observaciones && (
+                        <div>
+                          <strong>Observaciones:</strong>
+                          <p className="text-sm">{p.observaciones}</p>
+                        </div>
+                      )}
+                      {!p.notasGenerales && !p.observaciones && (
+                        <p className="text-sm text-gray-400">Sin notas ni observaciones</p>
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </td>
               <td className="py-3 px-4">
                   <div className="flex flex-col">
                     <span
@@ -525,6 +592,7 @@ export default function GestionProspectos() {
                                     puesto: data.puesto ?? "N/A",
                                     estado: data.status,
                                     observaciones: data.observaciones ?? "",
+                                    notasGenerales: data.notas_generales ?? "",
                                     ultimoCambio: data.updated_at ?? "N/A",
                                   })
                                   setModalType("editar")
@@ -610,7 +678,7 @@ export default function GestionProspectos() {
             ))}
             {paginatedProspectos.length === 0 && (
               <tr>
-                <td colSpan={8} className="py-4 text-center text-gray-500">
+                <td colSpan={10} className="py-4 text-center text-gray-500">
                   No se encontraron prospectos.
                 </td>
               </tr>
@@ -618,6 +686,7 @@ export default function GestionProspectos() {
           </tbody>
         </table>
       </div>
+      )}
 
       {/* Paginación */}
       <div className="flex items-center justify-end gap-2 p-4">

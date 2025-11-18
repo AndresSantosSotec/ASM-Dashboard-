@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -35,11 +35,17 @@ import {
   getPerformanceStats,
   getAdvisorsForFilter,
   getProgramsForFilter,
+  getLeadsByAdvisorDetail,
   exportReport,
+  exportAdvisorStatsLocal,
+  exportLeadStatsLocal,
+  exportConversionStatsLocal,
+  exportLeadsByAdvisorDetail,
   type ReportFilters,
   type AdvisorStats,
   type LeadStats,
-  type ConversionStats
+  type ConversionStats,
+  type LeadDetail
 } from "@/services/reports"
 
 export function Reports() {
@@ -55,6 +61,7 @@ export function Reports() {
   const [advisorStats, setAdvisorStats] = useState<AdvisorStats[]>([])
   const [leadStats, setLeadStats] = useState<LeadStats | null>(null)
   const [conversionStats, setConversionStats] = useState<ConversionStats | null>(null)
+  const [leadsDetail, setLeadsDetail] = useState<LeadDetail[]>([])
 
   // Estados de UI
   const [loading, setLoading] = useState(false)
@@ -85,6 +92,15 @@ export function Reports() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, filters])
 
+  // Optimización: Memorizar datos filtrados y estadísticas calculadas
+  const filteredAdvisorStats = useMemo(() => {
+    return advisorStats.sort((a, b) => b.tasa_conversion - a.tasa_conversion)
+  }, [advisorStats])
+
+  const totalLeadsAllAdvisors = useMemo(() => {
+    return advisorStats.reduce((acc, curr) => acc + curr.total_leads, 0)
+  }, [advisorStats])
+
   const loadData = async () => {
     setLoading(true)
     setError(null)
@@ -103,6 +119,10 @@ export function Reports() {
           const conversionData = await getConversionStats(filters)
           setConversionStats(conversionData)
           break
+        case "detalle":
+          const detailData = await getLeadsByAdvisorDetail(filters)
+          setLeadsDetail(detailData)
+          break
       }
     } catch (err: any) {
       setError(err?.message || "Error al cargar los datos")
@@ -116,24 +136,47 @@ export function Reports() {
     }
   }
 
-  const handleExport = async (reportType: string) => {
+  const handleExport = async (reportType: string, format: 'pdf' | 'xlsx' | 'csv' = 'pdf') => {
     setExporting(true)
     try {
-      const blob = await exportReport(reportType, filters)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `reporte_${reportType}_${new Date().toISOString().split('T')[0]}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
+      // Obtener información del usuario
+      const userName = localStorage.getItem('user_name') || 'Usuario'
+      const userEmail = localStorage.getItem('email') || ''
+      
+      if (format === 'xlsx' || format === 'csv') {
+        // Exportación local
+        if (reportType === 'asesores' && advisorStats.length > 0) {
+          exportAdvisorStatsLocal(advisorStats, format, { name: userName, email: userEmail })
+        } else if (reportType === 'leads' && leadStats) {
+          exportLeadStatsLocal(leadStats, format, { name: userName, email: userEmail })
+        } else if (reportType === 'conversiones' && conversionStats) {
+          exportConversionStatsLocal(conversionStats, format, { name: userName, email: userEmail })
+        } else if (reportType === 'detalle' && leadsDetail.length > 0) {
+          exportLeadsByAdvisorDetail(leadsDetail, format, { name: userName, email: userEmail })
+        }
+        
+        toast({
+          title: "Descarga exitosa",
+          description: `Reporte ${format.toUpperCase()} generado correctamente`
+        })
+      } else {
+        // Exportación PDF desde backend
+        const blob = await exportReport(reportType, format, filters)
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `reporte_${reportType}_${new Date().toISOString().split('T')[0]}.${format}`
+        a.click()
+        URL.revokeObjectURL(url)
 
-      toast({
-        title: "✅ Descarga exitosa",
-        description: `Reporte PDF de ${reportType} generado correctamente`
-      })
+        toast({
+          title: "Descarga exitosa",
+          description: `Reporte ${format.toUpperCase()} generado correctamente`
+        })
+      }
     } catch (err: any) {
       toast({
-        title: "❌ Error",
+        title: "Error en la descarga",
         description: err?.message || "No se pudo exportar el reporte",
         variant: "destructive"
       })
@@ -255,7 +298,7 @@ export function Reports() {
 
       {/* Tabs de reportes */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="asesores">
             <Users className="h-4 w-4 mr-2" />
             Asesores
@@ -268,24 +311,56 @@ export function Reports() {
             <TrendingUp className="h-4 w-4 mr-2" />
             Conversiones
           </TabsTrigger>
+          <TabsTrigger value="detalle">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Detalle por Asesor
+          </TabsTrigger>
         </TabsList>
 
         {/* TAB: Asesores */}
         <TabsContent value="asesores" className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold">Rendimiento por Asesor</h3>
-            <Button
-              onClick={() => handleExport('asesores')}
-              disabled={exporting || loading}
-              size="sm"
-            >
-              {exporting ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4 mr-2" />
-              )}
-              Descargar PDF
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => handleExport('asesores', 'csv')}
+                disabled={exporting || loading}
+                size="sm"
+                variant="outline"
+              >
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="h-4 w-4 mr-2" />
+                )}
+                CSV
+              </Button>
+              <Button
+                onClick={() => handleExport('asesores', 'xlsx')}
+                disabled={exporting || loading}
+                size="sm"
+                variant="outline"
+              >
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                Excel
+              </Button>
+              <Button
+                onClick={() => handleExport('asesores', 'pdf')}
+                disabled={exporting || loading}
+                size="sm"
+              >
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                PDF
+              </Button>
+            </div>
           </div>
 
           {loading ? (
@@ -321,11 +396,13 @@ export function Reports() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {advisorStats.map((advisor) => (
+                    {filteredAdvisorStats.map((advisor) => (
                       <TableRow key={advisor.advisor_id}>
                         <TableCell className="font-medium">
                           <div className="flex items-center space-x-2">
-                            <Award className="h-4 w-4 text-yellow-500" />
+                            <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
+                              <Users className="h-4 w-4 text-blue-600" />
+                            </div>
                             <span>{advisor.advisor_name}</span>
                           </div>
                         </TableCell>
@@ -354,18 +431,46 @@ export function Reports() {
         <TabsContent value="leads" className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold">Estadísticas de Leads</h3>
-            <Button
-              onClick={() => handleExport('leads')}
-              disabled={exporting || loading}
-              size="sm"
-            >
-              {exporting ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4 mr-2" />
-              )}
-              Descargar PDF
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => handleExport('leads', 'csv')}
+                disabled={exporting || loading}
+                size="sm"
+                variant="outline"
+              >
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="h-4 w-4 mr-2" />
+                )}
+                CSV
+              </Button>
+              <Button
+                onClick={() => handleExport('leads', 'xlsx')}
+                disabled={exporting || loading}
+                size="sm"
+                variant="outline"
+              >
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                Excel
+              </Button>
+              <Button
+                onClick={() => handleExport('leads', 'pdf')}
+                disabled={exporting || loading}
+                size="sm"
+              >
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                PDF
+              </Button>
+            </div>
           </div>
 
           {loading ? (
@@ -465,18 +570,46 @@ export function Reports() {
         <TabsContent value="conversiones" className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold">Análisis de Conversiones</h3>
-            <Button
-              onClick={() => handleExport('conversiones')}
-              disabled={exporting || loading}
-              size="sm"
-            >
-              {exporting ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4 mr-2" />
-              )}
-              Descargar PDF
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => handleExport('conversiones', 'csv')}
+                disabled={exporting || loading}
+                size="sm"
+                variant="outline"
+              >
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="h-4 w-4 mr-2" />
+                )}
+                CSV
+              </Button>
+              <Button
+                onClick={() => handleExport('conversiones', 'xlsx')}
+                disabled={exporting || loading}
+                size="sm"
+                variant="outline"
+              >
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                Excel
+              </Button>
+              <Button
+                onClick={() => handleExport('conversiones', 'pdf')}
+                disabled={exporting || loading}
+                size="sm"
+              >
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                PDF
+              </Button>
+            </div>
           </div>
 
           {loading ? (
@@ -556,6 +689,122 @@ export function Reports() {
               )}
             </>
           ) : null}
+        </TabsContent>
+
+        {/* TAB: Detalle por Asesor */}
+        <TabsContent value="detalle" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Detalle de Leads por Asesor</h3>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => handleExport('detalle', 'csv')}
+                disabled={exporting || loading}
+                size="sm"
+                variant="outline"
+              >
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="h-4 w-4 mr-2" />
+                )}
+                CSV
+              </Button>
+              <Button
+                onClick={() => handleExport('detalle', 'xlsx')}
+                disabled={exporting || loading}
+                size="sm"
+              >
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                Excel
+              </Button>
+            </div>
+          </div>
+
+          {loading ? (
+            <Card>
+              <CardContent className="p-6">
+                <div className="space-y-3">
+                  {[...Array(8)].map((_, i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : leadsDetail.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center text-muted-foreground">
+                <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No hay datos disponibles para el período seleccionado</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center justify-between">
+                  <span>Total de Leads: {leadsDetail.length}</span>
+                  <Badge variant="outline">{filters.userId ? 'Filtrado por asesor' : 'Todos los asesores'}</Badge>
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Datos listos para análisis en Excel o Power BI
+                </p>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="max-h-[600px] overflow-auto">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background z-10">
+                      <TableRow>
+                        <TableHead>Nombre</TableHead>
+                        <TableHead>Asesor</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead>Programa</TableHead>
+                        <TableHead>Ciudad/País</TableHead>
+                        <TableHead className="text-right">Interacciones</TableHead>
+                        <TableHead className="text-right">Días</TableHead>
+                        <TableHead>Fecha Captura</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {leadsDetail.map((lead) => (
+                        <TableRow key={lead.id}>
+                          <TableCell className="font-medium">
+                            <div>
+                              <p>{lead.nombre}</p>
+                              <p className="text-xs text-muted-foreground">{lead.email}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>{lead.asesor}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">
+                              {lead.estado}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm">{lead.programa}</TableCell>
+                          <TableCell className="text-sm">
+                            {lead.ciudad}, {lead.pais}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Badge className={lead.total_interacciones > 0 ? 'bg-blue-600' : 'bg-gray-400'}>
+                              {lead.total_interacciones}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Badge variant="outline">{lead.dias_desde_captura}</Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {lead.fecha_captura}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>

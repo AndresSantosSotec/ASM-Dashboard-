@@ -11,6 +11,9 @@ import { Input } from "@/components/ui/input"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import { Textarea } from "@/components/ui/textarea"
 import { geoNamesService, type Country, type Region, type Municipality } from "@/services/geonames"
+import { Clock, Calendar, Plus } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from "@/components/ui/form"
@@ -77,6 +80,17 @@ export default function CapturaProspectos() {
 
   const [showOtherCompany, setShowOtherCompany] = useState(false);
   const [showOtherOrigin, setShowOtherOrigin] = useState(false);
+
+  // Estados para la sección de tareas
+  const [showTareaSection, setShowTareaSection] = useState(false);
+  const [tareaData, setTareaData] = useState({
+    titulo: "",
+    descripcion: "",
+    fecha: new Date().toISOString().split("T")[0],
+    horaInicio: "09:00",
+    horaFin: "10:00",
+    tipo: "tarea" as "tarea" | "reunion" | "recordatorio" | "llamada",
+  });
 
   // useForm with GeoNames support
   const form = useForm<FormData>({
@@ -251,6 +265,67 @@ export default function CapturaProspectos() {
   const municipiosFiltrados = municipios.filter(m => 
     m.name.toLowerCase().includes(searchMunicipio.toLowerCase())
   )
+
+  // Función para crear tarea en el calendario
+  const crearTareaCalendario = async () => {
+    if (!tareaData.titulo.trim()) {
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "El título de la tarea es requerido",
+      })
+      return
+    }
+
+    try {
+      const token = localStorage.getItem("token")
+      
+      // Preparar fecha en formato ISO
+      const fechaISO = new Date(tareaData.fecha + "T00:00:00").toISOString()
+      
+      const payload = {
+        titulo: tareaData.titulo,
+        descripcion: tareaData.descripcion,
+        fecha: fechaISO,
+        hora_inicio: tareaData.horaInicio,
+        hora_fin: tareaData.horaFin,
+        tipo: tareaData.tipo,
+        completada: false,
+      }
+
+      await axios.post(`${API_BASE_URL}/api/tareas`, payload, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      Swal.fire({
+        icon: "success",
+        title: "Tarea creada",
+        text: "La tarea se agregó al calendario exitosamente",
+        timer: 2000
+      })
+
+      // Limpiar formulario de tarea
+      setTareaData({
+        titulo: "",
+        descripcion: "",
+        fecha: new Date().toISOString().split("T")[0],
+        horaInicio: "09:00",
+        horaFin: "10:00",
+        tipo: "tarea",
+      })
+      setShowTareaSection(false)
+    } catch (error: any) {
+      console.error("❌ Error al crear tarea:", error)
+      Swal.fire({
+        icon: "error",
+        title: "Error al crear tarea",
+        text: error.response?.data?.message || "No se pudo crear la tarea",
+      })
+    }
+  }
 
 
   // Manejo de envío del formulario
@@ -593,6 +668,160 @@ export default function CapturaProspectos() {
                 )}
               />
 
+              {/* Sección de Tareas para Calendario */}
+              <div className="border-t pt-6 mt-6">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                      <Calendar className="h-5 w-5 text-blue-600" />
+                      Agregar Tarea al Calendario
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Crea una tarea de seguimiento asociada a este prospecto
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant={showTareaSection ? "outline" : "default"}
+                    onClick={() => setShowTareaSection(!showTareaSection)}
+                  >
+                    {showTareaSection ? "Ocultar" : <><Plus className="h-4 w-4 mr-2" /> Nueva Tarea</>}
+                  </Button>
+                </div>
+
+                {showTareaSection && (
+                  <Card className="border-blue-200 bg-blue-50/50">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Detalles de la Tarea</CardTitle>
+                      <CardDescription>
+                        Esta tarea aparecerá en el calendario para dar seguimiento
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Título de la tarea */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">
+                            Título de la Tarea *
+                          </label>
+                          <Input
+                            placeholder="Ej: Llamar para seguimiento"
+                            value={tareaData.titulo}
+                            onChange={(e) => setTareaData({ ...tareaData, titulo: e.target.value })}
+                          />
+                        </div>
+
+                        {/* Tipo de tarea */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Tipo</label>
+                          <Select
+                            value={tareaData.tipo}
+                            onValueChange={(value) =>
+                              setTareaData({ ...tareaData, tipo: value as any })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="tarea">📋 Tarea</SelectItem>
+                              <SelectItem value="reunion">👥 Reunión</SelectItem>
+                              <SelectItem value="llamada">📞 Llamada</SelectItem>
+                              <SelectItem value="recordatorio">⏰ Recordatorio</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {/* Descripción */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Descripción</label>
+                        <Textarea
+                          placeholder="Detalles de la tarea..."
+                          value={tareaData.descripcion}
+                          onChange={(e) =>
+                            setTareaData({ ...tareaData, descripcion: e.target.value })
+                          }
+                          className="min-h-[80px]"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Fecha */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Fecha</label>
+                          <Input
+                            type="date"
+                            value={tareaData.fecha}
+                            onChange={(e) =>
+                              setTareaData({ ...tareaData, fecha: e.target.value })
+                            }
+                          />
+                        </div>
+
+                        {/* Hora inicio */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            Hora Inicio
+                          </label>
+                          <Input
+                            type="time"
+                            value={tareaData.horaInicio}
+                            onChange={(e) =>
+                              setTareaData({ ...tareaData, horaInicio: e.target.value })
+                            }
+                          />
+                        </div>
+
+                        {/* Hora fin */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            Hora Fin
+                          </label>
+                          <Input
+                            type="time"
+                            value={tareaData.horaFin}
+                            onChange={(e) =>
+                              setTareaData({ ...tareaData, horaFin: e.target.value })
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setShowTareaSection(false)
+                            setTareaData({
+                              titulo: "",
+                              descripcion: "",
+                              fecha: new Date().toISOString().split("T")[0],
+                              horaInicio: "09:00",
+                              horaFin: "10:00",
+                              tipo: "tarea",
+                            })
+                          }}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={crearTareaCalendario}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Guardar Tarea
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
               {/* Programa de Interés */}
               {/* Programa de Interés */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -661,7 +890,7 @@ export default function CapturaProspectos() {
               </div>
 
               {/* Seguimientos */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {["nota1", "nota2", "nota3"].map((name, idx) => (
                   <FormField
                     key={name}
@@ -686,7 +915,7 @@ export default function CapturaProspectos() {
                     )}
                   />
                 ))}
-              </div>
+              </div> */}
 
               {/* Cierre */}
               {/* <FormField
