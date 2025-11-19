@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { DatePicker } from "@/components/ui/date-picker"
+import { SimpleDatePicker } from "@/components/ui/simple-date-picker"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import CargaMasivaProspectos from "./tabs/CargaMasivaProspectos"
 
@@ -32,8 +32,8 @@ import CargaMasivaProspectos from "./tabs/CargaMasivaProspectos"
 const formSchema = z.object({
   fecha: z.date({ required_error: "La fecha es requerida" }),
   nombreCompleto: z.string().min(1, "El nombre es requerido"),
-  telefono: z.string().min(8, "El teléfono debe tener al menos 8 dígitos"),
-  correoElectronico: z.string().email("Correo electrónico inválido"),
+  telefono: z.string().optional(),
+  correoElectronico: z.string().optional(),
   genero: z.string({ required_error: "El género es requerido" }),
   empresaDondeLaboraActualmente: z.string().optional(),
   puesto: z.string().optional(),
@@ -50,7 +50,30 @@ const formSchema = z.object({
   pais: z.string({ required_error: "El país es requerido" }),
   departamento: z.string({ required_error: "El departamento es requerido" }),
   municipio: z.string({ required_error: "El municipio es requerido" }),
-})
+}).refine(
+  (data) => {
+    // Validación: Debe tener al menos correo O teléfono
+    const tieneCorreo = data.correoElectronico && data.correoElectronico.trim().length > 0;
+    const tieneTelefono = data.telefono && data.telefono.trim().length >= 8;
+    return tieneCorreo || tieneTelefono;
+  },
+  {
+    message: "Debe ingresar al menos el correo electrónico o el teléfono",
+    path: ["correoElectronico"], // Muestra el error en el campo de correo
+  }
+).refine(
+  (data) => {
+    // Si ingresa correo, debe ser válido
+    if (data.correoElectronico && data.correoElectronico.trim().length > 0) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.correoElectronico);
+    }
+    return true;
+  },
+  {
+    message: "El correo electrónico no es válido",
+    path: ["correoElectronico"],
+  }
+)
 
 
 type FormData = z.infer<typeof formSchema>
@@ -331,6 +354,65 @@ export default function CapturaProspectos() {
   // Manejo de envío del formulario
   const onSubmit = async (data: FormData) => {
     try {
+      // ⚠️ Validación adicional: Advertir si falta correo O teléfono
+      const tieneCorreo = data.correoElectronico && data.correoElectronico.trim().length > 0;
+      const tieneTelefono = data.telefono && data.telefono.trim().length >= 8;
+      
+      if (!tieneCorreo && !tieneTelefono) {
+        Swal.fire({
+          icon: "warning",
+          title: "Información incompleta",
+          html: `
+            <p class="mb-3">No se ha ingresado <strong>correo electrónico</strong> ni <strong>teléfono</strong>.</p>
+            <p class="text-sm text-gray-600">Es necesario al menos uno de estos datos para el seguimiento del prospecto.</p>
+          `,
+          showCancelButton: true,
+          confirmButtonText: "Agregar datos",
+          cancelButtonText: "Guardar de todos modos",
+          confirmButtonColor: "#3b82f6",
+          cancelButtonColor: "#6b7280",
+        }).then((result) => {
+          if (result.isDismissed) {
+            // Usuario decidió guardar sin correo ni teléfono
+            continueSubmit(data);
+          }
+        });
+        return;
+      }
+
+      // Si solo tiene uno, mostrar advertencia informativa
+      if (!tieneCorreo || !tieneTelefono) {
+        const falta = !tieneCorreo ? "correo electrónico" : "teléfono";
+        const resultado = await Swal.fire({
+          icon: "info",
+          title: "Información opcional",
+          html: `
+            <p class="mb-3">No se ha ingresado <strong>${falta}</strong>.</p>
+            <p class="text-sm text-gray-600">Podrá actualizar esta información después en la sección de gestión.</p>
+          `,
+          showCancelButton: true,
+          confirmButtonText: "Continuar guardando",
+          cancelButtonText: "Agregar ahora",
+          confirmButtonColor: "#10b981",
+          cancelButtonColor: "#3b82f6",
+        });
+
+        if (resultado.isDismissed) {
+          return; // Usuario quiere agregar el dato faltante
+        }
+      }
+
+      // Continuar con el guardado
+      await continueSubmit(data);
+    } catch (error: any) {
+      setLoading(false);
+      console.error("❌ Error en onSubmit:", error);
+    }
+  };
+
+  // Función auxiliar para ejecutar el guardado
+  const continueSubmit = async (data: FormData) => {
+    try {
       setLoading(true)
       const fechaFormateada = data.fecha.toISOString().split("T")[0]
       const token = localStorage.getItem("token")
@@ -419,9 +501,9 @@ export default function CapturaProspectos() {
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel>Fecha</FormLabel>
-                      <DatePicker
+                      <SimpleDatePicker
                         value={field.value ? field.value.toISOString().split("T")[0] : ""}
-                        onChange={(v) => field.onChange(v ? new Date(v) : undefined)}
+                        onChange={(v) => field.onChange(v ? new Date(v + "T00:00:00") : undefined)}
                       />
                       <FormMessage />
                     </FormItem>
@@ -449,9 +531,11 @@ export default function CapturaProspectos() {
                   name="telefono"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Teléfono</FormLabel>
+                      <FormLabel>
+                        Teléfono <span className="text-xs text-gray-500">(Requerido si no hay correo)</span>
+                      </FormLabel>
                       <FormControl>
-                        <Input placeholder="Ingrese el teléfono" {...field} />
+                        <Input placeholder="Ingrese el teléfono (mínimo 8 dígitos)" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -464,9 +548,11 @@ export default function CapturaProspectos() {
                   name="correoElectronico"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Correo Electrónico</FormLabel>
+                      <FormLabel>
+                        Correo Electrónico <span className="text-xs text-gray-500">(Requerido si no hay teléfono)</span>
+                      </FormLabel>
                       <FormControl>
-                        <Input placeholder="Ingrese el correo electrónico" {...field} />
+                        <Input placeholder="ejemplo@correo.com" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -749,13 +835,13 @@ export default function CapturaProspectos() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* Fecha */}
                         <div className="space-y-2">
-                          <label className="text-sm font-medium">Fecha</label>
-                          <Input
-                            type="date"
+                          <label className="text-sm font-medium flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            Fecha
+                          </label>
+                          <SimpleDatePicker
                             value={tareaData.fecha}
-                            onChange={(e) =>
-                              setTareaData({ ...tareaData, fecha: e.target.value })
-                            }
+                            onChange={(v) => setTareaData({ ...tareaData, fecha: v })}
                           />
                         </div>
 

@@ -1,9 +1,9 @@
 "use client"
 import { useEffect, useState, useMemo } from "react"
-import { ArrowLeft, ArrowRight, CheckCircle } from "lucide-react"
+import { ArrowLeft, ArrowRight, CheckCircle, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { DatePicker } from "@/components/ui/date-picker"
+import { SimpleDatePicker } from "@/components/ui/simple-date-picker"
 import { Label } from "@/components/ui/label"
 import { RequiredAsterisk } from "@/components/ui/required-asterisk"
 import { Textarea } from "@/components/ui/textarea"
@@ -38,7 +38,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
     "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
   ]
   const dias = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado"]
-  const titulos = ["diversificado", "tecnico", "licenciatura", "maestria", "doctorado", "cierre_pensum"] as const
+  const titulos = ["diversificado", "tecnico", "licenciatura", "maestria", "doctorado", "cierre_pensum","Carrera Universitaria Incompleta"] as const
   const medios = ["redes", "amigo", "empresa", "evento", "busqueda", "otros"] as const
 
   const [programas, setProgramas] = useState<Programa[]>([])
@@ -60,15 +60,14 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
       .catch((err) => console.error("❌ Error al obtener programas:", err))
   }, [])
 
-  // Actualiza la duración sólo si está vacía para permitir edición manual
+  // Actualiza la duración siempre que cambie el programa
   useEffect(() => {
-
     const prog = programasUnicos.find((p) => p.id.toString() === datos.programa)
     const nuevaDur = prog?.meses.toString() ?? ""
-    if (datos.duracion === "" && nuevaDur) {
+    if (nuevaDur) {
       setDatos((prev) => ({ ...prev, duracion: nuevaDur }))
     }
-  }, [datos.programa, programasUnicos, datos.duracion, setDatos])
+  }, [datos.programa, programasUnicos, setDatos])
 
   // Programa 1 siempre refleja el programa principal
   useEffect(() => {
@@ -99,13 +98,31 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
     }
   }, [datos.duracion, datos.titulo1_duracion, setDatos])
 
+  // Auto-actualizar duración cuando cambian los programas 2 y 3
+  useEffect(() => {
+    if (datos.titulo2) {
+      const prog = programasUnicos.find(p => p.id.toString() === datos.titulo2)
+      if (prog) {
+        setDatos(prev => ({ ...prev, titulo2_duracion: prog.meses.toString() }))
+      }
+    }
+  }, [datos.titulo2, programasUnicos, setDatos])
+
+  useEffect(() => {
+    if (datos.titulo3) {
+      const prog = programasUnicos.find(p => p.id.toString() === datos.titulo3)
+      if (prog) {
+        setDatos(prev => ({ ...prev, titulo3_duracion: prog.meses.toString() }))
+      }
+    }
+  }, [datos.titulo3, programasUnicos, setDatos])
+
   // Checks whether the required fields are completed
   const isFormValid = useMemo(() => {
-    return (
+    const baseValidation = (
       !!datos.programa &&
       !!datos.ultimoTitulo &&
       datos.institucionAnterior.trim().length > 0 &&
-      datos.añoGraduacion.trim().length > 0 &&
       !!datos.modalidad &&
       !!datos.fechaInicio &&
       !!datos.diaEstudio &&
@@ -116,6 +133,14 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
       datos.titulo1 === datos.programa &&
       datos.titulo1_duracion.trim().length > 0
     )
+
+    // Si es cierre de pénsum, validar campo carrera
+    if (datos.ultimoTitulo === "cierre_pensum") {
+      return baseValidation && (datos.carrera?.trim().length || 0) > 0
+    }
+
+    // Si NO es cierre de pénsum, validar año de graduación
+    return baseValidation && datos.añoGraduacion.trim().length > 0
   }, [datos])
 
   const handleNext = () => {
@@ -170,7 +195,9 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
               type="number"
               value={datos.duracion}
               onChange={e => setDatos({ ...datos, duracion: e.target.value })}
+              placeholder="Meses"
             />
+            <p className="text-xs text-gray-500">Se actualiza automáticamente según el programa</p>
           </div>
         </div>
 
@@ -189,12 +216,27 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
             <SelectContent>
               {titulos.map(t => (
                 <SelectItem key={t} value={t}>
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                  {t === "cierre_pensum" ? "Cierre de Pénsum" : t.charAt(0).toUpperCase() + t.slice(1)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
+
+        {/* Campo Carrera (solo si es cierre de pénsum) */}
+        {datos.ultimoTitulo === "cierre_pensum" && (
+          <div className="space-y-2">
+            <Label>
+              Carrera <RequiredAsterisk />
+            </Label>
+            <Input
+              value={datos.carrera || ""}
+              onChange={e => setDatos({ ...datos, carrera: e.target.value })}
+              placeholder="Ingrese el nombre de la carrera"
+              required
+            />
+          </div>
+        )}
 
         {/* Institución */}
         <div className="space-y-2">
@@ -208,20 +250,22 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
           />
         </div>
 
-        {/* Año de graduación */}
-        <div className="space-y-2">
-          <Label>
-            Año de graduación <RequiredAsterisk />
-          </Label>
-          <Input
-            type="number"
-            min={1950}
-            max={new Date().getFullYear()}
-            value={datos.añoGraduacion}
-            onChange={e => setDatos({ ...datos, añoGraduacion: e.target.value })}
-            required
-          />
-        </div>
+        {/* Año de graduación - Solo si NO es cierre de pénsum */}
+        {datos.ultimoTitulo !== "cierre_pensum" && (
+          <div className="space-y-2">
+            <Label>
+              Año de graduación <RequiredAsterisk />
+            </Label>
+            <Input
+              type="number"
+              min={1950}
+              max={new Date().getFullYear()}
+              value={datos.añoGraduacion}
+              onChange={e => setDatos({ ...datos, añoGraduacion: e.target.value })}
+              required
+            />
+          </div>
+        )}
 
         {/* Modalidad */}
         <div className="space-y-2">
@@ -290,27 +334,30 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
           <Label>
             Fecha de inicio específica <RequiredAsterisk />
           </Label>
-          <DatePicker
+          <SimpleDatePicker
             value={datos.fechaInicioEspecifica}
             onChange={v => setDatos({ ...datos, fechaInicioEspecifica: v })}
+            placeholder="Seleccionar fecha de inicio"
           />
         </div>
         <div className="space-y-2">
           <Label>
             Fecha taller de inducción <RequiredAsterisk />
           </Label>
-          <DatePicker
+          <SimpleDatePicker
             value={datos.fechaTallerInduccion}
             onChange={v => setDatos({ ...datos, fechaTallerInduccion: v })}
+            placeholder="Seleccionar fecha de inducción"
           />
         </div>
         <div className="space-y-2">
           <Label>
             Fecha taller de integración <RequiredAsterisk />
           </Label>
-          <DatePicker
+          <SimpleDatePicker
             value={datos.fechaTallerIntegracion}
             onChange={v => setDatos({ ...datos, fechaTallerIntegracion: v })}
+            placeholder="Seleccionar fecha de integración"
           />
         </div>
 
@@ -354,36 +401,65 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
         </div>
 
         {/* Bloque de Programas adicionales */}
-        {["titulo1", "titulo2", "titulo3"].map((field, idx) => (
-          <div className="flex space-x-4 items-end" key={field}>
-            <div className="flex-1 space-y-2">
-              <Label>{`Programa ${idx + 1}`}</Label>
-              <Select
-                value={(datos as any)[field] || ""}
-                onValueChange={val => setDatos({ ...datos, [field]: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar programa" />
-                </SelectTrigger>
-                <SelectContent>
-                  {programasUnicos.map(p => (
-                    <SelectItem key={p.id} value={p.id.toString()}>
-                      {p.abreviatura} – {p.nombre_del_programa}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        {["titulo1", "titulo2", "titulo3"].map((field, idx) => {
+          const programaValue = (datos as any)[field] || ""
+          const duracionValue = (datos as any)[`${field}_duracion`] || ""
+          const isProgramaSeleccionado = programaValue !== ""
+          
+          return (
+            <div className="flex space-x-4 items-end" key={field}>
+              <div className="flex-1 space-y-2">
+                <Label>{`Programa ${idx + 1}${idx === 0 ? ' (Principal)' : ''}`}</Label>
+                <Select
+                  value={programaValue}
+                  onValueChange={val => {
+                    // Actualizar programa
+                    setDatos({ ...datos, [field]: val })
+                    // Actualizar duración automáticamente
+                    const prog = programasUnicos.find(p => p.id.toString() === val)
+                    if (prog) {
+                      setDatos(prev => ({ ...prev, [field]: val, [`${field}_duracion`]: prog.meses.toString() }))
+                    }
+                  }}
+                  disabled={idx === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar programa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {programasUnicos.map(p => (
+                      <SelectItem key={p.id} value={p.id.toString()}>
+                        {p.abreviatura} – {p.nombre_del_programa}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex-1 space-y-2">
+                <Label>{`Duración ${idx + 1} (meses)`}</Label>
+                <Input
+                  type="number"
+                  value={duracionValue}
+                  onChange={e => setDatos({ ...datos, [`${field}_duracion`]: e.target.value })}
+                />
+                <p className="text-xs text-gray-500">Se actualiza automáticamente</p>
+              </div>
+              {/* Botón para quitar programa (solo para programas 2 y 3) */}
+              {idx > 0 && isProgramaSeleccionado && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50 mb-2"
+                  onClick={() => setDatos({ ...datos, [field]: "", [`${field}_duracion`]: "" })}
+                  title={`Quitar Programa ${idx + 1}`}
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              )}
             </div>
-            <div className="flex-1 space-y-2">
-              <Label>{`Duración ${idx + 1} (meses)`}</Label>
-              <Input
-                type="number"
-                value={(datos as any)[`${field}_duracion`] || ""}
-                onChange={e => setDatos({ ...datos, [`${field}_duracion`]: e.target.value })}
-              />
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {error && <p className="text-red-600 mt-2">{error}</p>}

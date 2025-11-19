@@ -1,4 +1,4 @@
-// components/inscripcion/GestionFichas.tsx
+// components/inscripcion/aprobacion-financiera.tsx
 "use client"
 
 import React, { useState, useEffect } from "react"
@@ -29,7 +29,13 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select"
-import { Eye, CheckCircle, XCircle, Calendar, Loader2 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Eye, CheckCircle, XCircle, Calendar, Loader2, Download, ArrowLeft } from "lucide-react"
 import {
   Tooltip,
   TooltipContent,
@@ -37,39 +43,26 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { FichaEstudiante } from "@/components/inscripcion/types"
-import FichaDetalleModal from "@/components/inscripcion/modal/FichaDetalleModal"
 import { API_BASE_URL } from "@/utils/apiConfig"
+import AprobacionFinancieraModal from "./modal/AprobacionFinancieraModal"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || API_BASE_URL
-const CONTEO_REVISADAS_KEY = "fichasRevisadasCount"
 
-function incrementarRevisadas() {
-  const actual = parseInt(
-    localStorage.getItem(CONTEO_REVISADAS_KEY) ?? "0",
-    10
-  )
-  localStorage.setItem(CONTEO_REVISADAS_KEY, String(actual + 1))
-}
-
-export function GestionFichas() {
+export function AprobacionFinanciera() {
   const [fichas, setFichas] = useState<FichaEstudiante[]>([])
   const [searchTerm, setSearchTerm] = useState("")
-  const [filtroEstado, setFiltroEstado] = useState<string>("todos")
   const [filtroPrioridad, setFiltroPrioridad] = useState<string>("todas")
-  const [filtroPeriodo, setFiltroPeriodo] = useState<string>("todos")
 
   const [selectedFicha, setSelectedFicha] = useState<FichaEstudiante | null>(null)
-  const [activeTab, setActiveTab] = useState<"fichas" | "documentos">("fichas")
-  const [isDetalleModalOpen, setDetalleModalOpen] = useState(false)
+  const [isModalOpen, setModalOpen] = useState(false)
   const [processingId, setProcessingId] = useState<number | null>(null)
 
   useEffect(() => {
     async function fetchFichas() {
       try {
         const res = await fetch(
-          `${API_URL}/prospectos/fichas/pendientes-public`,
+          `${API_URL}/prospectos/fichas/pendientes-financiera`,
           { headers: { Accept: "application/json" } }
         )
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -89,8 +82,8 @@ export function GestionFichas() {
         }))
         setFichas(mapped)
       } catch (err) {
-        console.error("Error cargando fichas:", err)
-        Swal.fire("Error", "No se pudieron cargar las fichas", "error")
+        console.error("Error cargando fichas financieras:", err)
+        Swal.fire("Error", "No se pudieron cargar las fichas pendientes de aprobación financiera", "error")
       }
     }
     fetchFichas()
@@ -98,65 +91,25 @@ export function GestionFichas() {
 
   const handleViewDetalle = async (f: FichaEstudiante) => {
     setSelectedFicha(f)
-    const token = localStorage.getItem("token")
-    try {
-      const res = await fetch(
-        `${API_URL}/documentos/prospecto/${f.id}`,
-        {
-          headers: {
-            Authorization: token ? `Bearer ${token}` : "",
-            Accept: "application/json",
-          },
-        }
-      )
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const docs = await res.json()
-      setSelectedFicha({ ...f, documentos: docs })
-      setActiveTab("documentos")
-      setDetalleModalOpen(true)
-    } catch (err) {
-      console.error("Error cargando documentos:", err)
-      Swal.fire("Error", "No se pudieron cargar los documentos.", "error")
-    }
+    setModalOpen(true)
   }
 
-  const handleApprove = async (id: number) => {
+  const handleAprobar = async (id: number) => {
+    const result = await Swal.fire({
+      title: "¿Aprobar financiamiento?",
+      text: "Esta acción cambiará el estado a 'Pendiente de Aprobación Académica'",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Sí, aprobar",
+      cancelButtonText: "Cancelar",
+    })
+
+    if (!result.isConfirmed) return
+
     setProcessingId(id)
     try {
       const token = localStorage.getItem("token")
-      const res = await fetch(`${API_URL}/prospectos/${id}/status`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: token ? `Bearer ${token}` : "",
-        },
-        body: JSON.stringify({ status: "aprobada" }),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      setFichas(prev =>
-        prev.map(f => (f.id === id ? { ...f, estado: "aprobada" } : f))
-      )
-      incrementarRevisadas()
-      await Swal.fire({
-        icon: "success",
-        title: "Ficha aprobada",
-        text: "El estado ha cambiado a APROBADA",
-        timer: 1800,
-        showConfirmButton: false,
-      })
-    } catch (err) {
-      console.error("Error al aprobar ficha", err)
-      Swal.fire("Oops...", "No se pudo aprobar la ficha", "error")
-    } finally {
-      setProcessingId(null)
-    }
-  }
-
-  const handleReject = async (id: number) => {
-    setProcessingId(id)
-    try {
-      const token = localStorage.getItem("token")
-      const res = await fetch(`${API_URL}/fichas/${id}/reject`, {
+      const res = await fetch(`${API_URL}/prospectos/${id}/aprobar-financiero`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -164,96 +117,120 @@ export function GestionFichas() {
         },
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      
       setFichas(prev => prev.filter(f => f.id !== id))
-      Swal.fire({ icon: "info", title: "Ficha rechazada", timer: 1200, showConfirmButton: false })
+      await Swal.fire({
+        icon: "success",
+        title: "Financiamiento aprobado",
+        text: "La ficha ha sido enviada a Aprobación Académica",
+        timer: 2000,
+        showConfirmButton: false,
+      })
     } catch (err) {
-      console.error("Error al rechazar ficha", err)
-      Swal.fire("Error", "No se pudo rechazar la ficha", "error")
+      console.error("Error al aprobar financiero", err)
+      Swal.fire("Error", "No se pudo aprobar el financiamiento", "error")
     } finally {
       setProcessingId(null)
     }
   }
 
-  const handleAprobarFicha = async () => {
-    if (!selectedFicha) return
-    try {
-      const token = localStorage.getItem("token")
-      const res = await fetch(`${API_URL}/prospectos/${selectedFicha.id}/status`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: token ? `Bearer ${token}` : "",
-        },
-        body: JSON.stringify({ status: "Pendiente de Aprobación Financiera" }),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      
-      setFichas(prev => prev.filter(f => f.id !== selectedFicha.id))
-      setDetalleModalOpen(false)
-      setSelectedFicha(null)
-      
-      await Swal.fire({
-        icon: "success",
-        title: "Ficha aprobada",
-        text: "La ficha ha sido enviada a Aprobación Financiera",
-        timer: 2000,
-        showConfirmButton: false,
-      })
-    } catch (err) {
-      console.error("Error al aprobar ficha:", err)
-      Swal.fire("Error", "No se pudo aprobar la ficha", "error")
-    }
-  }
-
-  const handleRetrocederFicha = async () => {
-    if (!selectedFicha) return
-    
+  const handleSolicitarCorreccion = async (id: number) => {
     const { value: comentario } = await Swal.fire({
-      title: "Retroceder a Preinscripción",
+      title: "Solicitar corrección",
       input: "textarea",
       inputLabel: "Comentario (obligatorio)",
-      inputPlaceholder: "Indica la razón por la que retrocede esta ficha...",
-      showCancelButton: true,
-      confirmButtonText: "Retroceder",
-      cancelButtonText: "Cancelar",
+      inputPlaceholder: "Describe las correcciones necesarias...",
       inputValidator: (value) => {
         if (!value || value.trim() === "") {
           return "Debes ingresar un comentario"
         }
       },
+      showCancelButton: true,
+      confirmButtonText: "Enviar",
+      cancelButtonText: "Cancelar",
     })
 
     if (!comentario) return
 
+    setProcessingId(id)
     try {
       const token = localStorage.getItem("token")
-      const res = await fetch(`${API_URL}/prospectos/${selectedFicha.id}/retroceder`, {
+      const res = await fetch(`${API_URL}/prospectos/${id}/solicitar-correccion`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: token ? `Bearer ${token}` : "",
         },
         body: JSON.stringify({ 
-          estado_destino: "Preinscripción",
-          comentario: comentario.trim(),
+          comentario,
+          estado_destino: "Pendiente de Aprobación"
         }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       
-      setFichas(prev => prev.filter(f => f.id !== selectedFicha.id))
-      setDetalleModalOpen(false)
-      setSelectedFicha(null)
-      
-      await Swal.fire({
-        icon: "success",
-        title: "Ficha retrocedida",
-        text: "La ficha ha sido devuelta a Preinscripción",
-        timer: 2000,
-        showConfirmButton: false,
+      setFichas(prev => prev.filter(f => f.id !== id))
+      Swal.fire({ 
+        icon: "info", 
+        title: "Corrección solicitada", 
+        text: "La ficha ha sido devuelta",
+        timer: 2000, 
+        showConfirmButton: false 
       })
     } catch (err) {
-      console.error("Error al retroceder ficha:", err)
+      console.error("Error al solicitar corrección", err)
+      Swal.fire("Error", "No se pudo solicitar la corrección", "error")
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const handleRetroceder = async (id: number, estadoDestino: string) => {
+    const { value: comentario } = await Swal.fire({
+      title: `Retroceder a: ${estadoDestino}`,
+      input: "textarea",
+      inputLabel: "Motivo del retroceso (obligatorio)",
+      inputPlaceholder: "Explica por qué retrocedes esta ficha...",
+      inputValidator: (value) => {
+        if (!value || value.trim() === "") {
+          return "Debes ingresar un motivo"
+        }
+      },
+      showCancelButton: true,
+      confirmButtonText: "Retroceder",
+      cancelButtonText: "Cancelar",
+    })
+
+    if (!comentario) return
+
+    setProcessingId(id)
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_URL}/prospectos/${id}/retroceder`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({ 
+          estado_destino: estadoDestino,
+          comentario 
+        }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      
+      setFichas(prev => prev.filter(f => f.id !== id))
+      Swal.fire({ 
+        icon: "info", 
+        title: "Ficha retrocedida", 
+        text: `Estado cambiado a: ${estadoDestino}`,
+        timer: 2000, 
+        showConfirmButton: false 
+      })
+    } catch (err) {
+      console.error("Error al retroceder ficha", err)
       Swal.fire("Error", "No se pudo retroceder la ficha", "error")
+    } finally {
+      setProcessingId(null)
     }
   }
 
@@ -263,28 +240,9 @@ export function GestionFichas() {
       (f.nombre.toLowerCase().includes(term) ||
         f.programa.toLowerCase().includes(term) ||
         f.id.toString().includes(term)) &&
-      (filtroEstado === "todos" || f.estado === filtroEstado) &&
-      (filtroPrioridad === "todas" || f.prioridad === filtroPrioridad) &&
-      (filtroPeriodo === "todos")
+      (filtroPrioridad === "todas" || f.prioridad === filtroPrioridad)
     )
   })
-
-  const getBadgeForEstado = (e: string) => {
-    switch (e) {
-      case "aprobada":
-        return <Badge className="bg-green-200 text-green-900">Aprobada</Badge>
-      case "completa":
-        return <Badge className="bg-green-100 text-green-800">Completa</Badge>
-      case "incompleta":
-        return <Badge className="bg-yellow-100 text-yellow-800">Incompleta</Badge>
-      case "revisada":
-        return <Badge className="bg-blue-100 text-blue-800">Revisada</Badge>
-      case "correccion_solicitada":
-        return <Badge className="bg-orange-100 text-orange-800">Corrección Solicitada</Badge>
-      default:
-        return null
-    }
-  }
 
   const getBadgeForPrioridad = (p?: string) => {
     switch (p) {
@@ -311,20 +269,6 @@ export function GestionFichas() {
           />
         </div>
         <div>
-          <Label>Estado</Label>
-          <Select value={filtroEstado} onValueChange={setFiltroEstado}>
-            <SelectTrigger className="w-[140px]"><SelectValue placeholder="Todos" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos</SelectItem>
-              <SelectItem value="completa">Completa</SelectItem>
-              <SelectItem value="incompleta">Incompleta</SelectItem>
-              <SelectItem value="revisada">Revisada</SelectItem>
-              <SelectItem value="correccion_solicitada">Corrección Solicitada</SelectItem>
-              <SelectItem value="aprobada">Aprobada</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
           <Label>Prioridad</Label>
           <Select value={filtroPrioridad} onValueChange={setFiltroPrioridad}>
             <SelectTrigger className="w-[140px]"><SelectValue placeholder="Todas" /></SelectTrigger>
@@ -336,27 +280,18 @@ export function GestionFichas() {
             </SelectContent>
           </Select>
         </div>
-        <div>
-          <Label>Período</Label>
-          <Select value={filtroPeriodo} onValueChange={setFiltroPeriodo}>
-            <SelectTrigger className="w-[140px]"><SelectValue placeholder="Todos" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
       </div>
 
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle>Listado de Fichas</CardTitle>
+            <CardTitle>Aprobación Financiera</CardTitle>
             <Badge className="bg-blue-100 text-blue-800">
-              <Calendar className="mr-1 h-3 w-3" /> Actualizado
+              <Calendar className="mr-1 h-3 w-3" /> {filteredFichas.length} Pendientes
             </Badge>
           </div>
           <CardDescription>
-            Visualiza las fichas registradas y pendientes
+            Revisa y aprueba la información financiera de los estudiantes
           </CardDescription>
         </CardHeader>
 
@@ -368,7 +303,6 @@ export function GestionFichas() {
                 <TableHead>Nombre</TableHead>
                 <TableHead>Programa</TableHead>
                 <TableHead>Fecha</TableHead>
-                <TableHead>Estado</TableHead>
                 <TableHead>Prioridad</TableHead>
                 <TableHead>Última Actualización</TableHead>
                 <TableHead>Acciones</TableHead>
@@ -381,7 +315,6 @@ export function GestionFichas() {
                   <TableCell>{f.nombre}</TableCell>
                   <TableCell>{f.programa}</TableCell>
                   <TableCell>{f.fecha}</TableCell>
-                  <TableCell>{getBadgeForEstado(f.estado)}</TableCell>
                   <TableCell>{getBadgeForPrioridad(f.prioridad)}</TableCell>
                   <TableCell>{f.ultimaActualizacion}</TableCell>
                   <TableCell>
@@ -397,50 +330,64 @@ export function GestionFichas() {
                               <Eye className="h-4 w-4" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Ver ficha</TooltipContent>
+                          <TooltipContent>Ver ficha completa</TooltipContent>
                         </Tooltip>
+                        
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleApprove(f.id)}
-                              disabled={
-                                f.estado === "aprobada" || processingId === f.id
-                              }
-                            >
-                              {processingId === f.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <CheckCircle
-                                  className={`h-4 w-4 ${
-                                    f.estado === "aprobada"
-                                      ? "text-gray-400"
-                                      : "text-green-500"
-                                  }`}
-                                />
-                              )}
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Aprobar</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleReject(f.id)}
+                              onClick={() => handleAprobar(f.id)}
                               disabled={processingId === f.id}
                             >
                               {processingId === f.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                <XCircle className="h-4 w-4 text-red-500" />
+                                <CheckCircle className="h-4 w-4 text-green-500" />
                               )}
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Rechazar</TooltipContent>
+                          <TooltipContent>Aprobar financiamiento</TooltipContent>
                         </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleSolicitarCorreccion(f.id)}
+                              disabled={processingId === f.id}
+                            >
+                              <XCircle className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Solicitar corrección</TooltipContent>
+                        </Tooltip>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={processingId === f.id}
+                            >
+                              <ArrowLeft className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem
+                              onClick={() => handleRetroceder(f.id, "Pendiente de Aprobación")}
+                            >
+                              Retroceder a Pendiente de Aprobación
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleRetroceder(f.id, "Preinscripción")}
+                            >
+                              Retroceder a Preinscripción
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </TooltipProvider>
                   </TableCell>
@@ -454,27 +401,20 @@ export function GestionFichas() {
           <div className="text-sm text-muted-foreground">
             Mostrando {filteredFichas.length} de {fichas.length} fichas
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm">Anterior</Button>
-            <Button variant="outline" size="sm">Siguiente</Button>
-          </div>
         </CardFooter>
       </Card>
 
       {selectedFicha && (
-        <FichaDetalleModal
-          isOpen={isDetalleModalOpen}
+        <AprobacionFinancieraModal
+          isOpen={isModalOpen}
           onClose={() => {
-            setDetalleModalOpen(false)
+            setModalOpen(false)
             setSelectedFicha(null)
           }}
           ficha={selectedFicha}
-          onMarcarRevisada={() => selectedFicha && handleApprove(selectedFicha.id)}
-          onSolicitarCorreccion={() => console.log("Solicitar corrección")}
-          onAprobar={handleAprobarFicha}
-          onRetroceder={handleRetrocederFicha}
-          comentarioRevision=""
-          showSuccessMessage={false}
+          onAprobar={() => selectedFicha && handleAprobar(selectedFicha.id)}
+          onSolicitarCorreccion={() => selectedFicha && handleSolicitarCorreccion(selectedFicha.id)}
+          onRetroceder={(estado) => selectedFicha && handleRetroceder(selectedFicha.id, estado)}
         />
       )}
     </div>

@@ -8,14 +8,33 @@ export interface Prospecto {
   emailPersonal: string;
   emailCorporativo: string;
   fechaNacimiento: string;
+  direccion?: string;
   empresa: string;
   puesto: string;
   telefonoCorporativo: string;
   departamento: string;
+  direccionEmpresa?: string;
   estado: string;
-  fechaRegistro: string;
+  fechaRegistro?: string;
   programaInteres: string;
-  fuenteCaptura: string;
+  fuenteCaptura?: string;
+  // Datos académicos del prospecto
+  ultimoTitulo?: string;
+  institucionTitulo?: string;
+  anioGraduacion?: string;
+  modalidad?: string;
+  fechaInicioEspecifica?: string;
+  fechaTallerReduccion?: string;
+  fechaTallerIntegracion?: string;
+  medioConocimiento?: string;
+  cursosAprobados?: string;
+  diaEstudio?: string;
+  observaciones?: string;
+  notasGenerales?: string;
+  // Datos financieros
+  metodoPago?: string;
+  montoInscripcion?: string;
+  convenioId?: number | null;
 }
 
 export interface DatosPersonales {
@@ -28,6 +47,7 @@ export interface DatosPersonales {
   emailCorporativo: string;
   fechaNacimiento: string; // ISO: "yyyy-MM-dd"
   direccion: string;
+  esReinscripcion?: boolean;
 }
 
 export interface DatosLaborales {

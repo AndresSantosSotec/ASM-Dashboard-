@@ -28,6 +28,7 @@ import type { ProgramaConDuracion } from "./types"
 
 import axios from "axios"
 import { API_BASE_URL } from "@/utils/apiConfig"
+import BoletaInscripcionModal from "./modal/BoletaInscripcionModal"
 
 export default function RegistrationForm() {
   const [activeTab, setActiveTab] = useState<TabId>("personal")
@@ -35,11 +36,13 @@ export default function RegistrationForm() {
   const [showModal, setShowModal] = useState(false)
   const [prospectoId, setProspectoId] = useState<number | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showBoletaModal, setShowBoletaModal] = useState(false)
+  const [estudianteProgramaTemp, setEstudianteProgramaTemp] = useState<any[]>([])
 
   const [datosPersonales, setDatosPersonales] = useState<DatosPersonales>({
     nombre: "", paisOrigen: "", paisResidencia: "", telefono: "",
     dpi: "", emailPersonal: "", emailCorporativo: "",
-    fechaNacimiento: "", direccion: ""
+    fechaNacimiento: "", direccion: "", esReinscripcion: false
   })
 
   const [datosAcademicos, setDatosAcademicos] = useState<DatosAcademicos>({
@@ -80,6 +83,7 @@ export default function RegistrationForm() {
     if (isSubmitting) return
     setIsSubmitting(true)
     try {
+      // 1. Finalizar inscripción (crear prospecto y estudiante_programa)
       const response = await axios.post(
         `${API_BASE_URL}/api/inscripciones/finalizar`,
         {
@@ -93,10 +97,11 @@ export default function RegistrationForm() {
       const nuevoId = response.data.prospecto_id;
       const estudianteProgramas: any[] = response.data.programas || [];
       setProspectoId(nuevoId);
+      setEstudianteProgramaTemp(estudianteProgramas);
   
-      // Subida de documentos
+      // 2. Subida de documentos (excepto boleta de inscripción)
       const docsToUpload = documentos.filter(
-        (d) => d.archivos && d.archivos.length > 0
+        (d) => d.archivos && d.archivos.length > 0 && d.id !== 'inscripcion'
       );
       for (const doc of docsToUpload) {
         for (const file of doc.archivos) {
@@ -110,25 +115,10 @@ export default function RegistrationForm() {
           });
         }
       }
-  
-      // Generar plan de pagos para cada programa
-      for (const programa of estudianteProgramas) {
-        await axios.post(`${API_BASE_URL}/api/plan-pagos/generar`, {
-          estudiante_programa_id: programa.id,
-        });
-      }
-  
-      // Mostrar SweetAlert y recargar al confirmar
-      Swal.fire({
-        title: '¡Inscripción completada!',
-        text: 'El estudiante fue inscrito correctamente y se generó el plan de pagos. Se enviarán las aprobaciones correspondientes.',
-        icon: 'success',
-        confirmButtonText: 'Aceptar',
-      }).then((result) => {
-        if (result.isConfirmed) {
-          window.location.reload();
-        }
-      });
+
+      // 3. Abrir modal de boleta de inscripción
+      setIsSubmitting(false)
+      setShowBoletaModal(true)
 
     } catch (error: any) {
       console.error("Error al finalizar inscripción:", error.response?.data || error);
@@ -137,8 +127,45 @@ export default function RegistrationForm() {
         text: error.response?.data?.message || "Ocurrió un error",
         icon: 'error',
       });
-    } finally {
       setIsSubmitting(false)
+    }
+  };
+
+  const handleBoletaRegistrada = async () => {
+    // 4. Generar plan de pagos DESPUÉS de registrar la boleta
+    try {
+      for (const programa of estudianteProgramaTemp) {
+        await axios.post(`${API_BASE_URL}/api/plan-pagos/generar`, {
+          estudiante_programa_id: programa.id,
+          es_reinscripcion: datosPersonales.esReinscripcion || false,
+        });
+      }
+  
+      // 5. Mostrar mensaje de éxito y recargar
+      Swal.fire({
+        title: '¡Inscripción completada!',
+        html: `
+          <p>El estudiante fue inscrito correctamente.</p>
+          <ul class="text-left text-sm mt-2">
+            <li>✓ Boleta de inscripción registrada</li>
+            <li>✓ Plan de pagos generado</li>
+            <li>✓ Cuotas adicionales agregadas</li>
+          </ul>
+        `,
+        icon: 'success',
+        confirmButtonText: 'Aceptar',
+      }).then((result) => {
+        if (result.isConfirmed) {
+          window.location.reload();
+        }
+      });
+    } catch (error: any) {
+      console.error("Error al generar plan de pagos:", error);
+      Swal.fire({
+        title: 'Advertencia',
+        text: 'La inscripción se completó pero hubo un error al generar el plan de pagos.',
+        icon: 'warning',
+      });
     }
   };
   
@@ -224,30 +251,81 @@ export default function RegistrationForm() {
         onOpenChange={setShowModal}
         onSelect={(p) => {
           setProspectoId(p.id)
+          
+          // Cargar datos personales
           setDatosPersonales(prev => ({
             ...prev,
             nombre: p.nombreCompleto,
-            paisOrigen: p.paisOrigen,
-            paisResidencia: p.paisResidencia,
+            paisOrigen: p.paisOrigen || "",
+            paisResidencia: p.paisResidencia || "",
             telefono: p.telefono,
-            dpi: p.dpi,
+            dpi: p.dpi || "",
             emailPersonal: p.emailPersonal,
-            emailCorporativo: p.emailCorporativo,
-            fechaNacimiento: p.fechaNacimiento,
+            emailCorporativo: p.emailCorporativo || "",
+            fechaNacimiento: p.fechaNacimiento ? new Date(p.fechaNacimiento).toISOString().split('T')[0] : "",
+            direccion: p.direccion || "",
           }))
 
+          // Cargar datos laborales
           setDatosLaborales(prev => ({
             ...prev,
-            empresa: p.empresa,
-            puesto: p.puesto,
-            telefonoCorporativo: p.telefonoCorporativo,
-            departamento: p.departamento,
+            empresa: p.empresa || "",
+            puesto: p.puesto || "",
+            telefonoCorporativo: p.telefonoCorporativo || "",
+            departamento: p.departamento || "",
+            direccionEmpresa: p.direccionEmpresa || "",
             sectorEmpresa: "",
-            direccionEmpresa: "",
           }))
+
+          // 🎓 Cargar datos académicos automáticamente
+          setDatosAcademicos(prev => ({
+            ...prev,
+            programa: p.programaInteres || "",
+            ultimoTitulo: (p.ultimoTitulo as DatosAcademicos["ultimoTitulo"]) || "licenciatura",
+            institucionAnterior: p.institucionTitulo || "",
+            añoGraduacion: p.anioGraduacion || "",
+            modalidad: (p.modalidad as "sincronica") || "sincronica",
+            fechaInicioEspecifica: p.fechaInicioEspecifica
+              ? p.fechaInicioEspecifica.split("T")[0] || p.fechaInicioEspecifica.split(" ")[0]
+              : "",            
+            fechaTallerInduccion: p.fechaTallerReduccion
+              ? p.fechaTallerReduccion.split("T")[0] || p.fechaTallerReduccion.split(" ")[0]
+              : "",
+              fechaTallerIntegracion: p.fechaTallerIntegracion
+                ? p.fechaTallerIntegracion.split("T")[0] || p.fechaTallerIntegracion.split(" ")[0]
+                : "",            
+            medioConocio: (p.medioConocimiento as DatosAcademicos["medioConocio"]) || "redes",
+            cursosAprobados: p.cursosAprobados || "",
+            diaEstudio: (p.diaEstudio as DatosAcademicos["diaEstudio"]) || "jueves",
+            observaciones: p.observaciones || "",
+            // Los programas se cargarán cuando se cargue la lista de programas disponibles
+            titulo1: p.programaInteres || "",
+            titulo1_duracion: "", // Se calculará automáticamente
+          }))
+
+          // 💰 Cargar datos financieros si existen
+          if (p.montoInscripcion || p.metodoPago || p.convenioId) {
+            setDatosFinancieros(prev => ({
+              ...prev,
+              inscripcion: p.montoInscripcion || prev.inscripcion,
+              formaPago: (p.metodoPago as DatosFinancieros["formaPago"]) || prev.formaPago,
+              convenioId: p.convenioId || undefined,
+              tieneConvenio: !!p.convenioId,
+            }))
+          }
 
           setShowModal(false)
         }}
+      />
+
+      {/* Modal de Boleta de Inscripción */}
+      <BoletaInscripcionModal
+        isOpen={showBoletaModal}
+        onClose={() => setShowBoletaModal(false)}
+        prospectoId={prospectoId || 0}
+        estudianteProgramaId={estudianteProgramaTemp[0]?.id}
+        montoInscripcion={parseFloat(datosFinancieros.inscripcion.replace(/,/g, '')) || 1000}
+        onBoletaRegistrada={handleBoletaRegistrada}
       />
       </div>
     </div>

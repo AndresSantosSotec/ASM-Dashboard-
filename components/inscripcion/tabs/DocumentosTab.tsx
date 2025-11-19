@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import BoletaInscripcionUpload from "./BoletaInscripcionUpload"
 
 export interface Documento {
   id: string
@@ -37,6 +38,8 @@ type Props = {
   prospectoId: number
   onFinalizar?: () => Promise<void>
   isFinalizing?: boolean
+  montoInscripcion?: number
+  estudianteProgramaId?: number
 }
 
 export default function DocumentosTab({
@@ -46,6 +49,8 @@ export default function DocumentosTab({
   prospectoId,
   onFinalizar,
   isFinalizing,
+  montoInscripcion = 1000,
+  estudianteProgramaId,
 }: Props) {
   const hiddenInput = useRef<HTMLInputElement>(null)
   const uploadTarget = useRef<string | null>(null)
@@ -134,8 +139,27 @@ export default function DocumentosTab({
 
       <section className="space-y-6">
         <h3 className="text-lg font-semibold text-blue-900">Documentos obligatorios</h3>
+        
+        {/* Componente especial para Boleta de Inscripción */}
+        <BoletaInscripcionUpload
+          prospectoId={prospectoId}
+          estudianteProgramaId={estudianteProgramaId}
+          montoInscripcion={montoInscripcion}
+          onBoletaSubida={() => {
+            // Marcar documento de inscripción como cargado
+            setDocumentos(docs =>
+              docs.map(d =>
+                d.id === "inscripcion"
+                  ? { ...d, estado: "cargado" as const }
+                  : d
+              )
+            )
+          }}
+        />
+
+        {/* Resto de documentos */}
         <div className="grid gap-4 md:grid-cols-2">
-          {documentos.map(doc => (
+          {documentos.filter(doc => doc.id !== "inscripcion").map(doc => (
             <article
               key={doc.id}
               className="rounded-lg border p-4 transition-all hover:border-blue-200 hover:bg-blue-50/30"

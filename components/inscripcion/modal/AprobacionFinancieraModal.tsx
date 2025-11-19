@@ -1,4 +1,4 @@
-// components/inscripcion/FichaDetalleModal.tsx
+// components/inscripcion/modal/AprobacionFinancieraModal.tsx
 "use client"
 
 import React, { useState, useEffect } from "react"
@@ -13,40 +13,37 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle2, XCircle, Send, Download, FileText, ArrowLeft, ThumbsUp } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { CheckCircle2, XCircle, Download, ArrowLeft, FileText } from "lucide-react"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-
 import { FichaEstudiante } from "../types"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import fetchFicha from "@/services/fichas"
 import fetchDocumentosRevision from "@/services/documentos"
 import { formatDate } from "@/utils/formatDate"
-import { resolveBackendUrl } from "@/utils/resolveBackendUrl" // ⬅️ NUEVO
-import Swal from "sweetalert2"
+import { resolveBackendUrl } from "@/utils/resolveBackendUrl"
 
 interface Props {
   ficha: FichaEstudiante
   isOpen: boolean
   onClose: () => void
-  onMarcarRevisada: () => void
+  onAprobar: () => void
   onSolicitarCorreccion: () => void
-  onAprobar?: () => void
-  onRetroceder?: () => void
-  comentarioRevision: string
-  showSuccessMessage: boolean
+  onRetroceder: (estadoDestino: string) => void
 }
 
-export default function FichaDetalleModal({
+export default function AprobacionFinancieraModal({
   ficha,
   isOpen,
   onClose,
-  onMarcarRevisada,
-  onSolicitarCorreccion,
   onAprobar,
+  onSolicitarCorreccion,
   onRetroceder,
-  comentarioRevision,
-  showSuccessMessage,
 }: Props) {
   // Estados de datos
   const [personales, setPersonales] = useState<any>({})
@@ -96,13 +93,6 @@ export default function FichaDetalleModal({
     ["Inversión total", financieros.inversionTotal],
   ]
 
-  // Estados de UI
-  const [isRevisada, setIsRevisada] = useState(false)
-  const [correctionMode, setCorrectionMode] = useState(false)
-
-  // ===== Helpers =====
-
-  // ⬇️ Reemplazado: versión estricta que ignora d.url y siempre genera URL en el mismo origen que API_BASE_URL
   const getDocUrl = (d: any) =>
     resolveBackendUrl(
       d?.ruta_archivo ? `/storage/${d.ruta_archivo}` : `/api/documentos/${d.id}/file`,
@@ -132,14 +122,12 @@ export default function FichaDetalleModal({
   const fileNameFromPath = (ruta?: string) =>
     (ruta || "").split("/").pop() || "archivo.pdf"
 
-  // elige el doc más reciente (por updated_at o subida_at)
   const pickMostRecent = (a: any, b: any) => {
     const tsA = new Date(a?.updated_at || a?.subida_at || 0).getTime()
     const tsB = new Date(b?.updated_at || b?.subida_at || 0).getTime()
     return tsB > tsA ? b : a
   }
 
-  // dedupe: deja 1 doc (el más nuevo) por tipo_documento
   const dedupeLatestByType = (docs: any[]) => {
     const byType: Record<string, any> = {}
     for (const d of docs) {
@@ -151,13 +139,12 @@ export default function FichaDetalleModal({
       .map(([, doc]) => doc)
   }
 
-  // ===== Carga inicial =====
+  // Carga inicial
   useEffect(() => {
     if (!isOpen) return
     ;(async () => {
       try {
         const data = await fetchFicha(ficha.id)
-        console.log("[FichaDetalleModal] detalle:", data)
 
         const fromFicha = Array.isArray((data as any)?.documentos)
           ? (data as any).documentos
@@ -186,34 +173,16 @@ export default function FichaDetalleModal({
         setFinancieros(data.financieros || {})
         setProgramasInscritos(data.programas || [])
         setDocumentos(latestByType)
-
-        if (data.financieros?.convenioId && !data.financieros?.convenioNombre) {
-          console.warn(
-            `[FichaDetalleModal] convenio ${data.financieros.convenioId} sin nombre. Revisar GET /api/convenios/${data.financieros.convenioId}`,
-          )
-        }
-
-        setIsRevisada(
-          localStorage.getItem(`ficha-${ficha.id}-revisada`) === "true",
-        )
       } catch (err) {
-        console.error("Error al cargar detalle de ficha:", err)
+        console.error("Error al cargar detalle de ficha financiera:", err)
       }
     })()
   }, [isOpen, ficha.id])
 
-  // Marcar como revisada
-  const marcarRevisada = () => {
-    localStorage.setItem(`ficha-${ficha.id}-revisada`, "true")
-    setIsRevisada(true)
-    onMarcarRevisada()
-  }
-
-  // Descargar ficha de inscripción en PDF
-  const handleDescargarFicha = async () => {
+  const handleDescargarPDF = async () => {
     try {
       const token = localStorage.getItem("token")
-      const res = await fetch(`${API_BASE_URL}/api/prospectos/${ficha.id}/ficha-pdf`, {
+      const res = await fetch(`${API_BASE_URL}/prospectos/${ficha.id}/ficha-pdf`, {
         headers: {
           Authorization: token ? `Bearer ${token}` : "",
         },
@@ -224,70 +193,18 @@ export default function FichaDetalleModal({
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `ficha-inscripcion-${ficha.id}.pdf`
+      a.download = `ficha-${ficha.id}.pdf`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
-      
-      Swal.fire({
-        icon: "success",
-        title: "Descarga exitosa",
-        text: "La ficha de inscripción se descargó correctamente",
-        timer: 2000,
-        showConfirmButton: false,
-      })
     } catch (err) {
-      console.error("Error al descargar ficha:", err)
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "No se pudo descargar la ficha de inscripción",
-      })
-    }
-  }
-
-  // Descargar contrato de confidencialidad
-  const handleDescargarContrato = async () => {
-    try {
-      const token = localStorage.getItem("token")
-      const res = await fetch(`${API_BASE_URL}/api/prospectos/${ficha.id}/contrato-pdf`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : "",
-        },
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      
-      const blob = await res.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `contrato-confidencialidad-${ficha.id}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-      
-      Swal.fire({
-        icon: "success",
-        title: "Descarga exitosa",
-        text: "El contrato se descargó correctamente",
-        timer: 2000,
-        showConfirmButton: false,
-      })
-    } catch (err) {
-      console.error("Error al descargar contrato:", err)
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "No se pudo descargar el contrato",
-      })
+      console.error("Error al descargar PDF:", err)
     }
   }
 
   if (!ficha) return null
 
-  // (Opcional) Agrupar por tipo para encabezados "DPI, Recibo, ..."
   const docsByType: Record<string, any[]> = (Array.isArray(documentos) ? documentos : [])
     .reduce((acc, d) => {
       const tipo = normalizeType(d?.tipo_documento)
@@ -298,24 +215,87 @@ export default function FichaDetalleModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl w-full max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-5xl w-full max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Ficha #{ficha.id}</DialogTitle>
+          <DialogTitle className="flex items-center justify-between">
+            <span>Aprobación Financiera - Ficha #{ficha.id}</span>
+            <Button variant="outline" size="sm" onClick={handleDescargarPDF}>
+              <FileText className="mr-2 h-4 w-4" />
+              Descargar PDF
+            </Button>
+          </DialogTitle>
           <DialogDescription>
-            {personales.nombre || ficha.nombre}
+            {personales.nombre || ficha.nombre} - Revisión de información financiera
           </DialogDescription>
         </DialogHeader>
 
         <div className="overflow-y-auto flex-1 px-4 py-2">
-          <Tabs defaultValue="personales">
+          <Tabs defaultValue="financieros">
             <TabsList className="flex space-x-2 overflow-x-auto">
+              <TabsTrigger value="financieros">Financieros</TabsTrigger>
+              <TabsTrigger value="programas">Programas</TabsTrigger>
               <TabsTrigger value="personales">Personales</TabsTrigger>
               <TabsTrigger value="academicos">Académicos</TabsTrigger>
               <TabsTrigger value="laborales">Laborales</TabsTrigger>
-              <TabsTrigger value="financieros">Financieros</TabsTrigger>
-              <TabsTrigger value="programas">Programas</TabsTrigger>
               <TabsTrigger value="documentos">Documentos</TabsTrigger>
             </TabsList>
+
+            {/* FINANCIEROS - Tab Principal */}
+            <TabsContent
+              value="financieros"
+              className="mt-4 space-y-4"
+            >
+              <Card className="bg-blue-50 border-blue-200">
+                <CardContent className="pt-6">
+                  <h3 className="text-lg font-semibold mb-4">Información Financiera</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {camposFinancieros.map(([label, val], i) => (
+                      <div key={i} className="p-3 bg-white border rounded">
+                        <Label className="text-xs text-muted-foreground">{label}</Label>
+                        <p className="mt-1 font-medium">
+                          {val === null || val === undefined || val === "" ? "—" : val}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* PROGRAMAS INSCRITOS */}
+            <TabsContent value="programas" className="mt-4 space-y-4">
+              {programasInscritos.length === 0 ? (
+                <p>Sin programas inscritos.</p>
+              ) : (
+                programasInscritos.map((p) => (
+                  <Card key={p.id} className="p-4 border rounded">
+                    <CardContent className="space-y-2">
+                      <p>
+                        <strong>
+                          {p.programa?.abreviatura} – {p.programa?.nombre_del_programa}
+                        </strong>
+                      </p>
+                      <p>
+                        <strong>Inicio:</strong> {formatDate(p.fecha_inicio)} |{" "}
+                        <strong>Fin:</strong> {formatDate(p.fecha_fin)}
+                      </p>
+                      <p>
+                        <strong>Duración:</strong> {p.duracion_meses} meses
+                      </p>
+                      <p>
+                        <strong>Inscripción:</strong> {p.inscripcion ?? "—"}
+                      </p>
+                      <p>
+                        <strong>Cuota mensual:</strong> {p.cuota_mensual ?? "—"}
+                      </p>
+                      <p>
+                        <strong>Inversión total:</strong> {p.inversion_total ?? "—"}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </TabsContent>
 
             {/* PERSONALES */}
             <TabsContent
@@ -361,57 +341,7 @@ export default function FichaDetalleModal({
               ))}
             </TabsContent>
 
-            {/* FINANCIEROS */}
-            <TabsContent
-              value="financieros"
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4"
-            >
-              {camposFinancieros.map(([label, val], i) => (
-                <div key={i} className="p-2 border rounded">
-                  <Label>{label}</Label>
-                  <p className="mt-1">
-                    {val === null || val === undefined || val === "" ? "—" : val}
-                  </p>
-                </div>
-              ))}
-            </TabsContent>
-
-            {/* PROGRAMAS INSCRITOS */}
-            <TabsContent value="programas" className="mt-4 space-y-4">
-              {programasInscritos.length === 0 ? (
-                <p>Sin programas inscritos.</p>
-              ) : (
-                programasInscritos.map((p) => (
-                  <Card key={p.id} className="p-2 border rounded">
-                    <CardContent className="space-y-1">
-                      <p>
-                        <strong>
-                          {p.programa?.abreviatura} – {p.programa?.nombre_del_programa}
-                        </strong>
-                      </p>
-                      <p>
-                        <strong>Inicio:</strong> {formatDate(p.fecha_inicio)} |{" "}
-                        <strong>Fin:</strong> {formatDate(p.fecha_fin)}
-                      </p>
-                      <p>
-                        <strong>Duración:</strong> {p.duracion_meses} meses
-                      </p>
-                      <p>
-                        <strong>Inscripción:</strong> {p.inscripcion ?? "—"}
-                      </p>
-                      <p>
-                        <strong>Cuota mensual:</strong> {p.cuota_mensual ?? "—"}
-                      </p>
-                      <p>
-                        <strong>Inversión total:</strong> {p.inversion_total ?? "—"}
-                      </p>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </TabsContent>
-
-            {/* DOCUMENTOS ADJUNTOS (1 por tipo, el más reciente) */}
+            {/* DOCUMENTOS ADJUNTOS */}
             <TabsContent value="documentos" className="mt-4 space-y-6">
               {!Array.isArray(documentos) || documentos.length === 0 ? (
                 <p>No hay documentos adjuntos.</p>
@@ -470,94 +400,36 @@ export default function FichaDetalleModal({
           </Tabs>
         </div>
 
-        {/* FOOTER */}
+        {/* FOOTER - Acciones */}
         <div className="border-t px-4 py-4 space-y-4">
-          <div className="flex justify-between">
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="text-green-600" />
-              <span>{isRevisada ? "Revisada" : "Pendiente de revisión"}</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <XCircle className="text-red-600" />
-              <span>
-                {programasInscritos.length + (Array.isArray(documentos) ? documentos.length : 0)} documentos
-              </span>
-            </div>
-          </div>
-
-          {/* Comentario de Revisión */}
-          <div>
-            <Label>Comentario de Revisión</Label>
-            <Textarea
-              readOnly={!correctionMode}
-              value={comentarioRevision}
-              className="h-24 bg-gray-100"
-            />
-          </div>
-
-          {/* Botones de descarga */}
-          <div className="flex justify-between items-center gap-2">
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDescargarFicha}
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                Descargar Ficha
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDescargarContrato}
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                Descargar Contrato
-              </Button>
-            </div>
-          </div>
-
-          {/* Acciones */}
-          <div className="flex justify-between gap-2">
-            <div className="flex gap-2">
-              {onRetroceder && (
-                <Button
-                  variant="outline"
-                  onClick={onRetroceder}
-                >
-                  <ArrowLeft className="mr-1 h-4 w-4" />
+          <div className="flex justify-end gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Retroceder
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => onRetroceder("Pendiente de Aprobación")}>
+                  Retroceder a Pendiente de Aprobación
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onRetroceder("Preinscripción")}>
                   Retroceder a Preinscripción
-                </Button>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setCorrectionMode(true)
-                  onSolicitarCorreccion()
-                }}
-                disabled={correctionMode}
-              >
-                <Send className="mr-1" /> Solicitar Corrección
-              </Button>
-              {onAprobar && (
-                <Button
-                  onClick={onAprobar}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <ThumbsUp className="mr-1 h-4 w-4" />
-                  Aprobar y Enviar a Financiero
-                </Button>
-              )}
-            </div>
-          </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-          {showSuccessMessage && (
-            <div className="flex items-center gap-2 text-green-600">
-              <CheckCircle2 /> Acción realizada con éxito
-            </div>
-          )}
+            <Button variant="outline" onClick={onSolicitarCorreccion}>
+              <XCircle className="mr-2 h-4 w-4" />
+              Solicitar Corrección
+            </Button>
+
+            <Button onClick={onAprobar} className="bg-green-600 hover:bg-green-700">
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              Aprobar Financiamiento
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

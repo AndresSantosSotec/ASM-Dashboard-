@@ -35,7 +35,22 @@ interface Prospecto {
 }
 
 export default function GestionProspectos() {
-  const [prospectos, setProspectos] = useState<Prospecto[]>([])
+  // Estados para prospectos con caché optimizado
+  const [prospectos, setProspectos] = useState<Prospecto[]>(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("leads_asignados_cache");
+      const cacheTime = localStorage.getItem("leads_asignados_cache_time");
+      if (cached && cacheTime) {
+        const now = Date.now();
+        const elapsed = now - parseInt(cacheTime);
+        // Cache válido por 5 minutos
+        if (elapsed < 300000) {
+          return JSON.parse(cached);
+        }
+      }
+    }
+    return [];
+  });
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string>("")
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -51,9 +66,21 @@ export default function GestionProspectos() {
   // Estado para el usuario actual obtenido de localStorage (se carga en el cliente)
   const [currentUser, setCurrentUser] = useState<any>(null)
 
-  // Carga inicial de prospectos (se envía el token de autenticación)
+  // ⚡ Carga inicial de prospectos con caché optimizado
   useEffect(() => {
     const fetchProspectos = async () => {
+      // Verificar caché válido
+      const cached = localStorage.getItem("leads_asignados_cache");
+      const cacheTime = localStorage.getItem("leads_asignados_cache_time");
+      if (cached && cacheTime) {
+        const now = Date.now();
+        const elapsed = now - parseInt(cacheTime);
+        if (elapsed < 300000) {
+          console.log("✅ Usando caché de leads asignados");
+          return;
+        }
+      }
+
       setLoading(true)
       setError("")
       try {
@@ -88,6 +115,12 @@ export default function GestionProspectos() {
             return getTime(b.ultimoCambio) - getTime(a.ultimoCambio)
           })
         setProspectos(prospectosTransformados)
+        
+        // 💾 Guardar en caché
+        if (typeof window !== "undefined") {
+          localStorage.setItem("leads_asignados_cache", JSON.stringify(prospectosTransformados));
+          localStorage.setItem("leads_asignados_cache_time", Date.now().toString());
+        }
       } catch (err: any) {
         setError(err.message || "Error inesperado")
       } finally {

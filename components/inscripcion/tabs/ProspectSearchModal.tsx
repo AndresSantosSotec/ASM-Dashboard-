@@ -73,20 +73,48 @@ export default function ProspectSearchModal({
 
         const { data } = await res.json()
 
-        // Mapear snake_case → camelCase
+        // Mapear snake_case → camelCase - TODOS LOS CAMPOS DEL PROSPECTO
         const lista: Prospecto[] = data.map((p: any) => ({
           id: p.id,
           nombreCompleto: p.nombre_completo,
           emailPersonal: p.correo_electronico,
+          emailCorporativo: p.correo_corporativo ?? "",
           telefono: p.telefono,
-          departamento: p.departamento,
+          departamento: p.departamento ?? "",
           estado: p.status,
-            // Aquí agregamos:
-          empresa:             p.empresa_donde_labora_actualmente ?? "",
-          puesto:              p.puesto                        ?? "",
-          telefonoCorporativo: p.telefono_corporativo          ?? "",
-
-          // …otros campos que necesites mapear
+          
+          // Datos personales
+          paisOrigen: p.pais_origen ?? "",
+          paisResidencia: p.pais_residencia ?? "",
+          dpi: p.numero_identificacion ?? "",
+          fechaNacimiento: p.fecha_nacimiento ?? "",
+          direccion: p.direccion_residencia ?? "",
+          
+          // Datos laborales
+          empresa: p.empresa_donde_labora_actualmente ?? "",
+          puesto: p.puesto ?? "",
+          telefonoCorporativo: p.telefono_corporativo ?? "",
+          direccionEmpresa: p.direccion_empresa ?? "",
+          
+          // Datos académicos
+          programaInteres: p.interes ?? "", // ID del programa
+          ultimoTitulo: p.ultimo_titulo_obtenido ?? "",
+          institucionTitulo: p.institucion_titulo ?? "",
+          anioGraduacion: p.anio_graduacion?.toString() ?? "",
+          modalidad: p.modalidad ?? "",
+          fechaInicioEspecifica: p.fecha_inicio_especifica ?? "",
+          fechaTallerReduccion: p.fecha_taller_reduccion ?? "",
+          fechaTallerIntegracion: p.fecha_taller_integracion ?? "",
+          medioConocimiento: p.medio_conocimiento_institucion ?? "",
+          cursosAprobados: p.cantidad_cursos_aprobados?.toString() ?? "",
+          diaEstudio: p.dia_estudio ?? "",
+          observaciones: p.observaciones ?? "",
+          notasGenerales: p.notas_generales ?? "",
+          
+          // Datos financieros
+          metodoPago: p.metodo_pago ?? "",
+          montoInscripcion: p.monto_inscripcion?.toString() ?? "",
+          convenioId: p.convenio_pago_id ?? null,
         }))
 
         setProspectos(lista)

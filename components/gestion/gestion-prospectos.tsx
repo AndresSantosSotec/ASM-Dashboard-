@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/tooltip"
 import DetallesProspecto from "./detalles-prospecto"
 import EditarProspecto from "./editar-prospecto"
+import EditarProspectoCompleto from "./editar-prospecto-completo"
 import CambiarEstado from "./cambiar-estado"
 import { API_BASE_URL } from "@/utils/apiConfig"
 
@@ -52,8 +53,11 @@ interface Prospecto {
 }
 
 export default function GestionProspectos() {
-  const [prospectos, setProspectos] = useState<Prospecto[]>([])
-  const [loading, setLoading] = useState(false)
+  const [mounted, setMounted] = useState(false);
+  const [prospectos, setProspectos] = useState<Prospecto[]>([]);
+  const [programas, setProgramas] = useState<Record<string, string>>({});
+  const [programasLoaded, setProgramasLoaded] = useState(false);
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>("")
   const [selectedProspecto, setSelectedProspecto] = useState<Prospecto | null>(null)
   const [modalType, setModalType] = useState<"detalles" | "editar" | null>(null)
@@ -106,9 +110,61 @@ export default function GestionProspectos() {
     [prospectos]
   )
 
-  // Carga inicial
+  // ⚙️ Control de montaje para evitar hidratación
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // 📚 Cargar programas académicos
+  useEffect(() => {
+    const fetchProgramas = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`${API_URL}/programas`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const programasMap: Record<string, string> = {};
+          data.forEach((prog: any) => {
+            programasMap[prog.id] = prog.nombre_del_programa || prog.nombre;
+          });
+          setProgramas(programasMap);
+          setProgramasLoaded(true);
+          console.log("✅ Programas académicos cargados:", Object.keys(programasMap).length);
+        }
+      } catch (err) {
+        console.error("❌ Error cargando programas:", err);
+        setProgramasLoaded(true); // Marcar como loaded incluso con error
+      }
+    };
+    fetchProgramas();
+  }, []);
+
+  // ⚡ Carga inicial con caché optimizado
+  useEffect(() => {
+    // No cargar hasta que los programas estén listos
+    if (!programasLoaded) return;
+
     const fetchProspectos = async () => {
+      // Verificar caché válido primero
+      if (typeof window !== "undefined") {
+        const cached = localStorage.getItem("gestion_prospectos_cache");
+        const cacheTime = localStorage.getItem("gestion_prospectos_cache_time");
+        if (cached && cacheTime) {
+          const now = Date.now();
+          const elapsed = now - parseInt(cacheTime);
+          if (elapsed < 300000) {
+            console.log("✅ Usando caché de gestión prospectos");
+            setProspectos(JSON.parse(cached));
+            return;
+          }
+        }
+      }
+
       setLoading(true)
       setError("")
       try {
@@ -122,25 +178,35 @@ export default function GestionProspectos() {
         if (!res.ok) throw new Error(`Error al obtener prospectos: ${res.status}`)
         const json = await res.json()
         const list: Prospecto[] = json.data
-          .map((item: any) => ({
-            id: String(item.id),
-            nombre: item.nombre_completo,
-            email: item.correo_electronico,
-            telefono: item.telefono,
-            departamento:
-              item.empresa_donde_labora_actualmente ?? "Sin Departamento",
-            puesto: item.puesto ?? "N/A",
-            estado: item.status || "No contactado",
-            origen: item.medio_conocimiento_institucion ?? "—",
-            observaciones: item.observaciones ?? "",
-            notasGenerales: item.notas_generales ?? "",
-            ultimoCambio: item.updated_at ?? "N/A",
-            programa: item.programa_interes ?? "—",
-            ciudad: item.ciudad ?? "—",
-            pais: item.pais ?? "—",
-            fechaCaptura: item.created_at ?? "—",
-            asesor: item.asesor ?? "Sin asignar",
-          }))
+          .map((item: any) => {
+            // Resolver programa académico por ID
+            let programaNombre = "—";
+            if (item.interes && programas[item.interes]) {
+              programaNombre = programas[item.interes];
+            } else if (item.interes) {
+              programaNombre = `Programa ${item.interes}`;
+            }
+
+            return {
+              id: String(item.id),
+              nombre: item.nombre_completo,
+              email: item.correo_electronico,
+              telefono: item.telefono,
+              departamento:
+                item.empresa_donde_labora_actualmente ?? "Sin Departamento",
+              puesto: item.puesto ?? "N/A",
+              estado: item.status || "No contactado",
+              origen: item.medio_conocimiento_institucion ?? "—",
+              observaciones: item.observaciones ?? "",
+              notasGenerales: item.notas_generales ?? "",
+              ultimoCambio: item.updated_at ?? "N/A",
+              programa: programaNombre,
+              ciudad: item.municipio_nombre || item.municipio || "—",
+              pais: item.pais_nombre || item.pais || "—",
+              fechaCaptura: item.created_at ?? "—",
+              asesor: item.creator ? `${item.creator.first_name} ${item.creator.last_name}` : "Sin asignar",
+            };
+          })
           .filter((p: any) => p.estado.toLowerCase() !== "preinscripción")
           .sort((a: Prospecto, b: Prospecto) => {
             const getTime = (d: string) => {
@@ -150,6 +216,12 @@ export default function GestionProspectos() {
             return getTime(b.ultimoCambio) - getTime(a.ultimoCambio)
           })
         setProspectos(list)
+        
+        // 💾 Guardar en caché
+        if (typeof window !== "undefined") {
+          localStorage.setItem("gestion_prospectos_cache", JSON.stringify(list));
+          localStorage.setItem("gestion_prospectos_cache_time", Date.now().toString());
+        }
       } catch (err: any) {
         setError(err.message || "Error inesperado")
       } finally {
@@ -157,7 +229,7 @@ export default function GestionProspectos() {
       }
     }
     fetchProspectos()
-  }, [])
+  }, [programasLoaded])
 
   // Usuario actual
   useEffect(() => {
@@ -250,7 +322,7 @@ export default function GestionProspectos() {
   const handlePrevPage = () =>
     currentPage > 1 && setCurrentPage((p) => p - 1)
 
-  // Preinscripción
+  // Preinscripción - Redirige automáticamente a la ficha de inscripción
   const handleInscribir = async (id: string) => {
     const result = await Swal.fire({
       title: "Pasar a preinscripción",
@@ -276,10 +348,22 @@ export default function GestionProspectos() {
         throw new Error(`Error al actualizar estado: ${res.status}`)
       }
       await res.json()
-      setProspectos((ps) => ps.filter((p) => p.id !== id))
-      Swal.fire("¡Listo!", "El prospecto ha sido pasado a Inscripción.", "success")
+      
+      // ✅ Mostrar mensaje de éxito y redirigir automáticamente
+      await Swal.fire({
+        title: "¡Listo!",
+        text: "El prospecto ha sido pasado a Inscripción. Serás redirigido para completar la ficha.",
+        icon: "success",
+        timer: 2000,
+        showConfirmButton: false,
+      })
+      
+      // 🔄 Redirigir a la ficha de inscripción con el ID del prospecto
+      window.location.href = `/inscripcion/ficha?prospectoId=${id}`
+      
     } catch (err: any) {
       Swal.fire("Error", err.message, "error")
+      console.log('Error details:', err);
     }
   }
 
@@ -373,7 +457,7 @@ export default function GestionProspectos() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos</SelectItem>
-            {departamentos.map((d) => (
+            {departamentos.filter(d => d && d.trim() !== "").map((d) => (
               <SelectItem key={d} value={d}>
                 {d}
               </SelectItem>
@@ -393,7 +477,7 @@ export default function GestionProspectos() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos</SelectItem>
-            {puestos.map((p) => (
+            {puestos.filter(p => p && p.trim() !== "" && p !== "N/A").map((p) => (
               <SelectItem key={p} value={p}>
                 {p}
               </SelectItem>
@@ -412,7 +496,7 @@ export default function GestionProspectos() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos</SelectItem>
-            {origenes.map((o) => (
+            {origenes.filter(o => o && o.trim() !== "" && o !== "—").map((o) => (
               <SelectItem key={o} value={o}>
                 {o}
               </SelectItem>
@@ -435,7 +519,7 @@ export default function GestionProspectos() {
 
       </div>
 
-      {loading && (
+      {(!mounted || loading) && (
         <div className="p-4">
           <div className="animate-pulse space-y-4">
             <div className="h-4 bg-gray-200 rounded w-3/4"></div>
@@ -458,7 +542,7 @@ export default function GestionProspectos() {
       {error && <p className="p-4 text-red-500">{error}</p>}
 
       {/* Tabla */}
-      {!loading && (
+      {mounted && !loading && (
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600">
@@ -481,7 +565,7 @@ export default function GestionProspectos() {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {paginatedProspectos.map((p) => (
+            {paginatedProspectos && paginatedProspectos.length > 0 && paginatedProspectos.map((p) => (
               <tr key={p.id} className="hover:bg-gray-50">
                 <td className="py-3 px-4">
                   <Checkbox
@@ -568,37 +652,9 @@ export default function GestionProspectos() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={async () => {
-                                try {
-                                  const token = localStorage.getItem("token")
-
-                                  const res = await fetch(`${API_URL}/prospectos/${p.id}` , {
-                                    headers: {
-                                      Authorization: `Bearer ${token}`,
-                                      "Content-Type": "application/json",
-                                    },
-                                  })
-                                  if (!res.ok)
-                                    throw new Error("No se pudo cargar datos de edición")
-                                  const { data } = await res.json()
-                                  setSelectedProspecto({
-                                    id: String(data.id),
-                                    nombre: data.nombre_completo,
-                                    email: data.correo_electronico,
-                                    telefono: data.telefono,
-                                    departamento:
-
-                                      data.empresa_donde_labora_actualmente ?? "Sin Departamento",
-                                    puesto: data.puesto ?? "N/A",
-                                    estado: data.status,
-                                    observaciones: data.observaciones ?? "",
-                                    notasGenerales: data.notas_generales ?? "",
-                                    ultimoCambio: data.updated_at ?? "N/A",
-                                  })
-                                  setModalType("editar")
-                                } catch (e: any) {
-                                  Swal.fire("Error", e.message, "error")
-                                }
+                              onClick={() => {
+                                setSelectedProspecto(p)
+                                setModalType("editar")
                               }}
                             >
                               <Edit2 className="h-4 w-4" />
@@ -731,11 +787,15 @@ export default function GestionProspectos() {
         />
       )}
       {selectedProspecto && modalType === "editar" && (
-        <EditarProspecto
-          prospecto={selectedProspecto}
+        <EditarProspectoCompleto
+          prospectoId={selectedProspecto.id}
           onClose={() => {
             setSelectedProspecto(null)
             setModalType(null)
+          }}
+          onUpdate={() => {
+            // Recargar lista después de actualizar
+            window.location.reload();
           }}
         />
       )}

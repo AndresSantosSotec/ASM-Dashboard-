@@ -1,13 +1,14 @@
 "use client"
 
 import { useMemo, useEffect } from "react"
-import { Search, ArrowRight, CheckCircle } from "lucide-react"
+import { Search, ArrowRight, CheckCircle, Info as InfoIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { DatePicker } from "@/components/ui/date-picker"
+import { SimpleDatePicker } from "@/components/ui/simple-date-picker"
 import CountryCombobox from "../CountryCombobox"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { RequiredAsterisk } from "@/components/ui/required-asterisk"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -16,6 +17,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
+
 import { DatosPersonales } from "../types"
 import { useCountries } from "@/hooks/useCountries"
 
@@ -65,6 +69,18 @@ export default function PersonalTab({
 
   return (
     <TooltipProvider>
+
+      {/* Alerta cuando NO hay prospecto seleccionado */}
+      {!datos.nombre && !datos.dpi && (
+        <Alert variant="default" className="mb-4 border-blue-300 bg-blue-50 text-blue-800">
+          <InfoIcon className="h-4 w-4" />
+          <AlertTitle>Debe seleccionar un prospecto</AlertTitle>
+          <AlertDescription>
+            Para continuar con el llenado de la ficha, primero debe buscar y seleccionar un prospecto.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Botón búsqueda de prospecto */}
       <div className="mb-4 flex justify-start">
         <Button variant="outline" onClick={openModal}>
@@ -114,9 +130,7 @@ export default function PersonalTab({
             <CountryCombobox
               countries={countries}
               value={datos.paisResidencia || ""}
-              onChange={(v) =>
-                setDatos({ ...datos, paisResidencia: v })
-              }
+              onChange={(v) => setDatos({ ...datos, paisResidencia: v })}
             />
           </div>
         </div>
@@ -128,9 +142,7 @@ export default function PersonalTab({
           </Label>
           <Input
             value={datos.telefono || ""}
-            onChange={(e) =>
-              setDatos({ ...datos, telefono: e.target.value })
-            }
+            onChange={(e) => setDatos({ ...datos, telefono: e.target.value })}
             required
           />
         </div>
@@ -161,9 +173,7 @@ export default function PersonalTab({
           <Input
             type="email"
             value={datos.emailPersonal || ""}
-            onChange={(e) =>
-              setDatos({ ...datos, emailPersonal: e.target.value })
-            }
+            onChange={(e) => setDatos({ ...datos, emailPersonal: e.target.value })}
             required
           />
         </div>
@@ -193,13 +203,31 @@ export default function PersonalTab({
           <Label>
             Fecha de nacimiento <RequiredAsterisk />
           </Label>
-          <DatePicker
+          <SimpleDatePicker
             value={datos.fechaNacimiento}
             onChange={(v) => setDatos({ ...datos, fechaNacimiento: v })}
-            captionLayout="dropdown"
-            fromYear={1920}
-            toYear={new Date().getFullYear()}
+            placeholder="Seleccionar fecha de nacimiento"
           />
+        </div>
+
+        {/* Reinscripción */}
+        <div className="space-y-2 md:col-span-2">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="esReinscripcion"
+              checked={datos.esReinscripcion || false}
+              onCheckedChange={(checked) => 
+                setDatos({ ...datos, esReinscripcion: checked as boolean })
+              }
+            />
+            <Label htmlFor="esReinscripcion" className="cursor-pointer">
+              Es Reinscripción
+            </Label>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Marque esta casilla si el estudiante ya estuvo inscrito anteriormente y se está reinscribiendo a un nuevo programa.
+            Al marcar esta opción, se mantendrá su plan de pagos anterior y se creará uno nuevo para el programa actual.
+          </p>
         </div>
 
         {/* Dirección */}
@@ -209,9 +237,7 @@ export default function PersonalTab({
           </Label>
           <Textarea
             value={datos.direccion || ""}
-            onChange={(e) =>
-              setDatos({ ...datos, direccion: e.target.value })
-            }
+            onChange={(e) => setDatos({ ...datos, direccion: e.target.value })}
             required
           />
         </div>
@@ -222,11 +248,7 @@ export default function PersonalTab({
         <Button
           onClick={goNext}
           disabled={!isFormValid}
-          className={
-            isFormValid
-              ? "bg-green-600 hover:bg-green-700 text-white"
-              : ""
-          }
+          className={isFormValid ? "bg-green-600 hover:bg-green-700 text-white" : ""}
         >
           Siguiente
           <ArrowRight className="ml-2 h-4 w-4" />

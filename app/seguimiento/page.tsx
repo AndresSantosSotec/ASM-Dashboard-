@@ -5,6 +5,7 @@ import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import Swal from "sweetalert2";
 import { Button } from "@/components/ui/button";
+import { SimpleDatePicker } from "@/components/ui/simple-date-picker";
 import {
   Table,
   TableBody,
@@ -92,8 +93,22 @@ interface Actividad {
 }
 
 export default function SeguimientoPage() {
-  // Estados para prospectos
-  const [prospectos, setProspectos] = useState<Prospecto[]>([]);
+  // Estados para prospectos con caché
+  const [prospectos, setProspectos] = useState<Prospecto[]>(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("seguimiento_prospectos_cache");
+      const cacheTime = localStorage.getItem("seguimiento_prospectos_cache_time");
+      if (cached && cacheTime) {
+        const now = Date.now();
+        const elapsed = now - parseInt(cacheTime);
+        // Cache válido por 5 minutos (300000 ms)
+        if (elapsed < 300000) {
+          return JSON.parse(cached);
+        }
+      }
+    }
+    return [];
+  });
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   
@@ -101,15 +116,47 @@ export default function SeguimientoPage() {
   const [loadingInteracciones, setLoadingInteracciones] = useState<boolean>(false);
   const [loadingCitas, setLoadingCitas] = useState<boolean>(false);
 
-  // Estado para el prospecto seleccionado
-  const [selectedProspecto, setSelectedProspecto] = useState<Prospecto | null>(null);
+  // Estado para el prospecto seleccionado con persistencia
+  const [selectedProspecto, setSelectedProspecto] = useState<Prospecto | null>(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("seguimiento_prospecto_seleccionado");
+      return cached ? JSON.parse(cached) : null;
+    }
+    return null;
+  });
 
   // Estados para interacciones
-  const [interacciones, setInteracciones] = useState<any[]>([]);
-  const [interactionType, setInteractionType] = useState<string>("");
-  const [interactionDate, setInteractionDate] = useState<string>("");
-  const [interactionDuration, setInteractionDuration] = useState<string>("");
-  const [interactionNotes, setInteractionNotes] = useState<string>("");
+  const [interacciones, setInteracciones] = useState<any[]>(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("seguimiento_interacciones");
+      return cached ? JSON.parse(cached) : [];
+    }
+    return [];
+  });
+  const [interactionType, setInteractionType] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("seguimiento_interaction_type") || "";
+    }
+    return "";
+  });
+  const [interactionDate, setInteractionDate] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("seguimiento_interaction_date") || "";
+    }
+    return "";
+  });
+  const [interactionDuration, setInteractionDuration] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("seguimiento_interaction_duration") || "";
+    }
+    return "";
+  });
+  const [interactionNotes, setInteractionNotes] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("seguimiento_interaction_notes") || "";
+    }
+    return "";
+  });
 
   // Estados para citas
   const toLocalInputValue = (date: Date) => {
@@ -121,9 +168,25 @@ export default function SeguimientoPage() {
     d.setHours(9, 0, 0, 0);
     return toLocalInputValue(d);
   };
-  const [citas, setCitas] = useState<any[]>([]);
-  const [appointmentDate, setAppointmentDate] = useState<string>(getDefaultAppointmentDate());
-  const [appointmentDescription, setAppointmentDescription] = useState<string>("");
+  const [citas, setCitas] = useState<any[]>(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("seguimiento_citas");
+      return cached ? JSON.parse(cached) : [];
+    }
+    return [];
+  });
+  const [appointmentDate, setAppointmentDate] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("seguimiento_appointment_date") || getDefaultAppointmentDate();
+    }
+    return getDefaultAppointmentDate();
+  });
+  const [appointmentDescription, setAppointmentDescription] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("seguimiento_appointment_description") || "";
+    }
+    return "";
+  });
 
   // Estado para almacenar actividades
   const [actividades, setActividades] = useState<Actividad[]>([]);
@@ -145,9 +208,6 @@ export default function SeguimientoPage() {
   const [phoneFilter, setPhoneFilter] = useState<string>("");
   const [estadoFilter, setEstadoFilter] = useState<string>("all");
 
-
-
-
   //filters
   const [filters, setFilters] = useState({
     nombre: "",
@@ -159,9 +219,9 @@ export default function SeguimientoPage() {
   // Optimización: memorizar prospectos filtrados para evitar recalcular en cada render
   const filteredProspectos = useMemo(() => {
     return prospectos.filter((p) => {
-      const matchesNombre = p.nombre.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesEmail = p.email.toLowerCase().includes(emailFilter.toLowerCase());
-      const matchesTelefono = p.telefono.includes(phoneFilter);
+      const matchesNombre = (p.nombre || "").toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesEmail = (p.email || "").toLowerCase().includes(emailFilter.toLowerCase());
+      const matchesTelefono = (p.telefono || "").includes(phoneFilter);
       const matchesEstado = estadoFilter === "all" ? true : p.estado === estadoFilter;
       return matchesNombre && matchesEmail && matchesTelefono && matchesEstado;
     });
@@ -187,6 +247,49 @@ export default function SeguimientoPage() {
     }
   }, []);
 
+  // 💾 Persistir interacciones en localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined" && interacciones.length > 0) {
+      localStorage.setItem("seguimiento_interacciones", JSON.stringify(interacciones));
+    }
+  }, [interacciones]);
+
+  // 💾 Persistir citas en localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined" && citas.length > 0) {
+      localStorage.setItem("seguimiento_citas", JSON.stringify(citas));
+    }
+  }, [citas]);
+
+  // 💾 Persistir prospecto seleccionado en localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (selectedProspecto) {
+        localStorage.setItem("seguimiento_prospecto_seleccionado", JSON.stringify(selectedProspecto));
+      } else {
+        localStorage.removeItem("seguimiento_prospecto_seleccionado");
+      }
+    }
+  }, [selectedProspecto]);
+
+  // 💾 Persistir campos del formulario de interacciones
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("seguimiento_interaction_type", interactionType);
+      localStorage.setItem("seguimiento_interaction_date", interactionDate);
+      localStorage.setItem("seguimiento_interaction_duration", interactionDuration);
+      localStorage.setItem("seguimiento_interaction_notes", interactionNotes);
+    }
+  }, [interactionType, interactionDate, interactionDuration, interactionNotes]);
+
+  // 💾 Persistir campos del formulario de citas
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("seguimiento_appointment_date", appointmentDate);
+      localStorage.setItem("seguimiento_appointment_description", appointmentDescription);
+    }
+  }, [appointmentDate, appointmentDescription]);
+
   // Función para asignar colores según el estado del prospecto
   const getEstadoColor = (estado: Prospecto["estado"]) => {
     switch (estado) {
@@ -207,17 +310,34 @@ export default function SeguimientoPage() {
     return d.toLocaleString();
   };
 
-  // Cargar prospectos desde la API
+  // ⚡ Cargar prospectos y actividades en paralelo con caché optimizado
   useEffect(() => {
     if (!token) return;
-    const fetchProspectos = async () => {
+    const fetchData = async () => {
+      // Verificar si hay caché válido
+      const cached = localStorage.getItem("seguimiento_prospectos_cache");
+      const cacheTime = localStorage.getItem("seguimiento_prospectos_cache_time");
+      if (cached && cacheTime) {
+        const now = Date.now();
+        const elapsed = now - parseInt(cacheTime);
+        if (elapsed < 300000) {
+          console.log("✅ Usando caché de prospectos");
+          return; // Ya están cargados desde el estado inicial
+        }
+      }
+
       setLoading(true);
       setError("");
       try {
-        const res = await api.get("/prospectos");
-        const json = res.data;
-        console.log("Respuesta completa de prospectos:", json);
-        const prospectosTransformados: Prospecto[] = json.data
+        // ⚡ Cargar prospectos y actividades en paralelo
+        const [prospectosRes, actividadesRes] = await Promise.all([
+          api.get("/prospectos"),
+          api.get("/actividades")
+        ]);
+        
+        console.log("✅ Datos cargados en paralelo");
+        
+        const prospectosTransformados: Prospecto[] = prospectosRes.data.data
           .map((item: any) => ({
             id: String(item.id),
             nombre: item.nombre_completo,
@@ -236,96 +356,62 @@ export default function SeguimientoPage() {
             };
             return getTime(b.ultimoCambio) - getTime(a.ultimoCambio);
           });
+        
         setProspectos(prospectosTransformados);
+        setActividades(actividadesRes.data);
+        
+        // 💾 Guardar en caché
+        if (typeof window !== "undefined") {
+          localStorage.setItem("seguimiento_prospectos_cache", JSON.stringify(prospectosTransformados));
+          localStorage.setItem("seguimiento_prospectos_cache_time", Date.now().toString());
+        }
       } catch (err: any) {
-        console.error("Error en fetchProspectos:", JSON.stringify(err, null, 2));
+        console.error("❌ Error en fetchData:", JSON.stringify(err, null, 2));
         setError(err.message || "Error inesperado");
       } finally {
         setLoading(false);
       }
     };
-    fetchProspectos();
+    fetchData();
   }, [token]);
 
-  // Cargar interacciones filtradas por prospecto
+  // ⚡ LAZY LOADING: Cargar interacciones y citas solo cuando se abre el modal
   useEffect(() => {
     if (!token || !selectedProspecto) return;
 
-    const fetchInteracciones = async () => {
+    const fetchModalData = async () => {
       setLoadingInteracciones(true);
-      try {
-        const response = await api.get(`/interacciones?id_lead=${selectedProspecto.id}`);
-        console.log("Interacciones recibidas:", response.data);
-        if (Array.isArray(response.data.data)) {
-          setInteracciones(response.data.data);
-        } else {
-          console.warn("La respuesta de interacciones no es un arreglo:", response.data);
-          setInteracciones([]);
-        }
-      } catch (err: any) {
-        console.error("Error en fetchInteracciones:", JSON.stringify(err.response || err, null, 2));
-      } finally {
-        setLoadingInteracciones(false);
-      }
-    };
-    fetchInteracciones();
-  }, [token, selectedProspecto]);
-
-  // Cargar interacciones globalmente (si fuera necesario)
-  useEffect(() => {
-    if (!token) return;
-    const fetchInteracciones = async () => {
-      try {
-        const response = await api.get("/interacciones");
-        console.log("Interacciones globales recibidas:", response.data);
-        if (Array.isArray(response.data)) {
-          setInteracciones(response.data);
-        } else {
-          console.warn("La respuesta de interacciones no es un arreglo:", response.data);
-          setInteracciones([]);
-        }
-      } catch (err: any) {
-        console.error("Error en fetchInteracciones:", JSON.stringify(err.response || err, null, 2));
-      }
-    };
-    fetchInteracciones();
-  }, [token]);
-
-  // Cargar citas desde la API
-  useEffect(() => {
-    if (!token) return;
-    const fetchCitas = async () => {
       setLoadingCitas(true);
       try {
-        const response = await api.get("/citas");
-        console.log("Citas recibidas:", response.data);
-        const citasArray = Array.isArray(response.data)
-          ? response.data
-          : response.data.data || [];
+        // ⚡ Cargar interacciones y citas en paralelo
+        const [interaccionesRes, citasRes] = await Promise.all([
+          api.get(`/interacciones?id_lead=${selectedProspecto.id}`),
+          api.get("/citas")
+        ]);
+        
+        console.log("✅ Interacciones y citas cargadas en paralelo");
+        
+        // Procesar interacciones
+        if (Array.isArray(interaccionesRes.data.data)) {
+          setInteracciones(interaccionesRes.data.data);
+        } else {
+          setInteracciones([]);
+        }
+        
+        // Procesar citas
+        const citasArray = Array.isArray(citasRes.data)
+          ? citasRes.data
+          : citasRes.data.data || [];
         setCitas(citasArray);
       } catch (err: any) {
-        console.error("Error en fetchCitas:", JSON.stringify(err.response || err, null, 2));
+        console.error("❌ Error al cargar datos del modal:", JSON.stringify(err.response || err, null, 2));
       } finally {
+        setLoadingInteracciones(false);
         setLoadingCitas(false);
       }
     };
-    fetchCitas();
-  }, [token]);
-
-  // Cargar actividades desde la API
-  useEffect(() => {
-    if (!token) return;
-    const fetchActividades = async () => {
-      try {
-        const response = await api.get("/actividades");
-        console.log("Actividades recibidas:", response.data);
-        setActividades(response.data);
-      } catch (err: any) {
-        console.error("Error en fetchActividades:", JSON.stringify(err.response || err, null, 2));
-      }
-    };
-    fetchActividades();
-  }, [token]);
+    fetchModalData();
+  }, [token, selectedProspecto]);
 
   // Manejo para agregar interacción
   const handleAddInteraction = async () => {
@@ -372,6 +458,14 @@ export default function SeguimientoPage() {
       setInteractionDate("");
       setInteractionDuration("");
       setInteractionNotes("");
+      
+      // 🧹 Limpiar localStorage de campos del formulario
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("seguimiento_interaction_type");
+        localStorage.removeItem("seguimiento_interaction_date");
+        localStorage.removeItem("seguimiento_interaction_duration");
+        localStorage.removeItem("seguimiento_interaction_notes");
+      }
       
       // ✅ Toast ligero para mejor UX
       const Toast = Swal.mixin({
@@ -437,6 +531,13 @@ export default function SeguimientoPage() {
       setCitas((prev) => [...prev, saved]);
       setAppointmentDescription("");
       setAppointmentDate(getDefaultAppointmentDate());
+      
+      // 🧹 Limpiar localStorage de campos del formulario
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("seguimiento_appointment_description");
+        // No removemos appointment_date porque se resetea a valor por defecto
+        localStorage.setItem("seguimiento_appointment_date", getDefaultAppointmentDate());
+      }
       
       // ✅ Toast ligero en lugar de Swal
       const Toast = Swal.mixin({
@@ -677,12 +778,14 @@ export default function SeguimientoPage() {
                         )}
                       </SelectContent>
                     </Select>
-                    <Input
-                      type="datetime-local"
-                      placeholder="Fecha de interacción"
-                      value={interactionDate}
-                      onChange={(e) => setInteractionDate(e.target.value)}
-                    />
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Fecha de interacción</label>
+                      <SimpleDatePicker
+                        value={interactionDate}
+                        onChange={(v) => setInteractionDate(v)}
+                        placeholder="Seleccionar fecha de interacción"
+                      />
+                    </div>
                     <Input
                       placeholder="Duración (minutos)"
                       value={interactionDuration}
@@ -701,12 +804,14 @@ export default function SeguimientoPage() {
                 </div>
                 <div>
                   <h3 className="text-md font-semibold mb-4">Fecha y Cita</h3>
-                  <Input
-                    type="datetime-local"
-                    placeholder="Fecha de la cita"
-                    value={appointmentDate}
-                    onChange={(e) => setAppointmentDate(e.target.value)}
-                  />
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Fecha de la cita</label>
+                    <SimpleDatePicker
+                      value={appointmentDate.split("T")[0]}
+                      onChange={(v) => setAppointmentDate(v + "T09:00")}
+                      placeholder="Seleccionar fecha de la cita"
+                    />
+                  </div>
                   <div className="mt-4 space-y-4">
                     <Input
                       placeholder="Descripción de la cita"

@@ -16,24 +16,36 @@ interface Prospecto {
   nombre: string       // en la lista padre esto es nombre_completo
   email: string        // en la lista padre esto es correo_electronico
   telefono: string
+  departamento: string
+  puesto: string
   estado: string       // en la lista padre esto es status
+  origen?: string
   observaciones?: string
+  notasGenerales?: string
+  ultimoCambio: string
+  programa?: string
+  ciudad?: string
+  pais?: string
+  fechaCaptura?: string
+  asesor?: string
 }
 
 interface EditarProspectoProps {
   prospecto: Prospecto
   onClose: () => void
+  onUpdate?: (updatedProspecto: Prospecto) => void
 }
 
 const API_URL = `${API_BASE_URL}/api`
 
-export default function EditarProspecto({ prospecto, onClose }: EditarProspectoProps) {
+export default function EditarProspecto({ prospecto, onClose, onUpdate }: EditarProspectoProps) {
   // inicializa los estados con las props
   const [nombreCompleto, setNombreCompleto] = useState(prospecto.nombre)
   const [correoElectronico, setCorreoElectronico] = useState(prospecto.email)
   const [telefono, setTelefono] = useState(prospecto.telefono)
   const [status, setStatus] = useState(prospecto.estado)
   const [observaciones, setObservaciones] = useState(prospecto.observaciones || "")
+  const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -49,6 +61,7 @@ export default function EditarProspecto({ prospecto, onClose }: EditarProspectoP
 
     console.log("🔄 Enviando datos de actualización:", updatedData)
 
+    setLoading(true);
     try {
       const token = localStorage.getItem("token") || ""
       const res = await fetch(`${API_URL}/prospectos/${prospecto.id}`, {
@@ -64,19 +77,39 @@ export default function EditarProspecto({ prospecto, onClose }: EditarProspectoP
       console.log("📥 Respuesta del backend:", body)
 
       if (!res.ok) {
-        throw new Error(body.message || `HTTP ${res.status}`)
+        const errorMsg = body.messages?.correoElectronico?.[0] || body.message || `HTTP ${res.status}`;
+        throw new Error(errorMsg)
       }
 
+      // ✅ Actualización optimista: actualizar datos sin recargar
+      const updatedProspecto: Prospecto = {
+        ...prospecto,
+        nombre: nombreCompleto,
+        email: correoElectronico,
+        telefono: telefono,
+        estado: status,
+        observaciones: observaciones,
+        ultimoCambio: new Date().toISOString()
+      };
+
+      // Invalidar caché
+      localStorage.removeItem("gestion_prospectos_cache");
+      localStorage.removeItem("gestion_prospectos_cache_time");
+
       onClose() // cierra el modal primero
+
+      // Llamar callback de actualización
+      if (onUpdate) {
+        onUpdate(updatedProspecto);
+      }
 
       await Swal.fire({
         icon: "success",
         title: "¡Listo!",
         text: "El prospecto ha sido actualizado correctamente.",
-        confirmButtonText: "Aceptar"
+        timer: 2000,
+        showConfirmButton: false
       })
-
-      window.location.reload()
 
     } catch (err: any) {
       console.error("❌ Error actualizando prospecto:", err)
@@ -85,6 +118,8 @@ export default function EditarProspecto({ prospecto, onClose }: EditarProspectoP
         title: "Error",
         text: err.message || "Ocurrió un error, intenta de nuevo más tarde.",
       })
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -160,8 +195,13 @@ export default function EditarProspecto({ prospecto, onClose }: EditarProspectoP
             />
           </div>
 
-          <div className="flex justify-end">
-            <Button type="submit">Guardar cambios</Button>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Guardando..." : "Guardar cambios"}
+            </Button>
           </div>
         </form>
       </DialogContent>
