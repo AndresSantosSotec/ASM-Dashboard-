@@ -65,7 +65,7 @@ export interface DatosAcademicos {
   ultimoTitulo: "diversificado" | "tecnico" | "licenciatura" | "maestria" | "doctorado" | "cierre_pensum";
   modalidad: "sincronica";
   fechaInicio: string;
-  diaEstudio: "lunes" | "martes" | "miercoles" | "jueves" | "viernes" | "sabado";
+  diaEstudio: string;
   fechaInicioEspecifica: string;
   fechaTallerInduccion: string;
   fechaTallerIntegracion: string;

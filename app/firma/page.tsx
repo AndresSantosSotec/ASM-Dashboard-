@@ -25,8 +25,10 @@ import {
   Filter,
   FileText,
   XCircle,
+  Download,
 } from "lucide-react"
 import Swal from "sweetalert2"
+import ContratoVistaModal from "@/components/firma/ContratoVistaModal"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -43,6 +45,8 @@ interface ContactoEnviado {
   prospecto_id: number
   fecha_envio: string
   resultado: string
+  estado_firma?: string
+  fecha_firma_estudiante?: string
   prospecto: { nombre_completo: string }
 }
 
@@ -50,6 +54,7 @@ interface Prospecto {
   id: number
   nombre_completo: string
   correo_electronico: string
+  status: string
 }
 
 interface Documento {
@@ -61,6 +66,8 @@ interface Documento {
 export default function FirmaPage() {
   const router = useRouter()
   const [enviadosHoy, setEnviadosHoy] = useState<ContactoEnviado[]>([])
+  const [contratoSeleccionado, setContratoSeleccionado] = useState<number | null>(null)
+  const [modalVistaOpen, setModalVistaOpen] = useState(false)
 
   useEffect(() => {
     const token = localStorage.getItem("token") || ""
@@ -73,6 +80,10 @@ export default function FirmaPage() {
       .then((r) => r.json())
       .then((data: unknown) => {
         const arr: ContactoEnviado[] = Array.isArray(data) ? data : []
+        
+        // El backend ya filtra y deduplica, pero por seguridad validamos aquí también
+        console.log("Contratos recibidos del backend:", arr.length)
+        
         setEnviadosHoy(arr)
       })
       .catch((err) => {
@@ -82,6 +93,19 @@ export default function FirmaPage() {
   }, [])
 
   const handleDiscard = async (id: number) => {
+    const result = await Swal.fire({
+      title: '¿Descartar contrato?',
+      text: "Se eliminará el contrato y sus firmas asociadas. Esta acción no se puede deshacer.",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sí, descartar',
+      cancelButtonText: 'Cancelar'
+    })
+
+    if (!result.isConfirmed) return
+
     const token = localStorage.getItem("token") || ""
     try {
       const res = await fetch(
@@ -94,64 +118,192 @@ export default function FirmaPage() {
           },
         }
       )
+      
+      if (res.status === 422) {
+        const errorData = await res.json()
+        await Swal.fire({
+          icon: 'warning',
+          title: 'No se puede eliminar',
+          text: errorData.error || 'Este contrato no tiene firmas asociadas',
+          confirmButtonText: 'Entendido'
+        })
+        return
+      }
+      
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      
       setEnviadosHoy((prev) => prev.filter((env) => env.id !== id))
+      
+      // Cerrar modal si está abierto
+      if (contratoSeleccionado === id) {
+        setModalVistaOpen(false)
+        setContratoSeleccionado(null)
+      }
+      
+      await Swal.fire({
+        icon: 'success',
+        title: 'Contrato descartado',
+        text: 'El contrato ha sido eliminado correctamente',
+        timer: 2000,
+        showConfirmButton: false
+      })
     } catch (err: any) {
       console.error("Error al descartar:", err)
       Swal.fire("Error", "No se pudo descartar el contrato.", "error")
     }
   }
 
-  const renderCard = (env: ContactoEnviado) => (
-    <Card key={env.id}>
-      <CardHeader className="p-4 flex justify-between items-center">
-        <div>
-          <CardTitle className="text-base">
-            {env.prospecto.nombre_completo}
-          </CardTitle>
-          <CardDescription>
-            Enviado:{" "}
-            {new Date(env.fecha_envio).toLocaleTimeString("es-GT", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </CardDescription>
-        </div>
-        <Badge
-          variant="outline"
-          className={
-            env.resultado === "firmado"
-              ? "bg-green-100 text-green-700"
-              : env.resultado === "enviado"
-                ? "bg-blue-100 text-blue-700"
-                : "bg-gray-100 text-gray-700"
-          }
-        >
-          {env.resultado.charAt(0).toUpperCase() + env.resultado.slice(1)}
-        </Badge>
-      </CardHeader>
+  const handleDescargarContrato = async (id: number, nombreEstudiante: string) => {
+    const token = localStorage.getItem("token") || ""
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/contactos-enviados/${id}/download-contrato`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/pdf",
+          },
+        }
+      )
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Contrato_${nombreEstudiante.replace(/\s+/g, '_')}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      
+      await Swal.fire({
+        icon: 'success',
+        title: 'Descarga iniciada',
+        text: 'El contrato se está descargando',
+        timer: 1500,
+        showConfirmButton: false
+      })
+    } catch (err: any) {
+      console.error("Error al descargar:", err)
+      Swal.fire("Error", "No se pudo descargar el contrato.", "error")
+    }
+  }
 
-      <CardContent className="p-4 pt-2 space-y-4">
-        <div className="flex justify-between items-center mb-4">
-          <span className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-gray-700" />
-            Contrato.pdf
-          </span>
-        </div>
+  const renderCard = (env: ContactoEnviado) => {
+    // Determinar estado basado en firmas
+    const getEstado = () => {
+      if (env.estado_firma === 'firmado_completo') {
+        return { texto: 'Completado', color: 'bg-green-100 text-green-700 border-green-300' }
+      }
+      if (env.estado_firma === 'firmado_asesor') {
+        return { texto: 'Pendiente Firma Estudiante', color: 'bg-yellow-100 text-yellow-700 border-yellow-300' }
+      }
+      return { texto: 'Pendiente', color: 'bg-gray-100 text-gray-700 border-gray-300' }
+    }
 
-        <div className="mt-4 flex justify-end gap-2">
-          <Button variant="outline" onClick={() => handleDiscard(env.id)}>
-            <XCircle className="h-4 w-4" /> Descartar
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  )
+    const estado = getEstado()
+
+    return (
+      <Card key={env.id}>
+        <CardHeader className="p-4 flex justify-between items-center">
+          <div>
+            <CardTitle className="text-base">
+              {env.prospecto.nombre_completo}
+            </CardTitle>
+            <CardDescription>
+              Enviado:{" "}
+              {new Date(env.fecha_envio).toLocaleTimeString("es-GT", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+              {env.fecha_firma_estudiante && (
+                <>
+                  {" | "}Firmado: {new Date(env.fecha_firma_estudiante).toLocaleTimeString("es-GT", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </>
+              )}
+            </CardDescription>
+          </div>
+          <Badge
+            variant="outline"
+            className={estado.color}
+          >
+            {estado.texto}
+          </Badge>
+        </CardHeader>
+
+        <CardContent className="p-4 pt-2 space-y-4">
+          <div className="flex justify-between items-center mb-4">
+            <span className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-gray-700" />
+              Contrato de Confidencialidad
+            </span>
+          </div>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setContratoSeleccionado(env.id)
+                setModalVistaOpen(true)
+              }}
+            >
+              Ver Contrato
+            </Button>
+            <Button 
+              variant="outline"
+              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+              onClick={() => handleDescargarContrato(env.id, env.prospecto.nombre_completo)}
+            >
+              <Download className="h-4 w-4 mr-1" /> Descargar PDF
+            </Button>
+            <Button 
+              variant="outline" 
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              onClick={() => handleDiscard(env.id)}
+            >
+              <XCircle className="h-4 w-4 mr-1" /> Descartar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <div className="flex flex-col min-h-screen">
       <Header title="Verificación de Firma Digital y Contrato" />
       <main className="flex-1 p-4 md:p-6">
+        {/* Tarjeta informativa del sistema de firmas */}
+        <Card className="mb-6 bg-blue-50 border-blue-200">
+          <CardHeader>
+            <CardTitle className="text-blue-900 flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Sistema de Firmas Electrónicas
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+
+              <div className="bg-white p-3 rounded-lg border">
+                <h4 className="font-semibold text-blue-900 mb-2">✍️ Proceso de Firma</h4>
+                <p className="text-gray-700">
+                  1. Asesor firma → 2. Se envía email → 3. Estudiante firma mediante link único
+                </p>
+              </div>
+              <div className="bg-white p-3 rounded-lg border">
+                <h4 className="font-semibold text-blue-900 mb-2">👁️ Visualización</h4>
+                <p className="text-gray-700">
+                  Haz clic en "Ver Todos los Contratos" para consultar contratos con ambas firmas guardadas.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -162,6 +314,13 @@ export default function FirmaPage() {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
+                <Button 
+                  variant="default"
+                  onClick={() => router.push('/firma/contratos')}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Ver Todos los Contratos
+                </Button>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -178,19 +337,18 @@ export default function FirmaPage() {
           </CardHeader>
 
           <CardContent>
-            <Tabs defaultValue="pendientes">
+            <Tabs defaultValue="todos">
               <TabsList className="mb-4">
-                <TabsTrigger value="pendientes">Pendientes</TabsTrigger>
-                <TabsTrigger value="verificados">Verificados</TabsTrigger>
-                <TabsTrigger value="rechazados">Rechazados</TabsTrigger>
                 <TabsTrigger value="todos">Todos</TabsTrigger>
+                <TabsTrigger value="pendientes">Pendiente Firma Estudiante</TabsTrigger>
+                <TabsTrigger value="completados">Completados</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="pendientes">
+              <TabsContent value="todos">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {enviadosHoy.length === 0 ? (
                     <p className="col-span-full text-center py-8">
-                      No hay contratos enviados.
+                      No hay contratos.
                     </p>
                   ) : (
                     enviadosHoy.map(renderCard)
@@ -198,22 +356,26 @@ export default function FirmaPage() {
                 </div>
               </TabsContent>
 
-              <TabsContent value="verificados">
-                <p className="text-center py-8">Nada verificado aún.</p>
-              </TabsContent>
-
-              <TabsContent value="rechazados">
-                <p className="text-center py-8">Sin rechazos.</p>
-              </TabsContent>
-
-              <TabsContent value="todos">
+              <TabsContent value="pendientes">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {enviadosHoy.length === 0 ? (
+                  {enviadosHoy.filter(e => e.estado_firma === 'firmado_asesor').length === 0 ? (
                     <p className="col-span-full text-center py-8">
-                      No hay registros.
+                      No hay contratos pendientes de firma.
                     </p>
                   ) : (
-                    enviadosHoy.map(renderCard)
+                    enviadosHoy.filter(e => e.estado_firma === 'firmado_asesor').map(renderCard)
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="completados">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {enviadosHoy.filter(e => e.estado_firma === 'firmado_completo').length === 0 ? (
+                    <p className="col-span-full text-center py-8">
+                      No hay contratos completados.
+                    </p>
+                  ) : (
+                    enviadosHoy.filter(e => e.estado_firma === 'firmado_completo').map(renderCard)
                   )}
                 </div>
               </TabsContent>
@@ -222,6 +384,18 @@ export default function FirmaPage() {
         </Card>
 
         <ProspectosPendientes />
+
+        {/* Modal de vista previa del contrato */}
+        {contratoSeleccionado && (
+          <ContratoVistaModal
+            isOpen={modalVistaOpen}
+            onClose={() => {
+              setModalVistaOpen(false)
+              setContratoSeleccionado(null)
+            }}
+            contratoId={contratoSeleccionado}
+          />
+        )}
       </main>
     </div>
   )
@@ -231,6 +405,7 @@ function ProspectosPendientes() {
   const router = useRouter()
   const [prospectos, setProspectos] = useState<Prospecto[]>([])
   const [documentos, setDocumentos] = useState<Documento[]>([])
+  const [contratosEnviados, setContratosEnviados] = useState<ContactoEnviado[]>([])
   const [selected, setSelected] = useState<number[]>([])
   const tipos = ["dpi", "recibo", "american", "inscripcion"]
 
@@ -240,7 +415,13 @@ function ProspectosPendientes() {
 
   useEffect(() => {
     const token = localStorage.getItem("token") || ""
-    const estados = ["Pendiente Aprobacion", "revisada", "aprobada"]
+    // Solo estados de prospectos en proceso (NO incluye "Inscrito")
+    const estados = [
+      "Preinscripción",
+      "Pendiente Aprobacion",
+      "Pendiente de Aprobación Académica",
+      "Pendiente de Aprobación Financiera"
+    ]
 
     async function loadProspectos() {
       try {
@@ -284,8 +465,22 @@ function ProspectosPendientes() {
       }
     }
 
+    async function loadContratosEnviados() {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/contactos-enviados`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data: ContactoEnviado[] = await res.json()
+        setContratosEnviados(Array.isArray(data) ? data : [])
+      } catch (err) {
+        console.error("Error cargando contratos enviados:", err)
+      }
+    }
+
     loadProspectos()
     loadDocumentos()
+    loadContratosEnviados()
   }, [])
 
   const docsByPros = useMemo(() => {
@@ -296,6 +491,19 @@ function ProspectosPendientes() {
       return acc
     }, {})
   }, [prospectos, documentos])
+
+  // Obtener el estado del contrato para cada prospecto
+  const contratoByProspecto = useMemo(() => {
+    return prospectos.reduce<Record<number, { enviado: boolean, firmado: boolean, cantidad: number }>>((acc, p) => {
+      const contratosDelProspecto = contratosEnviados.filter(c => c.prospecto_id === p.id)
+      const cantidad = contratosDelProspecto.length
+      const enviado = cantidad > 0
+      const firmado = contratosDelProspecto.some(c => c.estado_firma === 'firmado' || c.fecha_firma_estudiante)
+      
+      acc[p.id] = { enviado, firmado, cantidad }
+      return acc
+    }, {})
+  }, [prospectos, contratosEnviados])
 
   const toggle = (id: number) =>
     setSelected(sel =>
@@ -340,6 +548,8 @@ function ProspectosPendientes() {
               <TableHead>✔️</TableHead>
               <TableHead>Nombre</TableHead>
               <TableHead>Email</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead>Contrato</TableHead>
               {tipos.map(t => (
                 <TableHead key={t}>{t.toUpperCase()}</TableHead>
               ))}
@@ -350,41 +560,86 @@ function ProspectosPendientes() {
             {paginated.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={4 + tipos.length}
+                  colSpan={6 + tipos.length}
                   className="text-center py-4"
                 >
                   No hay prospectos que coincidan.
                 </TableCell>
               </TableRow>
             ) : (
-              paginated.map(p => (
-                <TableRow key={p.id}>
-                  <TableCell>
-                    <Checkbox
-                      checked={selected.includes(p.id)}
-                      onCheckedChange={() => toggle(p.id)}
-                    />
-                  </TableCell>
-                  <TableCell>{p.nombre_completo}</TableCell>
-                  <TableCell>{p.correo_electronico}</TableCell>
-                  {tipos.map(t => (
-                    <TableCell key={t}>
+              paginated.map(p => {
+                const contratoInfo = contratoByProspecto[p.id] || { enviado: false, firmado: false, cantidad: 0 }
+                
+                return (
+                  <TableRow key={p.id}>
+                    <TableCell>
                       <Checkbox
-                        checked={docsByPros[p.id]?.includes(t) ?? false}
-                        disabled
+                        checked={selected.includes(p.id)}
+                        onCheckedChange={() => toggle(p.id)}
                       />
                     </TableCell>
-                  ))}
-                  <TableCell>
-                    <Button
-                      variant="outline"
-                      onClick={() => router.push(`/firma/student-details/${p.id}`)}
-                    >
-                      Ver Detalles
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
+                    <TableCell>{p.nombre_completo}</TableCell>
+                    <TableCell>{p.correo_electronico}</TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant="outline"
+                        className={
+                          p.status === "Inscrito" 
+                            ? "bg-green-100 text-green-800 border-green-300"
+                            : p.status === "Preinscripción"
+                            ? "bg-blue-100 text-blue-800 border-blue-300"
+                            : p.status?.includes("Pendiente")
+                            ? "bg-yellow-100 text-yellow-800 border-yellow-300"
+                            : "bg-gray-100 text-gray-800 border-gray-300"
+                        }
+                      >
+                        {p.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {contratoInfo.enviado ? (
+                        <div className="flex flex-col gap-1">
+                          <Badge 
+                            variant="outline"
+                            className={
+                              contratoInfo.firmado 
+                                ? "bg-green-100 text-green-800 border-green-300"
+                                : "bg-orange-100 text-orange-800 border-orange-300"
+                            }
+                          >
+                            {contratoInfo.firmado ? "✓ Firmado" : "📧 Enviado"}
+                          </Badge>
+                          {contratoInfo.cantidad > 1 && (
+                            <span className="text-xs text-gray-500">
+                              ({contratoInfo.cantidad} contratos)
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-300">
+                          Sin enviar
+                        </Badge>
+                      )}
+                    </TableCell>
+                    {tipos.map(t => (
+                      <TableCell key={t}>
+                        <Checkbox
+                          checked={docsByPros[p.id]?.includes(t) ?? false}
+                          disabled
+                        />
+                      </TableCell>
+                    ))}
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        onClick={() => router.push(`/firma/student-details/${p.id}`)}
+                      >
+                        Ver Detalles
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )
+              })
             )}
           </TableBody>
         </Table>

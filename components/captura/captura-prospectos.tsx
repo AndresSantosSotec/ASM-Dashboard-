@@ -78,6 +78,34 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>
 
+// Función para traducir nombres de campos al español
+function traducirCampo(campo: string): string {
+  const traducciones: Record<string, string> = {
+    'nombre_completo': 'Nombre Completo',
+    'nombreCompleto': 'Nombre Completo',
+    'correo_electronico': 'Correo Electrónico',
+    'correoElectronico': 'Correo Electrónico',
+    'telefono': 'Teléfono',
+    'genero': 'Género',
+    'fecha': 'Fecha',
+    'empresa_donde_labora_actualmente': 'Empresa',
+    'empresaDondeLaboraActualmente': 'Empresa',
+    'puesto': 'Puesto',
+    'pais': 'País',
+    'pais_origen': 'País de Origen',
+    'departamento': 'Departamento',
+    'municipio': 'Municipio',
+    'interes': 'Programa de Interés',
+    'medio_conocimiento_institucion': 'Medio de Conocimiento',
+    'Origen': 'Origen/Canal',
+    'notas_generales': 'Notas Generales',
+    'notasGenerales': 'Notas Generales',
+    'observaciones': 'Observaciones',
+    'mesesPrograma': 'Meses del Programa',
+  }
+  return traducciones[campo] || campo.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()
+}
+
 // Componente principal
 export default function CapturaProspectos() {
   const [loading, setLoading] = useState(false)
@@ -450,6 +478,36 @@ export default function CapturaProspectos() {
     } catch (error: any) {
       let errorMessage =
         error.response?.data?.message || error.message || "Error desconocido"
+      
+      // Extraer errores de validación específicos (Laravel 422)
+      let erroresDetallados = ""
+      if (error.response?.status === 422 && error.response?.data?.errors) {
+        const errors = error.response.data.errors
+        const camposConError: string[] = []
+        
+        Object.keys(errors).forEach(campo => {
+          const mensajes = Array.isArray(errors[campo]) ? errors[campo] : [errors[campo]]
+          mensajes.forEach(msg => {
+            // Traducir nombres de campos al español
+            const campoTraducido = traducirCampo(campo)
+            camposConError.push(`• <strong>${campoTraducido}:</strong> ${msg}`)
+          })
+        })
+        
+        if (camposConError.length > 0) {
+          erroresDetallados = camposConError.join("<br>")
+          Swal.fire({
+            icon: "error",
+            title: "Errores de validación",
+            html: `<div class="text-left"><p class="mb-2">Por favor corrija los siguientes campos:</p>${erroresDetallados}</div>`,
+            confirmButtonText: "Entendido",
+          })
+          console.error("❌ Errores de validación:", errors)
+          setLoading(false)
+          return
+        }
+      }
+      
       // Si el error contiene "has already been taken", se reemplaza por un mensaje en español
       if (errorMessage.toLowerCase().includes("has already been taken")) {
         errorMessage = "El correo electrónico ya ha sido registrado"

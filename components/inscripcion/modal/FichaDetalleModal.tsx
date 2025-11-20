@@ -55,6 +55,8 @@ export default function FichaDetalleModal({
   const [financieros, setFinancieros] = useState<any>({})
   const [programasInscritos, setProgramasInscritos] = useState<any[]>([])
   const [documentos, setDocumentos] = useState<any[]>([])
+  const [contratoInfo, setContratoInfo] = useState<any>(null)
+  const [nuevosFirmados, setNuevosFirmados] = useState(0)
 
   // Campos para mostrar
   const camposPersonales: [string, any][] = [
@@ -74,6 +76,8 @@ export default function FichaDetalleModal({
     ["Inicio específico", formatDate(academicos.fechaInicioEspecifica)],
     ["Taller inducción", formatDate(academicos.fechaTallerInduccion)],
     ["Taller integración", formatDate(academicos.fechaTallerIntegracion)],
+    ["Último título obtenido", academicos.ultimoTitulo],
+    ["Carrera del título", academicos.carrera],
     ["Institución anterior", academicos.institucionAnterior],
     ["Año graduación", academicos.añoGraduacion],
     ["Medio conoció", academicos.medioConocio],
@@ -187,6 +191,9 @@ export default function FichaDetalleModal({
         setProgramasInscritos(data.programas || [])
         setDocumentos(latestByType)
 
+        // 🔥 CARGAR INFORMACIÓN DE CONTRATOS
+        await cargarInfoContratos(ficha.id)
+
         if (data.financieros?.convenioId && !data.financieros?.convenioNombre) {
           console.warn(
             `[FichaDetalleModal] convenio ${data.financieros.convenioId} sin nombre. Revisar GET /api/convenios/${data.financieros.convenioId}`,
@@ -201,6 +208,87 @@ export default function FichaDetalleModal({
       }
     })()
   }, [isOpen, ficha.id])
+
+  // 🔥 CARGAR INFORMACIÓN DE CONTRATOS DEL PROSPECTO
+  const cargarInfoContratos = async (prospectoId: number) => {
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_BASE_URL}/api/contactos-enviados`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      })
+      
+      if (!res.ok) return
+      
+      const data = await res.json()
+      // El backend retorna directamente el array, no envuelto en data.data
+      const contratos = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : [])
+      
+      console.log(`[Contratos] Total recibidos: ${contratos.length}`)
+      
+      // Filtrar contratos de este prospecto
+      const contratosProspecto = contratos.filter((c: any) => c.prospecto_id === prospectoId)
+      
+      console.log(`[Contratos] Del prospecto ${prospectoId}: ${contratosProspecto.length}`)
+      
+      if (contratosProspecto.length === 0) {
+        setContratoInfo(null)
+        return
+      }
+
+      // Buscar el último contrato (más reciente)
+      const ultimoContrato = contratosProspecto.reduce((prev: any, curr: any) => {
+        const prevDate = new Date(prev.created_at || 0).getTime()
+        const currDate = new Date(curr.created_at || 0).getTime()
+        return currDate > prevDate ? curr : prev
+      })
+
+      // Contar contratos firmados (con firma de estudiante)
+      const contratosFirmados = contratosProspecto.filter((c: any) => 
+        c.firma_estudiante && c.firma_estudiante.trim() !== ''
+      )
+
+      console.log(`[Contratos] Firmados: ${contratosFirmados.length}`)
+
+      // Verificar si hay nuevos firmados desde la última revisión
+      const ultimaRevision = localStorage.getItem(`ultima-revision-contratos-${prospectoId}`)
+      const fechaUltimaRevision = ultimaRevision ? new Date(ultimaRevision).getTime() : 0
+      
+      const nuevosFirmadosCount = contratosFirmados.filter((c: any) => {
+        const fechaFirma = new Date(c.updated_at || c.created_at).getTime()
+        return fechaFirma > fechaUltimaRevision
+      }).length
+
+      setNuevosFirmados(nuevosFirmadosCount)
+
+      // Verificar si el último contrato tiene ambas firmas
+      const tieneAmbas = ultimoContrato.firma_asesor && 
+                        ultimoContrato.firma_asesor.trim() !== '' && 
+                        ultimoContrato.firma_estudiante && 
+                        ultimoContrato.firma_estudiante.trim() !== ''
+
+      console.log(`[Contratos] Último contrato ID: ${ultimoContrato.id}, Tiene ambas firmas: ${tieneAmbas}`)
+
+      setContratoInfo({
+        total: contratosProspecto.length,
+        firmados: contratosFirmados.length,
+        enviados: contratosProspecto.length,
+        ultimoContrato: ultimoContrato,
+        hayFirmas: tieneAmbas
+      })
+
+    } catch (err) {
+      console.error("Error cargando info de contratos:", err)
+      setContratoInfo(null)
+    }
+  }
+
+  // 🔥 MARCAR CONTRATOS COMO REVISADOS
+  const marcarContratosRevisados = () => {
+    localStorage.setItem(`ultima-revision-contratos-${ficha.id}`, new Date().toISOString())
+    setNuevosFirmados(0)
+  }
 
   // Marcar como revisada
   const marcarRevisada = () => {
@@ -250,28 +338,45 @@ export default function FichaDetalleModal({
   // Descargar contrato de confidencialidad
   const handleDescargarContrato = async () => {
     try {
+      // 🔥 VALIDAR QUE HAYA CONTRATO CON AMBAS FIRMAS
+      if (!contratoInfo || !contratoInfo.hayFirmas) {
+        await Swal.fire({
+          icon: "warning",
+          title: "Contrato no disponible",
+          text: "El contrato debe estar firmado por el asesor y el estudiante para poder descargarlo.",
+        })
+        return
+      }
+
       const token = localStorage.getItem("token")
-      const res = await fetch(`${API_BASE_URL}/api/prospectos/${ficha.id}/contrato-pdf`, {
+      
+      // 🔥 DESCARGAR EL ÚLTIMO CONTRATO CON FIRMAS
+      const contratoId = contratoInfo.ultimoContrato.id
+      const res = await fetch(`${API_BASE_URL}/api/contactos-enviados/${contratoId}/pdf`, {
         headers: {
           Authorization: token ? `Bearer ${token}` : "",
         },
       })
+      
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       
       const blob = await res.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `contrato-confidencialidad-${ficha.id}.pdf`
+      a.download = `contrato-firmado-${ficha.id}-${contratoId}.pdf`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
       
+      // Marcar contratos como revisados
+      marcarContratosRevisados()
+      
       Swal.fire({
         icon: "success",
         title: "Descarga exitosa",
-        text: "El contrato se descargó correctamente",
+        text: "El contrato firmado se descargó correctamente",
         timer: 2000,
         showConfirmButton: false,
       })
@@ -280,7 +385,7 @@ export default function FichaDetalleModal({
       Swal.fire({
         icon: "error",
         title: "Error",
-        text: "No se pudo descargar el contrato",
+        text: "No se pudo descargar el contrato firmado",
       })
     }
   }
@@ -472,6 +577,48 @@ export default function FichaDetalleModal({
 
         {/* FOOTER */}
         <div className="border-t px-4 py-4 space-y-4">
+          {/* 🔥 NOTIFICACIÓN DE NUEVOS CONTRATOS FIRMADOS */}
+          {nuevosFirmados > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
+              <div className="bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                {nuevosFirmados}
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-green-800">
+                  {nuevosFirmados === 1 
+                    ? "¡Nuevo contrato firmado!" 
+                    : `¡${nuevosFirmados} nuevos contratos firmados!`}
+                </p>
+                <p className="text-xs text-green-600">
+                  Descarga el contrato para marcar como revisado
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* 🔥 INFORMACIÓN DE CONTRATOS */}
+          {contratoInfo && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+              <h4 className="text-sm font-semibold text-blue-900">Estado de Contratos</h4>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="text-blue-600">Enviados</p>
+                  <p className="font-bold text-blue-900">{contratoInfo.enviados}</p>
+                </div>
+                <div>
+                  <p className="text-blue-600">Firmados</p>
+                  <p className="font-bold text-blue-900">{contratoInfo.firmados}</p>
+                </div>
+                <div>
+                  <p className="text-blue-600">Estado</p>
+                  <Badge variant={contratoInfo.hayFirmas ? "default" : "secondary"}>
+                    {contratoInfo.hayFirmas ? "Firmado completo" : "Pendiente firmas"}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-between">
             <div className="flex items-center gap-2 text-sm">
               <CheckCircle2 className="text-green-600" />
@@ -507,12 +654,14 @@ export default function FichaDetalleModal({
                 Descargar Ficha
               </Button>
               <Button
-                variant="outline"
+                variant={contratoInfo?.hayFirmas ? "default" : "outline"}
                 size="sm"
                 onClick={handleDescargarContrato}
+                disabled={!contratoInfo?.hayFirmas}
+                className={contratoInfo?.hayFirmas ? "bg-blue-600 hover:bg-blue-700" : ""}
               >
                 <FileText className="mr-2 h-4 w-4" />
-                Descargar Contrato
+                {contratoInfo?.hayFirmas ? "Descargar Contrato Firmado" : "Contrato sin firmas"}
               </Button>
             </div>
           </div>
@@ -531,23 +680,14 @@ export default function FichaDetalleModal({
               )}
             </div>
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setCorrectionMode(true)
-                  onSolicitarCorreccion()
-                }}
-                disabled={correctionMode}
-              >
-                <Send className="mr-1" /> Solicitar Corrección
-              </Button>
+
               {onAprobar && (
                 <Button
                   onClick={onAprobar}
                   className="bg-green-600 hover:bg-green-700"
                 >
                   <ThumbsUp className="mr-1 h-4 w-4" />
-                  Aprobar y Enviar a Financiero
+                  Aprobar y Enviar a Aprobación Académica
                 </Button>
               )}
             </div>

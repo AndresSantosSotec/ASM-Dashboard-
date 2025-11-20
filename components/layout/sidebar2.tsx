@@ -4,7 +4,8 @@ import React, { useEffect, useState, type ReactNode } from "react"
 import {
   BarChart2, Calendar, ChevronDown, ChevronRight, FileText, Home, Mail, Settings, Shield, Users, DollarSign,
   BookOpen, ClipboardList, Activity, Copy, UserCheck, Plus, FileSignature, BarChart, LayoutDashboard, GraduationCapIcon,
-  CreditCard, Bell, Award, Medal, PieChart, RefreshCw, Phone, FileCheck, Send, Key, LogIn, Database, Clock, LogOut
+  CreditCard, Bell, Award, Medal, PieChart, RefreshCw, Phone, FileCheck, Send, Key, LogIn, Database, Clock, LogOut,
+  CheckCircle, IdCard
 } from "lucide-react"
 import Link from "next/link"
 import axios from "axios"
@@ -290,6 +291,40 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 >
                   <FileSignature size={16} className="mr-2" />
                   <span>Firma Digital</span>
+                </Link>
+
+                <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
+                  Aprobaciones
+                </div>
+                <Link
+                  href="/inscripcion/aprobacion-academica"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/aprobacion-academica"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <CheckCircle size={16} className="mr-2" />
+                  <span>Aprobación Académica</span>
+                </Link>
+                <Link
+                  href="/inscripcion/aprobacion-financiera"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/aprobacion-financiera"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <DollarSign size={16} className="mr-2" />
+                  <span>Aprobación Financiera</span>
+                </Link>
+                <Link
+                  href="/inscripcion/gen-credenciales"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/gen-credenciales"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    } transition-colors duration-200`}
+                >
+                  <IdCard size={16} className="mr-2" />
+                  <span>Generación de Credenciales</span>
                 </Link>
 
                 <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">

@@ -66,6 +66,7 @@ export function StudentDetails() {
   const [zoomLevel, setZoomLevel] = useState(100)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [documentos, setDocumentos] = useState<string[]>([])
 
   // Alias al primer programa (si existe)
   const programa = programas[0]
@@ -145,6 +146,29 @@ export function StudentDetails() {
     })()
   }, [])
 
+  // 3.5) Traer documentos del prospecto
+  useEffect(() => {
+    if (!studentId) return
+    ; (async () => {
+      try {
+        const token = localStorage.getItem("token")
+        const res = await fetch(`${API_BASE_URL}/api/documentos`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) throw new Error("Error al cargar documentos")
+        const allDocs = await res.json()
+        // Filtrar solo los de este prospecto
+        const prospectoId = Number(studentId)
+        const docsProspecto = allDocs
+          .filter((d: any) => d.prospecto_id === prospectoId)
+          .map((d: any) => d.tipo_documento)
+        setDocumentos(docsProspecto)
+      } catch (err) {
+        console.error("Error cargando documentos:", err)
+      }
+    })()
+  }, [studentId])
+
   // 4) Inicializar canvas
   useEffect(() => {
     const canvas = canvasRef.current
@@ -210,11 +234,35 @@ export function StudentDetails() {
   // 7) Envío del contrato
   const handleSendContract = () => {
     if (!signature) {
-      alert("Por favor, firme el contrato antes de enviarlo.")
+      Swal.fire({
+        icon: "warning",
+        title: "Firma requerida",
+        text: "Por favor, firme el contrato antes de enviarlo.",
+      })
       return
     }
+
+    // Validar documentos mínimos requeridos
+    const docsRequeridos = ["dpi", "recibo", "american", "inscripcion"]
+    const docsFaltantes = docsRequeridos.filter(doc => !documentos.includes(doc))
+    
+    if (docsFaltantes.length > 0) {
+      const listaFaltantes = docsFaltantes.map(d => d.toUpperCase()).join(", ")
+      Swal.fire({
+        icon: "error",
+        title: "Documentos incompletos",
+        html: `<p>No se puede enviar el contrato porque faltan los siguientes documentos:</p><p class="font-bold text-red-600">${listaFaltantes}</p><p class="mt-2">Por favor, asegúrese de que el prospecto haya cargado todos los documentos requeridos.</p>`,
+        confirmButtonText: "Entendido",
+      })
+      return
+    }
+
     if (!currentUser?.email) {
-      alert("No se pudo obtener el correo del usuario.")
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se pudo obtener el correo del usuario.",
+      })
       return
     }
     setShowConfirmDialog(true)
@@ -225,6 +273,46 @@ export function StudentDetails() {
     setError(null)
     try {
       const token = localStorage.getItem("token")
+      
+      // 1. Guardar firma del asesor y obtener token
+      const firmaRes = await fetch(
+        `${API_BASE_URL}/api/contratos/firma-asesor`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            prospecto_id: studentId,
+            firma_asesor: signature,
+            datos_contrato: {
+              prospecto: student?.name,
+              email: currentUser?.email || student?.email,
+              programa: programa?.programa.nombre_del_programa,
+              programa_abreviatura: programa?.programa.abreviatura,
+              matricula: programa?.inscripcion,
+              mensualidad: programa?.cuota_mensual,
+              convenio_id: programa?.convenio_id,
+              asesor: currentUser
+                ? `${currentUser.first_name} ${currentUser.last_name}`
+                : "",
+              fecha: formattedDate,
+            },
+          }),
+        }
+      )
+
+      if (!firmaRes.ok) {
+        const text = await firmaRes.text()
+        throw new Error(text || firmaRes.statusText)
+      }
+
+      const firmaData = await firmaRes.json()
+      const urlFirmaEstudiante = firmaData.url_firma_estudiante
+
+      // 2. Enviar contrato por email con el link para que el estudiante firme
       const res = await fetch(
         `${API_BASE_URL}/api/prospectos/${studentId}/enviar-contrato`,
         {
@@ -245,26 +333,47 @@ export function StudentDetails() {
               ? `${currentUser.first_name} ${currentUser.last_name}`
               : "",
             fecha: formattedDate,
+            url_firma_estudiante: urlFirmaEstudiante, // Link para firma del estudiante
           }),
         }
       )
+      
       if (!res.ok) {
         const text = await res.text()
         throw new Error(text || res.statusText)
       }
+      
       await res.json()
+      
+      // Mostrar modal de éxito con el link
+      await Swal.fire({
+        icon: 'success',
+        title: '¡Contrato enviado!',
+        html: `
+          <p>El contrato ha sido firmado por el asesor y enviado al estudiante.</p>
+          <div class="mt-3 p-3 bg-blue-50 rounded text-sm">
+            <p class="font-semibold mb-2">Link de firma para el estudiante:</p>
+            <input 
+              type="text" 
+              value="${urlFirmaEstudiante}" 
+              readonly 
+              class="w-full p-2 border rounded text-xs"
+              onclick="this.select()"
+            />
+          </div>
+        `,
+        confirmButtonText: 'Aceptar',
+      })
+      
       setShowSuccessDialog(true)
     } catch (err: any) {
-      // Si ya se envió hoy, código 23505 en PG => uniq violation
-      if (err.message.includes("ux_contactos_env_prosp_canal_dia")) {
-        Swal.fire({
-          icon: "warning",
-          title: "Contrato ya enviado",
-          text: "Este prospecto ya recibió el contrato hoy.",
-        })
-      } else {
-        setError(err.message || "Error desconocido")
-      }
+      // Manejar errores generales
+      setError(err.message || "Error desconocido")
+      Swal.fire({
+        icon: "error",
+        title: "Error al enviar contrato",
+        text: err.message || "Ocurrió un error al enviar el contrato.",
+      })
     } finally {
       setLoading(false)
     }

@@ -37,22 +37,26 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
     "enero", "febrero", "marzo", "abril", "mayo", "junio",
     "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
   ]
-  const dias = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado"]
-  const titulos = ["diversificado", "tecnico", "licenciatura", "maestria", "doctorado", "cierre_pensum","Carrera Universitaria Incompleta"] as const
+
+  // 🔥 Días disponibles (para seleccionar varios)
+  const diasDisponibles = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado","domingo"]
+
+  const titulos = ["diversificado", "tecnico", "licenciatura", "maestria", "doctorado", "cierre_pensum", "Carrera Universitaria Incompleta"] as const
   const medios = ["redes", "amigo", "empresa", "evento", "busqueda", "otros"] as const
 
   const [programas, setProgramas] = useState<Programa[]>([])
   const programasUnicos = useMemo(() => {
     const map = new Map<string, Programa>()
-    programas.forEach(p => {
+    programas.forEach((p) => {
       const key = `${p.abreviatura}-${p.nombre_del_programa}`
       if (!map.has(key)) map.set(key, p)
     })
     return Array.from(map.values())
   }, [programas])
+
   const [error, setError] = useState<string | null>(null)
 
-  // Obtiene la lista de programas del backend
+  // Cargar programas
   useEffect(() => {
     axios
       .get<Programa[]>(`${API_BASE_URL}/api/programas`)
@@ -60,7 +64,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
       .catch((err) => console.error("❌ Error al obtener programas:", err))
   }, [])
 
-  // Actualiza la duración siempre que cambie el programa
+  // Actualizar duración del programa principal
   useEffect(() => {
     const prog = programasUnicos.find((p) => p.id.toString() === datos.programa)
     const nuevaDur = prog?.meses.toString() ?? ""
@@ -69,78 +73,61 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
     }
   }, [datos.programa, programasUnicos, setDatos])
 
-  // Programa 1 siempre refleja el programa principal
+  // Programa 1 = programa principal
   useEffect(() => {
     if (datos.programa && datos.titulo1 !== datos.programa) {
       setDatos((prev) => ({ ...prev, titulo1: datos.programa }))
     }
   }, [datos.programa, datos.titulo1, setDatos])
 
-  // Copia la duración al campo de Programa 1 si está vacío
   useEffect(() => {
     if (datos.duracion && datos.titulo1_duracion === "") {
       setDatos((prev) => ({ ...prev, titulo1_duracion: datos.duracion }))
     }
   }, [datos.duracion, datos.titulo1_duracion, setDatos])
 
-
-  // Programa 1 siempre refleja el programa principal
-  useEffect(() => {
-    if (datos.programa && datos.titulo1 !== datos.programa) {
-      setDatos(prev => ({ ...prev, titulo1: datos.programa }))
-    }
-  }, [datos.programa, datos.titulo1, setDatos])
-
-  // Copia la duración al campo de Programa 1 si está vacío
-  useEffect(() => {
-    if (datos.duracion && datos.titulo1_duracion === "") {
-      setDatos(prev => ({ ...prev, titulo1_duracion: datos.duracion }))
-    }
-  }, [datos.duracion, datos.titulo1_duracion, setDatos])
-
-  // Auto-actualizar duración cuando cambian los programas 2 y 3
+  // Actualizar duración de programas 2 y 3
   useEffect(() => {
     if (datos.titulo2) {
-      const prog = programasUnicos.find(p => p.id.toString() === datos.titulo2)
+      const prog = programasUnicos.find((p) => p.id.toString() === datos.titulo2)
       if (prog) {
-        setDatos(prev => ({ ...prev, titulo2_duracion: prog.meses.toString() }))
+        setDatos((prev) => ({ ...prev, titulo2_duracion: prog.meses.toString() }))
       }
     }
   }, [datos.titulo2, programasUnicos, setDatos])
 
   useEffect(() => {
     if (datos.titulo3) {
-      const prog = programasUnicos.find(p => p.id.toString() === datos.titulo3)
+      const prog = programasUnicos.find((p) => p.id.toString() === datos.titulo3)
       if (prog) {
-        setDatos(prev => ({ ...prev, titulo3_duracion: prog.meses.toString() }))
+        setDatos((prev) => ({ ...prev, titulo3_duracion: prog.meses.toString() }))
       }
     }
   }, [datos.titulo3, programasUnicos, setDatos])
 
-  // Checks whether the required fields are completed
+  // 🔥 Validación del formulario
   const isFormValid = useMemo(() => {
-    const baseValidation = (
+    const baseValidation =
       !!datos.programa &&
       !!datos.ultimoTitulo &&
       datos.institucionAnterior.trim().length > 0 &&
       !!datos.modalidad &&
       !!datos.fechaInicio &&
-      !!datos.diaEstudio &&
+      !!datos.diaEstudio && // (validamos que existan días, aunque sean varios)
       !!datos.fechaInicioEspecifica &&
       !!datos.fechaTallerInduccion &&
       !!datos.fechaTallerIntegracion &&
       !!datos.medioConocio &&
       datos.titulo1 === datos.programa &&
       datos.titulo1_duracion.trim().length > 0
-    )
 
-    // Si es cierre de pénsum, validar campo carrera
+    // Si es cierre de pénsum -> carrera obligatoria
     if (datos.ultimoTitulo === "cierre_pensum") {
       return baseValidation && (datos.carrera?.trim().length || 0) > 0
     }
 
-    // Si NO es cierre de pénsum, validar año de graduación
-    return baseValidation && datos.añoGraduacion.trim().length > 0
+    // Año de graduación OPCIONAL
+    return baseValidation
   }, [datos])
 
   const handleNext = () => {
@@ -156,9 +143,21 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
     goNext()
   }
 
+  // 🔥 Manejar selección múltiple de días de estudio
+  const toggleDia = (dia: string) => {
+    let seleccionados = datos.diaEstudio ? datos.diaEstudio.split(", ") : []
+
+    if (seleccionados.includes(dia)) {
+      seleccionados = seleccionados.filter((d) => d !== dia)
+    } else {
+      seleccionados.push(dia)
+    }
+
+    setDatos({ ...datos, diaEstudio: seleccionados.join(", ") })
+  }
+
   return (
     <>
-      {/* Indicador de éxito */}
       {isFormValid && (
         <div className="mb-4 flex items-center gap-2 rounded bg-green-100 px-4 py-2 text-green-800">
           <CheckCircle className="h-5 w-5" />
@@ -167,6 +166,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
       )}
 
       <div className="grid gap-6 md:grid-cols-2">
+
         {/* Programa + duración */}
         <div className="flex space-x-4">
           <div className="flex-1 space-y-2">
@@ -175,13 +175,13 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
             </Label>
             <Select
               value={datos.programa}
-              onValueChange={v => setDatos({ ...datos, programa: v })}
+              onValueChange={(v) => setDatos({ ...datos, programa: v })}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar programa" />
               </SelectTrigger>
               <SelectContent>
-                {programasUnicos.map(p => (
+                {programasUnicos.map((p) => (
                   <SelectItem key={p.id} value={p.id.toString()}>
                     {p.abreviatura} – {p.nombre_del_programa}
                   </SelectItem>
@@ -189,15 +189,15 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
               </SelectContent>
             </Select>
           </div>
+
           <div className="flex-1 space-y-2">
-            <Label>Duración de carrera (meses)</Label>
+            <Label>Duración (meses)</Label>
             <Input
               type="number"
               value={datos.duracion}
-              onChange={e => setDatos({ ...datos, duracion: e.target.value })}
+              onChange={(e) => setDatos({ ...datos, duracion: e.target.value })}
               placeholder="Meses"
             />
-            <p className="text-xs text-gray-500">Se actualiza automáticamente según el programa</p>
           </div>
         </div>
 
@@ -208,61 +208,56 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
           </Label>
           <Select
             value={datos.ultimoTitulo}
-            onValueChange={v => setDatos({ ...datos, ultimoTitulo: v as DatosAcademicos["ultimoTitulo"] })}
+            onValueChange={(v) => setDatos({ ...datos, ultimoTitulo: v as any })}
           >
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar título" />
             </SelectTrigger>
             <SelectContent>
-              {titulos.map(t => (
+              {titulos.map((t) => (
                 <SelectItem key={t} value={t}>
-                  {t === "cierre_pensum" ? "Cierre de Pénsum" : t.charAt(0).toUpperCase() + t.slice(1)}
+                  {t === "cierre_pensum"
+                    ? "Cierre de Pénsum"
+                    : t.charAt(0).toUpperCase() + t.slice(1)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
-        {/* Campo Carrera (solo si es cierre de pénsum) */}
-        {datos.ultimoTitulo === "cierre_pensum" && (
-          <div className="space-y-2">
-            <Label>
-              Carrera <RequiredAsterisk />
-            </Label>
-            <Input
-              value={datos.carrera || ""}
-              onChange={e => setDatos({ ...datos, carrera: e.target.value })}
-              placeholder="Ingrese el nombre de la carrera"
-              required
-            />
-          </div>
-        )}
-
         {/* Institución */}
         <div className="space-y-2">
           <Label>
-            Institución donde obtuvo su último título <RequiredAsterisk />
+            Institución <RequiredAsterisk />
           </Label>
           <Input
             value={datos.institucionAnterior}
-            onChange={e => setDatos({ ...datos, institucionAnterior: e.target.value })}
-            required
+            onChange={(e) => setDatos({ ...datos, institucionAnterior: e.target.value })}
           />
         </div>
 
-        {/* Año de graduación - Solo si NO es cierre de pénsum */}
+        {/* Carrera del último título obtenido */}
+        <div className="space-y-2">
+          <Label>
+            Carrera del último título {datos.ultimoTitulo === "cierre_pensum" ? <RequiredAsterisk /> : "(opcional)"}
+          </Label>
+          <Input
+            value={datos.carrera || ""}
+            onChange={(e) => setDatos({ ...datos, carrera: e.target.value })}
+            placeholder="Ej: Administración de Empresas, Ingeniería, etc."
+          />
+        </div>
+
+        {/* Año graduación OPCIONAL */}
         {datos.ultimoTitulo !== "cierre_pensum" && (
           <div className="space-y-2">
-            <Label>
-              Año de graduación <RequiredAsterisk />
-            </Label>
+            <Label>Año de graduación (opcional)</Label>
             <Input
               type="number"
               min={1950}
               max={new Date().getFullYear()}
               value={datos.añoGraduacion}
-              onChange={e => setDatos({ ...datos, añoGraduacion: e.target.value })}
-              required
+              onChange={(e) => setDatos({ ...datos, añoGraduacion: e.target.value })}
             />
           </div>
         )}
@@ -274,7 +269,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
           </Label>
           <Select
             value={datos.modalidad}
-            onValueChange={v => setDatos({ ...datos, modalidad: v as "sincronica" })}
+            onValueChange={(v) => setDatos({ ...datos, modalidad: v as any })}
           >
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar modalidad" />
@@ -285,20 +280,20 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
           </Select>
         </div>
 
-        {/* Mes de inicio */}
+        {/* Mes inicio */}
         <div className="space-y-2">
           <Label>
             Mes de inicio <RequiredAsterisk />
           </Label>
           <Select
             value={datos.fechaInicio}
-            onValueChange={v => setDatos({ ...datos, fechaInicio: v })}
+            onValueChange={(v) => setDatos({ ...datos, fechaInicio: v })}
           >
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar mes" />
             </SelectTrigger>
             <SelectContent>
-              {mesesMeses.map(m => (
+              {mesesMeses.map((m) => (
                 <SelectItem key={m} value={m}>
                   {m.charAt(0).toUpperCase() + m.slice(1)}
                 </SelectItem>
@@ -307,74 +302,84 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
           </Select>
         </div>
 
-        {/* Día de estudio */}
+        {/* 🔥 MULTI SELECT PARA DÍAS DE ESTUDIO */}
         <div className="space-y-2">
           <Label>
-            Día que estudiará <RequiredAsterisk />
+            Días que estudiará <RequiredAsterisk />
           </Label>
-          <Select
-            value={datos.diaEstudio}
-            onValueChange={v => setDatos({ ...datos, diaEstudio: v as DatosAcademicos["diaEstudio"] })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccionar día" />
-            </SelectTrigger>
-            <SelectContent>
-              {dias.map(d => (
-                <SelectItem key={d} value={d}>
-                  {d.charAt(0).toUpperCase() + d.slice(1)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+
+          <div className="grid grid-cols-2 gap-2 border p-3 rounded-md">
+            {diasDisponibles.map((dia) => {
+              const seleccionados = datos.diaEstudio ? datos.diaEstudio.split(", ") : []
+              const activo = seleccionados.includes(dia)
+
+              return (
+                <button
+                  type="button"
+                  key={dia}
+                  onClick={() => toggleDia(dia)}
+                  className={`text-sm p-2 rounded border ${
+                    activo
+                      ? "bg-blue-600 text-white border-blue-700"
+                      : "bg-white border-gray-300 text-gray-700"
+                  }`}
+                >
+                  {dia.charAt(0).toUpperCase() + dia.slice(1)}
+                </button>
+              )
+            })}
+          </div>
+
+          <p className="text-xs text-gray-500">
+            Seleccionados: {datos.diaEstudio || "Ninguno"}
+          </p>
         </div>
 
-        {/* Fechas específicas */}
+        {/* Fechas */}
         <div className="space-y-2">
           <Label>
             Fecha de inicio específica <RequiredAsterisk />
           </Label>
           <SimpleDatePicker
             value={datos.fechaInicioEspecifica}
-            onChange={v => setDatos({ ...datos, fechaInicioEspecifica: v })}
-            placeholder="Seleccionar fecha de inicio"
+            onChange={(v) => setDatos({ ...datos, fechaInicioEspecifica: v })}
           />
         </div>
+
         <div className="space-y-2">
           <Label>
             Fecha taller de inducción <RequiredAsterisk />
           </Label>
           <SimpleDatePicker
             value={datos.fechaTallerInduccion}
-            onChange={v => setDatos({ ...datos, fechaTallerInduccion: v })}
-            placeholder="Seleccionar fecha de inducción"
+            onChange={(v) => setDatos({ ...datos, fechaTallerInduccion: v })}
           />
         </div>
+
         <div className="space-y-2">
           <Label>
             Fecha taller de integración <RequiredAsterisk />
           </Label>
           <SimpleDatePicker
             value={datos.fechaTallerIntegracion}
-            onChange={v => setDatos({ ...datos, fechaTallerIntegracion: v })}
-            placeholder="Seleccionar fecha de integración"
+            onChange={(v) => setDatos({ ...datos, fechaTallerIntegracion: v })}
           />
         </div>
 
         {/* Medio conoció */}
         <div className="space-y-2">
           <Label>
-            ¿Por qué medio conoció ASM? <RequiredAsterisk />
+            ¿Cómo conoció ASM? <RequiredAsterisk />
           </Label>
           <Select
             value={datos.medioConocio}
-            onValueChange={v => setDatos({ ...datos, medioConocio: v as DatosAcademicos["medioConocio"] })}
+            onValueChange={(v) => setDatos({ ...datos, medioConocio: v as any })}
           >
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar medio" />
             </SelectTrigger>
             <SelectContent>
-              {medios.map(m => (
+              {medios.map((m) => (
                 <SelectItem key={m} value={m}>
                   {m.charAt(0).toUpperCase() + m.slice(1)}
                 </SelectItem>
@@ -383,43 +388,52 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
           </Select>
         </div>
 
-        {/* Observaciones y cursos (opcionales) */}
+        {/* Observaciones */}
         <div className="space-y-2 md:col-span-2">
           <Label>Observaciones</Label>
           <Textarea
             value={datos.observaciones}
-            onChange={e => setDatos({ ...datos, observaciones: e.target.value })}
+            onChange={(e) => setDatos({ ...datos, observaciones: e.target.value })}
             className="min-h-[80px]"
           />
         </div>
+
+        {/* Cursos opcionales */}
         <div className="space-y-2 md:col-span-2">
-          <Label>Cant. cursos aprobados (opcionales)</Label>
-          <Input
-            value={datos.cursosAprobados}
-            onChange={e => setDatos({ ...datos, cursosAprobados: e.target.value })}
-          />
+          <Label>Cursos aprobados (opcional)</Label>
+              <Input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={datos.cursosAprobados}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^0-9]/g, "") // ← permite solo números
+                  setDatos({ ...datos, cursosAprobados: value })
+                }}
+                placeholder="Ej: 5"
+              />
         </div>
 
-        {/* Bloque de Programas adicionales */}
+        {/* Programas adicionales */}
         {["titulo1", "titulo2", "titulo3"].map((field, idx) => {
           const programaValue = (datos as any)[field] || ""
           const duracionValue = (datos as any)[`${field}_duracion`] || ""
           const isProgramaSeleccionado = programaValue !== ""
-          
+
           return (
             <div className="flex space-x-4 items-end" key={field}>
               <div className="flex-1 space-y-2">
-                <Label>{`Programa ${idx + 1}${idx === 0 ? ' (Principal)' : ''}`}</Label>
+                <Label>{`Programa ${idx + 1}${idx === 0 ? " (Principal)" : ""}`}</Label>
+
                 <Select
                   value={programaValue}
-                  onValueChange={val => {
-                    // Actualizar programa
-                    setDatos({ ...datos, [field]: val })
-                    // Actualizar duración automáticamente
-                    const prog = programasUnicos.find(p => p.id.toString() === val)
-                    if (prog) {
-                      setDatos(prev => ({ ...prev, [field]: val, [`${field}_duracion`]: prog.meses.toString() }))
-                    }
+                  onValueChange={(val) => {
+                    const prog = programasUnicos.find((p) => p.id.toString() === val)
+                    setDatos((prev) => ({
+                      ...prev,
+                      [field]: val,
+                      [`${field}_duracion`]: prog?.meses.toString() || "",
+                    }))
                   }}
                   disabled={idx === 0}
                 >
@@ -427,7 +441,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
                     <SelectValue placeholder="Seleccionar programa" />
                   </SelectTrigger>
                   <SelectContent>
-                    {programasUnicos.map(p => (
+                    {programasUnicos.map((p) => (
                       <SelectItem key={p.id} value={p.id.toString()}>
                         {p.abreviatura} – {p.nombre_del_programa}
                       </SelectItem>
@@ -435,24 +449,31 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
                   </SelectContent>
                 </Select>
               </div>
+
               <div className="flex-1 space-y-2">
                 <Label>{`Duración ${idx + 1} (meses)`}</Label>
                 <Input
                   type="number"
                   value={duracionValue}
-                  onChange={e => setDatos({ ...datos, [`${field}_duracion`]: e.target.value })}
+                  onChange={(e) =>
+                    setDatos({ ...datos, [`${field}_duracion`]: e.target.value })
+                  }
                 />
-                <p className="text-xs text-gray-500">Se actualiza automáticamente</p>
               </div>
-              {/* Botón para quitar programa (solo para programas 2 y 3) */}
+
               {idx > 0 && isProgramaSeleccionado && (
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
                   className="text-red-600 hover:text-red-700 hover:bg-red-50 mb-2"
-                  onClick={() => setDatos({ ...datos, [field]: "", [`${field}_duracion`]: "" })}
-                  title={`Quitar Programa ${idx + 1}`}
+                  onClick={() =>
+                    setDatos((prev) => ({
+                      ...prev,
+                      [field]: "",
+                      [`${field}_duracion`]: "",
+                    }))
+                  }
                 >
                   <X className="h-5 w-5" />
                 </Button>
@@ -468,6 +489,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
         <Button variant="outline" onClick={goPrev}>
           <ArrowLeft className="h-4 w-4" /> Anterior
         </Button>
+
         <Button
           onClick={handleNext}
           disabled={!isFormValid}

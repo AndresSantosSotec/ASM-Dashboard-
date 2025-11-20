@@ -52,6 +52,8 @@ export default function AprobacionAcademicaModal({
   const [financieros, setFinancieros] = useState<any>({})
   const [programasInscritos, setProgramasInscritos] = useState<any[]>([])
   const [documentos, setDocumentos] = useState<any[]>([])
+  const [contratoInfo, setContratoInfo] = useState<any>(null)
+  const [nuevosFirmados, setNuevosFirmados] = useState(0)
 
   // Campos para mostrar - énfasis en académicos
   const camposAcademicos: [string, any][] = [
@@ -59,6 +61,8 @@ export default function AprobacionAcademicaModal({
     ["Inicio específico", formatDate(academicos.fechaInicioEspecifica)],
     ["Taller inducción", formatDate(academicos.fechaTallerInduccion)],
     ["Taller integración", formatDate(academicos.fechaTallerIntegracion)],
+    ["Último título obtenido", academicos.ultimoTitulo],
+    ["Carrera del título", academicos.carrera],
     ["Institución anterior", academicos.institucionAnterior],
     ["Año graduación", academicos.añoGraduacion],
     ["Medio conoció", academicos.medioConocio],
@@ -139,6 +143,129 @@ export default function AprobacionAcademicaModal({
       .map(([, doc]) => doc)
   }
 
+  // ✅ Cargar información de contratos con manejo robusto de errores
+  const cargarInfoContratos = async () => {
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_BASE_URL}/api/contactos-enviados`, {
+        headers: {
+          Accept: "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      })
+
+      // ✅ Verificar status HTTP antes de parsear
+      if (!res.ok) {
+        console.warn(`[Contratos Académica] Respuesta no exitosa: ${res.status}`)
+        setContratoInfo({ enviados: 0, firmados: 0, ultimo: null, ambasFirmas: false })
+        return
+      }
+
+      const data = await res.json()
+      const contratos = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : [])
+      console.log("[Contratos Académica] Total recibidos:", contratos.length)
+
+      const delProspecto = contratos.filter((c: any) => c.prospecto_id === ficha.id)
+      console.log("[Contratos Académica] Del prospecto", ficha.id, ":", delProspecto.length)
+
+      if (delProspecto.length === 0) {
+        setContratoInfo({ enviados: 0, firmados: 0, ultimo: null, ambasFirmas: false })
+        return
+      }
+
+      const firmados = delProspecto.filter((c: any) => c.firma_estudiante && c.firma_estudiante.trim() !== "")
+      console.log("[Contratos Académica] Firmados:", firmados.length)
+
+      const ultimo = delProspecto.reduce((prev: any, curr: any) =>
+        new Date(curr.created_at) > new Date(prev.created_at) ? curr : prev
+      )
+
+      const ambasFirmas = !!(
+        ultimo.firma_asesor && ultimo.firma_asesor.trim() !== "" &&
+        ultimo.firma_estudiante && ultimo.firma_estudiante.trim() !== ""
+      )
+
+      console.log("[Contratos Académica] Último contrato ID:", ultimo.id, "Tiene ambas firmas:", ambasFirmas)
+
+      // Detectar nuevos contratos firmados
+      const ultimaRevisionKey = `ultima-revision-contratos-${ficha.id}`
+      const ultimaRevision = localStorage.getItem(ultimaRevisionKey)
+      const ultimaRevisionDate = ultimaRevision ? new Date(ultimaRevision) : new Date(0)
+      const nuevos = firmados.filter((c: any) => new Date(c.created_at) > ultimaRevisionDate).length
+      setNuevosFirmados(nuevos)
+
+      setContratoInfo({
+        enviados: delProspecto.length,
+        firmados: firmados.length,
+        ultimo,
+        ambasFirmas,
+      })
+    } catch (err) {
+      // ✅ Manejo silencioso - no rompe la UX
+      console.warn(
+        "[Contratos Académica] No disponibles:",
+        err instanceof Error ? err.message : "Error desconocido"
+      )
+      setContratoInfo({ enviados: 0, firmados: 0, ultimo: null, ambasFirmas: false })
+    }
+  }
+
+  const marcarContratosRevisados = () => {
+    const key = `ultima-revision-contratos-${ficha.id}`
+    localStorage.setItem(key, new Date().toISOString())
+    setNuevosFirmados(0)
+  }
+
+  const handleDescargarContrato = async () => {
+    if (!contratoInfo?.ultimo || !contratoInfo.ambasFirmas) {
+      await import("sweetalert2").then((Swal) =>
+        Swal.default.fire({
+          icon: "warning",
+          title: "Contrato no disponible",
+          text: "No hay contrato con ambas firmas para descargar",
+        })
+      )
+      return
+    }
+
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_BASE_URL}/contactos-enviados/${contratoInfo.ultimo.id}/pdf`, {
+        headers: { Authorization: token ? `Bearer ${token}` : "" },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `contrato-firmado-${ficha.id}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      marcarContratosRevisados()
+      await import("sweetalert2").then((Swal) =>
+        Swal.default.fire({
+          icon: "success",
+          title: "Contrato descargado",
+          timer: 1500,
+          showConfirmButton: false,
+        })
+      )
+    } catch (err) {
+      console.error("[Contratos Académica] Error al descargar:", err)
+      await import("sweetalert2").then((Swal) =>
+        Swal.default.fire({
+          icon: "error",
+          title: "Error al descargar",
+          text: "No se pudo descargar el contrato",
+        })
+      )
+    }
+  }
+
   // Carga inicial
   useEffect(() => {
     if (!isOpen) return
@@ -173,6 +300,9 @@ export default function AprobacionAcademicaModal({
         setFinancieros(data.financieros || {})
         setProgramasInscritos(data.programas || [])
         setDocumentos(latestByType)
+
+        // Cargar información de contratos
+        await cargarInfoContratos()
       } catch (err) {
         console.error("Error al cargar detalle de ficha académica:", err)
       }
@@ -219,15 +349,59 @@ export default function AprobacionAcademicaModal({
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Aprobación Académica - Ficha #{ficha.id}</span>
-            <Button variant="outline" size="sm" onClick={handleDescargarPDF}>
-              <FileText className="mr-2 h-4 w-4" />
-              Descargar PDF
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleDescargarPDF}>
+                <FileText className="mr-2 h-4 w-4" />
+                Descargar Ficha
+              </Button>
+              {/* ✅ Renderizado condicional - solo muestra si hay contrato válido */}
+              {contratoInfo?.ambasFirmas && (
+                <Button 
+                  variant="default"
+                  size="sm" 
+                  onClick={handleDescargarContrato}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Descargar Contrato
+                </Button>
+              )}
+            </div>
           </DialogTitle>
           <DialogDescription>
             {personales.nombre || ficha.nombre} - Revisión académica final
           </DialogDescription>
         </DialogHeader>
+
+        {/* ✅ Panel de información de contratos - solo si hay datos */}
+        {contratoInfo && contratoInfo.enviados > 0 && (
+          <div className="px-4 py-3 bg-blue-50 border border-blue-200 rounded-md mx-4 mt-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4 text-sm">
+                <span className="font-semibold text-blue-900">Contrato:</span>
+                <span>Enviados: {contratoInfo.enviados}</span>
+                <span>Firmados: {contratoInfo.firmados}</span>
+                <span className={contratoInfo.ambasFirmas ? "text-green-600 font-semibold" : "text-orange-600"}>
+                  {contratoInfo.ambasFirmas ? "✓ Completo" : "Pendiente de firmas"}
+                </span>
+                {nuevosFirmados > 0 && (
+                  <Badge variant="default" className="bg-green-500">
+                    {nuevosFirmados} nuevo{nuevosFirmados > 1 ? "s" : ""}
+                  </Badge>
+                )}
+              </div>
+              {contratoInfo.ambasFirmas && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={handleDescargarContrato}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Descargar Contrato
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="overflow-y-auto flex-1 px-4 py-2">
           <Tabs defaultValue="academicos">
@@ -397,6 +571,48 @@ export default function AprobacionAcademicaModal({
 
         {/* FOOTER - Acciones */}
         <div className="border-t px-4 py-4 space-y-4">
+          {/* ✅ NOTIFICACIÓN DE NUEVOS CONTRATOS FIRMADOS - solo si hay nuevos */}
+          {nuevosFirmados > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
+              <div className="bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                {nuevosFirmados}
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-green-800">
+                  {nuevosFirmados === 1 
+                    ? "¡Nuevo contrato firmado!" 
+                    : `¡${nuevosFirmados} nuevos contratos firmados!`}
+                </p>
+                <p className="text-xs text-green-600">
+                  Descarga el contrato para marcar como revisado
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ✅ INFORMACIÓN DE CONTRATOS - solo si hay datos */}
+          {contratoInfo && contratoInfo.enviados > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+              <h4 className="text-sm font-semibold text-blue-900">Estado de Contratos</h4>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="text-blue-600">Enviados</p>
+                  <p className="font-bold text-blue-900">{contratoInfo.enviados}</p>
+                </div>
+                <div>
+                  <p className="text-blue-600">Firmados</p>
+                  <p className="font-bold text-blue-900">{contratoInfo.firmados}</p>
+                </div>
+                <div>
+                  <p className="text-blue-600">Estado</p>
+                  <Badge variant={contratoInfo.ambasFirmas ? "default" : "secondary"}>
+                    {contratoInfo.ambasFirmas ? "Firmado completo" : "Pendiente firmas"}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-end gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -406,9 +622,6 @@ export default function AprobacionAcademicaModal({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => onRetroceder("Pendiente de Aprobación Financiera")}>
-                  Retroceder a Aprobación Financiera
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onRetroceder("Pendiente de Aprobación")}>
                   Retroceder a Pendiente de Aprobación
                 </DropdownMenuItem>
@@ -425,7 +638,7 @@ export default function AprobacionAcademicaModal({
 
             <Button onClick={onAprobar} className="bg-green-600 hover:bg-green-700">
               <CheckCircle2 className="mr-2 h-4 w-4" />
-              Aprobar e Inscribir
+              Aprobar 
             </Button>
           </div>
         </div>

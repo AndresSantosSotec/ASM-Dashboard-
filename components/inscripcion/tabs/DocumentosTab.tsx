@@ -2,12 +2,13 @@
 import React, { useEffect, useState, useRef, useMemo, Dispatch, SetStateAction } from "react"
 import axios, { AxiosError } from "axios"
 import { API_BASE_URL } from "@/utils/apiConfig"
-import { ArrowLeft, ArrowRight, FileText, Info, Upload, X, CheckCircle, Loader2 } from "lucide-react"
+import { ArrowLeft, ArrowRight, FileText, Info, Upload, X, CheckCircle, Loader2, Eye } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { FilePreviewModal } from "@/components/ui/file-preview-modal"
 import BoletaInscripcionUpload from "./BoletaInscripcionUpload"
 
 export interface Documento {
@@ -54,6 +55,9 @@ export default function DocumentosTab({
 }: Props) {
   const hiddenInput = useRef<HTMLInputElement>(null)
   const uploadTarget = useRef<string | null>(null)
+  const [previewFile, setPreviewFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
 
   const triggerUpload = (id: string) => {
     if (!hiddenInput.current) return
@@ -101,6 +105,16 @@ export default function DocumentosTab({
     }
   }
 
+  const handlePreviewFile = (file: File) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setPreviewUrl(reader.result as string)
+      setPreviewFile(file)
+      setShowPreview(true)
+    }
+    reader.readAsDataURL(file)
+  }
+
   const removeFile = (id: string, index: number) =>
     setDocumentos(docs =>
       docs.map(d => {
@@ -140,22 +154,24 @@ export default function DocumentosTab({
       <section className="space-y-6">
         <h3 className="text-lg font-semibold text-blue-900">Documentos obligatorios</h3>
         
-        {/* Componente especial para Boleta de Inscripción */}
-        <BoletaInscripcionUpload
-          prospectoId={prospectoId}
-          estudianteProgramaId={estudianteProgramaId}
-          montoInscripcion={montoInscripcion}
-          onBoletaSubida={() => {
-            // Marcar documento de inscripción como cargado
-            setDocumentos(docs =>
-              docs.map(d =>
-                d.id === "inscripcion"
-                  ? { ...d, estado: "cargado" as const }
-                  : d
+        {/* Componente expandido para Boleta de Inscripción - SIN CARD */}
+        <div className="border-2 border-blue-200 rounded-lg p-6 bg-blue-50/30">
+          <BoletaInscripcionUpload
+            prospectoId={prospectoId}
+            estudianteProgramaId={estudianteProgramaId}
+            montoInscripcion={montoInscripcion}
+            onBoletaSubida={() => {
+              // Marcar documento de inscripción como cargado
+              setDocumentos(docs =>
+                docs.map(d =>
+                  d.id === "inscripcion"
+                    ? { ...d, estado: "cargado" as const }
+                    : d
+                )
               )
-            )
-          }}
-        />
+            }}
+          />
+        </div>
 
         {/* Resto de documentos */}
         <div className="grid gap-4 md:grid-cols-2">
@@ -190,25 +206,42 @@ export default function DocumentosTab({
                   {doc.archivos.map((f, idx) => (
                     <div
                       key={idx}
-                      className="flex items-center justify-between"
+                      className="flex items-center justify-between p-2 rounded-lg border hover:bg-muted/50 transition-colors"
                     >
-                      <div className="flex items-center">
-                        <FileText className="mr-2 h-4 w-4 text-blue-600" />
-                        <span
-                          className="max-w-[150px] truncate text-sm"
-                          title={f.name}
-                        >
-                          {f.name}
-                        </span>
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className="text-sm truncate font-medium"
+                            title={f.name}
+                          >
+                            {f.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {(f.size / 1024).toFixed(2)} KB
+                          </p>
+                        </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => removeFile(doc.id, idx)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => handlePreviewFile(f)}
+                          title="Vista previa"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                          onClick={() => removeFile(doc.id, idx)}
+                          title="Eliminar"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                   <Button
@@ -216,7 +249,7 @@ export default function DocumentosTab({
                     className="w-full gap-2"
                     onClick={() => triggerUpload(doc.id)}
                   >
-                    <Upload className="h-4 w-4" /> Subir archivo
+                    <Upload className="h-4 w-4" /> Agregar más archivos
                   </Button>
                 </div>
               ) : (
@@ -278,6 +311,18 @@ export default function DocumentosTab({
           </Link>
         )}
       </div>
+
+      {/* Modal de Vista Previa */}
+      <FilePreviewModal
+        isOpen={showPreview}
+        onClose={() => {
+          setShowPreview(false)
+          setPreviewFile(null)
+          setPreviewUrl(null)
+        }}
+        file={previewFile}
+        previewUrl={previewUrl}
+      />
     </>
   )
 }

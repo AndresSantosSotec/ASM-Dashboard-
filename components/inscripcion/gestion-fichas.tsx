@@ -184,7 +184,7 @@ export function GestionFichas() {
           "Content-Type": "application/json",
           Authorization: token ? `Bearer ${token}` : "",
         },
-        body: JSON.stringify({ status: "Pendiente de Aprobación Financiera" }),
+        body: JSON.stringify({ status: "Pendiente de Aprobación Académica" }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       
@@ -195,7 +195,7 @@ export function GestionFichas() {
       await Swal.fire({
         icon: "success",
         title: "Ficha aprobada",
-        text: "La ficha ha sido enviada a Aprobación Financiera",
+        text: "La ficha ha sido enviada a Aprobación Académica",
         timer: 2000,
         showConfirmButton: false,
       })
@@ -398,48 +398,6 @@ export function GestionFichas() {
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Ver ficha</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleApprove(f.id)}
-                              disabled={
-                                f.estado === "aprobada" || processingId === f.id
-                              }
-                            >
-                              {processingId === f.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <CheckCircle
-                                  className={`h-4 w-4 ${
-                                    f.estado === "aprobada"
-                                      ? "text-gray-400"
-                                      : "text-green-500"
-                                  }`}
-                                />
-                              )}
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Aprobar</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleReject(f.id)}
-                              disabled={processingId === f.id}
-                            >
-                              {processingId === f.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <XCircle className="h-4 w-4 text-red-500" />
-                              )}
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Rechazar</TooltipContent>
                         </Tooltip>
                       </div>
                     </TooltipProvider>

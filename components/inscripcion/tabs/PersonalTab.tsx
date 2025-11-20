@@ -51,7 +51,8 @@ export default function PersonalTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [countries])
 
-  // Validación de campos obligatorios con número de identificación alfanumérico
+  // Validación de campos obligatorios - DPI puede ser cualquier longitud
+// Validación de campos obligatorios - DPI puede ser cualquier longitud >= 5
   const isFormValid = useMemo(() => {
     const dpi = (datos.dpi ?? "").trim()
     return (
@@ -59,14 +60,15 @@ export default function PersonalTab({
       datos.paisOrigen !== "" &&
       datos.paisResidencia !== "" &&
       (datos.telefono ?? "").trim() !== "" &&
-      /^[A-Za-z0-9]+$/.test(dpi) &&
+      /^\d+$/.test(dpi) && // Solo números
+      dpi.length >= 5 && // ✅ Mínimo 5 dígitos
+      // ❌ REMOVIDO: dpi.length <= 13 (ya no hay límite máximo)
       (datos.emailPersonal ?? "").trim() !== "" &&
       (datos.emailCorporativo ?? "").trim() !== "" &&
       datos.fechaNacimiento !== "" &&
       (datos.direccion ?? "").trim() !== ""
     )
   }, [datos])
-
   return (
     <TooltipProvider>
 
@@ -154,17 +156,38 @@ export default function PersonalTab({
           </Label>
           <Input
             value={datos.dpi || ""}
-            onChange={(e) => setDatos({ ...datos, dpi: e.target.value })}
+            onChange={(e) => {
+              // Eliminar todo lo que no sea número
+              const soloNumeros = e.target.value.replace(/[^0-9]/g, "")
+              setDatos({ ...datos, dpi: soloNumeros })
+            }}
+            placeholder="Ingresa solo números, sin guiones ni espacios"
+            inputMode="numeric"
+            pattern="[0-9]*"
             required
           />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{(datos.dpi || "").length} caracteres</span>
-            {datos.dpi && datos.dpi.length === 13 && /^\d{13}$/.test(datos.dpi) && (
-              <span className="text-green-600">DPI válido</span>
+            {datos.dpi && (
+              <>
+                {datos.dpi.length === 13 && /^\d{13}$/.test(datos.dpi) ? (
+                  <span className="text-green-600">✓ DPI guatemalteco válido</span>
+                ) : datos.dpi.length >= 5 ? (
+                  <span className="text-blue-600">
+                    {datos.dpi.length > 13 
+                      ? "✓ Documento de identificación extranjero" 
+                      : datos.dpi.length < 13 
+                        ? `Faltan ${13 - datos.dpi.length} dígitos para DPI guatemalteco` 
+                        : ""}
+                  </span>
+                ) : (
+                  <span className="text-red-600">Mínimo 5 dígitos</span>
+                )}
+              </>
             )}
           </div>
         </div>
-
+        
         {/* Emails */}
         <div className="space-y-2">
           <Label>

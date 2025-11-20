@@ -97,7 +97,7 @@ export function AprobacionAcademica() {
   const handleAprobar = async (id: number) => {
     const result = await Swal.fire({
       title: "¿Aprobar académicamente?",
-      text: "Esta acción cambiará el estado a 'Inscrito' y activará las cuotas del estudiante",
+      text: "Esta acción cambiará el estado a 'Pendiente de Aprobación Financiera'",
       icon: "question",
       showCancelButton: true,
       confirmButtonText: "Sí, aprobar",
@@ -122,7 +122,7 @@ export function AprobacionAcademica() {
       await Swal.fire({
         icon: "success",
         title: "Aprobación académica completada",
-        text: "El estudiante ha sido inscrito exitosamente",
+        text: "La ficha ha sido enviada a Aprobación Financiera",
         timer: 2000,
         showConfirmButton: false,
       })
@@ -163,7 +163,7 @@ export function AprobacionAcademica() {
         },
         body: JSON.stringify({ 
           comentario,
-          estado_destino: "Pendiente de Aprobación Financiera"
+          estado_destino: "Pendiente de Aprobación"
         }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)

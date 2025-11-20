@@ -28,16 +28,13 @@ import type { ProgramaConDuracion } from "./types"
 
 import axios from "axios"
 import { API_BASE_URL } from "@/utils/apiConfig"
-import BoletaInscripcionModal from "./modal/BoletaInscripcionModal"
-
 export default function RegistrationForm() {
   const [activeTab, setActiveTab] = useState<TabId>("personal")
   const [progress, setProgress] = useState(20)
   const [showModal, setShowModal] = useState(false)
   const [prospectoId, setProspectoId] = useState<number | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showBoletaModal, setShowBoletaModal] = useState(false)
-  const [estudianteProgramaTemp, setEstudianteProgramaTemp] = useState<any[]>([])
+  const [estudianteProgramaIds, setEstudianteProgramaIds] = useState<number[]>([])
 
   const [datosPersonales, setDatosPersonales] = useState<DatosPersonales>({
     nombre: "", paisOrigen: "", paisResidencia: "", telefono: "",
@@ -96,8 +93,11 @@ export default function RegistrationForm() {
   
       const nuevoId = response.data.prospecto_id;
       const estudianteProgramas: any[] = response.data.programas || [];
+      const advertencias = response.data.advertencias || [];
+      const mensajeAdvertencia = response.data.mensaje_advertencia;
+      
       setProspectoId(nuevoId);
-      setEstudianteProgramaTemp(estudianteProgramas);
+      setEstudianteProgramaIds(estudianteProgramas.map((p: any) => p.id));
   
       // 2. Subida de documentos (excepto boleta de inscripción)
       const docsToUpload = documentos.filter(
@@ -116,9 +116,59 @@ export default function RegistrationForm() {
         }
       }
 
-      // 3. Abrir modal de boleta de inscripción
-      setIsSubmitting(false)
-      setShowBoletaModal(true)
+      // 🔥 3. Verificar si hay advertencias de boleta
+      if (advertencias.length > 0) {
+        // Construir HTML con los detalles de las advertencias
+        const advertenciasHtml = advertencias.map((adv: any) => {
+          let tipoMsg = '';
+          if (adv.tipo === 'boleta_duplicada') {
+            tipoMsg = '⚠️ Boleta duplicada';
+          } else if (adv.tipo === 'error_bd') {
+            tipoMsg = '❌ Error al registrar boleta';
+          } else {
+            tipoMsg = '⚠️ Problema con boleta';
+          }
+          return `<li><strong>${tipoMsg}:</strong> ${adv.mensaje}</li>`;
+        }).join('');
+
+        await Swal.fire({
+          icon: 'warning',
+          title: '⚠️ Inscripción con Advertencias',
+          html: `
+            <p class="mb-3">El expediente fue creado pero hay problemas con la boleta de inscripción:</p>
+            <ul class="text-left text-sm space-y-2 bg-amber-50 p-3 rounded">
+              ${advertenciasHtml}
+            </ul>
+            <div class="mt-4 p-3 bg-red-50 rounded text-sm text-red-800 text-left">
+              <strong>⚠️ IMPORTANTE:</strong><br/>
+              ${mensajeAdvertencia || 'Por favor revise y cargue una boleta de inscripción válida en la sección de documentos.'}
+            </div>
+            <div class="mt-3 text-sm text-gray-600">
+              El prospecto quedó en estado <strong>"Preinscripción"</strong> hasta que se solucione el problema con la boleta.
+            </div>
+          `,
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#f59e0b',
+        });
+      } else {
+        // 4. Mostrar mensaje de éxito normal (sin advertencias)
+        await Swal.fire({
+          icon: 'success',
+          title: '¡Expediente creado con éxito!',
+          html: `
+            <p>El estudiante pasó a la primera fase de aprobación correctamente.</p>
+            <ul class="text-left text-sm mt-2 space-y-1">
+              <li>✅ Programas asignados</li>
+              <li>✅ Plan de pagos generado</li>
+              <li>✅ Documentos cargados</li>
+              <li>✅ Boleta de inscripción procesada</li>
+            </ul>
+          `,
+          confirmButtonText: 'Entendido',
+        });
+      }
+
+      window.location.reload();
 
     } catch (error: any) {
       console.error("Error al finalizar inscripción:", error.response?.data || error);
@@ -131,43 +181,7 @@ export default function RegistrationForm() {
     }
   };
 
-  const handleBoletaRegistrada = async () => {
-    // 4. Generar plan de pagos DESPUÉS de registrar la boleta
-    try {
-      for (const programa of estudianteProgramaTemp) {
-        await axios.post(`${API_BASE_URL}/api/plan-pagos/generar`, {
-          estudiante_programa_id: programa.id,
-          es_reinscripcion: datosPersonales.esReinscripcion || false,
-        });
-      }
-  
-      // 5. Mostrar mensaje de éxito y recargar
-      Swal.fire({
-        title: '¡Inscripción completada!',
-        html: `
-          <p>El estudiante fue inscrito correctamente.</p>
-          <ul class="text-left text-sm mt-2">
-            <li>✓ Boleta de inscripción registrada</li>
-            <li>✓ Plan de pagos generado</li>
-            <li>✓ Cuotas adicionales agregadas</li>
-          </ul>
-        `,
-        icon: 'success',
-        confirmButtonText: 'Aceptar',
-      }).then((result) => {
-        if (result.isConfirmed) {
-          window.location.reload();
-        }
-      });
-    } catch (error: any) {
-      console.error("Error al generar plan de pagos:", error);
-      Swal.fire({
-        title: 'Advertencia',
-        text: 'La inscripción se completó pero hubo un error al generar el plan de pagos.',
-        icon: 'warning',
-      });
-    }
-  };
+
   
   
 
@@ -318,15 +332,6 @@ export default function RegistrationForm() {
         }}
       />
 
-      {/* Modal de Boleta de Inscripción */}
-      <BoletaInscripcionModal
-        isOpen={showBoletaModal}
-        onClose={() => setShowBoletaModal(false)}
-        prospectoId={prospectoId || 0}
-        estudianteProgramaId={estudianteProgramaTemp[0]?.id}
-        montoInscripcion={parseFloat(datosFinancieros.inscripcion.replace(/,/g, '')) || 1000}
-        onBoletaRegistrada={handleBoletaRegistrada}
-      />
       </div>
     </div>
   )

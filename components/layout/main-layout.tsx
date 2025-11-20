@@ -19,7 +19,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   // Verificar autenticación y obtener el nombre del usuario
   useEffect(() => {
     const token = localStorage.getItem("token")
-    if (!token && pathname !== "/login") {
+    const isPublicRoute = pathname === "/login" || pathname?.startsWith("/firmar-contrato")
+    
+    if (!token && !isPublicRoute) {
       router.push("/login")
     } else {
       setIsAuthenticated(!!token)
@@ -50,7 +52,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <>
-      {pathname === "/login" ? (
+      {pathname === "/login" || pathname?.startsWith("/firmar-contrato") ? (
         <main>
           {children}
           <Toaster />

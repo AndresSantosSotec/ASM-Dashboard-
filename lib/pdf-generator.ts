@@ -19,47 +19,88 @@ const fmtMoney = (n: number | undefined | null) =>
 const fmtDate = (d?: string | number | Date | null) =>
   d ? new Date(d).toLocaleDateString('es-GT') : '—'
 
-// === Layout fijo ===
-const HEADER_HEIGHT = 30
-const FOOTER_HEIGHT = 20
+// === Layout con imagen ===
+const HEADER_HEIGHT = 50 // Aumentado para la imagen
+const FOOTER_HEIGHT = 30 // Aumentado para el footer con logos
 const LEFT = 15
 const RIGHT = 15
-const CONTENT_TOP = HEADER_HEIGHT + 10 // 40
+const CONTENT_TOP = HEADER_HEIGHT + 10 // 60
 const CONTENT_WIDTH = 210 - LEFT - RIGHT // A4: 210mm
 
-// === Header/Footer globales con didDrawPage ===
-function drawHeaderFooter(doc: jsPDF) {
+// === Función para cargar imagen ===
+async function loadImageAsBase64(imagePath: string): Promise<string> {
+  try {
+    // Si la imagen ya está en base64, retornarla
+    if (imagePath.startsWith('data:')) {
+      return imagePath
+    }
+    
+    // Cargar imagen desde la ruta
+    const response = await fetch(imagePath)
+    const blob = await response.blob()
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+  } catch (error) {
+    console.error('Error cargando imagen:', error)
+    return ''
+  }
+}
+
+// === Header/Footer con imagen ===
+function drawHeaderFooter(doc: jsPDF, headerImage?: string, footerImage?: string) {
   const pageWidth = doc.internal.pageSize.getWidth()
-
-  // Header
-  doc.setFillColor(...COLORS.primary)
-  doc.rect(0, 0, pageWidth, HEADER_HEIGHT, 'F')
-  doc.setTextColor(255, 255, 255)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
-  doc.text('ESTADO DE CUENTA ESTUDIANTIL', 20, 19)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.text('Sistema de Gestión Académica', pageWidth - 80, 16)
-  doc.text(`Generado: ${new Date().toLocaleDateString('es-GT')}`, pageWidth - 80, 24)
-
-  // Footer
   const pageHeight = doc.internal.pageSize.getHeight()
-  doc.setFillColor(...COLORS.lightGray)
+
+  // Header con imagen
+  if (headerImage) {
+    try {
+      // Agregar la imagen de header (ajusta las dimensiones según tu imagen)
+      doc.addImage(headerImage, 'PNG', 0, 0, pageWidth, HEADER_HEIGHT)
+    } catch (error) {
+      console.error('Error agregando imagen de header:', error)
+      // Fallback: header con color sólido
+      doc.setFillColor(30, 41, 59) // Color similar al de tu imagen
+      doc.rect(0, 0, pageWidth, HEADER_HEIGHT, 'F')
+    }
+  } else {
+    // Fallback si no hay imagen
+    doc.setFillColor(30, 41, 59)
+    doc.rect(0, 0, pageWidth, HEADER_HEIGHT, 'F')
+  }
+
+  // Footer con logos
+  doc.setFillColor(30, 41, 59)
   doc.rect(0, pageHeight - FOOTER_HEIGHT, pageWidth, FOOTER_HEIGHT, 'F')
-  doc.setTextColor(...COLORS.secondary)
+  
+  if (footerImage) {
+    try {
+      // Agregar imagen del footer con los logos
+      doc.addImage(footerImage, 'PNG', 0, pageHeight - FOOTER_HEIGHT, pageWidth, FOOTER_HEIGHT)
+    } catch (error) {
+      console.error('Error agregando imagen de footer:', error)
+    }
+  }
+
+  // Información adicional en el footer
+  doc.setTextColor(255, 255, 255)
   doc.setFontSize(8)
+  doc.setFont('helvetica', 'normal')
   doc.text('Este documento es generado automáticamente por el sistema.', 20, pageHeight - 12)
 
   const totalPages = (doc as any).internal.pages?.length ?? 1
   const current = (doc as any).internal.getCurrentPageInfo().pageNumber
   doc.text(`Página ${current} de ${totalPages}`, pageWidth - 50, pageHeight - 12)
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-GT')}`, pageWidth - 50, pageHeight - 8)
 }
 
 // Helper: salto de página para bloques NO-tabla
 function ensureSpace(doc: jsPDF, cursorY: number, needed: number): number {
   const pageHeight = doc.internal.pageSize.getHeight()
-  const limit = pageHeight - FOOTER_HEIGHT - 8 // 8px de respiro
+  const limit = pageHeight - FOOTER_HEIGHT - 8
   if (cursorY + needed > limit) {
     doc.addPage()
     return CONTENT_TOP
@@ -67,46 +108,58 @@ function ensureSpace(doc: jsPDF, cursorY: number, needed: number): number {
   return cursorY
 }
 
-// === Generador principal (refleja el modal) ===
-export const generateDetailedAccountStatePDF = async (data: AccountData) => {
+// === Generador principal con imágenes ===
+export const generateDetailedAccountStatePDF = async (
+  data: AccountData,
+  headerImagePath: string = '/image.png', // Ruta a tu imagen de header
+  footerImagePath?: string // Opcional: imagen para footer
+) => {
   const doc = new jsPDF()
 
-  // Defaults para TODAS las tablas (reserva header/footer)
+  // Cargar imágenes
+  const headerImage = await loadImageAsBase64(headerImagePath)
+  const footerImage = footerImagePath ? await loadImageAsBase64(footerImagePath) : undefined
+
+  // Defaults para TODAS las tablas
   ;(doc as any).autoTableSetDefaults({
     margin: { top: CONTENT_TOP, bottom: FOOTER_HEIGHT + 8, left: LEFT, right: RIGHT },
     styles: { font: 'helvetica', fontSize: 10 },
-    didDrawPage: () => drawHeaderFooter(doc),
+    didDrawPage: () => drawHeaderFooter(doc, headerImage, footerImage),
     pageBreak: 'auto',
   })
 
   // ===== Sección: Información del estudiante =====
   let y = CONTENT_TOP
 
-  // Caja de info (28px alto) con salto seguro si no cabe
-  y = ensureSpace(doc, y, 28 + 16) // caja + títulos
-  doc.setFillColor(...COLORS.lightGray)
-  doc.rect(LEFT, y, CONTENT_WIDTH, 28, 'F')
-
-  doc.setTextColor(...COLORS.secondary)
+  // Título de la sección
+  doc.setFillColor(...COLORS.primary)
+  doc.rect(LEFT, y, CONTENT_WIDTH, 11, 'F')
+  doc.setTextColor(255, 255, 255)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(13)
   doc.text('INFORMACIÓN DEL ESTUDIANTE', LEFT + 5, y + 8)
+  y += 16
 
+  // Caja de info
+  y = ensureSpace(doc, y, 35)
+  doc.setFillColor(...COLORS.lightGray)
+  doc.rect(LEFT, y, CONTENT_WIDTH, 35, 'F')
+
+  doc.setTextColor(...COLORS.secondary)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(11)
-  y += 16
+  
   const name = data.student?.name ?? '—'
   const carnet = data.student?.carnet ?? 'No asignado'
-  const email =
-    (data.student as any)?.email ??
-    (data.student as any)?.correo ??
-    'No disponible'
+  const email = (data.student as any)?.email ?? (data.student as any)?.correo ?? 'No disponible'
 
+  y += 8
   doc.text(`Nombre: ${name}`, LEFT + 5, y)
-  doc.text(`Carnet: ${carnet}`, LEFT + 110, y)
   y += 7
-  doc.text(`Email: ${email}`, LEFT + 5, y)
-
+  doc.text(`Carnet: ${carnet}`, LEFT + 5, y)
+  doc.text(`Email: ${email}`, LEFT + 110, y)
+  
+  y += 7
   const statusText = data.balance?.isBlocked
     ? 'BLOQUEADO'
     : data.balance?.warningLevel === 2
@@ -121,7 +174,7 @@ export const generateDetailedAccountStatePDF = async (data: AccountData) => {
     ? COLORS.warning
     : COLORS.success
 
-  doc.text(`Estado: ${statusText}`, LEFT + 110, y)
+  doc.text(`Estado: ${statusText}`, LEFT + 5, y)
 
   // Pastilla de estado
   doc.setFillColor(...statusColor)
@@ -174,7 +227,6 @@ export const generateDetailedAccountStatePDF = async (data: AccountData) => {
     head: [['Concepto', 'Monto/Fecha', 'Estado']],
     body: summaryRows,
     theme: 'grid',
-    margin: { top: CONTENT_TOP, bottom: FOOTER_HEIGHT + 8, left: LEFT, right: RIGHT }, // ✅ refuerzo
     headStyles: {
       fillColor: COLORS.primary as RGB,
       textColor: [255, 255, 255] as RGB,
@@ -216,7 +268,6 @@ export const generateDetailedAccountStatePDF = async (data: AccountData) => {
       head: [['Concepto', 'Vencimiento', 'Monto', 'Estado']],
       body: pendingRows,
       theme: 'striped',
-      margin: { top: CONTENT_TOP, bottom: FOOTER_HEIGHT + 8, left: LEFT, right: RIGHT }, // ✅ refuerzo
       headStyles: {
         fillColor: COLORS.warning as RGB,
         textColor: [255, 255, 255] as RGB,
@@ -266,7 +317,6 @@ export const generateDetailedAccountStatePDF = async (data: AccountData) => {
       head: [['Fecha', 'Concepto', 'Método', 'Referencia', 'Monto']],
       body: historyRows,
       theme: 'striped',
-      margin: { top: CONTENT_TOP, bottom: FOOTER_HEIGHT + 8, left: LEFT, right: RIGHT }, // ✅ refuerzo
       headStyles: {
         fillColor: COLORS.success as RGB,
         textColor: [255, 255, 255] as RGB,
@@ -294,6 +344,7 @@ export const generateDetailedAccountStatePDF = async (data: AccountData) => {
 
 // ====================================
 // REPORTE ACADÉMICO DEL ESTUDIANTE
+// (Misma estructura, actualizada)
 // ====================================
 
 interface StudentReportData {
@@ -331,8 +382,16 @@ interface StudentReportData {
   }>
 }
 
-export function generateStudentReport(data: StudentReportData) {
+export async function generateStudentReport(
+  data: StudentReportData,
+  headerImagePath: string = '/image.png',
+  footerImagePath?: string
+) {
   const doc = new jsPDF()
+  
+  // Cargar imágenes
+  const headerImage = await loadImageAsBase64(headerImagePath)
+  const footerImage = footerImagePath ? await loadImageAsBase64(footerImagePath) : undefined
   
   const primaryColor: RGB = [37, 99, 235]
   const secondaryColor: RGB = [139, 92, 246]
@@ -341,20 +400,12 @@ export function generateStudentReport(data: StudentReportData) {
   const dangerColor: RGB = [220, 38, 38]
   const grayColor: RGB = [107, 114, 128]
   
-  let yPosition = 20
+  let yPosition = CONTENT_TOP
 
-  // HEADER
-  doc.setFillColor(...primaryColor)
-  doc.rect(0, 0, 210, 40, 'F')
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(24)
-  doc.setFont('helvetica', 'bold')
-  doc.text('REPORTE ACADÉMICO', 105, 20, { align: 'center' })
-  doc.setFontSize(12)
-  doc.setFont('helvetica', 'normal')
-  doc.text('Sistema de Gestión Estudiantil', 105, 30, { align: 'center' })
-  
-  yPosition = 50
+  // HEADER con imagen
+  if (headerImage) {
+    doc.addImage(headerImage, 'PNG', 0, 0, 210, HEADER_HEIGHT)
+  }
 
   // INFORMACIÓN DEL ESTUDIANTE
   doc.setFillColor(243, 244, 246)
@@ -516,8 +567,12 @@ export function generateStudentReport(data: StudentReportData) {
   const pageCount = doc.getNumberOfPages()
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i)
-    doc.setFillColor(...grayColor)
-    doc.rect(0, 287, 210, 10, 'F')
+    if (footerImage) {
+      doc.addImage(footerImage, 'PNG', 0, 297 - FOOTER_HEIGHT, 210, FOOTER_HEIGHT)
+    } else {
+      doc.setFillColor(...grayColor)
+      doc.rect(0, 287, 210, 10, 'F')
+    }
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(8)
     doc.text(
