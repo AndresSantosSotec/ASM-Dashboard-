@@ -71,6 +71,13 @@ export interface HistorialAcademico {
   cursos: CourseHistoryItem[]
   nombre_completo: string
   username: string
+  tiene_datos_moodle?: boolean
+  mensaje?: string
+  programa?: {
+    nombre: string
+    codigo?: string
+    fecha_inicio?: string
+  }
 }
 
 export interface UpdateProfileData {

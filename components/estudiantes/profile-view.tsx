@@ -113,7 +113,23 @@ export default function ProfileView() {
       }
       
       if (historial.status === 'fulfilled') {
-        setHistorialAcademico(historial.value)
+        // Asegurar que el objeto tenga todas las propiedades requeridas
+        const historialData: HistorialAcademico = {
+          resumen: historial.value.resumen || {
+            promedio_general: 0,
+            cursos_aprobados: 0,
+            cursos_actuales: 0,
+            creditos_aprobados: 0,
+            creditos_totales: 0,
+          },
+          cursos: historial.value.cursos || [],
+          nombre_completo: historial.value.nombre_completo || '',
+          username: historial.value.username || '',
+          tiene_datos_moodle: (historial.value as any).tiene_datos_moodle,
+          mensaje: (historial.value as any).mensaje,
+          programa: (historial.value as any).programa,
+        }
+        setHistorialAcademico(historialData)
       }
     } catch (error: any) {
       console.error("Error cargando datos:", error)
