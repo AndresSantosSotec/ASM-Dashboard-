@@ -187,7 +187,7 @@ export function HistorialAcademicoTab() {
         <CardContent>
           {noHayCursos ? (
             !tieneDatosMoodle ? (
-              <Alert variant="info" className="border-blue-500 bg-blue-50">
+              <Alert className="border-blue-500 bg-blue-50">
                 <AlertCircle className="h-4 w-4 text-blue-600" />
                 <AlertTitle className="text-blue-800">No hay cursos registrados</AlertTitle>
                 <AlertDescription className="text-blue-700">
