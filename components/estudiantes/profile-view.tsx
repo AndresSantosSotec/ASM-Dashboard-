@@ -114,7 +114,7 @@ export default function ProfileView() {
       
       if (historial.status === 'fulfilled') {
         // Asegurar que el objeto tenga todas las propiedades requeridas
-        const historialData: HistorialAcademico = {
+        const historialData = {
           resumen: historial.value.resumen || {
             promedio_general: 0,
             cursos_aprobados: 0,
@@ -123,12 +123,12 @@ export default function ProfileView() {
             creditos_totales: 0,
           },
           cursos: historial.value.cursos || [],
-          nombre_completo: historial.value.nombre_completo || '',
-          username: historial.value.username || '',
+          nombre_completo: (historial.value as any).nombre_completo || '',
+          username: (historial.value as any).username || '',
           tiene_datos_moodle: (historial.value as any).tiene_datos_moodle,
           mensaje: (historial.value as any).mensaje,
           programa: (historial.value as any).programa,
-        }
+        } as HistorialAcademico
         setHistorialAcademico(historialData)
       }
     } catch (error: any) {
