@@ -476,35 +476,51 @@ export default function CapturaProspectos() {
       setDepartamentos([])
       setMunicipios([])
     } catch (error: any) {
-      let errorMessage =
-        error.response?.data?.message || error.message || "Error desconocido"
+      console.error("❌ Error completo al guardar prospecto:", error)
+      console.error("❌ Response status:", error.response?.status)
+      console.error("❌ Response data:", error.response?.data)
       
-      // Extraer errores de validación específicos (Laravel 422)
+      let errorMessage = "Error al guardar prospecto"
       let erroresDetallados = ""
-      if (error.response?.status === 422 && error.response?.data?.errors) {
-        const errors = error.response.data.errors
-        const camposConError: string[] = []
+      
+      // Manejar errores de validación (422)
+      if (error.response?.status === 422) {
+        const responseData = error.response.data
         
-        Object.keys(errors).forEach(campo => {
-          const mensajes = Array.isArray(errors[campo]) ? errors[campo] : [errors[campo]]
-          mensajes.forEach(msg => {
-            // Traducir nombres de campos al español
-            const campoTraducido = traducirCampo(campo)
-            camposConError.push(`• <strong>${campoTraducido}:</strong> ${msg}`)
-          })
-        })
+        // Laravel puede devolver 'errors' o 'messages'
+        const errors = responseData.errors || responseData.messages || {}
         
-        if (camposConError.length > 0) {
-          erroresDetallados = camposConError.join("<br>")
-          Swal.fire({
-            icon: "error",
-            title: "Errores de validación",
-            html: `<div class="text-left"><p class="mb-2">Por favor corrija los siguientes campos:</p>${erroresDetallados}</div>`,
-            confirmButtonText: "Entendido",
+        console.log("🔍 Errores detectados:", errors)
+        
+        if (Object.keys(errors).length > 0) {
+          const camposConError: string[] = []
+          
+          Object.keys(errors).forEach(campo => {
+            const mensajes = Array.isArray(errors[campo]) ? errors[campo] : [errors[campo]]
+            mensajes.forEach((msg: string) => {
+              // Traducir nombres de campos al español
+              const campoTraducido = traducirCampo(campo)
+              camposConError.push(`• <strong>${campoTraducido}:</strong> ${msg}`)
+            })
           })
-          console.error("❌ Errores de validación:", errors)
-          setLoading(false)
-          return
+          
+          if (camposConError.length > 0) {
+            erroresDetallados = camposConError.join("<br>")
+            Swal.fire({
+              icon: "error",
+              title: "Errores de validación",
+              html: `<div class="text-left"><p class="mb-2">Por favor corrija los siguientes campos:</p>${erroresDetallados}</div>`,
+              confirmButtonText: "Entendido",
+            })
+            console.error("❌ Errores de validación:", errors)
+            setLoading(false)
+            return
+          }
+        }
+        
+        // Si no hay errores específicos pero hay un mensaje general
+        if (responseData.message || responseData.error) {
+          errorMessage = responseData.message || responseData.error || "Error de validación"
         }
       }
       

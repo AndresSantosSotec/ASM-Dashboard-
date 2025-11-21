@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -14,21 +14,14 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import {
-  Search,
-  Upload,
   FileText,
-  Eye,
-  Download,
-  Clock,
+  Upload,
   CheckCircle,
+  Clock,
   XCircle,
   AlertCircle,
-  Check,
-  X,
-  CreditCard,
-  FilePlus,
+  DollarSign,
 } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -38,741 +31,392 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils"; // o tu propio helper para "classNames"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import axios from "axios";
+import Swal from "sweetalert2";
+import { API_BASE_URL } from "@/utils/apiConfig";
 
-// Tipos de estado
-type DocumentStatus = "pendiente" | "en_proceso" | "listo" | "rechazado";
-
-// Tipos para el método de pago
-type PaymentMethod = "tarjeta" | "boleta" | null;
-
-// Estructura del documento
-interface Document {
+interface DocumentoTipo {
   id: string;
-  name: string;
-  description: string;
-  requirements: string;
-  cost: number;
-  status: DocumentStatus;
-  requestDate?: string;
-  paymentProof?: string; // Para guardar nombre de archivo o referencia de la boleta
+  nombre: string;
+  descripcion: string;
+  monto: number;
+  requiere_pago: boolean;
+}
+
+interface SolicitudDocumento {
+  id: number;
+  tipo_documento: string;
+  monto: number;
+  estado: string;
+  fecha_solicitud: string;
+  banco?: string;
+  numero_referencia?: string;
+  fecha_recibo?: string;
 }
 
 export function DocumentsView() {
-  // Lista de documentos (ejemplo)
-  const [documents, setDocuments] = useState<Document[]>([
-    {
-      id: "cert_estudio",
-      name: "Certificación de Estudio",
-      description: "Documento que certifica su condición de estudiante activo",
-      requirements:
-        "Para alumno de primer ingreso, pago de la primera mensualidad. Para alumnos existentes, solvencia y actividad (mínimo 30 días).",
-      cost: 0,
-      status: "pendiente",
-    },
-    {
-      id: "cert_cursos",
-      name: "Certificación de Cursos Aprobados",
-      description: "Listado oficial de cursos aprobados con sus respectivas notas",
-      requirements: "Estar solvente y pagar Q.75.00",
-      cost: 75,
-      status: "pendiente",
-    },
-    {
-      id: "cert_pensum",
-      name: "Certificado de Cierre de Pénsum",
-      description: "Documento que certifica la finalización del plan de estudios",
-      requirements: "Estar solvente y pagar Q.150.00",
-      cost: 150,
-      status: "pendiente",
-    },
-    {
-      id: "const_capstone",
-      name: "Constancia de Capstone Project",
-      description: "Documento que certifica la participación en el proyecto final",
-      requirements: "Estar solvente en cuotas y subir la documentación requerida",
-      cost: 0,
-      status: "pendiente",
-    },
-    {
-      id: "estado_cuenta",
-      name: "Estado de Cuenta",
-      description: "Detalle de pagos realizados y pendientes",
-      requirements: "Sin requisitos",
-      cost: 0,
-      status: "listo",
-      requestDate: "10/02/2025",
-    },
-  ]);
+  const [tiposDocumentos, setTiposDocumentos] = useState<DocumentoTipo[]>([]);
+  const [solicitudes, setSolicitudes] = useState<SolicitudDocumento[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Estado para el diálogo de solicitud
+  const [showRequestDialog, setShowRequestDialog] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<DocumentoTipo | null>(null);
+  
+  // Estado para formulario de boleta
+  const [banco, setBanco] = useState("");
+  const [numeroReferencia, setNumeroReferencia] = useState("");
+  const [fechaRecibo, setFechaRecibo] = useState("");
+  const [boletaFile, setBoletaFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Control de diálogos y estados de UI
-  const [searchTerm, setSearchTerm] = useState("");
-  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
-  const [selectedTab, setSelectedTab] = useState("todos"); // "todos", "pendiente", "en_proceso", "listo", "rechazado"
+  useEffect(() => {
+    cargarDatos();
+  }, []);
 
-  // Documento seleccionado para distintas acciones
-  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
+  const cargarDatos = async () => {
+    try {
+      setLoading(true);
+      const [tiposRes, solicitudesRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/api/estudiante/documentos/tipos`),
+        axios.get(`${API_BASE_URL}/api/estudiante/documentos`),
+      ]);
 
-  // Diálogos
-  const [showRequestDialog, setShowRequestDialog] = useState(false); // Confirmar solicitud
-  const [showUploadDialog, setShowUploadDialog] = useState(false);   // Subir archivos (ej. Capstone)
-  const [showPaymentDialog, setShowPaymentDialog] = useState(false); // Pago (tarjeta o boleta)
+      if (tiposRes.data.success) {
+        setTiposDocumentos(tiposRes.data.data);
+      }
 
-  // Para carga de archivos (tanto boleta como doc extra)
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-
-  // Método de pago seleccionado
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(null);
-
-  // Maneja la selección de archivos
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setUploadFile(e.target.files[0]);
+      if (solicitudesRes.data.success) {
+        setSolicitudes(solicitudesRes.data.data);
+      }
+    } catch (error: any) {
+      console.error("Error cargando datos:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se pudieron cargar los documentos",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  // ---- LÓGICA DE SOLICITUD DE DOCUMENTOS ----
-  const requestDocument = (document: Document) => {
-    setSelectedDocument(document);
-    // Si el costo es 0, vamos directo al diálogo de confirmación
-    // Si no, también iremos al diálogo de confirmación (y luego al de pago)
+  const handleSolicitar = (documento: DocumentoTipo) => {
+    setSelectedDocument(documento);
+    setBanco("");
+    setNumeroReferencia("");
+    setFechaRecibo("");
+    setBoletaFile(null);
     setShowRequestDialog(true);
   };
 
-  const confirmRequest = () => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setBoletaFile(e.target.files[0]);
+    }
+  };
+
+  const handleSubmitSolicitud = async () => {
     if (!selectedDocument) return;
 
-    // Si tiene costo > 0, abrimos el diálogo de pago
-    if (selectedDocument.cost > 0) {
-      setShowPaymentDialog(true);
-    } else {
-      // Si no tiene costo, pasamos directamente a "en_proceso"
-      moveDocumentToInProcess();
+    // Validar campos si requiere pago
+    if (selectedDocument.requiere_pago) {
+      if (!banco || !numeroReferencia || !fechaRecibo || !boletaFile) {
+        Swal.fire({
+          icon: "warning",
+          title: "Campos incompletos",
+          text: "Debe completar todos los campos de la boleta de banco",
+        });
+        return;
+      }
     }
 
-    // Cerrar diálogo de confirmación
-    setShowRequestDialog(false);
-  };
+    try {
+      setSubmitting(true);
 
-  // Mueve el documento seleccionado a estado "en_proceso"
-  const moveDocumentToInProcess = () => {
-    if (!selectedDocument) return;
+      const formData = new FormData();
+      formData.append("tipo_documento", selectedDocument.id);
+      
+      if (selectedDocument.requiere_pago) {
+        formData.append("banco", banco);
+        formData.append("numero_referencia", numeroReferencia);
+        formData.append("fecha_recibo", fechaRecibo);
+        if (boletaFile) {
+          formData.append("boleta_file", boletaFile);
+        }
+      }
 
-    setDocuments((prev) =>
-      prev.map((doc) =>
-        doc.id === selectedDocument.id
-          ? {
-              ...doc,
-              status: "en_proceso",
-              requestDate: new Date().toLocaleDateString(),
-            }
-          : doc,
-      ),
-    );
+      const response = await axios.post(
+        `${API_BASE_URL}/api/estudiante/documentos`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
 
-    // Si es el de capstone, pedimos subir archivos
-    if (selectedDocument.id === "const_capstone") {
-      setShowUploadDialog(true);
+      if (response.data.success) {
+        Swal.fire({
+          icon: "success",
+          title: "Solicitud creada",
+          text: "Su solicitud ha sido registrada exitosamente",
+        });
+        setShowRequestDialog(false);
+        cargarDatos();
+      }
+    } catch (error: any) {
+      console.error("Error creando solicitud:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: error.response?.data?.message || "No se pudo crear la solicitud",
+      });
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  // ---- LÓGICA DE PAGO ----
-  const handleConfirmPayment = () => {
-    // En un caso real, aquí integrarías tu pasarela de pago o lógica de carga de boleta.
-    // Al finalizar, pasamos el documento a "en_proceso".
-    moveDocumentToInProcess();
-    setShowPaymentDialog(false);
-    setPaymentMethod(null);
-    setUploadFile(null);
-  };
-
-  // ---- LÓGICA DE SUBIDA DE ARCHIVOS (CAPSTONE O BOLETA) ----
-  const confirmUpload = () => {
-    // Aquí subirías el archivo al servidor, etc.
-    setShowUploadDialog(false);
-    setUploadFile(null);
-  };
-
-  // ---- LÓGICA PARA APROBAR (O RECHAZAR) DOCUMENTOS (SIMULACIÓN) ----
-  // En un entorno real, esto lo haría un admin en otro panel, por ejemplo.
-  const approveDocument = (doc: Document) => {
-    setDocuments((prev) =>
-      prev.map((d) =>
-        d.id === doc.id
-          ? {
-              ...d,
-              status: "listo",
-            }
-          : d,
-      ),
-    );
-  };
-
-  const rejectDocument = (doc: Document) => {
-    setDocuments((prev) =>
-      prev.map((d) =>
-        d.id === doc.id
-          ? {
-              ...d,
-              status: "rechazado",
-            }
-          : d,
-      ),
-    );
-  };
-
-  // ---- HELPERS DE UI (INSIGNIAS, TEXTOS, FILTROS) ----
-  const getBadgeVariant = (status: DocumentStatus) => {
-    switch (status) {
+  const getEstadoBadge = (estado: string) => {
+    switch (estado) {
       case "pendiente":
-        return "outline";
+        return (
+          <Badge variant="outline" className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            Pendiente
+          </Badge>
+        );
       case "en_proceso":
-        return "secondary";
+        return (
+          <Badge variant="secondary" className="flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
+            En proceso
+          </Badge>
+        );
       case "listo":
-        return "default";
+        return (
+          <Badge variant="default" className="flex items-center gap-1 bg-green-600">
+            <CheckCircle className="h-3 w-3" />
+            Listo
+          </Badge>
+        );
       case "rechazado":
-        return "destructive";
+        return (
+          <Badge variant="destructive" className="flex items-center gap-1">
+            <XCircle className="h-3 w-3" />
+            Rechazado
+          </Badge>
+        );
       default:
-        return "outline";
+        return <Badge variant="outline">{estado}</Badge>;
     }
   };
 
-  const getStatusText = (status: DocumentStatus) => {
-    switch (status) {
-      case "pendiente":
-        return "Pendiente";
-      case "en_proceso":
-        return "En proceso";
-      case "listo":
-        return "Listo para descargar";
-      case "rechazado":
-        return "Rechazado";
-      default:
-        return "Pendiente";
-    }
+  const getSolicitudEstado = (tipoDocumento: string) => {
+    const solicitud = solicitudes.find((s) => s.tipo_documento === tipoDocumento);
+    return solicitud?.estado || null;
   };
 
-  // Filtrar documentos según búsqueda y pestaña seleccionada
-  const filteredDocuments = documents.filter((doc) => {
-    const matchesSearch = doc.name
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase());
-    let matchesTab = true;
-    if (selectedTab !== "todos") {
-      matchesTab = doc.status === selectedTab;
-    }
-    return matchesSearch && matchesTab;
-  });
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <Clock className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-muted-foreground">Cargando documentos...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Información importante */}
       <Alert className="bg-blue-50 border-blue-200">
         <AlertCircle className="h-4 w-4 text-blue-600" />
         <div>
-          <AlertTitle className="text-blue-800">
-            Información importante
-          </AlertTitle>
+          <AlertTitle className="text-blue-800">Información importante</AlertTitle>
           <AlertDescription className="text-blue-700">
-            Los documentos solicitados estarán disponibles en un plazo de 3 a 5
-            días hábiles, dependiendo del tipo de documento. Recibirá una
-            notificación cuando estén listos para descargar.
+            Los documentos solicitados estarán disponibles en un plazo de 3 a 5 días hábiles.
+            Recibirá una notificación cuando estén listos para descargar.
           </AlertDescription>
         </div>
       </Alert>
 
-      {/* Barra de búsqueda, selección de vista y ejemplo de botón "Subir Documento" */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Buscar documento..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 w-[200px] md:w-[300px]"
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button
-              onClick={() => setViewMode("table")}
-              variant={viewMode === "table" ? "default" : "outline"}
-            >
-              Vista Tabla
-            </Button>
-            <Button
-              onClick={() => setViewMode("cards")}
-              variant={viewMode === "cards" ? "default" : "outline"}
-            >
-              Vista Tarjetas
-            </Button>
-          </div>
-        </div>
-        <Button>
-          <Upload className="h-4 w-4 mr-2" />
-          Subir Documento
-        </Button>
-      </div>
+      <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-3">
+        {tiposDocumentos.map((documento) => {
+          const estadoSolicitud = getSolicitudEstado(documento.id);
+          const tieneSolicitud = estadoSolicitud !== null;
 
-      {/* Vista en Tabla o Tarjetas */}
-      {viewMode === "table" ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Mis Documentos</CardTitle>
-            <CardDescription>Gestiona tus documentos académicos</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs
-              defaultValue="todos"
-              onValueChange={(value) => setSelectedTab(value)}
-            >
-              <TabsList className="mb-4">
-                <TabsTrigger value="todos">Todos</TabsTrigger>
-                <TabsTrigger value="pendiente">Pendientes</TabsTrigger>
-                <TabsTrigger value="en_proceso">En proceso</TabsTrigger>
-                <TabsTrigger value="listo">Listos</TabsTrigger>
-                <TabsTrigger value="rechazado">Rechazados</TabsTrigger>
-              </TabsList>
-
-              {/* Para simplificar, en cada TabsContent usaremos la misma lista filtrada.
-                  Si quieres, puedes hacer un .filter diferente para cada uno. */}
-              <TabsContent value="todos">
-                <div className="border rounded-lg overflow-hidden">
-                  <table className="min-w-full divide-y">
-                    <thead className="bg-muted">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-medium">
-                          Nombre del Documento
-                        </th>
-                        <th className="px-4 py-3 text-left text-sm font-medium">
-                          Descripción
-                        </th>
-                        <th className="px-4 py-3 text-left text-sm font-medium">
-                          Fecha de Solicitud
-                        </th>
-                        <th className="px-4 py-3 text-left text-sm font-medium">
-                          Estado
-                        </th>
-                        <th className="px-4 py-3 text-right text-sm font-medium">
-                          Acciones
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {filteredDocuments.map((doc) => (
-                        <tr key={doc.id}>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-5 w-5 text-blue-600" />
-                              <span className="font-medium">{doc.name}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-sm">
-                            {doc.description}
-                          </td>
-                          <td className="px-4 py-3 text-sm">
-                            {doc.requestDate || "-"}
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge variant={getBadgeVariant(doc.status)}>
-                              {doc.status === "pendiente" ? (
-                                <Clock className="h-3.5 w-3.5 mr-1" />
-                              ) : doc.status === "en_proceso" ? (
-                                <AlertCircle className="h-3.5 w-3.5 mr-1" />
-                              ) : doc.status === "listo" ? (
-                                <CheckCircle className="h-3.5 w-3.5 mr-1" />
-                              ) : (
-                                <XCircle className="h-3.5 w-3.5 mr-1" />
-                              )}
-                              {getStatusText(doc.status)}
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex justify-end gap-2">
-                              {/* Botón para ver (placeholder) */}
-                              <Button variant="ghost" size="sm">
-                                <Eye className="h-4 w-4" />
-                                <span className="sr-only">Ver</span>
-                              </Button>
-
-                              {/* Lógica de acciones según el estado */}
-                              {doc.status === "listo" ? (
-                                <Button variant="ghost" size="sm">
-                                  <Download className="h-4 w-4" />
-                                  <span className="sr-only">Descargar</span>
-                                </Button>
-                              ) : doc.status === "pendiente" ? (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => requestDocument(doc)}
-                                >
-                                  Solicitar
-                                </Button>
-                              ) : doc.status === "en_proceso" ? (
-                                <div className="flex gap-2">
-                                  {/* Simulación de aprobación o rechazo */}
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => approveDocument(doc)}
-                                  >
-                                    <CheckCircle className="h-4 w-4 mr-1" />
-                                    Aprobar
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => rejectDocument(doc)}
-                                  >
-                                    <XCircle className="h-4 w-4 mr-1" />
-                                    Rechazar
-                                  </Button>
-                                </div>
-                              ) : (
-                                <Button variant="outline" size="sm">
-                                  Ver Detalles
-                                </Button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </TabsContent>
-
-              {/* Podrías duplicar o personalizar este mismo bloque para "pendiente", "en_proceso", etc. */}
-              <TabsContent value="pendiente">
-                {/* ... similar a "todos", pero filtras por doc.status === "pendiente" */}
-                <div className="border rounded-lg overflow-hidden">
-                  <table className="min-w-full divide-y">
-                    <thead className="bg-muted">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-medium">
-                          Nombre del Documento
-                        </th>
-                        <th className="px-4 py-3 text-left text-sm font-medium">
-                          Descripción
-                        </th>
-                        <th className="px-4 py-3 text-left text-sm font-medium">
-                          Fecha de Solicitud
-                        </th>
-                        <th className="px-4 py-3 text-left text-sm font-medium">
-                          Estado
-                        </th>
-                        <th className="px-4 py-3 text-right text-sm font-medium">
-                          Acciones
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {documents
-                        .filter((doc) => doc.status === "pendiente")
-                        .filter((doc) =>
-                          doc.name
-                            .toLowerCase()
-                            .includes(searchTerm.toLowerCase()),
-                        )
-                        .map((doc) => (
-                          <tr key={doc.id}>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <FileText className="h-5 w-5 text-blue-600" />
-                                <span className="font-medium">{doc.name}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-sm">
-                              {doc.description}
-                            </td>
-                            <td className="px-4 py-3 text-sm">
-                              {doc.requestDate || "-"}
-                            </td>
-                            <td className="px-4 py-3">
-                              <Badge variant={getBadgeVariant(doc.status)}>
-                                <Clock className="h-3.5 w-3.5 mr-1" />
-                                Pendiente
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => requestDocument(doc)}
-                              >
-                                Solicitar
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              </TabsContent>
-
-              {/* ... y así para "en_proceso", "listo", "rechazado" */}
-            </Tabs>
-          </CardContent>
-        </Card>
-      ) : (
-        // Vista en Tarjetas
-        <div className="grid gap-6 md:grid-cols-2">
-          {filteredDocuments.map((doc) => (
-            <Card key={doc.id} className="overflow-hidden">
+          return (
+            <Card key={documento.id} className="overflow-hidden">
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-start">
-                  <CardTitle className="text-lg font-bold">{doc.name}</CardTitle>
-                  <Badge variant={getBadgeVariant(doc.status)}>
-                    {getStatusText(doc.status)}
-                  </Badge>
+                  <CardTitle className="text-lg font-bold">{documento.nombre}</CardTitle>
+                  {tieneSolicitud && getEstadoBadge(estadoSolicitud)}
                 </div>
-                <CardDescription>{doc.description}</CardDescription>
+                <CardDescription>{documento.descripcion}</CardDescription>
               </CardHeader>
               <CardContent className="pb-2">
                 <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="font-medium">Requisitos:</span>{" "}
-                    {doc.requirements}
-                  </div>
-                  {doc.cost > 0 && (
-                    <div>
-                      <span className="font-medium">Costo:</span>{" "}
-                      Q{doc.cost.toFixed(2)}
+                  {documento.requiere_pago ? (
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-green-600" />
+                      <span className="font-medium">Costo: Q{documento.monto.toFixed(2)}</span>
                     </div>
-                  )}
-                  {doc.requestDate && (
-                    <div>
-                      <span className="font-medium">Fecha de solicitud:</span>{" "}
-                      {doc.requestDate}
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <span className="font-medium text-green-600">Gratis</span>
                     </div>
                   )}
                 </div>
               </CardContent>
               <CardFooter className="bg-gray-50 pt-2">
-                {/* Acciones según el estado */}
-                {doc.status === "pendiente" ? (
+                {!tieneSolicitud ? (
                   <Button
-                    onClick={() => requestDocument(doc)}
+                    onClick={() => handleSolicitar(documento)}
                     className="w-full"
-                    variant={doc.cost > 0 ? "default" : "outline"}
+                    variant={documento.requiere_pago ? "default" : "outline"}
                   >
-                    {doc.cost > 0 ? "Solicitar y Pagar" : "Solicitar"}
+                    {documento.requiere_pago ? "Solicitar y Pagar" : "Solicitar"}
                   </Button>
-                ) : doc.status === "listo" ? (
-                  <Button className="w-full">
-                    <Download className="mr-2 h-4 w-4" /> Descargar
+                ) : estadoSolicitud === "listo" ? (
+                  <Button className="w-full" variant="default">
+                    <FileText className="mr-2 h-4 w-4" /> Descargar
                   </Button>
-                ) : doc.status === "en_proceso" ? (
-                  <div className="flex flex-col w-full gap-2">
-                    <Button disabled variant="outline" className="w-full">
-                      En proceso...
-                    </Button>
-                    {/* Botones para simular aprobación/rechazo */}
-                    <div className="flex justify-between">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => approveDocument(doc)}
-                      >
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        Aprobar
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => rejectDocument(doc)}
-                      >
-                        <XCircle className="h-4 w-4 mr-1" />
-                        Rechazar
-                      </Button>
-                    </div>
-                  </div>
                 ) : (
-                  <Button variant="outline" className="w-full text-red-500">
-                    <X className="mr-2 h-4 w-4" /> Ver detalles del rechazo
+                  <Button disabled variant="outline" className="w-full">
+                    {estadoSolicitud === "pendiente" && "Pendiente de revisión"}
+                    {estadoSolicitud === "en_proceso" && "En proceso..."}
+                    {estadoSolicitud === "rechazado" && "Rechazado"}
                   </Button>
                 )}
               </CardFooter>
             </Card>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
 
-      {/* Diálogo de confirmación de solicitud */}
+      {/* Diálogo de solicitud */}
       <Dialog open={showRequestDialog} onOpenChange={setShowRequestDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirmar solicitud</DialogTitle>
+            <DialogTitle>Solicitar Documento</DialogTitle>
             <DialogDescription>
-              Está a punto de solicitar: {selectedDocument?.name}
+              {selectedDocument?.nombre}
             </DialogDescription>
           </DialogHeader>
+          
           <div className="space-y-4 py-4">
-            <div className="text-sm">
-              <p className="font-medium mb-2">Requisitos:</p>
-              <p>{selectedDocument?.requirements}</p>
-            </div>
-            {selectedDocument?.cost ? (
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <div>
+            {selectedDocument?.requiere_pago ? (
+              <>
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
                   <AlertTitle>Costo del documento</AlertTitle>
                   <AlertDescription>
-                    Este documento tiene un costo de Q
-                    {selectedDocument?.cost.toFixed(2)}. Al confirmar, podrá
-                    elegir su método de pago.
+                    Este documento tiene un costo fijo de Q{selectedDocument.monto.toFixed(2)}.
+                    Debe subir la boleta de banco con los siguientes datos:
                   </AlertDescription>
+                </Alert>
+
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="monto">Monto (Fijo)</Label>
+                    <Input
+                      id="monto"
+                      value={`Q${selectedDocument.monto.toFixed(2)}`}
+                      disabled
+                      className="bg-gray-100"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="banco">Banco *</Label>
+                    <Select value={banco} onValueChange={setBanco}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccione el banco" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Banco Industrial">Banco Industrial</SelectItem>
+                        <SelectItem value="Banco G&T Continental">Banco G&T Continental</SelectItem>
+                        <SelectItem value="Banco de Desarrollo Rural">Banco de Desarrollo Rural</SelectItem>
+                        <SelectItem value="Banco Agromercantil">Banco Agromercantil</SelectItem>
+                        <SelectItem value="Banco Promerica">Banco Promerica</SelectItem>
+                        <SelectItem value="Banco de Antigua">Banco de Antigua</SelectItem>
+                        <SelectItem value="Banco Ficohsa">Banco Ficohsa</SelectItem>
+                        <SelectItem value="Banco Azteca">Banco Azteca</SelectItem>
+                        <SelectItem value="Otro">Otro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="numero_referencia">Número de Referencia *</Label>
+                    <Input
+                      id="numero_referencia"
+                      value={numeroReferencia}
+                      onChange={(e) => setNumeroReferencia(e.target.value)}
+                      placeholder="Ingrese el número de referencia"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="fecha_recibo">Fecha del Recibo *</Label>
+                    <Input
+                      id="fecha_recibo"
+                      type="date"
+                      value={fechaRecibo}
+                      onChange={(e) => setFechaRecibo(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="boleta_file">Boleta de Banco *</Label>
+                    <Input
+                      id="boleta_file"
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={handleFileChange}
+                    />
+                    {boletaFile && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Archivo seleccionado: {boletaFile.name}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Formatos: PDF, JPG, PNG (máx. 5MB)
+                    </p>
+                  </div>
                 </div>
+              </>
+            ) : (
+              <Alert>
+                <CheckCircle className="h-4 w-4" />
+                <AlertTitle>Documento gratuito</AlertTitle>
+                <AlertDescription>
+                  Este documento no requiere pago. Al confirmar, su solicitud será procesada.
+                </AlertDescription>
               </Alert>
-            ) : null}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowRequestDialog(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={confirmRequest}>Continuar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Diálogo de pago (tarjeta o boleta) */}
-      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Método de Pago</DialogTitle>
-            <DialogDescription>
-              Elija su método de pago para: {selectedDocument?.name}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            {/* Selector de método de pago */}
-            <div className="flex gap-2">
-              <Button
-                variant={paymentMethod === "tarjeta" ? "default" : "outline"}
-                onClick={() => {
-                  setPaymentMethod("tarjeta");
-                  setUploadFile(null); // Limpiamos boleta si existía
-                }}
-              >
-                <CreditCard className="mr-2 h-4 w-4" />
-                Tarjeta
-              </Button>
-              <Button
-                variant={paymentMethod === "boleta" ? "default" : "outline"}
-                onClick={() => {
-                  setPaymentMethod("boleta");
-                }}
-              >
-                <FilePlus className="mr-2 h-4 w-4" />
-                Boleta
-              </Button>
-            </div>
-
-            {/* Formulario dinámico según el método */}
-            {paymentMethod === "tarjeta" && (
-              <div className="space-y-3 border rounded p-4">
-                <Label htmlFor="card-number">Número de tarjeta</Label>
-                <Input id="card-number" placeholder="**** **** **** ****" />
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <Label htmlFor="exp-date">Fecha Exp.</Label>
-                    <Input id="exp-date" placeholder="MM/AA" />
-                  </div>
-                  <div className="flex-1">
-                    <Label htmlFor="cvv">CVV</Label>
-                    <Input id="cvv" placeholder="3 dígitos" />
-                  </div>
-                </div>
-                <Label htmlFor="card-name">Nombre en la tarjeta</Label>
-                <Input id="card-name" placeholder="Tu nombre completo" />
-              </div>
-            )}
-
-            {paymentMethod === "boleta" && (
-              <div className="space-y-3 border rounded p-4">
-                <Label htmlFor="payment-proof">Subir comprobante de pago</Label>
-                <Input
-                  id="payment-proof"
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={handleFileUpload}
-                />
-                {uploadFile && (
-                  <div className="flex items-center gap-2 text-sm text-green-600">
-                    <Check className="h-4 w-4" />
-                    <span>Archivo seleccionado: {uploadFile.name}</span>
-                  </div>
-                )}
-                <p className="text-xs text-gray-500">
-                  Formatos aceptados: PDF, JPG, PNG (máx. 5MB)
-                </p>
-              </div>
             )}
           </div>
+
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => {
-                setShowPaymentDialog(false);
-                setPaymentMethod(null);
-              }}
+              onClick={() => setShowRequestDialog(false)}
+              disabled={submitting}
             >
               Cancelar
             </Button>
             <Button
-              onClick={handleConfirmPayment}
+              onClick={handleSubmitSolicitud}
               disabled={
-                !paymentMethod ||
-                (paymentMethod === "boleta" && !uploadFile)
+                submitting ||
+                (selectedDocument?.requiere_pago &&
+                  (!banco || !numeroReferencia || !fechaRecibo || !boletaFile))
               }
             >
-              Confirmar Pago
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Diálogo para subir documentación extra (ej. Capstone) */}
-      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Subir documentación adicional</DialogTitle>
-            <DialogDescription>
-              Para completar la solicitud de {selectedDocument?.name}, sube la
-              documentación requerida.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid w-full max-w-sm items-center gap-1.5">
-              <Label htmlFor="document-upload">Documento (PDF, JPG, PNG)</Label>
-              <Input
-                id="document-upload"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={handleFileUpload}
-              />
-              <p className="text-xs text-gray-500">
-                Tamaño máximo: 5MB
-              </p>
-            </div>
-            {uploadFile && (
-              <div className="flex items-center gap-2 text-sm text-green-600">
-                <Check className="h-4 w-4" />
-                <span>Archivo seleccionado: {uploadFile.name}</span>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowUploadDialog(false)}
-            >
-              Cancelar
-            </Button>
-            <Button onClick={confirmUpload} disabled={!uploadFile}>
-              Subir Documento
+              {submitting ? "Enviando..." : "Confirmar Solicitud"}
             </Button>
           </DialogFooter>
         </DialogContent>

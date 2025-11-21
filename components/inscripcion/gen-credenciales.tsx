@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,20 +24,33 @@ import {
   ChevronRight,
   IdCard,
   FileSpreadsheet,
-  Mail
+  Mail,
+  FileText,
+  X
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
-interface Prospecto {
+interface ProspectoRaw {
   id: number
-  nombre_completo: string
-  correo_electronico: string
+  prospecto_id: number
+  carnet: string
+  modalidad: string
+  dia_1: string
+  dia_2: string
+  dia_3: string
+  mes_ingreso: string
+  inscripcion: number
+  mensualidad: string
+  nombres: string
+  apellidos: string
   telefono: string
-  carnet: string | null
-  fecha_inicio_especifica: string
-  datos_completos: boolean
+  email: string
+  programa: string
+  asesor: string
+  nombre_completo: string
   tiene_carnet: boolean
+  datos_completos: boolean
   campos_faltantes: string[]
   programas: Array<{
     duracion_meses: number | null
@@ -46,6 +59,17 @@ interface Prospecto {
       abreviatura: string
     }
   }>
+}
+
+interface CredencialMicrosoft {
+  prospecto_id: number
+  nombre_completo: string
+  correo_electronico: string
+  correo_corporativo: string
+  carnet: string
+  password_temporal: string
+  username: string
+  display_name: string
 }
 
 interface Estadisticas {
@@ -57,13 +81,26 @@ interface Estadisticas {
 
 const steps = [
   { id: 1, title: "Generar Carnets y Plantillas", icon: CheckCircle2, description: "Carnets y descarga MS/Moodle" },
-  { id: 2, title: "Enviar Credenciales", icon: Mail, description: "Cargar plantillas y enviar" },
+  { id: 2, title: "Descargar Plantillas", icon: Download, description: "Descargar CSV para procesar" },
+  { id: 3, title: "Cargar CSV y Enviar Credenciales", icon: Mail, description: "Cargar CSV procesado y enviar" },
 ]
+
+// Helper para formatear números de forma segura
+const formatNumber = (value: number | string | null | undefined): string => {
+  if (value === null || value === undefined || value === '') {
+    return '0.00'
+  }
+  const num = typeof value === 'number' ? value : parseFloat(value.toString())
+  if (isNaN(num)) {
+    return '0.00'
+  }
+  return num.toFixed(2)
+}
 
 export function GeneracionCredenciales() {
   const { toast } = useToast()
   const [currentStep, setCurrentStep] = useState(1)
-  const [prospectos, setProspectos] = useState<Prospecto[]>([])
+  const [prospectos, setProspectos] = useState<ProspectoRaw[]>([])
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [loading, setLoading] = useState(false)
   const [estadisticas, setEstadisticas] = useState<Estadisticas | null>(null)
@@ -81,6 +118,11 @@ export function GeneracionCredenciales() {
   const [microsoftUploaded, setMicrosoftUploaded] = useState(false)
   const [moodleUploaded, setMoodleUploaded] = useState(false)
 
+  // Estados del Paso 3
+  const [credencialesMicrosoft, setCredencialesMicrosoft] = useState<CredencialMicrosoft[]>([])
+  const [archivoMicrosoft, setArchivoMicrosoft] = useState<File | null>(null)
+  const [dragActive, setDragActive] = useState(false)
+
   useEffect(() => {
     cargarProspectos()
     cargarEstadisticas()
@@ -94,7 +136,8 @@ export function GeneracionCredenciales() {
         if (value) params.append(key, value)
       })
 
-      const response = await fetch(`http://localhost:8000/api/gen-credenciales?${params}`)
+      // Usar el endpoint de datos crudos
+      const response = await fetch(`http://localhost:8000/api/gen-credenciales/datos-crudos?${params}`)
       const data = await response.json()
       
       if (data.success) {
@@ -146,19 +189,10 @@ export function GeneracionCredenciales() {
       if (response.ok) {
         toast({
           title: "Carnets generados",
-          description: `Se generaron ${data.total} carnets exitosamente. Descargando plantillas...`
+          description: `Se generaron ${data.total} carnets exitosamente.`
         })
         await cargarProspectos()
         await cargarEstadisticas()
-        
-        // Descargar automáticamente ambas plantillas
-        await descargarPlantillaMicrosoft()
-        await descargarPlantillaMoodle()
-        
-        toast({
-          title: "Plantillas descargadas",
-          description: "Procesa ambos archivos CSV y cárgalos en el siguiente paso"
-        })
       }
     } catch (error) {
       toast({
@@ -200,7 +234,7 @@ export function GeneracionCredenciales() {
 
         toast({
           title: "Plantilla descargada",
-          description: "Procesa el archivo y súbelo nuevamente"
+          description: "Procesa el archivo en Microsoft Admin Center"
         })
       }
     } catch (error) {
@@ -241,7 +275,7 @@ export function GeneracionCredenciales() {
 
         toast({
           title: "Plantilla descargada",
-          description: "Importa el archivo en Moodle y súbelo aquí"
+          description: "Procesa el archivo en Moodle"
         })
       }
     } catch (error) {
@@ -253,112 +287,104 @@ export function GeneracionCredenciales() {
     }
   }
 
-  const cargarPlantillaMicrosoft = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+  // Paso 3: Cargar CSV procesado de Microsoft
+  const handleDrag = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true)
+    } else if (e.type === "dragleave") {
+      setDragActive(false)
+    }
+  }, [])
 
-    const formData = new FormData()
-    formData.append("archivo", file)
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
 
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0]
+      if (file.type === "text/csv" || file.name.endsWith(".csv")) {
+        setArchivoMicrosoft(file)
+        procesarCSVMicrosoft(file)
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "El archivo debe ser un CSV"
+        })
+      }
+    }
+  }, [])
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setArchivoMicrosoft(file)
+      procesarCSVMicrosoft(file)
+    }
+  }
+
+  const procesarCSVMicrosoft = async (file: File) => {
     setLoading(true)
     try {
-      const response = await fetch("http://localhost:8000/api/gen-credenciales/cargar-microsoft", {
+      const formData = new FormData()
+      formData.append("archivo", file)
+
+      const response = await fetch("http://localhost:8000/api/gen-credenciales/cargar-credenciales-microsoft", {
         method: "POST",
         body: formData
       })
 
       const data = await response.json()
 
-      if (response.ok) {
+      if (response.ok && data.success) {
+        setCredencialesMicrosoft(data.credenciales)
         setMicrosoftUploaded(true)
         toast({
-          title: "Plantilla Microsoft procesada",
-          description: `${data.actualizados} registros actualizados`
+          title: "CSV procesado",
+          description: `Se encontraron ${data.total} credenciales. Revisa el resumen antes de enviar.`
         })
-        await cargarProspectos()
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Error al procesar plantilla Microsoft"
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const cargarPlantillaMoodle = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    const formData = new FormData()
-    formData.append("archivo", file)
-
-    setLoading(true)
-    try {
-      const response = await fetch("http://localhost:8000/api/gen-credenciales/cargar-moodle", {
-        method: "POST",
-        body: formData
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        setMoodleUploaded(true)
+      } else {
         toast({
-          title: "Plantilla Moodle procesada",
-          description: `${data.actualizados} registros actualizados`
+          variant: "destructive",
+          title: "Error",
+          description: data.message || "Error al procesar el CSV"
         })
-        await cargarProspectos()
-        setCurrentStep(2)
       }
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Error al procesar plantilla Moodle"
+        description: "Error al procesar el archivo CSV"
       })
     } finally {
       setLoading(false)
     }
   }
 
-  const generarYEnviarCredenciales = async () => {
-    // Validar que todos los seleccionados tengan datos completos
-    const incompletos = prospectos.filter(p => 
-      selectedIds.includes(p.id) && !p.datos_completos
-    )
-
-    if (incompletos.length > 0) {
+  const enviarCredenciales = async () => {
+    if (credencialesMicrosoft.length === 0) {
       toast({
         variant: "destructive",
-        title: "Datos incompletos",
-        description: `${incompletos.length} estudiantes tienen datos incompletos`
-      })
-      return
-    }
-
-    if (!microsoftUploaded || !moodleUploaded) {
-      toast({
-        variant: "destructive",
-        title: "Plantillas pendientes",
-        description: "Debes cargar ambas plantillas procesadas antes de continuar"
+        title: "Error",
+        description: "No hay credenciales para enviar"
       })
       return
     }
 
     setLoading(true)
     try {
-      const response = await fetch("http://localhost:8000/api/gen-credenciales/generar-enviar", {
+      const response = await fetch("http://localhost:8000/api/gen-credenciales/enviar-credenciales", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prospecto_ids: selectedIds })
+        body: JSON.stringify({ credenciales: credencialesMicrosoft })
       })
 
       const data = await response.json()
 
-      if (response.ok) {
+      if (response.ok && data.success) {
         toast({
           title: "Credenciales enviadas",
           description: `${data.enviados} de ${data.total} credenciales enviadas exitosamente`
@@ -366,11 +392,18 @@ export function GeneracionCredenciales() {
         
         // Resetear proceso
         setSelectedIds([])
+        setCredencialesMicrosoft([])
+        setArchivoMicrosoft(null)
         setMicrosoftUploaded(false)
-        setMoodleUploaded(false)
         setCurrentStep(1)
         await cargarProspectos()
         await cargarEstadisticas()
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: data.message || "Error al enviar credenciales"
+        })
       }
     } catch (error) {
       toast({
@@ -510,7 +543,7 @@ export function GeneracionCredenciales() {
           <CardHeader>
             <CardTitle>Paso 1: Seleccionar Estudiantes y Generar Carnets</CardTitle>
             <CardDescription>
-              Selecciona los estudiantes y genera sus carnets antes de continuar
+              Selecciona los estudiantes y genera sus carnets. La tabla muestra todos los datos relevantes de la ficha.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -528,66 +561,75 @@ export function GeneracionCredenciales() {
                 </Button>
               </div>
 
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">
-                      <Checkbox 
-                        checked={selectedIds.length === prospectos.length && prospectos.length > 0}
-                        onCheckedChange={toggleAll}
-                      />
-                    </TableHead>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Programa</TableHead>
-                    <TableHead>Carnet</TableHead>
-                    <TableHead>Estado</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {prospectos.map((prospecto) => (
-                    <TableRow key={prospecto.id}>
-                      <TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">
                         <Checkbox 
-                          checked={selectedIds.includes(prospecto.id)}
-                          onCheckedChange={() => toggleSelection(prospecto.id)}
+                          checked={selectedIds.length === prospectos.length && prospectos.length > 0}
+                          onCheckedChange={toggleAll}
                         />
-                      </TableCell>
-                      <TableCell className="font-medium">{prospecto.nombre_completo}</TableCell>
-                      <TableCell>{prospecto.correo_electronico}</TableCell>
-                      <TableCell>
-                        {prospecto.programas[0] ? (
-                          <Badge variant="outline">
-                            {prospecto.programas[0].programa?.abreviatura || 'Sin abrev.'}
-                            {prospecto.programas[0].duracion_meses ? `-${prospecto.programas[0].duracion_meses}` : ''}
-                          </Badge>
-                        ) : 'Sin programa'}
-                      </TableCell>
-                      <TableCell>
-                        {prospecto.carnet ? (
-                          <Badge variant="secondary">{prospecto.carnet}</Badge>
-                        ) : (
-                          <Badge variant="outline">Sin asignar</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          {prospecto.tiene_carnet && <CheckCircle2 className="w-4 h-4 text-green-600" />}
-                          {prospecto.campos_faltantes.includes('correo_electronico') && <span title="Sin email"><AlertCircle className="w-4 h-4 text-red-600" /></span>}
-                          {prospecto.campos_faltantes.includes('telefono') && <span title="Sin teléfono"><AlertCircle className="w-4 h-4 text-orange-600" /></span>}
-                        </div>
-                      </TableCell>
+                      </TableHead>
+                      <TableHead>Carnet</TableHead>
+                      <TableHead>Día 1</TableHead>
+                      <TableHead>Día 2</TableHead>
+                      <TableHead>Día 3</TableHead>
+                      <TableHead>Mes de Ingreso</TableHead>
+                      <TableHead>Inscripción</TableHead>
+                      <TableHead>Monto Mensualidad</TableHead>
+                      <TableHead>Nombres</TableHead>
+                      <TableHead>Apellidos</TableHead>
+                      <TableHead>Teléfono</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Programa</TableHead>
+                      <TableHead>Asesor</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {prospectos.map((prospecto) => (
+                      <TableRow key={prospecto.id}>
+                        <TableCell>
+                          <Checkbox 
+                            checked={selectedIds.includes(prospecto.id)}
+                            onCheckedChange={() => toggleSelection(prospecto.id)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {prospecto.carnet ? (
+                            <Badge variant="secondary">{prospecto.carnet}</Badge>
+                          ) : (
+                            <Badge variant="outline">Sin asignar</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>{prospecto.dia_1 || '-'}</TableCell>
+                        <TableCell>{prospecto.dia_2 || '-'}</TableCell>
+                        <TableCell>{prospecto.dia_3 || '-'}</TableCell>
+                        <TableCell>{prospecto.mes_ingreso || '-'}</TableCell>
+                        <TableCell>Q{formatNumber(prospecto.inscripcion)}</TableCell>
+                        <TableCell>{prospecto.mensualidad || '-'}</TableCell>
+                        <TableCell className="font-medium">{prospecto.nombres}</TableCell>
+                        <TableCell>{prospecto.apellidos}</TableCell>
+                        <TableCell>{prospecto.telefono || '-'}</TableCell>
+                        <TableCell>{prospecto.email || '-'}</TableCell>
+                        <TableCell>
+                          {prospecto.programa ? (
+                            <Badge variant="outline">{prospecto.programa}</Badge>
+                          ) : 'Sin programa'}
+                        </TableCell>
+                        <TableCell>{prospecto.asesor || 'Sin asignar'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
 
               <div className="flex justify-end">
                 <Button 
                   onClick={() => setCurrentStep(2)}
-                  disabled={selectedIds.length === 0 || !prospectos.every(p => selectedIds.includes(p.id) ? p.tiene_carnet : true)}
+                  disabled={selectedIds.length === 0 || !prospectos.some(p => selectedIds.includes(p.id) && p.tiene_carnet)}
                 >
-                  Continuar a Cargar Plantillas
+                  Continuar a Descargar Plantillas
                   <ChevronRight className="w-4 h-4 ml-2" />
                 </Button>
               </div>
@@ -596,13 +638,13 @@ export function GeneracionCredenciales() {
         </Card>
       )}
 
-      {/* Paso 2: Cargar Plantillas y Enviar */}
+      {/* Paso 2: Descargar Plantillas */}
       {currentStep === 2 && (
         <Card>
           <CardHeader>
-            <CardTitle>Paso 2: Cargar Plantillas Procesadas y Enviar Credenciales</CardTitle>
+            <CardTitle>Paso 2: Descargar Plantillas Procesadas</CardTitle>
             <CardDescription>
-              Las plantillas ya fueron descargadas. Procésalas en sus respectivas plataformas y cárgalas aquí
+              Descarga las plantillas CSV para procesarlas en Microsoft 365 y Moodle
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -616,26 +658,11 @@ export function GeneracionCredenciales() {
                     <div className="space-y-2">
                       <Button onClick={descargarPlantillaMicrosoft} variant="outline" className="w-full">
                         <Download className="w-4 h-4 mr-2" />
-                        Re-descargar CSV Microsoft
+                        Descargar CSV Microsoft
                       </Button>
-                      <Label htmlFor="microsoft-upload" className="cursor-pointer">
-                        <div className={cn(
-                          "border-2 border-dashed rounded-lg p-4 text-center transition-colors",
-                          microsoftUploaded ? "border-green-500 bg-green-50" : "border-gray-300 hover:border-gray-400"
-                        )}>
-                          <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                          <div className="text-sm">
-                            {microsoftUploaded ? "✓ Plantilla MS cargada" : "Click para cargar CSV procesado"}
-                          </div>
-                        </div>
-                      </Label>
-                      <Input 
-                        id="microsoft-upload"
-                        type="file"
-                        accept=".csv"
-                        className="hidden"
-                        onChange={cargarPlantillaMicrosoft}
-                      />
+                      <div className="text-sm text-muted-foreground">
+                        Procesa este archivo en Microsoft Admin Center y luego carga el CSV procesado en el Paso 3.
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -648,26 +675,11 @@ export function GeneracionCredenciales() {
                     <div className="space-y-2">
                       <Button onClick={descargarPlantillaMoodle} variant="outline" className="w-full">
                         <Download className="w-4 h-4 mr-2" />
-                        Re-descargar CSV Moodle
+                        Descargar CSV Moodle
                       </Button>
-                      <Label htmlFor="moodle-upload" className="cursor-pointer">
-                        <div className={cn(
-                          "border-2 border-dashed rounded-lg p-4 text-center transition-colors",
-                          moodleUploaded ? "border-green-500 bg-green-50" : "border-gray-300 hover:border-gray-400"
-                        )}>
-                          <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                          <div className="text-sm">
-                            {moodleUploaded ? "✓ Plantilla Moodle cargada" : "Click para cargar CSV procesado"}
-                          </div>
-                        </div>
-                      </Label>
-                      <Input 
-                        id="moodle-upload"
-                        type="file"
-                        accept=".csv"
-                        className="hidden"
-                        onChange={cargarPlantillaMoodle}
-                      />
+                      <div className="text-sm text-muted-foreground">
+                        Importa este archivo en Moodle. No requiere carga posterior.
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -678,8 +690,130 @@ export function GeneracionCredenciales() {
                   Volver
                 </Button>
                 <Button 
-                  onClick={generarYEnviarCredenciales}
-                  disabled={!microsoftUploaded || !moodleUploaded || loading}
+                  onClick={() => setCurrentStep(3)}
+                >
+                  Continuar a Cargar CSV Procesado
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Paso 3: Cargar CSV Procesado y Enviar Credenciales */}
+      {currentStep === 3 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Paso 3: Cargar CSV Procesado de Microsoft y Enviar Credenciales</CardTitle>
+            <CardDescription>
+              Carga el CSV que Microsoft 365 devolvió después de procesar la plantilla. Este archivo contiene las credenciales generadas.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {/* Área de carga */}
+              <div>
+                <Label className="text-base font-semibold mb-2 block">CSV Procesado de Microsoft 365</Label>
+                <div
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                  className={cn(
+                    "border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer",
+                    dragActive 
+                      ? "border-primary bg-primary/5" 
+                      : archivoMicrosoft
+                        ? "border-green-500 bg-green-50"
+                        : "border-gray-300 hover:border-gray-400"
+                  )}
+                >
+                  {archivoMicrosoft ? (
+                    <div className="space-y-2">
+                      <FileText className="w-12 h-12 mx-auto text-green-600" />
+                      <div className="font-medium">{archivoMicrosoft.name}</div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setArchivoMicrosoft(null)
+                          setCredencialesMicrosoft([])
+                          setMicrosoftUploaded(false)
+                        }}
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Remover archivo
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <Upload className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                      <div className="text-sm text-muted-foreground mb-2">
+                        Arrastra el CSV aquí o haz clic para seleccionar
+                      </div>
+                      <Input
+                        type="file"
+                        accept=".csv"
+                        className="hidden"
+                        id="csv-upload"
+                        onChange={handleFileChange}
+                      />
+                      <Label htmlFor="csv-upload">
+                        <Button variant="outline" asChild>
+                          <span>Seleccionar archivo</span>
+                        </Button>
+                      </Label>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Tabla resumen de credenciales */}
+              {credencialesMicrosoft.length > 0 && (
+                <div>
+                  <Label className="text-base font-semibold mb-2 block">
+                    Resumen de Credenciales ({credencialesMicrosoft.length} encontradas)
+                  </Label>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nombre</TableHead>
+                          <TableHead>Correo</TableHead>
+                          <TableHead>Carnet</TableHead>
+                          <TableHead>Correo Corporativo</TableHead>
+                          <TableHead>Contraseña Temporal</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {credencialesMicrosoft.map((cred, index) => (
+                          <TableRow key={index}>
+                            <TableCell className="font-medium">{cred.nombre_completo}</TableCell>
+                            <TableCell>{cred.correo_electronico}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{cred.carnet}</Badge>
+                            </TableCell>
+                            <TableCell>{cred.correo_corporativo}</TableCell>
+                            <TableCell>
+                              <code className="text-xs bg-muted px-2 py-1 rounded">{cred.password_temporal}</code>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {/* Botones de acción */}
+              <div className="flex justify-between">
+                <Button variant="outline" onClick={() => setCurrentStep(2)}>
+                  Volver
+                </Button>
+                <Button 
+                  onClick={enviarCredenciales}
+                  disabled={credencialesMicrosoft.length === 0 || loading}
                 >
                   <Send className="w-4 h-4 mr-2" />
                   Generar y Enviar Credenciales

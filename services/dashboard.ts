@@ -22,6 +22,9 @@ export interface UserDashboardData {
     prospectos_nuevos?: number
     total_prospectos?: number
     tareas_atrasadas?: number
+    alertas_alumno_nuevo?: number
+    alertas_urgentes?: number
+    alertas_expiradas?: number
     
     // Estadísticas de finanzas (Rol 5)
     pagos_procesados_mes?: number
@@ -61,6 +64,21 @@ export interface UserDashboardData {
     path: string
     icon: string
   }[]
+  alertas_detalle?: Array<{
+    id: number
+    prospecto_id: number
+    prospecto_nombre: string
+    prospecto_correo: string
+    prospecto_telefono: string
+    prospecto_carnet: string | null
+    asesor_id: number
+    asesor_nombre: string
+    estado: string
+    dias_restantes: number
+    dias_atraso: number
+    fecha_limite: string
+    fecha_creacion: string
+  }>
 }
 
 export const fetchDashboardData = async (): Promise<UserDashboardData> => {

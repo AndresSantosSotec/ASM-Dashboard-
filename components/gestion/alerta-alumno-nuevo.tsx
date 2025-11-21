@@ -51,8 +51,6 @@ export default function AlertaAlumnoNuevo({
   
   // Estados de validación
   const [datosFaltantes, setDatosFaltantes] = useState<string[]>([])
-  const [faltantesFicha, setFaltantesFicha] = useState<Array<{categoria: string, campo: string}>>([])
-  const [fichaCompleta, setFichaCompleta] = useState(false)
   const [prospectoData, setProspectoData] = useState<any>(null)
   const [tieneCarnet, setTieneCarnet] = useState(false)
   const [carnetGenerado, setCarnetGenerado] = useState<string>("")
@@ -216,15 +214,7 @@ export default function AlertaAlumnoNuevo({
         setDatosFaltantes([])
       }
       
-      // Datos faltantes de la ficha completa
-      if (data.faltantes_ficha) {
-        setFaltantesFicha(data.faltantes_ficha || [])
-      } else {
-        setFaltantesFicha([])
-      }
-      
-      // Estado de completitud de la ficha
-      setFichaCompleta(data.ficha_completa || false)
+      // Nota: Los datos de la ficha completa se validarán después, no aquí
       
       // Verificar carnet
       if (data.necesita_carnet) {
@@ -918,62 +908,21 @@ export default function AlertaAlumnoNuevo({
                 <Alert className="bg-red-50 border-red-200">
                   <XCircle className="h-4 w-4 text-red-600" />
                   <AlertDescription className="text-red-800">
-                    <strong>Datos faltantes detectados:</strong> {datosFaltantes.length} campo(s) requerido(s) deben ser completados antes de continuar.
+                    <strong>Datos básicos faltantes:</strong> {datosFaltantes.length} campo(s) requerido(s) deben ser completados antes de crear la alerta.
                   </AlertDescription>
                 </Alert>
               )}
 
-              {/* Tabla de datos faltantes de la ficha completa */}
-              {faltantesFicha.length > 0 && (
-                <div className="border rounded-lg p-4 mt-6">
-                  <h3 className="font-semibold mb-4 text-red-600">
-                    Datos Faltantes de la Ficha de Inscripción
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-4">
-                    La alerta permanecerá activa hasta que se completen todos los datos y documentos obligatorios.
-                  </p>
-                  
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b bg-gray-50">
-                          <th className="text-left p-2 font-semibold">Categoría</th>
-                          <th className="text-left p-2 font-semibold">Campo Faltante</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {faltantesFicha.map((item, index) => (
-                          <tr key={index} className="border-b hover:bg-gray-50">
-                            <td className="p-2">
-                              <Badge variant="outline" className="text-xs">
-                                {item.categoria}
-                              </Badge>
-                            </td>
-                            <td className="p-2 text-red-600">
-                              {item.campo}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  
-                  <Alert className="mt-4 bg-yellow-50 border-yellow-200">
-                    <AlertCircle className="h-4 w-4 text-yellow-600" />
-                    <AlertDescription className="text-yellow-800">
-                      <strong>Importante:</strong> Para completar estos datos, edita el prospecto desde el módulo de gestión. 
-                      La alerta se eliminará automáticamente cuando todos los datos estén completos.
-                    </AlertDescription>
-                  </Alert>
-                </div>
-              )}
-
-              {/* Mensaje cuando la ficha está completa */}
-              {fichaCompleta && faltantesFicha.length === 0 && (
+              {/* Mensaje cuando los datos básicos están completos */}
+              {datosFaltantes.length === 0 && tieneCarnet && (
                 <Alert className="bg-green-50 border-green-200 mt-6">
                   <CheckCircle className="h-4 w-4 text-green-600" />
                   <AlertDescription className="text-green-800">
-                    <strong>¡Ficha completa!</strong> Todos los datos y documentos obligatorios han sido completados.
+                    <strong>¡Datos básicos completos!</strong> Puedes proceder a crear la alerta de alumno nuevo.
+                    <br />
+                    <span className="text-sm mt-2 block">
+                      Nota: La ficha de inscripción completa se validará y completará después de crear la alerta.
+                    </span>
                   </AlertDescription>
                 </Alert>
               )}

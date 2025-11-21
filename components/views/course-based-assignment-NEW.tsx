@@ -393,6 +393,10 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
     }>;
   } | null>(null);
 
+  // 🆕 Estados para Asignación Masiva
+  const [showMassiveAssignmentModal, setShowMassiveAssignmentModal] = useState(false);
+  const [massiveSelectedCourseIds, setMassiveSelectedCourseIds] = useState<string[]>([]);
+
   // 1️⃣ Cargar cursos históricos de Moodle
   useEffect(() => {
     const loadMoodleCursos = async () => {
@@ -842,20 +846,28 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
           description: "No hay estudiantes para exportar",
           variant: "destructive",
         });
+        setIsDownloadingCSV(false);
         return;
       }
 
-      toast({
-        title: "📊 Generando CSV consolidado...",
-        description: `Procesando ${carnets.length} estudiante(s) en un solo archivo`,
+      // Mostrar notificación de progreso
+      const progressToast = toast({
+        title: "⚡ Generando CSV optimizado...",
+        description: `Procesando ${carnets.length} estudiante(s) en modo rápido`,
+        duration: 0, // No auto-dismiss
       });
 
       // ✅ Llamada optimizada: Todos los estudiantes en UNA sola petición
       await exportarYDescargarCursosMasivo(carnets);
 
+      // Dismiss toast de progreso
+      if (progressToast?.dismiss) {
+        progressToast.dismiss();
+      }
+
       toast({
-        title: "✅ Descarga exitosa",
-        description: `CSV consolidado generado con ${carnets.length} estudiante(s)`,
+        title: "✅ CSV descargado exitosamente",
+        description: `Archivo generado con ${carnets.length} estudiante(s) en tiempo récord ⚡`,
       });
 
     } catch (error: any) {
@@ -1218,6 +1230,61 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
                   </div>
                 </div>
 
+                {/* 🆕 Botón "Seleccionar todos los estudiantes" */}
+                {filteredStudents.length > 0 && (
+                  <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-lg p-3">
+                    <div className="flex items-center space-x-3">
+                      <Users className="h-5 w-5 text-blue-600" />
+                      <div>
+                        <p className="font-semibold text-sm text-blue-900">
+                          Seleccionar todos los estudiantes filtrados
+                        </p>
+                        <p className="text-xs text-blue-700">
+                          Se abrirán automáticamente {filteredStudents.filter(s => s.internalStudent).length} estudiantes con equivalente interno
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => {
+                        // Cargar cursos de todos los estudiantes con equivalente interno
+                        const studentsToLoad = filteredStudents.filter(s => s.internalStudent && !s.coursesLoaded);
+                        
+                        if (studentsToLoad.length === 0) {
+                          toast({
+                            title: "Info",
+                            description: "Todos los estudiantes ya tienen sus cursos cargados",
+                          });
+                          return;
+                        }
+
+                        toast({
+                          title: "🔄 Cargando...",
+                          description: `Cargando cursos de ${studentsToLoad.length} estudiantes...`,
+                        });
+
+                        // Cargar cursos de forma secuencial para evitar sobrecarga
+                        studentsToLoad.forEach((student, index) => {
+                          setTimeout(() => {
+                            loadStudentCompletedCourses(student.carnet);
+                          }, index * 200); // 200ms de delay entre cada carga
+                        });
+
+                        setTimeout(() => {
+                          toast({
+                            title: "✅ Completado",
+                            description: "Cursos cargados. Ahora puedes seleccionar los cursos a asignar.",
+                          });
+                        }, studentsToLoad.length * 200 + 500);
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      size="sm"
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Cargar todos
+                    </Button>
+                  </div>
+                )}
+
                 {/* Estadísticas de filtrado */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gray-50 p-3 rounded text-xs gap-2">
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -1323,6 +1390,14 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
                 {/* Botones de acción */}
                 <div className="flex space-x-3 pt-4 border-t">
                   <Button
+                    onClick={() => setShowMassiveAssignmentModal(true)}
+                    disabled={filteredStudents.filter(s => s.internalStudent).length === 0}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    Asignación Masiva
+                  </Button>
+                  <Button
                     onClick={handleConfirmClick}
                     disabled={validAssignments.length === 0}
                     className="flex-1 bg-blue-600 hover:bg-blue-700"
@@ -1336,6 +1411,153 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
           </CardContent>
         </Card>
       )}
+
+      {/* 🆕 Modal de Asignación Masiva */}
+      <Dialog open={showMassiveAssignmentModal} onOpenChange={setShowMassiveAssignmentModal}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center text-xl">
+              <Users className="h-6 w-6 mr-2 text-green-600" />
+              Asignación Masiva de Cursos
+            </DialogTitle>
+            <DialogDescription>
+              Selecciona cursos para asignar a {filteredStudents.filter(s => s.internalStudent).length} estudiante(s) filtrado(s)
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto py-4">
+            {/* Reutilizar la misma vista de cursos */}
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 rounded-lg p-4 shadow-sm">
+              <h5 className="font-semibold text-sm text-blue-800 mb-3 flex items-center justify-between">
+                <span className="flex items-center">
+                  <BookOpen className="h-4 w-4 mr-2" />
+                  Cursos Disponibles - Mes Actual
+                </span>
+                <Badge variant="outline" className="text-sm bg-blue-100">
+                  {massiveSelectedCourseIds.length}/{currentMonthCourses.length}
+                </Badge>
+              </h5>
+              <div className="text-sm text-blue-700 mb-3 bg-blue-100/70 p-2 rounded border border-blue-200">
+                📅 Solo cursos del programa del estudiante (excluye completados y asignados)
+              </div>
+              <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+                {currentMonthCourses.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Calendar className="h-12 w-12 text-blue-300 mx-auto mb-3" />
+                    <Alert className="py-3 bg-blue-50 border-blue-200">
+                      <AlertDescription className="text-sm text-blue-700">
+                        No hay cursos disponibles este mes
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                ) : (
+                  currentMonthCourses.map((course) => {
+                    const isSelected = massiveSelectedCourseIds.includes(String(course.id));
+                    return (
+                      <div
+                        key={course.id}
+                        className={`rounded border cursor-pointer transition-all p-3 hover:shadow-md ${
+                          isSelected
+                            ? "border-blue-400 bg-blue-100 shadow-md"
+                            : "border-blue-200 bg-white hover:bg-blue-50"
+                        }`}
+                        onClick={() => {
+                          setMassiveSelectedCourseIds(prev => 
+                            isSelected
+                              ? prev.filter(id => id !== String(course.id))
+                              : [...prev, String(course.id)]
+                          );
+                        }}
+                      >
+                        <div className="flex items-start space-x-3">
+                          <Checkbox checked={isSelected} className="mt-1" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium line-clamp-2 text-blue-900">{course.name}</p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <Badge variant="outline" className="text-xs h-5 px-2">{course.code}</Badge>
+                              <span className="text-xs text-gray-500">
+                                {new Date(course.startDate).toLocaleDateString('es-ES', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="border-t pt-4">
+            <div className="flex items-center justify-between w-full">
+              <div className="text-sm text-gray-600">
+                Se asignarán <strong>{massiveSelectedCourseIds.length} curso(s)</strong> a{" "}
+                <strong>{filteredStudents.filter(s => s.internalStudent).length} estudiante(s)</strong>
+              </div>
+              <div className="flex space-x-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowMassiveAssignmentModal(false);
+                    setMassiveSelectedCourseIds([]);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={() => {
+                    // Aplicar selección masiva a todos los estudiantes filtrados con equivalente interno
+                    setStudentsData(prev => 
+                      prev.map(student => {
+                        // Solo actualizar estudiantes que están filtrados y tienen equivalente interno
+                        const isFiltered = filteredStudents.find(s => s.carnet === student.carnet);
+                        if (!isFiltered || !student.internalStudent) {
+                          return student;
+                        }
+                        
+                        // Filtrar solo cursos compatibles con el programa del estudiante
+                        const compatibleCourseIds = massiveSelectedCourseIds.filter(courseId => {
+                          const course = currentMonthCourses.find(c => String(c.id) === courseId);
+                          if (!course) return false;
+                          return courseMatchesStudentProgram(course, student);
+                        });
+                        
+                        // Combinar con selecciones existentes (sin duplicados)
+                        const newSelectedIds = Array.from(
+                          new Set([...student.selectedCourseIds, ...compatibleCourseIds])
+                        );
+                        
+                        return {
+                          ...student,
+                          selectedCourseIds: newSelectedIds,
+                        };
+                      })
+                    );
+                    
+                    setShowMassiveAssignmentModal(false);
+                    setMassiveSelectedCourseIds([]);
+                    
+                    toast({
+                      title: "✅ Asignación masiva aplicada",
+                      description: `${massiveSelectedCourseIds.length} curso(s) agregados a ${filteredStudents.filter(s => s.internalStudent).length} estudiante(s)`,
+                    });
+                  }}
+                  disabled={massiveSelectedCourseIds.length === 0}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Confirmar Asignación
+                </Button>
+              </div>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal de confirmación */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>

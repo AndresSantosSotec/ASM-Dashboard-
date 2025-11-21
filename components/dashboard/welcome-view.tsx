@@ -13,7 +13,9 @@ import {
   GraduationCap,
   FileText,
   Bell,
-  CheckCircle2
+  CheckCircle2,
+  AlertCircle,
+  AlertTriangle
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import dashboardService from "@/services/dashboard"
@@ -39,6 +41,9 @@ interface WelcomeData {
     prospectos_nuevos?: number
     total_prospectos?: number
     tareas_atrasadas?: number
+    alertas_alumno_nuevo?: number
+    alertas_urgentes?: number
+    alertas_expiradas?: number
     
     // Estadísticas de finanzas (Rol 5)
     pagos_procesados_mes?: number
@@ -78,12 +83,113 @@ interface WelcomeData {
     path: string
     icon: string
   }[]
+  alertas_detalle?: Array<{
+    id: number
+    prospecto_id: number
+    prospecto_nombre: string
+    prospecto_correo: string
+    prospecto_telefono: string
+    prospecto_carnet: string | null
+    asesor_id: number
+    asesor_nombre: string
+    estado: string
+    dias_restantes: number
+    carnet_existe_moodle?: boolean
+    dias_atraso: number
+    fecha_limite: string
+    fecha_creacion: string
+  }>
+}
+
+// Componente de paginación
+function PaginationControls({ 
+  currentPage, 
+  totalPages, 
+  onPageChange 
+}: { 
+  currentPage: number
+  totalPages: number
+  onPageChange: (page: number) => void 
+}) {
+  const pages = []
+  const maxVisiblePages = 5
+  let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2))
+  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1)
+  
+  if (endPage - startPage < maxVisiblePages - 1) {
+    startPage = Math.max(1, endPage - maxVisiblePages + 1)
+  }
+  
+  for (let i = startPage; i <= endPage; i++) {
+    pages.push(i)
+  }
+  
+  return (
+    <div className="flex items-center justify-between mt-4">
+      <div className="text-sm text-muted-foreground">
+        Página {currentPage} de {totalPages}
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-muted"
+        >
+          Anterior
+        </button>
+        {startPage > 1 && (
+          <>
+            <button
+              onClick={() => onPageChange(1)}
+              className="px-3 py-1 text-sm border rounded hover:bg-muted"
+            >
+              1
+            </button>
+            {startPage > 2 && <span className="px-2">...</span>}
+          </>
+        )}
+        {pages.map(page => (
+          <button
+            key={page}
+            onClick={() => onPageChange(page)}
+            className={`px-3 py-1 text-sm border rounded ${
+              currentPage === page 
+                ? 'bg-blue-600 text-white' 
+                : 'hover:bg-muted'
+            }`}
+          >
+            {page}
+          </button>
+        ))}
+        {endPage < totalPages && (
+          <>
+            {endPage < totalPages - 1 && <span className="px-2">...</span>}
+            <button
+              onClick={() => onPageChange(totalPages)}
+              className="px-3 py-1 text-sm border rounded hover:bg-muted"
+            >
+              {totalPages}
+            </button>
+          </>
+        )}
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-muted"
+        >
+          Siguiente
+        </button>
+      </div>
+    </div>
+  )
 }
 
 export default function WelcomeView() {
   const [loading, setLoading] = useState(true)
   const [welcomeData, setWelcomeData] = useState<WelcomeData | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   useEffect(() => {
     // Actualizar reloj cada minuto
@@ -134,8 +240,14 @@ export default function WelcomeView() {
             description: activity.description,
             time: formatActivityTime(activity.timestamp)
           })) || getDefaultActivities(dashboardData.user.rol || "Usuario"),
-          quickAccess: dashboardData.quickAccess || []
+          quickAccess: dashboardData.quickAccess || [],
+          alertas_detalle: dashboardData.alertas_detalle || []
         })
+        
+        // Debug: verificar alertas
+        console.log('📊 Dashboard Data recibido:', dashboardData)
+        console.log('🔔 Alertas Detalle:', dashboardData.alertas_detalle)
+        console.log('📈 Stats:', dashboardData.stats)
         
         setLoading(false)
         return
@@ -796,6 +908,54 @@ export default function WelcomeView() {
             </CardContent>
           </Card>
         )}
+
+        {/* Alertas Alumno Nuevo - Para Admin y Asesores */}
+        {welcomeData.stats.alertas_alumno_nuevo !== undefined && welcomeData.stats.alertas_alumno_nuevo > 0 && (
+          <Card className="hover:shadow-lg transition-shadow border-blue-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                Alertas Alumno Nuevo
+                {welcomeData.stats.alertas_urgentes !== undefined && welcomeData.stats.alertas_urgentes > 0 && (
+                  <Badge variant="destructive" className="text-xs">
+                    {welcomeData.stats.alertas_urgentes} urgente{welcomeData.stats.alertas_urgentes > 1 ? 's' : ''}
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-blue-600">
+                  {welcomeData.stats.alertas_alumno_nuevo}
+                </div>
+                <AlertCircle className="h-8 w-8 text-blue-500 opacity-50" />
+              </div>
+              {welcomeData.stats.alertas_urgentes !== undefined && welcomeData.stats.alertas_urgentes > 0 && (
+                <p className="text-xs text-red-600 mt-2">
+                  {welcomeData.stats.alertas_urgentes} con menos de 3 días restantes
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Alertas Expiradas - Solo para Admin */}
+        {welcomeData.stats.alertas_expiradas !== undefined && welcomeData.stats.alertas_expiradas > 0 && (
+          <Card className="hover:shadow-lg transition-shadow border-orange-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Alertas Expiradas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-orange-600">
+                  {welcomeData.stats.alertas_expiradas}
+                </div>
+                <AlertTriangle className="h-8 w-8 text-orange-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Actividad Reciente */}
@@ -833,6 +993,217 @@ export default function WelcomeView() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Tabla de Alertas Alumno Nuevo - Mostrar para Admin y Asesores */}
+      {((welcomeData.user.rol === 'Administrador' || welcomeData.user.rol === 'Asesor') || 
+        (welcomeData.stats.alertas_alumno_nuevo !== undefined)) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-blue-500" />
+              Alertas Alumno Nuevo
+            </CardTitle>
+            <CardDescription>
+              {welcomeData.user.rol === 'Administrador' 
+                ? 'Lista completa de todas las alertas activas del sistema (incluye todas las creadas)'
+                : 'Lista completa de tus alertas activas (incluye todas las que has creado)'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {welcomeData.alertas_detalle && welcomeData.alertas_detalle.length > 0 ? (
+              <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2 font-semibold">Prospecto</th>
+                      <th className="text-left p-2 font-semibold">Carnet</th>
+                      <th className="text-left p-2 font-semibold">Asesor (Creador)</th>
+                      <th className="text-center p-2 font-semibold">Estado</th>
+                      <th className="text-center p-2 font-semibold">Días</th>
+                      <th className="text-center p-2 font-semibold">Fecha Límite</th>
+                      <th className="text-center p-2 font-semibold">Acciones</th>
+                    </tr>
+                  </thead>
+                <tbody>
+                  {(welcomeData.alertas_detalle || [])
+                    .sort((a, b) => {
+                      // Ordenar: primero las atrasadas (dias_atraso > 0), luego por días restantes
+                      if (a.dias_atraso > 0 && b.dias_atraso === 0) return -1
+                      if (a.dias_atraso === 0 && b.dias_atraso > 0) return 1
+                      if (a.dias_atraso > 0 && b.dias_atraso > 0) return b.dias_atraso - a.dias_atraso
+                      return a.dias_restantes - b.dias_restantes
+                    })
+                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                    .map((alerta) => {
+                      const isAtrasada = alerta.dias_atraso > 0
+                      const diasRestantes = alerta.dias_restantes
+                      
+                      // Sistema de semáforo según días restantes
+                      // Verde: 10-8 días | Amarillo: 7-4 días | Naranja: 3-2 días | Rojo: 1 día o menos/atrasada
+                      let semaforoColor = ''
+                      let semaforoLabel = ''
+                      
+                      if (isAtrasada) {
+                        semaforoColor = 'red'
+                        semaforoLabel = 'Atrasada'
+                      } else if (diasRestantes <= 1) {
+                        semaforoColor = 'red'
+                        semaforoLabel = 'Crítico (1 día)'
+                      } else if (diasRestantes >= 2 && diasRestantes <= 3) {
+                        semaforoColor = 'orange'
+                        semaforoLabel = `Urgente (${diasRestantes} días)`
+                      } else if (diasRestantes >= 4 && diasRestantes <= 7) {
+                        semaforoColor = 'yellow'
+                        semaforoLabel = `Atención (${diasRestantes} días)`
+                      } else if (diasRestantes >= 8 && diasRestantes <= 10) {
+                        semaforoColor = 'green'
+                        semaforoLabel = `Normal (${diasRestantes} días)`
+                      } else {
+                        // Más de 10 días
+                        semaforoColor = 'green'
+                        semaforoLabel = `Normal (${diasRestantes} días)`
+                      }
+                      
+                      const isUrgente = semaforoColor === 'orange' || semaforoColor === 'red'
+                      const isNormal = semaforoColor === 'green'
+                      
+                      return (
+                        <tr
+                          key={alerta.id}
+                          className={`border-b hover:bg-muted/50 ${
+                            semaforoColor === 'red' ? 'bg-red-50' :
+                            semaforoColor === 'orange' ? 'bg-orange-50' :
+                            semaforoColor === 'yellow' ? 'bg-yellow-50' :
+                            'bg-green-50'
+                          }`}
+                        >
+                          <td className="p-2">
+                            <div>
+                              <div className="font-medium">{alerta.prospecto_nombre}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {alerta.prospecto_correo}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-2">
+                            {alerta.prospecto_carnet ? (
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="font-mono">
+                                  {alerta.prospecto_carnet}
+                                </Badge>
+                                {alerta.carnet_existe_moodle !== undefined && (
+                                  <div className="flex items-center gap-1" title={alerta.carnet_existe_moodle ? 'Carnet existe en Moodle' : 'Carnet no existe en Moodle'}>
+                                    {alerta.carnet_existe_moodle ? (
+                                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                    ) : (
+                                      <AlertCircle className="h-4 w-4 text-red-600" />
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">Sin carnet</span>
+                            )}
+                          </td>
+                          <td className="p-2 text-sm">{alerta.asesor_nombre}</td>
+                          <td className="p-2 text-center">
+                            <Badge
+                              variant={
+                                isAtrasada
+                                  ? 'destructive'
+                                  : isUrgente
+                                  ? 'default'
+                                  : 'secondary'
+                              }
+                              className="text-xs"
+                            >
+                              {alerta.estado}
+                            </Badge>
+                          </td>
+                          <td className="p-2 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              {/* Semáforo visual */}
+                              <div className={`w-4 h-4 rounded-full ${
+                                semaforoColor === 'red' ? 'bg-red-500' :
+                                semaforoColor === 'orange' ? 'bg-orange-500' :
+                                semaforoColor === 'yellow' ? 'bg-yellow-500' :
+                                'bg-green-500'
+                              }`} title={semaforoLabel} />
+                              
+                              {/* Días restantes/atraso */}
+                              {isAtrasada ? (
+                                <div className="flex items-center gap-1">
+                                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                                  <span className="font-bold text-red-600 text-sm">
+                                    -{alerta.dias_atraso} día{alerta.dias_atraso > 1 ? 's' : ''}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className={`font-bold text-sm ${
+                                  semaforoColor === 'red' ? 'text-red-600' :
+                                  semaforoColor === 'orange' ? 'text-orange-600' :
+                                  semaforoColor === 'yellow' ? 'text-yellow-600' :
+                                  'text-green-600'
+                                }`}>
+                                  {diasRestantes} día{diasRestantes !== 1 ? 's' : ''}
+                                </span>
+                              )}
+                              
+                              {/* Badge del estado */}
+                              <Badge 
+                                variant={
+                                  semaforoColor === 'red' ? 'destructive' :
+                                  semaforoColor === 'orange' ? 'default' :
+                                  'secondary'
+                                }
+                                className={`text-xs ${
+                                  semaforoColor === 'orange' ? 'bg-orange-500' :
+                                  semaforoColor === 'yellow' ? 'bg-yellow-500' :
+                                  semaforoColor === 'green' ? 'bg-green-500' :
+                                  ''
+                                }`}
+                              >
+                                {semaforoLabel}
+                              </Badge>
+                            </div>
+                          </td>
+                          <td className="p-2 text-center text-xs text-muted-foreground">
+                            {new Date(alerta.fecha_limite).toLocaleDateString('es-GT')}
+                          </td>
+                          <td className="p-2 text-center">
+                            <button
+                              onClick={() => {
+                                window.location.href = `/gestion?prospectoId=${alerta.prospecto_id}`
+                              }}
+                              className="text-xs text-blue-600 hover:text-blue-800 underline"
+                            >
+                              Ver Prospecto
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                </tbody>
+              </table>
+            </div>
+            {welcomeData.alertas_detalle && welcomeData.alertas_detalle.length > itemsPerPage && (
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={Math.ceil(welcomeData.alertas_detalle.length / itemsPerPage)}
+                onPageChange={setCurrentPage}
+              />
+            )}
+            </>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <AlertCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                <p className="text-sm">No hay alertas de alumno nuevo activas</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Accesos Rápidos */}
       <Card>
