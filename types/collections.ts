@@ -1,16 +1,20 @@
 export interface LatePaymentStudent {
-  id: number
+  id: number // ID de la cuota
+  cuotaId: number
+  numeroCuota?: number | null
+  epId: number
   studentId: number
-  prospectoId?: number // ← opcional
   name: string
   program: string
-  totalDebt: number
-  lateMonths: number
+  montoCuota: number // Monto de esta cuota específica
+  lateFee: number // Mora de esta cuota (Q50 o 0)
+  totalConMora: number // Monto + mora de esta cuota
+  fechaVencimiento: string
   daysLate: number
+  lateMonths: number
   bucket: string
-  status: string
-  lastContact: string | null
-  promiseDate: string | null
+  carnet?: string
+  activoEnMoodle?: boolean
 }
 
 
@@ -23,7 +27,11 @@ export interface LatePaymentsResponse {
     last_page: number
   }
   summary: {
-    total_students: number
+    total_cuotas: number
+    total_deuda_original: number
+    total_mora: number
+    total_con_mora: number
+    estudiantes_unicos: number
   }
   request_id: string
 }

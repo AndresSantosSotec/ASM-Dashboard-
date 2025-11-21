@@ -285,12 +285,7 @@ export function DashboardFinanciero() {
           </CardContent>
           <CardFooter>
             <Button variant="outline" className="w-full" onClick={() => {
-              if (!dateRange?.from || !dateRange?.to) return
-              const qs = new URLSearchParams({
-                fecha_inicio: dateRange.from.toISOString(),
-                fecha_fin: dateRange.to.toISOString(),
-              }).toString()
-              // router.push(`/pagos?${qs}`)
+              router.push('/finanzas/reportes')
             }}>
               Ver todos los pagos
             </Button>
@@ -361,11 +356,7 @@ export function DashboardFinanciero() {
           </CardContent>
           <CardFooter>
             <Button variant="outline" className="w-full" onClick={() => {
-              if (!dateRange?.from || !dateRange?.to) return
-              const qs = new URLSearchParams({
-                cutoff: dateRange.to.toISOString(),
-              }).toString()
-              // router.push(`/alertas?${qs}`)
+              router.push('/finanzas/gestion-pagos')
             }}>
               Ver todas las alertas
             </Button>

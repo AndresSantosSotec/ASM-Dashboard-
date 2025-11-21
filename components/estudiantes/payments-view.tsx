@@ -514,7 +514,7 @@ export function PaymentsView() {
                   <CardHeader className="pb-2">
                     <div className="flex justify-between items-start">
                       <CardTitle className="text-lg font-bold">
-                        Cuota {payment.numero_cuota} - {payment.estudiante_programa.programa.nombre_del_programa}
+                        Cuota {payment.numero_cuota} - {payment.estudiante_programa?.programa?.nombre_del_programa || 'Programa no disponible'}
                       </CardTitle>
                       <Badge variant={getBadgeVariant(payment.estado)}>
                         {getStatusText(payment.estado)}
@@ -597,7 +597,7 @@ export function PaymentsView() {
                   <CardHeader className="pb-2">
                     <div className="flex justify-between items-start">
                       <CardTitle className="text-lg font-bold">
-                        Cuota {payment.numero_cuota} - {payment.estudiante_programa.programa.nombre_del_programa}
+                        Cuota {payment.numero_cuota} - {payment.estudiante_programa?.programa?.nombre_del_programa || 'Programa no disponible'}
                       </CardTitle>
                       <Badge variant={isOverdue(payment) ? "destructive" : getBadgeVariant(payment.estado)}>
                         {isOverdue(payment) ? "Vencida" : getStatusText(payment.estado)}
@@ -667,7 +667,7 @@ export function PaymentsView() {
                     {paymentHistory.map((payment) => (
                       <TableRow key={payment.id}>
                         <TableCell className="font-medium">
-                          Cuota {payment.cuota?.numero_cuota} - {payment.estudiante_programa.programa.nombre_del_programa}
+                          Cuota {payment.cuota?.numero_cuota} - {payment.estudiante_programa?.programa?.nombre_del_programa || 'Programa no disponible'}
                         </TableCell>
                         <TableCell>Q{payment.monto_pagado.toLocaleString()}</TableCell>
                         <TableCell>{formatDate(payment.fecha_pago)}</TableCell>

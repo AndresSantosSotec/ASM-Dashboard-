@@ -38,6 +38,7 @@ import {
   importConciliacion,
   downloadConciliacionTemplate,
   exportConciliacionXlsx,
+  exportConciliados,
 } from "@/services/finance"
 
 /** ====== Tipos ====== */
@@ -137,6 +138,7 @@ export default function ConciliacionClient() {
 
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false)
 
   // Resumen del último import
   const [importSummary, setImportSummary] = useState<null | {
@@ -157,11 +159,13 @@ export default function ConciliacionClient() {
   const [toDate, setToDate] = useState<string>("") // YYYY-MM-DD
 
   const [expectedStructure] = useState<StructureItem[]>([
-    { id: 1, name: "Banco", column: 1 },
-    { id: 2, name: "Referencia / Boleta", column: 2 },
-    { id: 3, name: "Monto", column: 3 },
-    { id: 4, name: "Fecha de Pago", column: 4 },
-    { id: 5, name: "Número de Autorización (Opcional)", column: 5 },
+    { id: 1, name: "Fecha", column: 1 },
+    { id: 2, name: "Tipo de Transacción", column: 2 },
+    { id: 3, name: "Descripción", column: 3 },
+    { id: 4, name: "No. Doc", column: 4 },
+    { id: 5, name: "Debe", column: 5 },
+    { id: 6, name: "Haber", column: 6 },
+    { id: 7, name: "Banco", column: 7 },
   ])
 
   const [previewPendientes, setPreviewPendientes] = useState<PreviewResponse | null>(null)
@@ -172,6 +176,27 @@ export default function ConciliacionClient() {
   const [pageSizePend, setPageSizePend] = useState(25)
   const [pageConc, setPageConc] = useState(1)
   const [pageSizeConc, setPageSizeConc] = useState(25)
+  
+  // 🚀 Estados de paginación del servidor
+  const [paginationPend, setPaginationPend] = useState<{
+    current_page: number
+    per_page: number
+    total: number
+    total_pages: number
+    from: number
+    to: number
+  } | null>(null)
+  const [paginationConc, setPaginationConc] = useState<{
+    current_page: number
+    per_page: number
+    total: number
+    total_pages: number
+    from: number
+    to: number
+  } | null>(null)
+  
+  // 🚀 Lazy loading: solo cargar tabs cuando se activan
+  const [tabsLoaded, setTabsLoaded] = useState<Set<string>>(new Set())
 
   // Reset de página al cambiar filtros o búsqueda
   useEffect(() => {
@@ -179,7 +204,7 @@ export default function ConciliacionClient() {
     setPageConc(1)
   }, [debouncedSearch, bankFilter, fromDate, toDate])
 
-  // ====== Cargar PENDIENTES desde Kardex (backend) ======
+  // ====== Cargar PENDIENTES desde Kardex (backend) - 🚀 CON PAGINACIÓN DEL SERVIDOR ======
   const loadPendientesFromKardex = async () => {
     try {
       setLoading(true)
@@ -188,8 +213,13 @@ export default function ConciliacionClient() {
         from: fromDate || undefined,
         to: toDate || undefined,
         banco: bankFilter === "todos" ? undefined : bankFilter,
+        page: pagePend,
+        per_page: pageSizePend,
       })
       setPreviewPendientes(data)
+      if (data.pagination) {
+        setPaginationPend(data.pagination)
+      }
     } catch (err: any) {
       setErrorMsg(err?.message || "No se pudo cargar la información de pendientes.")
     } finally {
@@ -197,7 +227,7 @@ export default function ConciliacionClient() {
     }
   }
 
-  // Cargar CONCILIADOS desde Kardex
+  // Cargar CONCILIADOS desde Kardex - 🚀 CON PAGINACIÓN DEL SERVIDOR
   const loadConciliadosFromKardex = async () => {
     try {
       setLoading(true)
@@ -206,8 +236,13 @@ export default function ConciliacionClient() {
         from: fromDate || undefined,
         to: toDate || undefined,
         banco: bankFilter === "todos" ? undefined : bankFilter,
+        page: pageConc,
+        per_page: pageSizeConc,
       })
       setPreviewConciliados(data)
+      if (data.pagination) {
+        setPaginationConc(data.pagination)
+      }
     } catch (err: any) {
       setErrorMsg(err?.message || "No se pudo cargar la información de conciliados.")
     } finally {
@@ -215,26 +250,46 @@ export default function ConciliacionClient() {
     }
   }
 
-  // Carga automática por tab
+  // 🚀 LAZY LOADING: Carga automática por tab (solo cuando se activa)
   useEffect(() => {
-    if (activeTab === "pendientes") {
+    // Solo cargar si el tab está activo y no se ha cargado antes
+    if (activeTab === "pendientes" && !tabsLoaded.has("pendientes")) {
+      setTabsLoaded((prev) => new Set(prev).add("pendientes"))
       loadPendientesFromKardex()
-    } else if (activeTab === "conciliados") {
+    } else if (activeTab === "conciliados" && !tabsLoaded.has("conciliados")) {
+      setTabsLoaded((prev) => new Set(prev).add("conciliados"))
       loadConciliadosFromKardex()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
 
-  // Recarga automática al cambiar filtros
+  // 🚀 Cargar datos cuando cambian los parámetros de paginación (solo si el tab está cargado)
   useEffect(() => {
-    if (activeTab === "pendientes") {
+    if (activeTab === "pendientes" && tabsLoaded.has("pendientes")) {
+      loadPendientesFromKardex()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagePend, pageSizePend])
+
+  useEffect(() => {
+    if (activeTab === "conciliados" && tabsLoaded.has("conciliados")) {
+      loadConciliadosFromKardex()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageConc, pageSizeConc])
+
+  // Recarga automática al cambiar filtros (solo si el tab está cargado)
+  useEffect(() => {
+    if (activeTab === "pendientes" && tabsLoaded.has("pendientes")) {
+      setPagePend(1) // Reset a página 1
       loadPendientesFromKardex()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromDate, toDate, bankFilter])
 
   useEffect(() => {
-    if (activeTab === "conciliados") {
+    if (activeTab === "conciliados" && tabsLoaded.has("conciliados")) {
+      setPageConc(1) // Reset a página 1
       loadConciliadosFromKardex()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -250,16 +305,31 @@ export default function ConciliacionClient() {
   }
 
   const handleDownloadTemplate = async () => {
+    if (downloadingTemplate) return // Evitar múltiples clicks
+    
     try {
+      setDownloadingTemplate(true)
+      setErrorMsg(null)
+      
       const blob = await downloadConciliacionTemplate()
-      const url = URL.createObjectURL(new Blob([blob]))
+      
+      if (!blob || blob.size === 0) {
+        throw new Error("El archivo descargado está vacío")
+      }
+      
+      const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
       a.download = "plantilla_conciliacion.xlsx"
+      document.body.appendChild(a)
       a.click()
+      document.body.removeChild(a)
       URL.revokeObjectURL(url)
-    } catch {
-      alert("No se pudo descargar la plantilla.")
+    } catch (error: any) {
+      console.error("Error descargando plantilla:", error)
+      setErrorMsg(error?.message || "No se pudo descargar la plantilla. Verifica tu conexión e intenta nuevamente.")
+    } finally {
+      setDownloadingTemplate(false)
     }
   }
 
@@ -334,27 +404,64 @@ export default function ConciliacionClient() {
     })
   }
 
-  // Pendientes visibles (solo estados que requieren acción)
+  // 🚀 OPTIMIZACIÓN: Los resultados ya vienen paginados del servidor
+  // Solo aplicar búsqueda local si es necesario
   const filteredPendientes = useMemo(() => {
     const list = previewPendientes?.results ?? []
-    const needAction = list.filter((r) =>
-      ["monto_difiere", "sin_coincidencia", "error"].includes(r.status)
-    )
-    return filterByCommon(needAction)
+    // Los pendientes ya vienen filtrados del servidor (solo sin_coincidencia)
+    // Solo aplicar búsqueda local si hay texto
+    if (!debouncedSearch.trim()) return list
+    
+    const q = debouncedSearch.toLowerCase()
+    return list.filter((r) => {
+      const alumno = (r.alumno_detectado || r.input.alumno || "").toLowerCase()
+      const carnet = (r.input.carnet || "").toLowerCase()
+      const recibo = (r.input.recibo || "").toLowerCase()
+      return alumno.includes(q) || carnet.includes(q) || recibo.includes(q)
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewPendientes, bankFilter, debouncedSearch])
+  }, [previewPendientes, debouncedSearch])
 
-  // Conciliados visibles
   const filteredConciliados = useMemo(() => {
     const list = previewConciliados?.results ?? []
-    const ok = list.filter((r) => r.status === "conciliado")
-    return filterByCommon(ok)
+    // Los conciliados ya vienen filtrados del servidor (solo conciliado)
+    // Solo aplicar búsqueda local si hay texto
+    if (!debouncedSearch.trim()) return list
+    
+    const q = debouncedSearch.toLowerCase()
+    return list.filter((r) => {
+      const alumno = (r.alumno_detectado || r.input.alumno || "").toLowerCase()
+      const carnet = (r.input.carnet || "").toLowerCase()
+      const recibo = (r.input.recibo || "").toLowerCase()
+      return alumno.includes(q) || carnet.includes(q) || recibo.includes(q)
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewConciliados, bankFilter, debouncedSearch])
+  }, [previewConciliados, debouncedSearch])
 
-  /** ===== Paginación aplicada ===== */
-  const pendPage = paginate(filteredPendientes, pagePend, pageSizePend)
-  const concPage = paginate(filteredConciliados, pageConc, pageSizeConc)
+  /** ===== Paginación aplicada - 🚀 USANDO PAGINACIÓN DEL SERVIDOR ===== */
+  const pendPage = useMemo(() => {
+    const filtered = filteredPendientes
+    return {
+      page: paginationPend?.current_page ?? pagePend,
+      pages: paginationPend?.total_pages ?? 1,
+      total: paginationPend?.total ?? filtered.length,
+      slice: filtered, // Ya viene paginado del servidor, solo aplicar búsqueda local
+      start: paginationPend?.from ?? 1,
+      end: paginationPend?.to ?? filtered.length,
+    }
+  }, [filteredPendientes, paginationPend, pagePend])
+  
+  const concPage = useMemo(() => {
+    const filtered = filteredConciliados
+    return {
+      page: paginationConc?.current_page ?? pageConc,
+      pages: paginationConc?.total_pages ?? 1,
+      total: paginationConc?.total ?? filtered.length,
+      slice: filtered, // Ya viene paginado del servidor, solo aplicar búsqueda local
+      start: paginationConc?.from ?? 1,
+      end: paginationConc?.to ?? filtered.length,
+    }
+  }, [filteredConciliados, paginationConc, pageConc])
 
   // Esqueletos de carga
   const SkeletonRows = ({ cols = 8, rows = 8 }: { cols?: number; rows?: number }) => (
@@ -642,7 +749,95 @@ export default function ConciliacionClient() {
                 <CardTitle>Registros conciliados</CardTitle>
                 <CardDescription>Pagos matcheados por referencia, monto y fecha.</CardDescription>
               </div>
-              <div className="flex flex-wrap items-center gap-2">{ToolbarFilters}</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        setLoading(true)
+                        const blob = await exportConciliados('excel', {
+                          from: fromDate || undefined,
+                          to: toDate || undefined,
+                          banco: bankFilter === "todos" ? undefined : bankFilter,
+                        })
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = `conciliados_${new Date().toISOString().split('T')[0]}.xlsx`
+                        a.click()
+                        URL.revokeObjectURL(url)
+                      } catch (err: any) {
+                        setErrorMsg(err?.message || "Error al exportar Excel")
+                      } finally {
+                        setLoading(false)
+                      }
+                    }}
+                    disabled={loading || !previewConciliados?.results?.length}
+                  >
+                    <FileSpreadsheet className="w-4 h-4 mr-1" />
+                    Excel
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        setLoading(true)
+                        const blob = await exportConciliados('pdf', {
+                          from: fromDate || undefined,
+                          to: toDate || undefined,
+                          banco: bankFilter === "todos" ? undefined : bankFilter,
+                        })
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = `conciliados_${new Date().toISOString().split('T')[0]}.pdf`
+                        a.click()
+                        URL.revokeObjectURL(url)
+                      } catch (err: any) {
+                        setErrorMsg(err?.message || "Error al exportar PDF")
+                      } finally {
+                        setLoading(false)
+                      }
+                    }}
+                    disabled={loading || !previewConciliados?.results?.length}
+                  >
+                    <Download className="w-4 h-4 mr-1" />
+                    PDF
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        setLoading(true)
+                        const blob = await exportConciliados('csv', {
+                          from: fromDate || undefined,
+                          to: toDate || undefined,
+                          banco: bankFilter === "todos" ? undefined : bankFilter,
+                        })
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = `conciliados_${new Date().toISOString().split('T')[0]}.csv`
+                        a.click()
+                        URL.revokeObjectURL(url)
+                      } catch (err: any) {
+                        setErrorMsg(err?.message || "Error al exportar CSV")
+                      } finally {
+                        setLoading(false)
+                      }
+                    }}
+                    disabled={loading || !previewConciliados?.results?.length}
+                  >
+                    <Download className="w-4 h-4 mr-1" />
+                    CSV
+                  </Button>
+                </div>
+                {ToolbarFilters}
+              </div>
             </CardHeader>
             <CardContent className="pb-0">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
@@ -787,9 +982,13 @@ export default function ConciliacionClient() {
                     )}
                   </Button>
 
-                  <Button variant="outline" onClick={handleDownloadTemplate}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Descargar plantilla
+                  <Button 
+                    variant="outline" 
+                    onClick={handleDownloadTemplate}
+                    disabled={downloadingTemplate}
+                  >
+                    <Download className={classNames("mr-2 h-4 w-4", downloadingTemplate && "animate-pulse")} />
+                    {downloadingTemplate ? "Descargando..." : "Descargar plantilla"}
                   </Button>
 
                   <Button onClick={handleImport} disabled={!selectedFile || loading}>
@@ -841,11 +1040,13 @@ export default function ConciliacionClient() {
                         <p className="font-semibold">📋 Instrucciones importantes:</p>
                         <ul className="list-disc list-inside space-y-1 ml-2">
                           <li>El archivo debe contener <strong>solo las columnas del estado de cuenta bancario</strong></li>
-                          <li>El sistema busca automáticamente las columnas: <strong>Banco</strong>, <strong>Referencia/Boleta</strong>, <strong>Monto</strong> y <strong>Fecha</strong></li>
-                          <li>Los nombres de columnas pueden variar (ej: "Banco", "Bank", "Entidad" son aceptados)</li>
+                          <li>El formato debe ser: <strong>Fecha, Tipo de Transacción, Descripción, No. Doc, Debe, Haber, Banco</strong></li>
+                          <li>El sistema lee: <strong>Banco</strong> (columna Banco), <strong>Referencia/Boleta</strong> (de No. Doc), <strong>Monto</strong> (de Debe o Haber) y <strong>Fecha</strong></li>
+                          <li>El monto se toma de <strong>Debe</strong> o <strong>Haber</strong> (el que tenga valor)</li>
+                          <li>La columna <strong>Banco</strong> es obligatoria y debe contener el nombre del banco</li>
+                          <li>La columna <strong>Tipo de Transacción</strong> es opcional</li>
                           <li>La conciliación compara: <strong>Banco + Referencia + Monto + Fecha</strong> contra el Kardex</li>
                           <li>Se normalizan automáticamente los nombres de bancos y referencias para evitar errores</li>
-                          <li>El número de autorización es <strong>opcional</strong></li>
                         </ul>
                       </div>
                     </div>

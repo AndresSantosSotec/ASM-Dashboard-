@@ -17,6 +17,7 @@ import {
   Settings,
   AlertCircle,
   Loader2,
+  MessageCircle,
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,6 +29,7 @@ import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import profileService, { PerfilData, HistorialAcademico } from "@/services/profile"
 import { format } from "date-fns"
@@ -71,12 +73,48 @@ export default function ProfileView() {
       setLoading(true)
       
       // Cargar perfil y historial en paralelo
-      const [perfil, historial] = await Promise.all([
+      const [perfil, historial] = await Promise.allSettled([
         profileService.getMiPerfil(),
-        profileService.getHistorialAcademico()
+        profileService.getHistorialAcademico().catch(err => {
+          // Si falla, devolver estructura vacía en lugar de lanzar error
+          console.warn("Error cargando historial académico:", err)
+          return {
+            resumen: {
+              promedio_general: 0,
+              cursos_aprobados: 0,
+              cursos_actuales: 0,
+              creditos_aprobados: 0,
+              creditos_totales: 0,
+            },
+            cursos: [],
+            tiene_datos_moodle: false,
+            mensaje: 'No se pudo cargar el historial académico. Por favor, contacte al administrador.',
+          }
+        })
       ])
       
-      setPerfilData(perfil)
+      if (perfil.status === 'fulfilled') {
+        const perfilValue = perfil.value
+        setPerfilData(perfilValue)
+        
+        // Inicializar formData con datos del perfil editable (si existe)
+        const perfilEditable = perfilValue.perfil_editable || {}
+        setFormData({
+          telefono: perfilEditable.telefono || "",
+          telefono_emergencia: perfilEditable.telefono_emergencia || "",
+          nombre_contacto_emergencia: perfilEditable.nombre_contacto_emergencia || "",
+          parentesco_emergencia: perfilEditable.parentesco_emergencia || "",
+          direccion: perfilEditable.direccion || "",
+          ciudad: perfilEditable.ciudad || "",
+          biografia: perfilEditable.biografia || "",
+        })
+      } else {
+        throw perfil.reason
+      }
+      
+      if (historial.status === 'fulfilled') {
+        setHistorialAcademico(historial.value)
+      }
       setHistorialAcademico(historial)
       
       // Inicializar formData con datos del perfil editable
@@ -103,7 +141,7 @@ export default function ProfileView() {
 
   // Función para calcular el GPA desde historial real
   const calculateGPA = () => {
-    if (!historialAcademico || !historialAcademico.cursos) return 0
+    if (!historialAcademico?.cursos || !Array.isArray(historialAcademico.cursos)) return 0
     
     const completedCourses = historialAcademico.cursos.filter((course) => course.calificacion !== null)
     if (completedCourses.length === 0) return 0
@@ -283,7 +321,7 @@ export default function ProfileView() {
         setPerfilData({
           ...perfilData,
           perfil_editable: {
-            ...perfilData.perfil_editable,
+            ...(perfilData.perfil_editable || {}),
             foto_perfil: urlConCache
           }
         })
@@ -324,13 +362,13 @@ export default function ProfileView() {
           <div className="relative flex flex-col sm:flex-row items-center">
             <div className="relative mb-4 sm:mb-0">
               <Avatar className="w-24 h-24 border-4 border-white bg-white">
-                <AvatarImage src={perfilData.perfil_editable.foto_perfil || "/placeholder.svg"} alt={perfilData.prospecto.nombre_completo} />
+                <AvatarImage src={perfilData?.perfil_editable?.foto_perfil || "/placeholder.svg"} alt={perfilData?.prospecto?.nombre_completo || "Usuario"} />
                 <AvatarFallback>
-                  {perfilData.prospecto.nombre_completo
-                    .split(" ")
+                  {perfilData?.prospecto?.nombre_completo
+                    ?.split(" ")
                     .slice(0, 2)
                     .map((n) => n[0])
-                    .join("")}
+                    .join("") || "U"}
                 </AvatarFallback>
               </Avatar>
               <input
@@ -355,18 +393,24 @@ export default function ProfileView() {
               </Button>
             </div>
             <div className="text-center sm:text-left sm:ml-6">
-              <CardTitle className="text-2xl">{perfilData.prospecto.nombre_completo}</CardTitle>
+              <CardTitle className="text-2xl">{perfilData?.prospecto?.nombre_completo || "Usuario"}</CardTitle>
               <CardDescription>
                 <div className="flex flex-wrap gap-2 mt-2">
-                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                    {perfilData.programa.nombre}
-                  </Badge>
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                    {perfilData.programa.estado || "Activo"}
-                  </Badge>
-                  <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                    Carnet: {perfilData.prospecto.carnet}
-                  </Badge>
+                  {perfilData?.programa && (
+                    <>
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                        {perfilData.programa.nombre}
+                      </Badge>
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        {perfilData.programa.estado || "Activo"}
+                      </Badge>
+                    </>
+                  )}
+                  {perfilData?.prospecto?.carnet && (
+                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                      Carnet: {perfilData.prospecto.carnet}
+                    </Badge>
+                  )}
                 </div>
               </CardDescription>
             </div>
@@ -527,13 +571,14 @@ export default function ProfileView() {
                       <span className="text-sm">Perfil completado</span>
                       <span className="text-sm font-medium">
                         {(() => {
+                          const perfilEditable = perfilData?.perfil_editable || {}
                           const fields = [
-                            perfilData.perfil_editable.telefono,
-                            perfilData.perfil_editable.telefono_emergencia,
-                            perfilData.perfil_editable.direccion,
-                            perfilData.perfil_editable.ciudad,
-                            perfilData.perfil_editable.biografia,
-                            perfilData.perfil_editable.foto_perfil
+                            perfilEditable.telefono,
+                            perfilEditable.telefono_emergencia,
+                            perfilEditable.direccion,
+                            perfilEditable.ciudad,
+                            perfilEditable.biografia,
+                            perfilEditable.foto_perfil
                           ]
                           const completed = fields.filter(f => f).length
                           const percentage = Math.round((completed / fields.length) * 100)
@@ -542,13 +587,14 @@ export default function ProfileView() {
                       </span>
                     </div>
                     <Progress value={(() => {
+                      const perfilEditable = perfilData?.perfil_editable || {}
                       const fields = [
-                        perfilData.perfil_editable.telefono,
-                        perfilData.perfil_editable.telefono_emergencia,
-                        perfilData.perfil_editable.direccion,
-                        perfilData.perfil_editable.ciudad,
-                        perfilData.perfil_editable.biografia,
-                        perfilData.perfil_editable.foto_perfil
+                        perfilEditable.telefono,
+                        perfilEditable.telefono_emergencia,
+                        perfilEditable.direccion,
+                        perfilEditable.ciudad,
+                        perfilEditable.biografia,
+                        perfilEditable.foto_perfil
                       ]
                       const completed = fields.filter(f => f).length
                       return Math.round((completed / fields.length) * 100)
@@ -576,7 +622,7 @@ export default function ProfileView() {
                     </CardHeader>
                     <CardContent>
                       <div className="text-3xl font-bold text-green-600">
-                        {historialAcademico?.cursos.filter((course) => course.calificacion !== null).length || 0}
+                        {historialAcademico?.cursos?.filter((course) => course.calificacion !== null).length || 0}
                       </div>
                       <p className="text-sm text-gray-500">Cursos aprobados</p>
                     </CardContent>
@@ -587,7 +633,7 @@ export default function ProfileView() {
                     </CardHeader>
                     <CardContent>
                       <div className="text-3xl font-bold text-purple-600">
-                        {historialAcademico?.cursos.length || 0}
+                        {historialAcademico?.cursos?.length || 0}
                       </div>
                       <p className="text-sm text-gray-500">En Moodle</p>
                     </CardContent>
@@ -596,7 +642,7 @@ export default function ProfileView() {
 
                 <div>
                   <h3 className="text-lg font-medium mb-4">Historial de Cursos</h3>
-                  {historialAcademico && historialAcademico.cursos.length > 0 ? (
+                  {historialAcademico?.cursos && Array.isArray(historialAcademico.cursos) && historialAcademico.cursos.length > 0 ? (
                     <div className="rounded-lg border overflow-hidden">
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
@@ -619,7 +665,7 @@ export default function ProfileView() {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {historialAcademico.cursos.map((course, index) => (
+                          {historialAcademico?.cursos?.map((course, index) => (
                             <tr key={index}>
                               <td className="px-6 py-4 text-sm font-medium">{course.curso}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{course.codigo_curso || "—"}</td>
@@ -652,9 +698,46 @@ export default function ProfileView() {
                       </table>
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      No se encontraron cursos en el historial académico
-                    </div>
+                    <Alert variant="warning" className="border-yellow-500 bg-yellow-50">
+                      <AlertCircle className="h-4 w-4 text-yellow-600" />
+                      <AlertTitle className="text-yellow-800">Estudiante aún no creado en Moodle</AlertTitle>
+                      <AlertDescription className="text-yellow-700 space-y-3">
+                        <p>
+                          Tu cuenta en Moodle aún no ha sido creada. En un lapso de 24 horas estará habilitada y podrás acceder a tus cursos y materiales académicos.
+                        </p>
+                        <div className="mt-4 pt-3 border-t border-yellow-300">
+                          <p className="font-semibold mb-2">¿Necesitas asistencia?</p>
+                          <p className="text-sm mb-2">
+                            Si tienes algún problema para ingresar o necesitas asistencia, por favor contacta a soporte técnico:
+                          </p>
+                          <div className="flex flex-col gap-2 text-sm">
+                            <a 
+                              href="mailto:informatica@american-edu.com" 
+                              className="flex items-center gap-2 text-yellow-800 hover:text-yellow-900 underline"
+                            >
+                              <Mail className="h-4 w-4" />
+                              informatica@american-edu.com
+                            </a>
+                            <a 
+                              href="mailto:soporte@american-edu.com" 
+                              className="flex items-center gap-2 text-yellow-800 hover:text-yellow-900 underline"
+                            >
+                              <Mail className="h-4 w-4" />
+                              soporte@american-edu.com
+                            </a>
+                            <a 
+                              href="https://wa.me/50247629787/" 
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 text-yellow-800 hover:text-yellow-900 underline"
+                            >
+                              <MessageCircle className="h-4 w-4" />
+                              WhatsApp: +502 4762-9787
+                            </a>
+                          </div>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
                   )}
                 </div>
 
@@ -663,7 +746,7 @@ export default function ProfileView() {
                     variant="outline" 
                     className="flex items-center gap-2"
                     onClick={handleDescargarHistorial}
-                    disabled={downloadingPDF || !historialAcademico || historialAcademico.cursos.length === 0}
+                    disabled={downloadingPDF || !historialAcademico || !historialAcademico.cursos || historialAcademico.cursos.length === 0}
                   >
                     {downloadingPDF ? (
                       <>

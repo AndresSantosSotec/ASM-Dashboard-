@@ -26,10 +26,22 @@ import {
   FileSpreadsheet,
   Mail,
   FileText,
-  X
+  X,
+  MessageCircle,
+  User,
+  UserCheck,
+  AlertTriangle
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface ProspectoRaw {
   id: number
@@ -67,9 +79,16 @@ interface CredencialMicrosoft {
   correo_electronico: string
   correo_corporativo: string
   carnet: string
+  telefono?: string
   password_temporal: string
   username: string
   display_name: string
+  asesor_id?: number | null
+  asesor_nombre?: string
+  tiene_usuario?: boolean
+  usuario_id?: number | null
+  monto_inscripcion?: number
+  ya_enviado?: boolean
 }
 
 interface Estadisticas {
@@ -122,6 +141,12 @@ export function GeneracionCredenciales() {
   const [credencialesMicrosoft, setCredencialesMicrosoft] = useState<CredencialMicrosoft[]>([])
   const [archivoMicrosoft, setArchivoMicrosoft] = useState<File | null>(null)
   const [dragActive, setDragActive] = useState(false)
+  const [enviandoWhatsApp, setEnviandoWhatsApp] = useState<number | null>(null)
+  const [resumenEnvio, setResumenEnvio] = useState<any>(null)
+  const [mostrarResumenComisiones, setMostrarResumenComisiones] = useState(false)
+  const [resumenComisiones, setResumenComisiones] = useState<any>(null)
+  const [mesResumen, setMesResumen] = useState(new Date().getMonth() + 1)
+  const [anioResumen, setAnioResumen] = useState(new Date().getFullYear())
 
   useEffect(() => {
     cargarProspectos()
@@ -329,6 +354,27 @@ export function GeneracionCredenciales() {
   const procesarCSVMicrosoft = async (file: File) => {
     setLoading(true)
     try {
+      // Validación básica del archivo
+      if (!file) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se seleccionó ningún archivo"
+        })
+        setLoading(false)
+        return
+      }
+
+      if (!file.name.endsWith('.csv') && file.type !== 'text/csv') {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "El archivo debe ser un CSV (.csv)"
+        })
+        setLoading(false)
+        return
+      }
+
       const formData = new FormData()
       formData.append("archivo", file)
 
@@ -340,24 +386,76 @@ export function GeneracionCredenciales() {
       const data = await response.json()
 
       if (response.ok && data.success) {
-        setCredencialesMicrosoft(data.credenciales)
+        console.log("✅ CSV procesado exitosamente:", {
+          total: data.total,
+          credenciales_count: data.credenciales?.length || 0,
+          credenciales: data.credenciales
+        })
+        
+        // Verificar que hay credenciales
+        if (!data.credenciales || data.credenciales.length === 0) {
+          toast({
+            variant: "destructive",
+            title: "Advertencia",
+            description: "El CSV se procesó pero no se encontraron credenciales válidas. Verifica que los prospectos existan en el sistema."
+          })
+          console.warn("⚠️ No se encontraron credenciales válidas:", data)
+          setLoading(false)
+          return
+        }
+        
+        setCredencialesMicrosoft(data.credenciales || [])
         setMicrosoftUploaded(true)
+        
+        console.log("✅ Credenciales guardadas en estado:", data.credenciales?.length || 0)
+        
         toast({
-          title: "CSV procesado",
+          title: "CSV procesado exitosamente",
           description: `Se encontraron ${data.total} credenciales. Revisa el resumen antes de enviar.`
         })
+        
+        // Mostrar advertencias si hay errores
+        if (data.errores && data.errores.length > 0) {
+          toast({
+            variant: "default",
+            title: "Advertencias",
+            description: `${data.errores.length} registros no se pudieron procesar. Revisa la consola para más detalles.`
+          })
+          console.warn("Errores al procesar CSV:", data.errores)
+        }
       } else {
+        // Mostrar error detallado
+        let errorMessage = data.message || "Error al procesar el CSV"
+        
+        if (data.errors) {
+          const errorDetails = Object.values(data.errors).flat().join(", ")
+          errorMessage += `: ${errorDetails}`
+        }
+        
+        if (data.headers_encontrados) {
+          console.error("Encabezados encontrados en el CSV:", data.headers_encontrados)
+          errorMessage += "\n\nEncabezados encontrados: " + data.headers_encontrados.join(", ")
+        }
+        
+        if (data.sugerencia) {
+          errorMessage += "\n\n" + data.sugerencia
+        }
+
         toast({
           variant: "destructive",
-          title: "Error",
-          description: data.message || "Error al procesar el CSV"
+          title: "Error al procesar CSV",
+          description: errorMessage,
+          duration: 10000 // Mostrar por más tiempo
         })
+        
+        console.error("Error completo:", data)
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Error al procesar CSV:", error)
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Error al procesar el archivo CSV"
+        title: "Error de conexión",
+        description: error.message || "Error al procesar el archivo CSV. Verifica tu conexión."
       })
     } finally {
       setLoading(false)
@@ -385,9 +483,10 @@ export function GeneracionCredenciales() {
       const data = await response.json()
 
       if (response.ok && data.success) {
+        setResumenEnvio(data)
         toast({
           title: "Credenciales enviadas",
-          description: `${data.enviados} de ${data.total} credenciales enviadas exitosamente`
+          description: `${data.enviados} de ${data.total} credenciales enviadas exitosamente. ${data.usuarios_creados} usuarios creados, ${data.usuarios_existentes} ya existían.`
         })
         
         // Resetear proceso
@@ -430,8 +529,109 @@ export function GeneracionCredenciales() {
     }
   }
 
+  const enviarCredencialesWhatsApp = async (cred: CredencialMicrosoft) => {
+    if (!cred.telefono) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "El estudiante no tiene teléfono registrado"
+      })
+      return
+    }
+
+    setEnviandoWhatsApp(cred.prospecto_id)
+    try {
+      const response = await fetch("http://localhost:8000/api/gen-credenciales/enviar-whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prospecto_id: cred.prospecto_id,
+          password_temporal: cred.password_temporal,
+          correo_corporativo: cred.correo_corporativo
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        // Abrir WhatsApp en nueva ventana
+        window.open(data.whatsapp_link, '_blank')
+        
+        toast({
+          title: "Credenciales enviadas",
+          description: `WhatsApp y correo enviados exitosamente. ${data.usuario_creado ? 'Usuario creado.' : 'Usuario ya existía.'}`
+        })
+
+        // Actualizar estado local
+        setCredencialesMicrosoft(prev => 
+          prev.map(c => c.prospecto_id === cred.prospecto_id 
+            ? { ...c, ya_enviado: true, tiene_usuario: true, usuario_id: data.usuario_id }
+            : c
+          )
+        )
+
+        await cargarProspectos()
+        await cargarEstadisticas()
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: data.message || "Error al enviar por WhatsApp"
+        })
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Error al enviar credenciales por WhatsApp"
+      })
+    } finally {
+      setEnviandoWhatsApp(null)
+    }
+  }
+
+  const cargarResumenComisiones = async () => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/gen-credenciales/resumen?mes=${mesResumen}&anio=${anioResumen}`)
+      const data = await response.json()
+      
+      if (data.success) {
+        setResumenComisiones(data)
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: data.message || "Error al cargar resumen de comisiones"
+        })
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Error al cargar resumen de comisiones"
+      })
+    }
+  }
+
+  useEffect(() => {
+    if (mostrarResumenComisiones) {
+      cargarResumenComisiones()
+    }
+  }, [mostrarResumenComisiones, mesResumen, anioResumen])
+
   return (
     <div className="space-y-6">
+      {/* Botón para ver resumen de comisiones */}
+      <div className="flex justify-end">
+        <Button 
+          variant="outline" 
+          onClick={() => setMostrarResumenComisiones(true)}
+        >
+          <FileSpreadsheet className="w-4 h-4 mr-2" />
+          Ver Resumen de Comisiones
+        </Button>
+      </div>
+
       {/* Estadísticas */}
       {estadisticas && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -770,59 +970,301 @@ export function GeneracionCredenciales() {
               </div>
 
               {/* Tabla resumen de credenciales */}
-              {credencialesMicrosoft.length > 0 && (
+              {credencialesMicrosoft.length > 0 ? (
                 <div>
                   <Label className="text-base font-semibold mb-2 block">
                     Resumen de Credenciales ({credencialesMicrosoft.length} encontradas)
                   </Label>
+                  <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="text-sm text-blue-800">
+                      <strong>📋 Preview antes de enviar:</strong> Revisa la información de cada estudiante. 
+                      Puedes enviar individualmente por WhatsApp o masivamente por correo. 
+                      Las credenciales incluyen: Sistema Interno, Moodle y Microsoft 365.
+                    </div>
+                  </div>
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Nombre</TableHead>
-                          <TableHead>Correo</TableHead>
                           <TableHead>Carnet</TableHead>
+                          <TableHead>Asesor</TableHead>
                           <TableHead>Correo Corporativo</TableHead>
-                          <TableHead>Contraseña Temporal</TableHead>
+                          <TableHead>Estado</TableHead>
+                          <TableHead>Usuario</TableHead>
+                          <TableHead>Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {credencialesMicrosoft.map((cred, index) => (
-                          <TableRow key={index}>
+                          <TableRow key={index} className={cred.ya_enviado ? "bg-yellow-50" : ""}>
                             <TableCell className="font-medium">{cred.nombre_completo}</TableCell>
-                            <TableCell>{cred.correo_electronico}</TableCell>
                             <TableCell>
                               <Badge variant="secondary">{cred.carnet}</Badge>
                             </TableCell>
-                            <TableCell>{cred.correo_corporativo}</TableCell>
                             <TableCell>
-                              <code className="text-xs bg-muted px-2 py-1 rounded">{cred.password_temporal}</code>
+                              <div className="text-sm">
+                                {cred.asesor_nombre || 'Sin asignar'}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm">{cred.correo_corporativo}</div>
+                              <div className="text-xs text-muted-foreground">{cred.correo_electronico}</div>
+                            </TableCell>
+                            <TableCell>
+                              {cred.ya_enviado ? (
+                                <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
+                                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                                  Ya enviado
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-green-100 text-green-800">
+                                  Pendiente
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {cred.tiene_usuario ? (
+                                <Badge variant="outline" className="bg-blue-100 text-blue-800">
+                                  <UserCheck className="w-3 h-3 mr-1" />
+                                  Existe
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-gray-100 text-gray-800">
+                                  <User className="w-3 h-3 mr-1" />
+                                  Crear
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                {cred.telefono && !cred.ya_enviado && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => enviarCredencialesWhatsApp(cred)}
+                                    disabled={enviandoWhatsApp === cred.prospecto_id}
+                                  >
+                                    <MessageCircle className="w-4 h-4 mr-1" />
+                                    WhatsApp
+                                  </Button>
+                                )}
+                                {cred.ya_enviado && (
+                                  <div className="text-xs text-muted-foreground flex items-center">
+                                    <AlertTriangle className="w-3 h-3 mr-1" />
+                                    Ya enviado
+                                  </div>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
                     </Table>
                   </div>
+                  
+                  {/* Resumen de estadísticas */}
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card>
+                      <CardContent className="pt-4">
+                        <div className="text-sm text-muted-foreground">Total</div>
+                        <div className="text-2xl font-bold">{credencialesMicrosoft.length}</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-4">
+                        <div className="text-sm text-muted-foreground">Pendientes</div>
+                        <div className="text-2xl font-bold text-blue-600">
+                          {credencialesMicrosoft.filter(c => !c.ya_enviado).length}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-4">
+                        <div className="text-sm text-muted-foreground">Con Usuario</div>
+                        <div className="text-2xl font-bold text-green-600">
+                          {credencialesMicrosoft.filter(c => c.tiene_usuario).length}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-4">
+                        <div className="text-sm text-muted-foreground">Ya Enviados</div>
+                        <div className="text-2xl font-bold text-yellow-600">
+                          {credencialesMicrosoft.filter(c => c.ya_enviado).length}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
                 </div>
-              )}
+              ) : microsoftUploaded && credencialesMicrosoft.length === 0 ? (
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="text-sm text-yellow-800">
+                    <strong>⚠️ Advertencia:</strong> El CSV se cargó pero no se encontraron credenciales válidas.
+                    <br />
+                    Verifica que:
+                    <ul className="list-disc list-inside mt-2">
+                      <li>Los prospectos existan en el sistema con el carnet correspondiente</li>
+                      <li>El CSV tenga datos en las filas (no solo encabezados)</li>
+                      <li>Los nombres de usuario coincidan con los carnets de los prospectos</li>
+                    </ul>
+                  </div>
+                </div>
+              ) : null}
 
               {/* Botones de acción */}
               <div className="flex justify-between">
                 <Button variant="outline" onClick={() => setCurrentStep(2)}>
                   Volver
                 </Button>
+                <div className="flex gap-2">
                 <Button 
                   onClick={enviarCredenciales}
-                  disabled={credencialesMicrosoft.length === 0 || loading}
+                  disabled={credencialesMicrosoft.length === 0 || loading || credencialesMicrosoft.every(c => c.ya_enviado)}
+                  variant="default"
+                  title={
+                    credencialesMicrosoft.length === 0 
+                      ? "No hay credenciales para enviar" 
+                      : credencialesMicrosoft.every(c => c.ya_enviado)
+                      ? "Todas las credenciales ya fueron enviadas"
+                      : `Enviar ${credencialesMicrosoft.filter(c => !c.ya_enviado).length} credenciales`
+                  }
                 >
                   <Send className="w-4 h-4 mr-2" />
-                  Generar y Enviar Credenciales
+                  {credencialesMicrosoft.length === 0 
+                    ? "No hay credenciales" 
+                    : credencialesMicrosoft.every(c => c.ya_enviado)
+                    ? "Todas enviadas"
+                    : `Enviar ${credencialesMicrosoft.filter(c => !c.ya_enviado).length} Credenciales`}
                 </Button>
+                </div>
               </div>
+
+              {/* Resumen después del envío */}
+              {resumenEnvio && (
+                <Card className="mt-6 border-green-200 bg-green-50">
+                  <CardHeader>
+                    <CardTitle className="text-green-800">✅ Proceso Completado</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <div className="text-sm text-muted-foreground">Enviados</div>
+                          <div className="text-2xl font-bold text-green-600">{resumenEnvio.enviados}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Usuarios Creados</div>
+                          <div className="text-2xl font-bold text-blue-600">{resumenEnvio.usuarios_creados || 0}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Usuarios Existentes</div>
+                          <div className="text-2xl font-bold text-orange-600">{resumenEnvio.usuarios_existentes || 0}</div>
+                        </div>
+                      </div>
+                      {resumenEnvio.errores && resumenEnvio.errores.length > 0 && (
+                        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                          <div className="text-sm font-semibold text-red-800 mb-2">Errores:</div>
+                          <ul className="text-sm text-red-700 list-disc list-inside">
+                            {resumenEnvio.errores.map((error: string, idx: number) => (
+                              <li key={idx}>{error}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* Dialog para resumen de comisiones */}
+      <Dialog open={mostrarResumenComisiones} onOpenChange={setMostrarResumenComisiones}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Resumen de Comisiones por Mes</DialogTitle>
+            <DialogDescription>
+              Tabla de inscritos y comisiones generadas por asesor
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Filtros de mes y año */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Mes</Label>
+                <Select value={mesResumen.toString()} onValueChange={(v) => setMesResumen(parseInt(v))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
+                      <SelectItem key={m} value={m.toString()}>
+                        {new Date(2000, m-1).toLocaleString('es', { month: 'long' })}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Año</Label>
+                <Input
+                  type="number"
+                  value={anioResumen}
+                  onChange={(e) => setAnioResumen(parseInt(e.target.value))}
+                  min={2020}
+                  max={2030}
+                />
+              </div>
+            </div>
+
+            {/* Tabla de resumen */}
+            {resumenComisiones && (
+              <div>
+                <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+                  <div className="text-sm font-semibold">Total Inscritos: {resumenComisiones.total_inscritos}</div>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Asesor</TableHead>
+                        <TableHead>Inscritos</TableHead>
+                        <TableHead>Monto Total</TableHead>
+                        <TableHead>Comisión</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {resumenComisiones.por_asesor && resumenComisiones.por_asesor.length > 0 ? (
+                        resumenComisiones.por_asesor.map((item: any, idx: number) => (
+                          <TableRow key={idx}>
+                            <TableCell className="font-medium">{item.asesor_nombre}</TableCell>
+                            <TableCell>{item.total_inscritos}</TableCell>
+                            <TableCell>Q{formatNumber(item.monto_total)}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">Q{formatNumber(item.comision)}</Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground">
+                            No hay datos para este mes
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

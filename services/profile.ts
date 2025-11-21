@@ -109,15 +109,49 @@ export async function getMiPerfil(): Promise<PerfilData> {
 
 /**
  * Obtener historial académico completo del estudiante desde Moodle
+ * Si no hay datos en Moodle, devuelve datos básicos desde prospectos
  */
 export async function getHistorialAcademico(): Promise<HistorialAcademico> {
-  const response = await api.get('/estudiante/perfil/historial-academico')
-  
-  if (!response.data.success) {
-    throw new Error(response.data.message || 'Error al obtener el historial académico')
+  try {
+    const response = await api.get('/estudiante/perfil/historial-academico')
+    
+    if (!response.data.success) {
+      // Si el backend devuelve error, devolver estructura vacía con mensaje
+      return {
+        resumen: {
+          promedio_general: 0,
+          cursos_aprobados: 0,
+          cursos_actuales: 0,
+          creditos_aprobados: 0,
+          creditos_totales: 0,
+        },
+        cursos: [],
+        nombre_completo: '',
+        username: '',
+        tiene_datos_moodle: false,
+        mensaje: response.data.message || 'No se pudo cargar el historial académico',
+      }
+    }
+    
+    return response.data.data
+  } catch (error: any) {
+    // Si hay error de conexión o 404, devolver estructura vacía
+    console.warn('Error obteniendo historial académico:', error)
+    return {
+      resumen: {
+        promedio_general: 0,
+        cursos_aprobados: 0,
+        cursos_actuales: 0,
+        creditos_aprobados: 0,
+        creditos_totales: 0,
+      },
+      cursos: [],
+      nombre_completo: '',
+      username: '',
+      tiene_datos_moodle: false,
+      mensaje: error.response?.data?.message || 'No se pudo conectar con el servidor para obtener el historial académico',
+    }
   }
-  
-  return response.data.data
 }
 
 /**

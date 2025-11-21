@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2Icon, DownloadIcon, TrendingUpIcon, BookOpenIcon, AwardIcon } from "lucide-react"
+import { Loader2Icon, DownloadIcon, TrendingUpIcon, BookOpenIcon, AwardIcon, AlertCircle, Mail, MessageCircle } from "lucide-react"
 import profileService, { HistorialAcademico, CourseHistoryItem } from "@/services/profile"
 import { useToast } from "@/hooks/use-toast"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export function HistorialAcademicoTab() {
   const [loading, setLoading] = useState(true)
@@ -76,9 +77,56 @@ export function HistorialAcademicoTab() {
   }
 
   const { resumen, cursos } = historial
+  const tieneDatosMoodle = (historial as any).tiene_datos_moodle !== false
+  const mensajeSinMoodle = (historial as any).mensaje
+  const noHayCursos = !cursos || cursos.length === 0
 
   return (
     <div className="space-y-6">
+      {/* Alerta si no hay datos en Moodle */}
+      {(!tieneDatosMoodle || noHayCursos) && (
+        <Alert variant="warning" className="border-yellow-500 bg-yellow-50">
+          <AlertCircle className="h-4 w-4 text-yellow-600" />
+          <AlertTitle className="text-yellow-800">Estudiante aún no creado en Moodle</AlertTitle>
+          <AlertDescription className="text-yellow-700 space-y-3">
+            <p>
+              Tu cuenta en Moodle aún no ha sido creada. En un lapso de 24 horas estará habilitada y podrás acceder a tus cursos y materiales académicos.
+            </p>
+            <div className="mt-4 pt-3 border-t border-yellow-300">
+              <p className="font-semibold mb-2">¿Necesitas asistencia?</p>
+              <p className="text-sm mb-2">
+                Si tienes algún problema para ingresar o necesitas asistencia, por favor contacta a soporte técnico:
+              </p>
+              <div className="flex flex-col gap-2 text-sm">
+                <a 
+                  href="mailto:informatica@american-edu.com" 
+                  className="flex items-center gap-2 text-yellow-800 hover:text-yellow-900 underline"
+                >
+                  <Mail className="h-4 w-4" />
+                  informatica@american-edu.com
+                </a>
+                <a 
+                  href="mailto:soporte@american-edu.com" 
+                  className="flex items-center gap-2 text-yellow-800 hover:text-yellow-900 underline"
+                >
+                  <Mail className="h-4 w-4" />
+                  soporte@american-edu.com
+                </a>
+                <a 
+                  href="https://wa.me/50247629787/" 
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-yellow-800 hover:text-yellow-900 underline"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  WhatsApp: +502 4762-9787
+                </a>
+              </div>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Resumen Académico */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
@@ -137,10 +185,20 @@ export function HistorialAcademicoTab() {
           </div>
         </CardHeader>
         <CardContent>
-          {cursos.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              No se encontraron cursos registrados
-            </p>
+          {noHayCursos ? (
+            !tieneDatosMoodle ? (
+              <Alert variant="info" className="border-blue-500 bg-blue-50">
+                <AlertCircle className="h-4 w-4 text-blue-600" />
+                <AlertTitle className="text-blue-800">No hay cursos registrados</AlertTitle>
+                <AlertDescription className="text-blue-700">
+                  Tu cuenta en Moodle aún no tiene cursos asignados. Por favor, contacta a tu coordinador académico.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <p className="text-center text-muted-foreground py-8">
+                No se encontraron cursos registrados
+              </p>
+            )
           ) : (
             <div className="rounded-md border">
               <Table>

@@ -458,7 +458,7 @@ export const fetchLatePayments = async (
   params: LatePaymentsQuery = {},
 ): Promise<LatePaymentsResponse> => {
   const res = await api.get("/collections/late-payments", { params })
-  // backend puede devolver {data, meta} o un array; normalizamos:
+  // backend puede devolver {data, meta, summary} o un array; normalizamos:
   const data = Array.isArray(res.data) ? res.data : res.data?.data
   const meta: PaginationMeta = res.data?.meta ?? {
     total: Array.isArray(data) ? data.length : 0,
@@ -466,13 +466,30 @@ export const fetchLatePayments = async (
     current_page: params.page ?? 1,
     last_page: 1,
   }
-  return { data: data ?? [], meta }
+  const summary = res.data?.summary ?? {
+    total_cuotas: 0,
+    total_deuda_original: 0,
+    total_mora: 0,
+    total_con_mora: 0,
+    estudiantes_unicos: 0,
+  }
+  return { data: data ?? [], meta, summary }
 }
 
 /** Snapshot de estudiante (por EP id) */
 export const fetchStudentSnapshot = async (epId: number | string): Promise<StudentSnapshot> => {
   const res = await api.get(`/collections/students/${epId}/snapshot`)
   return res.data as StudentSnapshot
+}
+
+/** Cuotas pendientes con vencimiento en los próximos 30 días */
+export const fetchUpcomingPayments = async (params?: {
+  q?: string
+  programa_id?: number | string
+} = {}) => {
+  const res = await api.get("/collections/upcoming-payments", { params })
+  const data = Array.isArray(res.data?.data) ? res.data.data : (res.data ?? [])
+  return { data, meta: res.data?.meta ?? { total: data.length } }
 }
 
 /* =========================
@@ -537,6 +554,8 @@ export const getKardexPendientes = async (params: {
   from?: string; // YYYY-MM-DD
   to?: string;   // YYYY-MM-DD
   banco?: string;
+  page?: number; // 🚀 Paginación del servidor
+  per_page?: number; // 🚀 Paginación del servidor
 } = {}) => {
   const res = await api.get("/conciliacion/pendientes-desde-kardex", { params })
   return res.data
@@ -584,9 +603,29 @@ export const exportConciliacionXlsx = async (params: {
   return res.data as Blob
 }
 
+// Exportar conciliados en diferentes formatos
+export const exportConciliados = async (
+  format: 'excel' | 'pdf' | 'csv',
+  params: {
+    from?: string;
+    to?: string;
+    banco?: string;
+  }
+) => {
+  const res = await api.get("/conciliacion/export-conciliados", {
+    params: { ...params, format },
+    responseType: "blob"
+  })
+  return res.data as Blob
+}
+
 // services/finance.ts
 export const getKardexConciliados = async (params: {
-  from?: string; to?: string; banco?: string;
+  from?: string; 
+  to?: string; 
+  banco?: string;
+  page?: number; // 🚀 Paginación del servidor
+  per_page?: number; // 🚀 Paginación del servidor
 } = {}) => {
   const res = await api.get("/conciliacion/conciliados-desde-kardex", { params })
   return res.data

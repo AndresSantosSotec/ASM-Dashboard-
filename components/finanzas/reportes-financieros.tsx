@@ -141,14 +141,14 @@ const conciliacionClasses: Record<string, string> = {
 const cuotaEstadoLabels: Record<string, string> = {
   pagado: "Pagado",
   pendiente: "Pendiente",
-  parcial: "Pago parcial",
+  cancelado: "Cancelado",
   vencido: "Vencido",
 }
 
 const cuotaEstadoClasses: Record<string, string> = {
   pagado: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
   pendiente: "bg-amber-500/15 text-amber-700 border-amber-500/30",
-  parcial: "bg-sky-500/15 text-sky-700 border-sky-500/30",
+  cancelado: "bg-sky-500/15 text-sky-700 border-sky-500/30",
   vencido: "bg-red-500/15 text-red-600 border-red-500/30",
 }
 
@@ -167,7 +167,7 @@ const BASE_FILTERS: ReportFilters = {
   estadoPago: "todos",
   estadoReconciliacion: "todos",
   estadoCuota: "todos",
-  limit: "all",
+  limit: 100, // 🚀 OPTIMIZACIÓN: Límite por defecto de 100 en lugar de "all" para mejor rendimiento
 }
 
 type TabKey = "kardex" | "reconciliaciones" | "cuotas" | "generacion-masiva"
@@ -300,6 +300,7 @@ const createReconciliationEditFormState = (
 export const ReportesFinancieros = () => {
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<TabKey>("kardex")
+  const [tabsLoaded, setTabsLoaded] = useState<Set<TabKey>>(new Set(["kardex"])) // Cargar tab inicial
   const [filtersByTab, setFiltersByTab] = useState<Record<TabKey, ReportFilters>>({
     kardex: createDefaultFilters(),
     reconciliaciones: createDefaultFilters(),
@@ -630,7 +631,12 @@ export const ReportesFinancieros = () => {
     }
   }
 
+  // 🚀 LAZY LOADING: Solo cargar cuando el tab esté activo (OPTIMIZADO - Peticiones secuenciales)
   useEffect(() => {
+    if (activeTab !== "kardex" && !tabsLoaded.has("kardex")) {
+      return // No cargar si el tab no está activo y nunca se ha cargado
+    }
+
     const controller = new AbortController()
 
     const loadKardex = async () => {
@@ -640,10 +646,17 @@ export const ReportesFinancieros = () => {
       const params = buildRequestFilters(filtersByTab.kardex)
 
       try {
-        const [dashboardResponse, dataResponse] = await Promise.all([
-          getKardexDashboard(params, { signal: controller.signal }),
-          getKardexData(params, { signal: controller.signal }),
-        ])
+        // ⚡ OPTIMIZACIÓN: Cargar datos secuencialmente para evitar "Too Many Attempts"
+        const dashboardResponse = await getKardexDashboard(params, { signal: controller.signal })
+        
+        if (controller.signal.aborted) {
+          return
+        }
+
+        // Pequeño delay para no sobrecargar el servidor
+        await new Promise(resolve => setTimeout(resolve, 150))
+
+        const dataResponse = await getKardexData(params, { signal: controller.signal })
 
         if (controller.signal.aborted) {
           return
@@ -657,6 +670,7 @@ export const ReportesFinancieros = () => {
           kardex:
             prev.kardex.page === 1 ? prev.kardex : { ...prev.kardex, page: 1 },
         }))
+        setTabsLoaded((prev) => new Set(prev).add("kardex"))
       } catch (err) {
         if ((err as { code?: string })?.code === "ERR_CANCELED") {
           return
@@ -681,9 +695,14 @@ export const ReportesFinancieros = () => {
     return () => {
       controller.abort()
     }
-  }, [filtersByTab.kardex])
+  }, [filtersByTab.kardex, activeTab, tabsLoaded])
 
+  // 🚀 LAZY LOADING: Solo cargar cuando el tab esté activo (OPTIMIZADO - Peticiones secuenciales)
   useEffect(() => {
+    if (activeTab !== "reconciliaciones" && !tabsLoaded.has("reconciliaciones")) {
+      return // No cargar si el tab no está activo y nunca se ha cargado
+    }
+
     const controller = new AbortController()
 
     const loadReconciliaciones = async () => {
@@ -693,10 +712,17 @@ export const ReportesFinancieros = () => {
       const params = buildRequestFilters(filtersByTab.reconciliaciones)
 
       try {
-        const [dashboardResponse, dataResponse] = await Promise.all([
-          getKardexDashboard(params, { signal: controller.signal }),
-          getKardexData(params, { signal: controller.signal }),
-        ])
+        // ⚡ OPTIMIZACIÓN: Cargar datos secuencialmente para evitar "Too Many Attempts"
+        const dashboardResponse = await getKardexDashboard(params, { signal: controller.signal })
+
+        if (controller.signal.aborted) {
+          return
+        }
+
+        // Pequeño delay para no sobrecargar el servidor
+        await new Promise(resolve => setTimeout(resolve, 150))
+
+        const dataResponse = await getKardexData(params, { signal: controller.signal })
 
         if (controller.signal.aborted) {
           return
@@ -712,6 +738,7 @@ export const ReportesFinancieros = () => {
               ? prev.reconciliaciones
               : { ...prev.reconciliaciones, page: 1 },
         }))
+        setTabsLoaded((prev) => new Set(prev).add("reconciliaciones"))
       } catch (err) {
         if ((err as { code?: string })?.code === "ERR_CANCELED") {
           return
@@ -735,9 +762,14 @@ export const ReportesFinancieros = () => {
     return () => {
       controller.abort()
     }
-  }, [filtersByTab.reconciliaciones])
+  }, [filtersByTab.reconciliaciones, activeTab, tabsLoaded])
 
+  // 🚀 LAZY LOADING: Solo cargar cuando el tab esté activo (OPTIMIZADO - Peticiones secuenciales con delays)
   useEffect(() => {
+    if (activeTab !== "cuotas" && !tabsLoaded.has("cuotas")) {
+      return // No cargar si el tab no está activo y nunca se ha cargado
+    }
+
     const controller = new AbortController()
 
     const loadCuotas = async () => {
@@ -747,12 +779,26 @@ export const ReportesFinancieros = () => {
       const params = buildRequestFilters(filtersByTab.cuotas)
 
       try {
-        const [dashboardResponse, dataResponse, cuotasDashboardResponse] =
-          await Promise.all([
-            getKardexDashboard(params, { signal: controller.signal }),
-            getKardexData(params, { signal: controller.signal }),
-            getCuotasDashboard(params, { signal: controller.signal }),
-          ])
+        // ⚡ OPTIMIZACIÓN: Cargar datos secuencialmente para evitar "Too Many Attempts"
+        const dashboardResponse = await getKardexDashboard(params, { signal: controller.signal })
+
+        if (controller.signal.aborted) {
+          return
+        }
+
+        // Pequeño delay
+        await new Promise(resolve => setTimeout(resolve, 150))
+
+        const dataResponse = await getKardexData(params, { signal: controller.signal })
+
+        if (controller.signal.aborted) {
+          return
+        }
+
+        // Pequeño delay antes de la tercera petición
+        await new Promise(resolve => setTimeout(resolve, 150))
+
+        const cuotasDashboardResponse = await getCuotasDashboard(params, { signal: controller.signal })
 
         if (controller.signal.aborted) {
           return
@@ -771,6 +817,7 @@ export const ReportesFinancieros = () => {
               ? prev.cuotasEstudiantes
               : { ...prev.cuotasEstudiantes, page: 1 },
         }))
+        setTabsLoaded((prev) => new Set(prev).add("cuotas"))
       } catch (err) {
         if ((err as { code?: string })?.code === "ERR_CANCELED") {
           return
@@ -793,7 +840,7 @@ export const ReportesFinancieros = () => {
     return () => {
       controller.abort()
     }
-  }, [filtersByTab.cuotas])
+  }, [filtersByTab.cuotas, activeTab, tabsLoaded])
 
   const handleFiltersChange = (tab: TabKey, updates: Partial<ReportFilters>) => {
     setFormFiltersByTab((prev) => ({
@@ -982,7 +1029,7 @@ export const ReportesFinancieros = () => {
     }
   }, [deleteState, deleteReference, toast, filtersByTab])
 
-  // Función para cerrar el modal de cuotas y actualizar datos
+  // Función para cerrar el modal de cuotas y actualizar datos (OPTIMIZADO - Peticiones secuenciales)
   const handleCloseCuotasModal = useCallback(async () => {
     setShowCuotasModal(false)
     setSelectedEstudiante(null)
@@ -992,11 +1039,15 @@ export const ReportesFinancieros = () => {
       setIsRefreshingData(true)
       try {
         const params = buildRequestFilters(filtersByTab.cuotas)
-        const [dashboardResponse, dataResponse, cuotasDashboardResponse] = await Promise.all([
-          getKardexDashboard(params),
-          getKardexData(params),
-          getCuotasDashboard(params),
-        ])
+        
+        // ⚡ OPTIMIZACIÓN: Cargar secuencialmente con delays
+        const dashboardResponse = await getKardexDashboard(params)
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        const dataResponse = await getKardexData(params)
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        const cuotasDashboardResponse = await getCuotasDashboard(params)
 
         setCuotasTotals(dashboardResponse.cuotas)
         setCuotasRows(dataResponse.cuotas)
@@ -1039,10 +1090,22 @@ export const ReportesFinancieros = () => {
 
   const handleEditCuota = useCallback((cuota: CuotaDetalladaResumen) => {
     setSelectedCuota(cuota)
+    // Formatear fecha para input type="date" (YYYY-MM-DD)
+    let fechaFormateada = ""
+    if (cuota.fecha_vencimiento) {
+      try {
+        const fecha = new Date(cuota.fecha_vencimiento)
+        if (!isNaN(fecha.getTime())) {
+          fechaFormateada = fecha.toISOString().split('T')[0]
+        }
+      } catch (e) {
+        console.error("Error formateando fecha:", e)
+      }
+    }
     setCuotaEditForm({
-      numero_cuota: cuota.numero_cuota,
-      fecha_vencimiento: cuota.fecha_vencimiento || "",
-      monto: cuota.monto,
+      numero_cuota: cuota.numero_cuota || 0,
+      fecha_vencimiento: fechaFormateada,
+      monto: cuota.monto || 0,
       estado: cuota.estado || "pendiente",
     })
     setShowEditCuotaModal(true)
@@ -1082,15 +1145,19 @@ export const ReportesFinancieros = () => {
       
       setShowCreateCuotaModal(false)
       
-      // Recargar completamente los datos del tab de cuotas para sincronizar todo
+      // Recargar completamente los datos del tab de cuotas para sincronizar todo (OPTIMIZADO)
       setIsRefreshingData(true)
       try {
         const params = buildRequestFilters(filtersByTab.cuotas)
-        const [dashboardResponse, dataResponse, cuotasDashboardResponse] = await Promise.all([
-          getKardexDashboard(params),
-          getKardexData(params),
-          getCuotasDashboard(params),
-        ])
+        
+        // ⚡ OPTIMIZACIÓN: Cargar secuencialmente con delays
+        const dashboardResponse = await getKardexDashboard(params)
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        const dataResponse = await getKardexData(params)
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        const cuotasDashboardResponse = await getCuotasDashboard(params)
 
         // Actualizar todos los estados relacionados con cuotas
         setCuotasTotals(dashboardResponse.cuotas)
@@ -1161,7 +1228,33 @@ export const ReportesFinancieros = () => {
   }, [selectedEstudiante, cuotaCreateForm, toast, filtersByTab.cuotas])
 
   const submitEditCuota = useCallback(async () => {
-    if (!selectedCuota) return
+    if (!selectedCuota) {
+      toast({
+        title: "Error",
+        description: "No se ha seleccionado una cuota para editar",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validación básica
+    if (!cuotaEditForm.fecha_vencimiento) {
+      toast({
+        title: "Error de validación",
+        description: "La fecha de vencimiento es requerida",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (cuotaEditForm.monto <= 0) {
+      toast({
+        title: "Error de validación",
+        description: "El monto debe ser mayor a 0",
+        variant: "destructive",
+      })
+      return
+    }
 
     try {
       const payload: CuotaUpdatePayload = {
@@ -1171,6 +1264,7 @@ export const ReportesFinancieros = () => {
         estado: cuotaEditForm.estado,
       }
 
+      console.log('🔄 Actualizando cuota:', { id: selectedCuota.id, payload })
       await updateCuota(selectedCuota.id, payload)
       
       toast({
@@ -1180,15 +1274,19 @@ export const ReportesFinancieros = () => {
       
       setShowEditCuotaModal(false)
       
-      // Recargar completamente los datos para sincronizar
+      // Recargar completamente los datos para sincronizar (OPTIMIZADO)
       setIsRefreshingData(true)
       try {
         const params = buildRequestFilters(filtersByTab.cuotas)
-        const [dashboardResponse, dataResponse, cuotasDashboardResponse] = await Promise.all([
-          getKardexDashboard(params),
-          getKardexData(params),
-          getCuotasDashboard(params),
-        ])
+        
+        // ⚡ OPTIMIZACIÓN: Cargar secuencialmente con delays
+        const dashboardResponse = await getKardexDashboard(params)
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        const dataResponse = await getKardexData(params)
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        const cuotasDashboardResponse = await getCuotasDashboard(params)
 
         setCuotasTotals(dashboardResponse.cuotas)
         setCuotasRows(dataResponse.cuotas)
@@ -1212,11 +1310,34 @@ export const ReportesFinancieros = () => {
       
     } catch (error: any) {
       console.error("Error updating cuota:", error)
-      toast({
-        title: "Error",
-        description: error.response?.data?.message || "Error al actualizar la cuota",
-        variant: "destructive",
-      })
+      
+      // Manejar errores de validación específicos
+      if (error.response?.status === 422) {
+        const errorData = error.response.data
+        if (errorData.errors) {
+          const errorMessages = Object.entries(errorData.errors)
+            .map(([field, messages]) => `${field}: ${(messages as string[]).join(', ')}`)
+            .join('\n')
+          
+          toast({
+            title: "Error de validación",
+            description: errorMessages,
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "Error de validación",
+            description: errorData.message || "Verifique los datos ingresados",
+            variant: "destructive",
+          })
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: error.response?.data?.message || "Error al actualizar la cuota. Intente nuevamente.",
+          variant: "destructive",
+        })
+      }
     }
   }, [selectedCuota, cuotaEditForm, toast, filtersByTab.cuotas, selectedEstudiante])
 
@@ -1233,15 +1354,19 @@ export const ReportesFinancieros = () => {
       
       setShowDeleteCuotaDialog(false)
       
-      // Recargar completamente los datos para sincronizar
+      // Recargar completamente los datos para sincronizar (OPTIMIZADO)
       setIsRefreshingData(true)
       try {
         const params = buildRequestFilters(filtersByTab.cuotas)
-        const [dashboardResponse, dataResponse, cuotasDashboardResponse] = await Promise.all([
-          getKardexDashboard(params),
-          getKardexData(params),
-          getCuotasDashboard(params),
-        ])
+        
+        // ⚡ OPTIMIZACIÓN: Cargar secuencialmente con delays
+        const dashboardResponse = await getKardexDashboard(params)
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        const dataResponse = await getKardexData(params)
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        const cuotasDashboardResponse = await getCuotasDashboard(params)
 
         setCuotasTotals(dashboardResponse.cuotas)
         setCuotasRows(dataResponse.cuotas)
@@ -1375,9 +1500,12 @@ export const ReportesFinancieros = () => {
         }
       }
 
-      // Crear todas las cuotas
-      const promises = cuotasToCreate.map(payload => createCuota(payload))
-      await Promise.all(promises)
+      // Crear todas las cuotas (OPTIMIZADO - secuencial con delays)
+      for (const payload of cuotasToCreate) {
+        await createCuota(payload)
+        // Pequeño delay entre cada creación para evitar rate limiting
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
 
       toast({
         title: "Cuotas creadas",
@@ -1777,16 +1905,17 @@ export const ReportesFinancieros = () => {
                       <SelectItem value="todos">Todas las cuotas</SelectItem>
                       <SelectItem value="pendiente">Pendiente</SelectItem>
                       <SelectItem value="pagado">Pagado</SelectItem>
-                      <SelectItem value="parcial">Pago parcial</SelectItem>
+                      <SelectItem value="cancelado">Cancelado</SelectItem>
                       <SelectItem value="vencido">Vencido</SelectItem>
                     </SelectContent>
                   </Select>
                 ) : null}
                 <Select
                   value={String(activeFormFilters.limit)}
-                  onValueChange={(value) =>
-                    handleFiltersChange(activeTab, { limit: Number(value) })
-                  }
+                  onValueChange={(value) => {
+                    const limitValue = value === "all" ? "all" : Number(value)
+                    handleFiltersChange(activeTab, { limit: limitValue as LimitValue })
+                  }}
                 >
                   <SelectTrigger className="w-full min-w-[120px] sm:w-[140px]">
                     <SelectValue placeholder="Límite" />
@@ -1918,7 +2047,12 @@ export const ReportesFinancieros = () => {
         </Card>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabKey)}>
+      <Tabs value={activeTab} onValueChange={(value) => {
+        const newTab = value as TabKey
+        setActiveTab(newTab)
+        // Marcar el tab como cargado cuando se activa para que se ejecute el useEffect
+        setTabsLoaded((prev) => new Set(prev).add(newTab))
+      }}>
         <TabsList className="w-full overflow-x-auto">
           <TabsTrigger value="kardex" className="flex-1">Kardex</TabsTrigger>
           <TabsTrigger value="reconciliaciones" className="flex-1">Conciliaciones</TabsTrigger>
@@ -2367,7 +2501,7 @@ export const ReportesFinancieros = () => {
                       <SelectItem value="pendiente">Pendiente</SelectItem>
                       <SelectItem value="pagado">Pagado</SelectItem>
                       <SelectItem value="vencido">Vencido</SelectItem>
-                      <SelectItem value="parcial">Pago Parcial</SelectItem>
+                      <SelectItem value="cancelado">Cancelado</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -2713,7 +2847,7 @@ export const ReportesFinancieros = () => {
                   <SelectItem value="pendiente">Pendiente</SelectItem>
                   <SelectItem value="pagado">Pagado</SelectItem>
                   <SelectItem value="vencido">Vencido</SelectItem>
-                  <SelectItem value="parcial">Pago Parcial</SelectItem>
+                  <SelectItem value="cancelado">Cancelado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -2779,16 +2913,21 @@ export const ReportesFinancieros = () => {
                   <SelectItem value="pendiente">Pendiente</SelectItem>
                   <SelectItem value="pagado">Pagado</SelectItem>
                   <SelectItem value="vencido">Vencido</SelectItem>
-                  <SelectItem value="parcial">Pago Parcial</SelectItem>
+                  <SelectItem value="cancelado">Cancelado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditCuotaModal(false)}>
+            <Button variant="outline" onClick={() => {
+              setShowEditCuotaModal(false)
+              setSelectedCuota(null)
+            }}>
               Cancelar
             </Button>
-            <Button onClick={submitEditCuota}>Actualizar Cuota</Button>
+            <Button onClick={submitEditCuota} disabled={!cuotaEditForm.fecha_vencimiento || cuotaEditForm.monto <= 0}>
+              Actualizar Cuota
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

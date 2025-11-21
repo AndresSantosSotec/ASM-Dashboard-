@@ -25,6 +25,7 @@ import {
   listPayments,
   fetchLatePayments,
   fetchStudentSnapshot,
+  fetchUpcomingPayments,
 } from "@/services/finance"
 
 import type { LatePaymentStudent } from "@/types/collections"
@@ -78,6 +79,13 @@ export function GestionPagos() {
   // datos
   const [latePayments, setLatePayments] = useState<LatePaymentStudent[]>([])
   const [totalRows, setTotalRows] = useState(0)
+  const [summary, setSummary] = useState<{
+    total_cuotas: number
+    total_deuda_original: number
+    total_mora: number
+    total_con_mora: number
+    estudiantes_unicos: number
+  } | null>(null)
   const [payments, setPayments] = useState<any[]>([]) // listado general (para "siguientes pagos")
 
   const [loading, setLoading] = useState(true)
@@ -120,15 +128,15 @@ export function GestionPagos() {
       }
 
       const late = await fetchLatePayments(latePaymentsParams)
-      // Normalize rows so they conform to LatePaymentStudent (ensure lastContact is string | null)
+      // Normalize rows so they conform to LatePaymentStudent
       const normalizedLate = Array.isArray(late.data)
         ? late.data.map((r: any) => ({
             ...r,
-            lastContact: r.lastContact ?? null,
           }))
         : []
       setLatePayments(normalizedLate as LatePaymentStudent[])
       setTotalRows(late.meta?.total || (Array.isArray(late.data) ? late.data.length : 0))
+      setSummary(late.summary || null)
     } catch (e) {
       console.error('Error loading late payments:', e)
       toast({
@@ -144,12 +152,18 @@ export function GestionPagos() {
   // 🚀 LAZY LOADING: Solo cargar payments cuando se active el tab
   const loadOthers = async () => {
     try {
-      // Usar listPayments con paginación en lugar de getPayments
-      const { data } = await listPayments({ 
-        per_page: 100,  // Cargar primeros 100 registros para otros tabs
-        sort: '-fecha_pago' 
-      })
-      setPayments(data)
+      // Para "Siguientes pagos": usar endpoint específico de cuotas pendientes
+      if (activeTab === 'upcoming-payments') {
+        const { data } = await fetchUpcomingPayments()
+        setPayments(data)
+      } else {
+        // Para "Pagos recientes": usar listPayments (pagos realizados)
+        const { data } = await listPayments({ 
+          per_page: 100,
+          sort: '-fecha_pago' 
+        })
+        setPayments(data)
+      }
     } catch (e) {
       console.error('Error loading payment data:', e)
       // No mostrar toast aquí, puede ser que no se necesiten aún
@@ -267,29 +281,33 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
 }
 
   // ----------- datasets derivados de `payments` para "Siguientes pagos" -----------
+  // El backend ya filtra por próximos 30 días, solo normalizamos y ordenamos
   const { upcomingPayments } = useMemo(() => {
-    const now = new Date()
-    const in30d = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
-
     const normDate = (v: any) => (v ? new Date(v) : null)
+    
+    // Normalizar datos que vienen del endpoint upcoming-payments
     const list = (Array.isArray(payments) ? payments : []).map((p: any) => ({
       ...p,
-      fecha_pago: normDate(p.fecha_pago),
+      fecha_vencimiento: normDate(p.fecha_vencimiento ?? p.due_date),
       due_date: normDate(p.due_date ?? p.fecha_vencimiento ?? p.vencimiento),
-      estado: p.estado_pago ?? p.estado ?? "pendiente",
-      monto: Number(p.monto_pagado ?? p.monto ?? p.importe ?? 0),
-      alumno: p.studentName ?? p.alumno ?? p.estudiante ?? "-",
+      estado: p.estado ?? "pendiente",
+      monto: Number(p.monto ?? p.monto_pagado ?? p.importe ?? 0),
+      alumno: p.alumno ?? p.studentName ?? p.estudiante ?? "-",
       carnet: p.carnet ?? p.studentId ?? "-",
-      programa: p.programa?.nombre_del_programa ?? p.programa ?? "-",
+      programa: p.programa ?? (typeof p.programa === 'object' ? p.programa?.nombre_del_programa : null) ?? "-",
     }))
 
-    const upcoming = list
-      .filter(p => p.estado === "pendiente" && p.due_date && p.due_date > now)
-      .sort((a, b) => (a.due_date as any) - (b.due_date as any))
+    // Ordenar por fecha de vencimiento (más cercana primero)
+    const sorted = list
+      .filter(p => p.due_date && p.estado === "pendiente")
+      .sort((a, b) => {
+        const dateA = a.due_date as Date
+        const dateB = b.due_date as Date
+        if (!dateA || !dateB) return 0
+        return dateA.getTime() - dateB.getTime()
+      })
 
-    const upcoming30 = upcoming.filter(p => p.due_date! <= in30d)
-
-    return { upcomingPayments: upcoming30 }
+    return { upcomingPayments: sorted }
   }, [payments])
 
   // fuente para atrasados
@@ -440,49 +458,81 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[50px]"></TableHead>
+                      <TableHead>Cuota</TableHead>
                       <TableHead>Alumno</TableHead>
-                      <TableHead>Deuda Total</TableHead>
-                      <TableHead>Meses</TableHead>
+                      <TableHead>Programa</TableHead>
+                      <TableHead>Monto Cuota</TableHead>
+                      <TableHead>Mora</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Vence</TableHead>
                       <TableHead>Días Atraso</TableHead>
                       <TableHead>Bucket</TableHead>
-                      <TableHead>Estado</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {studentsData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                        No hay alumnos con pagos atrasados
+                        <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                        No hay cuotas atrasadas (solo se muestran estudiantes activos en Moodle)
                       </TableCell>
                     </TableRow>
                   ) : (
-                    studentsData.map((student) => (
-                      <TableRow key={student.id}>
-                        <TableCell><Checkbox id={`select-${student.id}`} /></TableCell>
+                    studentsData.map((cuota) => (
+                      <TableRow key={cuota.cuotaId}>
+                        <TableCell><Checkbox id={`select-${cuota.cuotaId}`} /></TableCell>
                         <TableCell>
-                          <div className="font-medium">{student.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            EP-{student.id} | Alumno-{student.studentId} - {student.program}
+                          <div className="font-medium">
+                            {cuota.numeroCuota ? `Cuota ${cuota.numeroCuota}` : `#${cuota.cuotaId}`}
                           </div>
                         </TableCell>
                         <TableCell>
-                          Q{(student.totalDebt || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                          <div className="font-medium">{cuota.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {cuota.carnet || `Alumno-${cuota.studentId}`} | EP-{cuota.epId}
+                          </div>
                         </TableCell>
-                        <TableCell>{student.lateMonths}</TableCell>
-                        <TableCell>{student.daysLate}</TableCell>
+                        <TableCell className="text-sm">{cuota.program}</TableCell>
                         <TableCell>
-                          <Badge variant={getBucketVariant(student.bucket)}>
-                            {student.bucket} ({getBucketText(student.bucket)})
-                          </Badge>
+                          Q{(cuota.montoCuota || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={getBadgeVariant(student.status)}>
-                            {student.status === "activo" ? "Activo" : student.status === "bloqueado" ? "Bloqueado" : student.status}
+                          <span className={cuota.lateFee && cuota.lateFee > 0 ? "text-orange-600 font-medium" : "text-muted-foreground"}>
+                            Q{(cuota.lateFee || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-semibold">
+                            Q{(cuota.totalConMora || cuota.montoCuota || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {cuota.fechaVencimiento ? new Date(cuota.fechaVencimiento).toLocaleDateString('es-GT') : '-'}
+                        </TableCell>
+                        <TableCell>{cuota.daysLate}</TableCell>
+                        <TableCell>
+                          <Badge variant={getBucketVariant(cuota.bucket)}>
+                            {cuota.bucket} ({getBucketText(cuota.bucket)})
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="outline" size="sm" onClick={() => openProspectContactFromLate(student)} disabled={loading}>
+                          <Button variant="outline" size="sm" onClick={() => {
+                            // Usar epId para contactar
+                            const studentForContact = {
+                              id: cuota.epId,
+                              studentId: cuota.studentId,
+                              name: cuota.name,
+                              program: cuota.program,
+                              totalDebt: cuota.montoCuota,
+                              lateFeeTotal: cuota.lateFee,
+                              totalDebtWithLate: cuota.totalConMora,
+                              daysLate: cuota.daysLate,
+                              bucket: cuota.bucket,
+                              status: 'activo',
+                              carnet: cuota.carnet,
+                            } as any;
+                            openProspectContactFromLate(studentForContact);
+                          }} disabled={loading}>
                             <Phone className="h-4 w-4 mr-1" /> Contactar
                           </Button>
                         </TableCell>
@@ -495,8 +545,18 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
             </CardContent>
 
             <CardFooter className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <div className="text-sm text-muted-foreground">
-                Mostrando {studentsData.length} de {totalRows} alumnos con pagos atrasados
+              <div className="flex flex-col gap-1">
+                <div className="text-sm text-muted-foreground">
+                  Mostrando {studentsData.length} de {totalRows} cuotas atrasadas
+                </div>
+                {summary && (
+                  <div className="text-xs text-muted-foreground">
+                    Resumen: {summary.total_cuotas} cuotas | 
+                    Deuda: Q{summary.total_deuda_original.toLocaleString('es-GT', { minimumFractionDigits: 2 })} | 
+                    Mora: Q{summary.total_mora.toLocaleString('es-GT', { minimumFractionDigits: 2 })} | 
+                    Total: Q{summary.total_con_mora.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(1) }}>
