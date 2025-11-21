@@ -31,7 +31,7 @@ import { Switch } from "@/components/ui/switch"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import profileService, { PerfilData, HistorialAcademico } from "@/services/profile"
+import profileService, { PerfilData, HistorialAcademico, ProfileStudent } from "@/services/profile"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { useRef } from "react"
@@ -98,7 +98,7 @@ export default function ProfileView() {
         setPerfilData(perfilValue)
         
         // Inicializar formData con datos del perfil editable (si existe)
-        const perfilEditable = perfilValue.perfil_editable || {}
+        const perfilEditable: Partial<ProfileStudent> = perfilValue.perfil_editable || {}
         setFormData({
           telefono: perfilEditable.telefono || "",
           telefono_emergencia: perfilEditable.telefono_emergencia || "",
@@ -115,18 +115,6 @@ export default function ProfileView() {
       if (historial.status === 'fulfilled') {
         setHistorialAcademico(historial.value)
       }
-      setHistorialAcademico(historial)
-      
-      // Inicializar formData con datos del perfil editable
-      setFormData({
-        telefono: perfil.perfil_editable.telefono || "",
-        telefono_emergencia: perfil.perfil_editable.telefono_emergencia || "",
-        nombre_contacto_emergencia: perfil.perfil_editable.nombre_contacto_emergencia || "",
-        parentesco_emergencia: perfil.perfil_editable.parentesco_emergencia || "",
-        direccion: perfil.perfil_editable.direccion || "",
-        ciudad: perfil.perfil_editable.ciudad || "",
-        biografia: perfil.perfil_editable.biografia || "",
-      })
     } catch (error: any) {
       console.error("Error cargando datos:", error)
       toast({
@@ -571,7 +559,7 @@ export default function ProfileView() {
                       <span className="text-sm">Perfil completado</span>
                       <span className="text-sm font-medium">
                         {(() => {
-                          const perfilEditable = perfilData?.perfil_editable || {}
+                          const perfilEditable: Partial<ProfileStudent> = perfilData?.perfil_editable || {}
                           const fields = [
                             perfilEditable.telefono,
                             perfilEditable.telefono_emergencia,
@@ -587,7 +575,7 @@ export default function ProfileView() {
                       </span>
                     </div>
                     <Progress value={(() => {
-                      const perfilEditable = perfilData?.perfil_editable || {}
+                      const perfilEditable: Partial<ProfileStudent> = perfilData?.perfil_editable || {}
                       const fields = [
                         perfilEditable.telefono,
                         perfilEditable.telefono_emergencia,
