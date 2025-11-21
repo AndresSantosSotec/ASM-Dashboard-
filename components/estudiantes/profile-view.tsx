@@ -698,7 +698,7 @@ export default function ProfileView() {
                       </table>
                     </div>
                   ) : (
-                    <Alert variant="warning" className="border-yellow-500 bg-yellow-50">
+                    <Alert variant="default" className="border-yellow-500 bg-yellow-50">
                       <AlertCircle className="h-4 w-4 text-yellow-600" />
                       <AlertTitle className="text-yellow-800">Estudiante aún no creado en Moodle</AlertTitle>
                       <AlertDescription className="text-yellow-700 space-y-3">
