@@ -7,6 +7,20 @@ import type {
   Documento,
 } from '@/components/inscripcion/types'
 
+export interface AdvisorContactInfo {
+  id?: number
+  nombre?: string
+  email?: string
+  rol?: string
+  fecha?: string
+}
+
+export interface AsesoriaInfo {
+  creadoPor?: AdvisorContactInfo
+  actualizadoPor?: AdvisorContactInfo
+  responsable?: AdvisorContactInfo
+}
+
 export interface FichaDetalle {
   personales: Partial<DatosPersonales>
   laborales: Partial<DatosLaborales>
@@ -14,6 +28,35 @@ export interface FichaDetalle {
   financieros: Partial<DatosFinancieros>
   programas: any[]
   documentos: Documento[]
+  asesoria?: AsesoriaInfo
+}
+
+const toAdvisorContact = (user?: any, fecha?: string | null): AdvisorContactInfo | undefined => {
+  if (!user) return undefined
+  const nombre = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.name || user.email
+  return {
+    id: user.id,
+    nombre: nombre || undefined,
+    email: user.email,
+    rol: user.rol,
+    fecha: fecha ?? undefined,
+  }
+}
+
+const buildAsesoria = (prospecto: any): AsesoriaInfo | undefined => {
+  const creadoPor = toAdvisorContact(prospecto.creator, prospecto.created_at)
+  const actualizadoPor = toAdvisorContact(prospecto.updater, prospecto.updated_at)
+  const responsable = toAdvisorContact(prospecto.responsable ?? prospecto.updater ?? prospecto.creator, prospecto.updated_at ?? prospecto.created_at)
+
+  if (!creadoPor && !actualizadoPor && !responsable) {
+    return undefined
+  }
+
+  return {
+    creadoPor,
+    actualizadoPor,
+    responsable,
+  }
 }
 
 async function buildFromProspecto(
@@ -79,6 +122,8 @@ async function buildFromProspecto(
   const cuotaMensual = programa0?.cuota_mensual
   const inversionTotal = programa0?.inversion_total
 
+  const asesoria = buildAsesoria(prospecto)
+
   return {
     personales: {
       nombre: prospecto.nombre_completo,
@@ -135,6 +180,7 @@ async function buildFromProspecto(
     },
     programas: prospecto.programas || [],
     documentos,
+    asesoria,
   }
 }
 
@@ -181,6 +227,7 @@ export async function fetchFicha(id: number): Promise<FichaDetalle> {
       financieros,
       programas: data.programas || [],
       documentos,
+      asesoria: data.asesoria,
     }
   } catch {
     const res = await api.get(`/prospectos/${id}`)

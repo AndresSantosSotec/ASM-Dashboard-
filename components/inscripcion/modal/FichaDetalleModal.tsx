@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { FichaEstudiante } from "../types"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import fetchFicha from "@/services/fichas"
+import type { AsesoriaInfo } from "@/services/fichas"
 import fetchDocumentosRevision from "@/services/documentos"
 import { formatDate } from "@/utils/formatDate"
 import { resolveBackendUrl } from "@/utils/resolveBackendUrl" // ⬅️ NUEVO
@@ -57,6 +58,7 @@ export default function FichaDetalleModal({
   const [documentos, setDocumentos] = useState<any[]>([])
   const [contratoInfo, setContratoInfo] = useState<any>(null)
   const [nuevosFirmados, setNuevosFirmados] = useState(0)
+  const [asesoria, setAsesoria] = useState<AsesoriaInfo | null>(null)
 
   // Campos para mostrar
   const camposPersonales: [string, any][] = [
@@ -155,6 +157,36 @@ export default function FichaDetalleModal({
       .map(([, doc]) => doc)
   }
 
+  const renderAsesoriaBanner = () => {
+    if (!asesoria) return null
+    const { responsable, creadoPor, actualizadoPor } = asesoria
+
+    return (
+      <div className="mt-2 text-xs text-muted-foreground space-y-1">
+        {responsable && (
+          <div className="text-sm text-foreground">
+            Responsable: <span className="font-semibold">{responsable.nombre}</span>
+            {responsable.email ? ` · ${responsable.email}` : ""}
+          </div>
+        )}
+        <div className="flex flex-wrap gap-4">
+          {creadoPor && (
+            <span>
+              Creado por {creadoPor.nombre}
+              {creadoPor.fecha ? ` · ${formatDate(creadoPor.fecha)}` : ""}
+            </span>
+          )}
+          {actualizadoPor && (
+            <span>
+              Última actualización {actualizadoPor.nombre}
+              {actualizadoPor.fecha ? ` · ${formatDate(actualizadoPor.fecha)}` : ""}
+            </span>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   // ===== Carga inicial =====
   useEffect(() => {
     if (!isOpen) return
@@ -190,6 +222,7 @@ export default function FichaDetalleModal({
         setFinancieros(data.financieros || {})
         setProgramasInscritos(data.programas || [])
         setDocumentos(latestByType)
+        setAsesoria(data.asesoria || null)
 
         // 🔥 CARGAR INFORMACIÓN DE CONTRATOS
         await cargarInfoContratos(ficha.id)
@@ -335,6 +368,43 @@ export default function FichaDetalleModal({
     }
   }
 
+  const handleDescargarPlanPagos = async () => {
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_BASE_URL}/api/prospectos/${ficha.id}/plan-pagos-pdf`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `plan-pagos-${ficha.id}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      Swal.fire({
+        icon: "success",
+        title: "Descarga exitosa",
+        text: "El plan de pagos se descargó correctamente",
+        timer: 2000,
+        showConfirmButton: false,
+      })
+    } catch (err) {
+      console.error("Error al descargar plan de pagos:", err)
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se pudo descargar el plan de pagos",
+      })
+    }
+  }
+
   // Descargar contrato de confidencialidad
   const handleDescargarContrato = async () => {
     try {
@@ -409,6 +479,7 @@ export default function FichaDetalleModal({
           <DialogDescription>
             {personales.nombre || ficha.nombre}
           </DialogDescription>
+          {renderAsesoriaBanner()}
         </DialogHeader>
 
         <div className="overflow-y-auto flex-1 px-4 py-2">
@@ -645,6 +716,14 @@ export default function FichaDetalleModal({
           {/* Botones de descarga */}
           <div className="flex justify-between items-center gap-2">
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDescargarPlanPagos}
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                Plan de Pagos
+              </Button>
               <Button
                 variant="outline"
                 size="sm"

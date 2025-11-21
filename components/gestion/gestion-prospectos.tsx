@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Swal from "sweetalert2"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Filter, MoreHorizontal, Eye, Edit2, UserPlus } from "lucide-react"
+import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -25,10 +25,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import DetallesProspecto from "./detalles-prospecto"
 import EditarProspecto from "./editar-prospecto"
 import EditarProspectoCompleto from "./editar-prospecto-completo"
 import CambiarEstado from "./cambiar-estado"
+import AlertaAlumnoNuevo from "./alerta-alumno-nuevo"
 import { API_BASE_URL } from "@/utils/apiConfig"
 
 const API_URL = `${API_BASE_URL}/api`
@@ -60,18 +62,40 @@ export default function GestionProspectos() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>("")
   const [selectedProspecto, setSelectedProspecto] = useState<Prospecto | null>(null)
-  const [modalType, setModalType] = useState<"detalles" | "editar" | null>(null)
+  const [modalType, setModalType] = useState<"detalles" | "editar" | "alerta" | null>(null)
   const [showEstadoMenu, setShowEstadoMenu] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   // Filtros y paginación
   const [searchTerm, setSearchTerm] = useState<string>("")
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>("")
   const [estadoFilter, setEstadoFilter] = useState<string>("todos")
   const [departamentoFilter, setDepartamentoFilter] = useState<string>("todos")
   const [puestoFilter, setPuestoFilter] = useState<string>("todos")
   const [origenFilter, setOrigenFilter] = useState<string>("todos")
-  const [pageSize, setPageSize] = useState<string>("5")
+  const [pageSize, setPageSize] = useState<string>("50")
   const [currentPage, setCurrentPage] = useState<number>(1)
+  const [totalProspectos, setTotalProspectos] = useState<number>(0)
+  const [totalPages, setTotalPages] = useState<number>(1)
+  
+  // ⚡ Debouncing para búsqueda
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+      setCurrentPage(1) // Reset a primera página al buscar
+    }, 500) // 500ms de delay
+    
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [searchTerm])
 
   const [currentUser, setCurrentUser] = useState<any>(null)
 
@@ -144,92 +168,125 @@ export default function GestionProspectos() {
     fetchProgramas();
   }, []);
 
-  // ⚡ Carga inicial con caché optimizado
-  useEffect(() => {
+  // ⚡ Carga optimizada con paginación del servidor
+  const fetchProspectos = useCallback(async (page: number = 1, resetCache: boolean = false) => {
     // No cargar hasta que los programas estén listos
     if (!programasLoaded) return;
 
-    const fetchProspectos = async () => {
-      // Verificar caché válido primero
+    // Verificar caché solo si no hay filtros activos y no es refresh
+    if (!resetCache && !debouncedSearchTerm && estadoFilter === "todos" && 
+        departamentoFilter === "todos" && puestoFilter === "todos" && origenFilter === "todos" && page === 1) {
       if (typeof window !== "undefined") {
         const cached = localStorage.getItem("gestion_prospectos_cache");
         const cacheTime = localStorage.getItem("gestion_prospectos_cache_time");
         if (cached && cacheTime) {
           const now = Date.now();
           const elapsed = now - parseInt(cacheTime);
-          if (elapsed < 300000) {
+          if (elapsed < 300000) { // 5 minutos
             console.log("✅ Usando caché de gestión prospectos");
-            setProspectos(JSON.parse(cached));
+            const cachedData = JSON.parse(cached);
+            setProspectos(cachedData.items || cachedData);
+            if (cachedData.pagination) {
+              setTotalProspectos(cachedData.pagination.total);
+              setTotalPages(cachedData.pagination.last_page);
+            }
+            setLoading(false);
             return;
           }
         }
       }
+    }
 
-      setLoading(true)
-      setError("")
-      try {
-        const token = localStorage.getItem("token")
-        const res = await fetch(`${API_URL}/prospectos`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        })
-        if (!res.ok) throw new Error(`Error al obtener prospectos: ${res.status}`)
-        const json = await res.json()
-        const list: Prospecto[] = json.data
-          .map((item: any) => {
-            // Resolver programa académico por ID
-            let programaNombre = "—";
-            if (item.interes && programas[item.interes]) {
-              programaNombre = programas[item.interes];
-            } else if (item.interes) {
-              programaNombre = `Programa ${item.interes}`;
-            }
+    setLoading(true)
+    setError("")
+    try {
+      const token = localStorage.getItem("token")
+      
+      // ⚡ Construir query params optimizados
+      const params = new URLSearchParams({
+        page: page.toString(),
+        per_page: pageSize === "all" ? "200" : pageSize,
+      })
+      
+      if (debouncedSearchTerm) params.append("search", debouncedSearchTerm)
+      if (estadoFilter !== "todos") params.append("status", estadoFilter)
+      if (departamentoFilter !== "todos") params.append("departamento", departamentoFilter)
+      if (puestoFilter !== "todos") params.append("puesto", puestoFilter)
+      if (origenFilter !== "todos") params.append("origen", origenFilter)
 
-            return {
-              id: String(item.id),
-              nombre: item.nombre_completo,
-              email: item.correo_electronico,
-              telefono: item.telefono,
-              departamento:
-                item.empresa_donde_labora_actualmente ?? "Sin Departamento",
-              puesto: item.puesto ?? "N/A",
-              estado: item.status || "No contactado",
-              origen: item.medio_conocimiento_institucion ?? "—",
-              observaciones: item.observaciones ?? "",
-              notasGenerales: item.notas_generales ?? "",
-              ultimoCambio: item.updated_at ?? "N/A",
-              programa: programaNombre,
-              ciudad: item.municipio_nombre || item.municipio || "—",
-              pais: item.pais_nombre || item.pais || "—",
-              fechaCaptura: item.created_at ?? "—",
-              asesor: item.creator ? `${item.creator.first_name} ${item.creator.last_name}` : "Sin asignar",
-            };
-          })
-          .filter((p: any) => p.estado.toLowerCase() !== "preinscripción")
-          .sort((a: Prospecto, b: Prospecto) => {
-            const getTime = (d: string) => {
-              const t = new Date(d).getTime()
-              return isNaN(t) ? 0 : t
-            }
-            return getTime(b.ultimoCambio) - getTime(a.ultimoCambio)
-          })
-        setProspectos(list)
-        
-        // 💾 Guardar en caché
+      const res = await fetch(`${API_URL}/prospectos?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.message || `Error al obtener prospectos: ${res.status}`)
+      }
+      
+      const json = await res.json()
+      
+      // ⚡ Mapear datos de forma optimizada
+      const list: Prospecto[] = (json.data || []).map((item: any) => {
+        let programaNombre = "—";
+        if (item.interes && programas[item.interes]) {
+          programaNombre = programas[item.interes];
+        } else if (item.interes) {
+          programaNombre = `Programa ${item.interes}`;
+        }
+
+        return {
+          id: String(item.id),
+          nombre: item.nombre_completo || "",
+          email: item.correo_electronico || "",
+          telefono: item.telefono || "",
+          departamento: item.empresa_donde_labora_actualmente ?? "Sin Departamento",
+          puesto: item.puesto ?? "N/A",
+          estado: item.status || "No contactado",
+          origen: item.medio_conocimiento_institucion ?? "—",
+          observaciones: item.observaciones ?? "",
+          notasGenerales: item.notas_generales ?? "",
+          ultimoCambio: item.updated_at ?? "N/A",
+          programa: programaNombre,
+          ciudad: item.municipio_nombre || item.municipio || "—",
+          pais: item.pais_nombre || item.pais || "—",
+          fechaCaptura: item.created_at ?? "—",
+          asesor: item.creator ? `${item.creator.first_name || ""} ${item.creator.last_name || ""}`.trim() : "Sin asignar",
+        };
+      })
+      
+      setProspectos(list)
+      
+      // ⚡ Actualizar paginación
+      if (json.pagination) {
+        setTotalProspectos(json.pagination.total)
+        setTotalPages(json.pagination.last_page)
+      }
+      
+      // 💾 Guardar en caché solo si es primera página sin filtros
+      if (page === 1 && !debouncedSearchTerm && estadoFilter === "todos" && 
+          departamentoFilter === "todos" && puestoFilter === "todos" && origenFilter === "todos") {
         if (typeof window !== "undefined") {
-          localStorage.setItem("gestion_prospectos_cache", JSON.stringify(list));
+          localStorage.setItem("gestion_prospectos_cache", JSON.stringify({
+            items: list,
+            pagination: json.pagination
+          }));
           localStorage.setItem("gestion_prospectos_cache_time", Date.now().toString());
         }
-      } catch (err: any) {
-        setError(err.message || "Error inesperado")
-      } finally {
-        setLoading(false)
       }
+    } catch (err: any) {
+      setError(err.message || "Error inesperado")
+    } finally {
+      setLoading(false)
     }
-    fetchProspectos()
-  }, [programasLoaded])
+  }, [programasLoaded, debouncedSearchTerm, estadoFilter, departamentoFilter, puestoFilter, origenFilter, pageSize])
+
+  // ⚡ Cargar prospectos cuando cambian los filtros
+  useEffect(() => {
+    fetchProspectos(currentPage, false)
+  }, [fetchProspectos, currentPage])
 
   // Usuario actual
   useEffect(() => {
@@ -259,50 +316,13 @@ export default function GestionProspectos() {
     }
   }
 
-  // Filtrado combinado
-  const filteredProspectos = useMemo(() => {
-    return prospectos.filter((p) => {
-      const matchesSearch =
-        p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.telefono.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesEstado =
-        estadoFilter === "todos" || p.estado === estadoFilter
-      const matchesDepartamento =
-        departamentoFilter === "todos" || p.departamento === departamentoFilter
-      const matchesPuesto =
-        puestoFilter === "todos" || p.puesto === puestoFilter
-      const matchesOrigen =
-        origenFilter === "todos" || p.origen === origenFilter
-      return (
-        matchesSearch &&
-        matchesEstado &&
-        matchesDepartamento &&
-        matchesPuesto &&
-        matchesOrigen
-      )
-    })
-  }, [
-    prospectos,
-    searchTerm,
-    estadoFilter,
-    departamentoFilter,
-    puestoFilter,
-    origenFilter,
-  ])
+  // ⚡ Filtrado ahora se hace en el servidor, solo usamos los datos recibidos
+  const filteredProspectos = prospectos
 
-  // Paginación
+  // ⚡ Paginación del servidor - ya viene paginado
   const paginatedProspectos = useMemo(() => {
-    if (pageSize === "all") return filteredProspectos
-    const size = Number(pageSize)
-    const start = (currentPage - 1) * size
-    return filteredProspectos.slice(start, start + size)
-  }, [filteredProspectos, currentPage, pageSize])
-
-  const totalPages = useMemo(() => {
-    if (pageSize === "all") return 1
-    return Math.ceil(filteredProspectos.length / Number(pageSize))
-  }, [filteredProspectos, pageSize])
+    return filteredProspectos
+  }, [filteredProspectos])
 
   // Handlers
   const handleSelectAll = (checked: boolean) => {
@@ -316,7 +336,21 @@ export default function GestionProspectos() {
   const handlePageSizeChange = (v: string) => {
     setPageSize(v)
     setCurrentPage(1)
+    // Invalidar caché al cambiar tamaño de página
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("gestion_prospectos_cache")
+      localStorage.removeItem("gestion_prospectos_cache_time")
+    }
   }
+  
+  // ⚡ Invalidar caché cuando se actualiza un prospecto
+  const handleUpdateProspecto = useCallback(() => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("gestion_prospectos_cache")
+      localStorage.removeItem("gestion_prospectos_cache_time")
+    }
+    fetchProspectos(currentPage, true)
+  }, [fetchProspectos, currentPage])
   const handleNextPage = () =>
     currentPage < totalPages && setCurrentPage((p) => p + 1)
   const handlePrevPage = () =>
@@ -695,6 +729,22 @@ export default function GestionProspectos() {
                         <TooltipContent>Inscribir</TooltipContent>
                       </Tooltip>
                       <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setSelectedProspecto(p)
+                              setModalType("alerta")
+                            }}
+                            className="text-orange-600 hover:text-orange-700"
+                          >
+                            <AlertCircle className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Alerta Alumno Nuevo</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
                         <DropdownMenu>
                           <TooltipTrigger asChild>
                             <DropdownMenuTrigger asChild>
@@ -793,10 +843,7 @@ export default function GestionProspectos() {
             setSelectedProspecto(null)
             setModalType(null)
           }}
-          onUpdate={() => {
-            // Recargar lista después de actualizar
-            window.location.reload();
-          }}
+          onUpdate={handleUpdateProspecto}
         />
       )}
       {selectedProspecto && showEstadoMenu && (
@@ -807,6 +854,35 @@ export default function GestionProspectos() {
             setShowEstadoMenu(false)
           }}
         />
+      )}
+      {selectedProspecto && modalType === "alerta" && (
+        <Dialog open onOpenChange={() => {
+          setSelectedProspecto(null)
+          setModalType(null)
+        }}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Alerta Alumno Nuevo</DialogTitle>
+              <DialogDescription>
+                Envía este prospecto al flujo de generación de credenciales para iniciar su proceso como alumno nuevo.
+              </DialogDescription>
+            </DialogHeader>
+            <AlertaAlumnoNuevo
+              prospectoId={selectedProspecto.id}
+              prospectoNombre={selectedProspecto.nombre}
+              onClose={() => {
+                setSelectedProspecto(null)
+                setModalType(null)
+              }}
+              onSuccess={() => {
+                // Invalidar caché y recargar
+                localStorage.removeItem("gestion_prospectos_cache")
+                localStorage.removeItem("gestion_prospectos_cache_time")
+                window.location.reload()
+              }}
+            />
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

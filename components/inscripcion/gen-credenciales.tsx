@@ -40,8 +40,10 @@ interface Prospecto {
   tiene_carnet: boolean
   campos_faltantes: string[]
   programas: Array<{
+    duracion_meses: number | null
     programa: {
       nombre_del_programa: string
+      abreviatura: string
     }
   }>
 }
@@ -553,7 +555,14 @@ export function GeneracionCredenciales() {
                       </TableCell>
                       <TableCell className="font-medium">{prospecto.nombre_completo}</TableCell>
                       <TableCell>{prospecto.correo_electronico}</TableCell>
-                      <TableCell>{prospecto.programas[0]?.programa?.nombre_del_programa || 'Sin programa'}</TableCell>
+                      <TableCell>
+                        {prospecto.programas[0] ? (
+                          <Badge variant="outline">
+                            {prospecto.programas[0].programa?.abreviatura || 'Sin abrev.'}
+                            {prospecto.programas[0].duracion_meses ? `-${prospecto.programas[0].duracion_meses}` : ''}
+                          </Badge>
+                        ) : 'Sin programa'}
+                      </TableCell>
                       <TableCell>
                         {prospecto.carnet ? (
                           <Badge variant="secondary">{prospecto.carnet}</Badge>

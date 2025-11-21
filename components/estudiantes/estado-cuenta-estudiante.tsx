@@ -8,8 +8,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Download, AlertCircle, Loader2, DollarSign, CreditCard, Calendar, TrendingUp } from "lucide-react"
 import { paymentsService, type AccountSummary } from "@/services/payments"
 import StudentAccountModal from "../finanzas/StudentAccountModal"
-import * as pdfGenerator from "@/lib/pdf-generator"
+import { generateDetailedAccountStatePDF } from "@/lib/pdf-generator"
 import { toast } from "@/hooks/use-toast"
+import api from "@/services/api"
 
 export function EstadoCuentaEstudiante() {
   const [loading, setLoading] = useState(true)
@@ -56,37 +57,73 @@ export function EstadoCuentaEstudiante() {
     if (!accountSummary) return
 
     try {
-      const prospectoRow = {
-        id: prospectoId || 0,
-        nombre: 'Estado de Cuenta',
-        carnet: '',
-        correo: '',
-        programas: [],
-        monto_pagado: accountSummary?.resumen?.monto_pagado || 0,
-        balance: accountSummary?.resumen?.monto_pendiente || 0,
-        bloqueado: (accountSummary?.resumen?.monto_pendiente || 0) > 0
+      // Obtener datos completos del estado de cuenta
+      const [pendingRes, historyRes] = await Promise.all([
+        api.get('/estudiante/pagos/pendientes').catch(() => ({ data: { pagos: [] } })),
+        api.get('/estudiante/pagos/historial').catch(() => ({ data: { historial_pagos: [] } }))
+      ])
+
+      const pendingPayments = pendingRes.data?.pagos || []
+      const paymentHistory = historyRes.data?.historial_pagos || []
+
+      // Obtener información del estudiante desde la primera cuota (para evitar error de propiedad inexistente)
+      const prospecto = accountSummary.cuotas?.[0]?.estudiante_programa?.prospecto
+
+      const studentName = prospecto?.nombre_completo || 'Estudiante'
+      const studentCarnet = prospecto?.carnet || ''
+
+      const studentEmail = prospecto?.correo_electronico || ''
+
+      // Convertir datos al formato AccountData
+      const accountData = {
+        student: {
+          id: prospecto?.id || prospectoId || 0,
+          name: studentName,
+          carnet: studentCarnet,
+          email: studentEmail
+        },
+        balance: {
+          isBlocked: (accountSummary.resumen?.monto_pendiente || 0) > 0,
+          warningLevel: ((accountSummary.resumen?.monto_pendiente || 0) > 1000 ? 2 : 
+                       (accountSummary.resumen?.monto_pendiente || 0) > 500 ? 1 : 0) as 0 | 1 | 2,
+          nextDueDate: pendingPayments.length > 0 ? pendingPayments[0]?.fecha_vencimiento : null,
+          daysUntilDue: pendingPayments.length > 0 && pendingPayments[0]?.fecha_vencimiento ? 
+            Math.ceil((new Date(pendingPayments[0].fecha_vencimiento).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null,
+          latePayments: pendingPayments.filter((p: any) => {
+            const dueDate = new Date(p.fecha_vencimiento)
+            return dueDate < new Date()
+          }).length
+        },
+        pendingPayments: pendingPayments.map((p: any) => ({
+          id: p.id,
+          concept: `Cuota ${p.numero_cuota} - ${p.estudiante_programa?.programa?.nombre_del_programa || ''}`,
+          amount: parseFloat(p.monto || 0),
+          lateFee: parseFloat(p.late_fee_total || 0),
+          dueDate: p.fecha_vencimiento,
+          status: new Date(p.fecha_vencimiento) < new Date() ? 'vencido' as const : 'pendiente' as const,
+          daysLate: new Date(p.fecha_vencimiento) < new Date() ? 
+            Math.ceil((new Date().getTime() - new Date(p.fecha_vencimiento).getTime()) / (1000 * 60 * 60 * 24)) : null
+        })),
+        paymentHistory: paymentHistory.map((h: any) => ({
+          id: h.id,
+          concept: `Cuota ${h.cuota?.numero_cuota || ''} - ${h.estudiante_programa?.programa?.nombre_del_programa || ''}`,
+          amount: parseFloat(h.monto_pagado || 0),
+          paymentDate: h.fecha_pago,
+          method: h.metodo_pago || 'Transferencia',
+          reference: h.numero_boleta || h.banco || 'N/A'
+        }))
       }
 
-      const gen: any = pdfGenerator as any
-      if (typeof gen.generateAccountStatePDF === 'function') {
-        await gen.generateAccountStatePDF(prospectoRow)
-        toast({
-          title: "PDF Generado",
-          description: "El estado de cuenta se ha descargado correctamente"
-        })
-      } else {
-        console.warn('No PDF generator export found')
-        toast({
-          title: "Error",
-          description: "No se pudo generar el PDF",
-          variant: "destructive"
-        })
-      }
-    } catch (error) {
+      await generateDetailedAccountStatePDF(accountData)
+      toast({
+        title: "PDF Generado",
+        description: "El estado de cuenta se ha descargado correctamente"
+      })
+    } catch (error: any) {
       console.error('Error generando PDF:', error)
       toast({
         title: "Error",
-        description: "Error al generar el PDF",
+        description: error.message || "Error al generar el PDF",
         variant: "destructive"
       })
     }

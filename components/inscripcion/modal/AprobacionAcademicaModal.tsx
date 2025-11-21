@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label"
 import { FichaEstudiante } from "../types"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import fetchFicha from "@/services/fichas"
+import type { AsesoriaInfo } from "@/services/fichas"
 import fetchDocumentosRevision from "@/services/documentos"
 import { formatDate } from "@/utils/formatDate"
 import { resolveBackendUrl } from "@/utils/resolveBackendUrl"
@@ -54,6 +55,7 @@ export default function AprobacionAcademicaModal({
   const [documentos, setDocumentos] = useState<any[]>([])
   const [contratoInfo, setContratoInfo] = useState<any>(null)
   const [nuevosFirmados, setNuevosFirmados] = useState(0)
+  const [asesoria, setAsesoria] = useState<AsesoriaInfo | null>(null)
 
   // Campos para mostrar - énfasis en académicos
   const camposAcademicos: [string, any][] = [
@@ -143,6 +145,36 @@ export default function AprobacionAcademicaModal({
       .map(([, doc]) => doc)
   }
 
+  const renderAsesoriaBanner = () => {
+    if (!asesoria) return null
+    const { responsable, creadoPor, actualizadoPor } = asesoria
+
+    return (
+      <div className="mt-2 text-xs text-muted-foreground space-y-1">
+        {responsable && (
+          <div className="text-sm text-foreground">
+            Responsable: <span className="font-semibold">{responsable.nombre}</span>
+            {responsable.email ? ` · ${responsable.email}` : ""}
+          </div>
+        )}
+        <div className="flex flex-wrap gap-4">
+          {creadoPor && (
+            <span>
+              Creado por {creadoPor.nombre}
+              {creadoPor.fecha ? ` · ${formatDate(creadoPor.fecha)}` : ""}
+            </span>
+          )}
+          {actualizadoPor && (
+            <span>
+              Última actualización {actualizadoPor.nombre}
+              {actualizadoPor.fecha ? ` · ${formatDate(actualizadoPor.fecha)}` : ""}
+            </span>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   // ✅ Cargar información de contratos con manejo robusto de errores
   const cargarInfoContratos = async () => {
     try {
@@ -230,7 +262,7 @@ export default function AprobacionAcademicaModal({
 
     try {
       const token = localStorage.getItem("token")
-      const res = await fetch(`${API_BASE_URL}/contactos-enviados/${contratoInfo.ultimo.id}/pdf`, {
+      const res = await fetch(`${API_BASE_URL}/api/contactos-enviados/${contratoInfo.ultimo.id}/pdf`, {
         headers: { Authorization: token ? `Bearer ${token}` : "" },
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -300,6 +332,7 @@ export default function AprobacionAcademicaModal({
         setFinancieros(data.financieros || {})
         setProgramasInscritos(data.programas || [])
         setDocumentos(latestByType)
+        setAsesoria(data.asesoria || null)
 
         // Cargar información de contratos
         await cargarInfoContratos()
@@ -312,7 +345,7 @@ export default function AprobacionAcademicaModal({
   const handleDescargarPDF = async () => {
     try {
       const token = localStorage.getItem("token")
-      const res = await fetch(`${API_BASE_URL}/prospectos/${ficha.id}/ficha-pdf`, {
+      const res = await fetch(`${API_BASE_URL}/api/prospectos/${ficha.id}/ficha-pdf`, {
         headers: {
           Authorization: token ? `Bearer ${token}` : "",
         },
@@ -333,6 +366,30 @@ export default function AprobacionAcademicaModal({
     }
   }
 
+  const handleDescargarPlanPagos = async () => {
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_BASE_URL}/api/prospectos/${ficha.id}/plan-pagos-pdf`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `plan-pagos-${ficha.id}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (err) {
+      console.error("Error al descargar plan de pagos:", err)
+    }
+  }
+
   if (!ficha) return null
 
   const docsByType: Record<string, any[]> = (Array.isArray(documentos) ? documentos : [])
@@ -350,6 +407,10 @@ export default function AprobacionAcademicaModal({
           <DialogTitle className="flex items-center justify-between">
             <span>Aprobación Académica - Ficha #{ficha.id}</span>
             <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleDescargarPlanPagos}>
+                <FileText className="mr-2 h-4 w-4" />
+                Plan de Pagos
+              </Button>
               <Button variant="outline" size="sm" onClick={handleDescargarPDF}>
                 <FileText className="mr-2 h-4 w-4" />
                 Descargar Ficha
@@ -370,6 +431,7 @@ export default function AprobacionAcademicaModal({
           <DialogDescription>
             {personales.nombre || ficha.nombre} - Revisión académica final
           </DialogDescription>
+          {renderAsesoriaBanner()}
         </DialogHeader>
 
         {/* ✅ Panel de información de contratos - solo si hay datos */}

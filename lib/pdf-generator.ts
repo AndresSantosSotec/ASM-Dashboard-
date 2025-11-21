@@ -28,7 +28,7 @@ const CONTENT_TOP = HEADER_HEIGHT + 10 // 60
 const CONTENT_WIDTH = 210 - LEFT - RIGHT // A4: 210mm
 
 // === Función para cargar imagen ===
-async function loadImageAsBase64(imagePath: string): Promise<string> {
+async function loadImageAsBase64(imagePath: string): Promise<string | null> {
   try {
     // Si la imagen ya está en base64, retornarla
     if (imagePath.startsWith('data:')) {
@@ -37,51 +37,92 @@ async function loadImageAsBase64(imagePath: string): Promise<string> {
     
     // Cargar imagen desde la ruta
     const response = await fetch(imagePath)
+    if (!response.ok) {
+      console.warn(`Imagen no encontrada: ${imagePath}`)
+      return null
+    }
+    
     const blob = await response.blob()
+    
+    // Verificar que sea una imagen válida
+    if (!blob.type.startsWith('image/')) {
+      console.warn(`El archivo no es una imagen: ${imagePath}`)
+      return null
+    }
+    
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
-      reader.onloadend = () => resolve(reader.result as string)
-      reader.onerror = reject
+      reader.onloadend = () => {
+        const result = reader.result as string
+        // Verificar que el resultado sea válido
+        if (result && result.length > 0) {
+          resolve(result)
+        } else {
+          resolve(null)
+        }
+      }
+      reader.onerror = () => {
+        console.warn(`Error leyendo imagen: ${imagePath}`)
+        resolve(null)
+      }
       reader.readAsDataURL(blob)
     })
   } catch (error) {
-    console.error('Error cargando imagen:', error)
-    return ''
+    console.warn('Error cargando imagen:', error)
+    return null
   }
 }
 
 // === Header/Footer con imagen ===
-function drawHeaderFooter(doc: jsPDF, headerImage?: string, footerImage?: string) {
+function drawHeaderFooter(doc: jsPDF, headerImage?: string | null, footerImage?: string | null) {
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
 
   // Header con imagen
-  if (headerImage) {
+  if (headerImage && headerImage.length > 0) {
     try {
-      // Agregar la imagen de header (ajusta las dimensiones según tu imagen)
-      doc.addImage(headerImage, 'PNG', 0, 0, pageWidth, HEADER_HEIGHT)
+      // Verificar que la imagen sea válida antes de agregarla
+      if (headerImage.startsWith('data:image/')) {
+        // Agregar la imagen de header (ajusta las dimensiones según tu imagen)
+        doc.addImage(headerImage, 'PNG', 0, 0, pageWidth, HEADER_HEIGHT)
+      } else {
+        throw new Error('Formato de imagen inválido')
+      }
     } catch (error) {
-      console.error('Error agregando imagen de header:', error)
       // Fallback: header con color sólido
       doc.setFillColor(30, 41, 59) // Color similar al de tu imagen
       doc.rect(0, 0, pageWidth, HEADER_HEIGHT, 'F')
+      
+      // Agregar texto en el header
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text('ESTADO DE CUENTA', pageWidth / 2, HEADER_HEIGHT / 2, { align: 'center' })
     }
   } else {
     // Fallback si no hay imagen
     doc.setFillColor(30, 41, 59)
     doc.rect(0, 0, pageWidth, HEADER_HEIGHT, 'F')
+    
+    // Agregar texto en el header
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(16)
+    doc.setFont('helvetica', 'bold')
+    doc.text('ESTADO DE CUENTA', pageWidth / 2, HEADER_HEIGHT / 2, { align: 'center' })
   }
 
   // Footer con logos
   doc.setFillColor(30, 41, 59)
   doc.rect(0, pageHeight - FOOTER_HEIGHT, pageWidth, FOOTER_HEIGHT, 'F')
   
-  if (footerImage) {
+  if (footerImage && footerImage.length > 0) {
     try {
-      // Agregar imagen del footer con los logos
-      doc.addImage(footerImage, 'PNG', 0, pageHeight - FOOTER_HEIGHT, pageWidth, FOOTER_HEIGHT)
+      if (footerImage.startsWith('data:image/')) {
+        // Agregar imagen del footer con los logos
+        doc.addImage(footerImage, 'PNG', 0, pageHeight - FOOTER_HEIGHT, pageWidth, FOOTER_HEIGHT)
+      }
     } catch (error) {
-      console.error('Error agregando imagen de footer:', error)
+      // Silenciar error del footer, ya tenemos el color de fondo
     }
   }
 
@@ -111,14 +152,14 @@ function ensureSpace(doc: jsPDF, cursorY: number, needed: number): number {
 // === Generador principal con imágenes ===
 export const generateDetailedAccountStatePDF = async (
   data: AccountData,
-  headerImagePath: string = '/image.png', // Ruta a tu imagen de header
+  headerImagePath?: string, // Opcional: ruta a tu imagen de header
   footerImagePath?: string // Opcional: imagen para footer
 ) => {
   const doc = new jsPDF()
 
-  // Cargar imágenes
-  const headerImage = await loadImageAsBase64(headerImagePath)
-  const footerImage = footerImagePath ? await loadImageAsBase64(footerImagePath) : undefined
+  // Cargar imágenes (solo si se proporcionan rutas)
+  const headerImage = headerImagePath ? await loadImageAsBase64(headerImagePath) : null
+  const footerImage = footerImagePath ? await loadImageAsBase64(footerImagePath) : null
 
   // Defaults para TODAS las tablas
   ;(doc as any).autoTableSetDefaults({
@@ -276,10 +317,10 @@ export const generateDetailedAccountStatePDF = async (
       },
       bodyStyles: { fontSize: 9 },
       columnStyles: {
-        0: { cellWidth: 75 },
-        1: { cellWidth: 35 },
-        2: { cellWidth: 35, halign: 'right' },
-        3: { cellWidth: 35, halign: 'center' },
+        0: { cellWidth: 70 },
+        1: { cellWidth: 30 },
+        2: { cellWidth: 30, halign: 'right' },
+        3: { cellWidth: 30, halign: 'center' },
       },
       pageBreak: 'auto',
     })
@@ -325,10 +366,10 @@ export const generateDetailedAccountStatePDF = async (
       },
       bodyStyles: { fontSize: 9 },
       columnStyles: {
-        0: { cellWidth: 25 },
-        1: { cellWidth: 80 },
+        0: { cellWidth: 30 },
+        1: { cellWidth: 70 },
         2: { cellWidth: 25, halign: 'center' },
-        3: { cellWidth: 35, halign: 'center' },
+        3: { cellWidth: 30, halign: 'center' },
         4: { cellWidth: 25, halign: 'right' },
       },
       styles: { overflow: 'linebreak' },

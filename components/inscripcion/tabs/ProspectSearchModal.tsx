@@ -60,9 +60,10 @@ export default function ProspectSearchModal({
 
       try {
         const token = localStorage.getItem("token")
+        // ⚡ Incluir include_preinscripcion=true para que el backend no excluya los prospectos en Preinscripción
         const url = `${API_BASE_URL}/api/prospectos?status=${encodeURIComponent(
           "Preinscripción"
-        )}`
+        )}&include_preinscripcion=true`
         const res = await fetch(url, {
           headers: {
             Authorization: `Bearer ${token}`,
