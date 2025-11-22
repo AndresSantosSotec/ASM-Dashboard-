@@ -322,12 +322,17 @@ export default function ProfileView() {
         // Agregar timestamp para evitar caché del navegador
         const urlConCache = result.foto_perfil + '?t=' + Date.now()
         
+        // Asegurar que las propiedades requeridas estén presentes
+        const perfilEditableActual = perfilData.perfil_editable || { id: 0, user_id: 0 }
+        
         setPerfilData({
           ...perfilData,
           perfil_editable: {
-            ...(perfilData.perfil_editable || {}),
+            ...perfilEditableActual,
+            id: perfilEditableActual.id || 0,
+            user_id: perfilEditableActual.user_id || 0,
             foto_perfil: urlConCache
-          }
+          } as ProfileStudent
         })
       }
     } catch (error: any) {

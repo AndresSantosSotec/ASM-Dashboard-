@@ -159,33 +159,27 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
     // 1) Usar directamente el studentId como prospecto_id (basado en el patrón del sistema)
     let prospectoId: number | undefined = Number(student.studentId) || undefined
 
-    // 2) Si no viene studentId, intentar con el prospectoId del objeto
-    if (!prospectoId && student.prospectoId) {
-      prospectoId = student.prospectoId
-    }
-
-    // 3) Fallback: usar snapshot con EP ID si es necesario
-    if (!prospectoId && student?.id) {
+    // 2) Fallback: usar snapshot con EP ID si es necesario
+    if (!prospectoId && student?.epId) {
       try {
-        const snap = await fetchStudentSnapshot(student.id)
+        const snap = await fetchStudentSnapshot(student.epId)
         prospectoId =
             Number(
               (snap as any)?.prospecto_id ??
               snap?.ep?.prospecto?.id ??
-              snap?.prospectoId ??
-              snap?.prospectoId
+              (snap as any)?.prospectoId
             ) || undefined
       } catch (e) {
         console.warn("No se pudo resolver prospecto desde snapshot:", e)
       }
     }
 
-    // 4) Contexto para plantillas
+    // 3) Contexto para plantillas
     setContactCtx({
       nombre: student.name,
       programa: student.program,
-      monto: Number(student.totalDebt ?? 0),
-      fecha: undefined,
+      monto: Number(student.totalConMora ?? student.montoCuota ?? 0),
+      fecha: student.fechaVencimiento,
     })
 
     // 5) Abrir diálogo con el prospecto ID encontrado
@@ -413,7 +407,7 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          Q{(student.totalDebt || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                          Q{(student.totalConMora || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
                         </TableCell>
                         <TableCell>{student.lateMonths}</TableCell>
                         <TableCell>{student.daysLate}</TableCell>
@@ -423,8 +417,8 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={getBadgeVariant(student.status)}>
-                            {student.status === "activo" ? "Activo" : student.status === "bloqueado" ? "Bloqueado" : student.status}
+                          <Badge variant={student.activoEnMoodle ? "default" : "secondary"}>
+                            {student.activoEnMoodle ? "Activo" : "Inactivo"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">

@@ -4,7 +4,8 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
-import { AlertCircle, RefreshCw, LineChart, ArrowUpRight, ArrowDownRight, Shield, Clock } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { AlertCircle, RefreshCw, LineChart, ArrowUpRight, ArrowDownRight, Shield, Clock, Calendar } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -51,8 +52,33 @@ export function DashboardFinanciero() {
     to: new Date(),
   })
 
+  // 🆕 Selector de mes/año para filtrar estudiantes activos en Moodle
+  const [mesSeleccionado, setMesSeleccionado] = useState<number>(new Date().getMonth() + 1)
+  const [anioSeleccionado, setAnioSeleccionado] = useState<number>(new Date().getFullYear())
+
   const [dashboardData, setDashboardData] = useState<DashboardFinancieroData | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Generar opciones de meses y años
+  const meses = [
+    { value: 1, label: "Enero" },
+    { value: 2, label: "Febrero" },
+    { value: 3, label: "Marzo" },
+    { value: 4, label: "Abril" },
+    { value: 5, label: "Mayo" },
+    { value: 6, label: "Junio" },
+    { value: 7, label: "Julio" },
+    { value: 8, label: "Agosto" },
+    { value: 9, label: "Septiembre" },
+    { value: 10, label: "Octubre" },
+    { value: 11, label: "Noviembre" },
+    { value: 12, label: "Diciembre" },
+  ]
+
+  const anios = Array.from({ length: 5 }, (_, i) => {
+    const anio = new Date().getFullYear() - i
+    return { value: anio, label: anio.toString() }
+  })
 
   const loadData = async () => {
     if (!dateRange?.from || !dateRange?.to) return
@@ -62,6 +88,8 @@ export function DashboardFinanciero() {
       const data = await fetchDashboardFinanciero({
         fecha_inicio: dateRange.from.toISOString(),
         fecha_fin: dateRange.to.toISOString(),
+        mes: mesSeleccionado,
+        anio: anioSeleccionado,
         limit_pagos: 10,
         limit_alertas: 20,
       })
@@ -80,13 +108,15 @@ export function DashboardFinanciero() {
   useEffect(() => {
     loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [mesSeleccionado, anioSeleccionado])
 
   const handleRefresh = () => {
     if (!dateRange?.from || !dateRange?.to) return
     fetchDashboardFinanciero({
       fecha_inicio: dateRange.from.toISOString(),
       fecha_fin: dateRange.to.toISOString(),
+      mes: mesSeleccionado,
+      anio: anioSeleccionado,
       limit_pagos: 10,
       limit_alertas: 20,
     })
@@ -176,19 +206,59 @@ export function DashboardFinanciero() {
           <h2 className="text-3xl font-bold tracking-tight">Dashboard Financiero</h2>
           <p className="text-muted-foreground">Análisis y métricas financieras de la institución</p>
         </div>
-        <div className="flex items-center gap-2">
-          <DatePickerWithRange
-            className="w-auto"
-            value={
-              dateRange
-                ? { from: dateRange.from ?? new Date(), to: dateRange.to ?? new Date() }
-                : undefined
-            }
-            onChange={(r) => handleDateRangeChange(r as unknown as DateRange)}
-          />
-          <Button variant="outline" size="icon" onClick={handleRefresh} title="Actualizar">
-            <RefreshCw className="h-4 w-4" />
-          </Button>
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Filtrar por mes:</span>
+            <Select
+              value={mesSeleccionado.toString()}
+              onValueChange={(value) => {
+                setMesSeleccionado(parseInt(value))
+              }}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {meses.map((mes) => (
+                  <SelectItem key={mes.value} value={mes.value.toString()}>
+                    {mes.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={anioSeleccionado.toString()}
+              onValueChange={(value) => {
+                setAnioSeleccionado(parseInt(value))
+              }}
+            >
+              <SelectTrigger className="w-[100px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {anios.map((anio) => (
+                  <SelectItem key={anio.value} value={anio.value.toString()}>
+                    {anio.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <DatePickerWithRange
+              className="w-auto"
+              value={
+                dateRange
+                  ? { from: dateRange.from ?? new Date(), to: dateRange.to ?? new Date() }
+                  : undefined
+              }
+              onChange={(r) => handleDateRangeChange(r as unknown as DateRange)}
+            />
+            <Button variant="outline" size="icon" onClick={handleRefresh} title="Actualizar">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 

@@ -28,7 +28,7 @@ import {
   fetchUpcomingPayments,
 } from "@/services/finance"
 
-import type { LatePaymentStudent } from "@/types/collections"
+import type { LatePaymentStudent, LatePaymentsResponse } from "@/types/collections"
 import { toast } from "@/hooks/use-toast"
 import ContactProspectDialog from "@/components/finanzas/ContactProspectDialog"
 
@@ -228,20 +228,15 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
     // 1) Usar directamente el studentId como prospecto_id (basado en el patrón del sistema)
     let prospectoId: number | undefined = Number(student.studentId) || undefined
 
-    // 2) Si no viene studentId, intentar con el prospectoId del objeto
-    if (!prospectoId && student.prospectoId) {
-      prospectoId = student.prospectoId
-    }
-
-    // 3) Fallback: usar snapshot con EP ID si es necesario
-    if (!prospectoId && student?.id) {
+    // 2) Fallback: usar snapshot con EP ID si es necesario
+    if (!prospectoId && student?.epId) {
       try {
-        const snap = await fetchStudentSnapshot(student.id)
+        const snap = await fetchStudentSnapshot(student.epId)
         prospectoId =
             Number(
               (snap as any)?.prospecto_id ??
               snap?.ep?.prospecto?.id ??
-              snap?.prospectoId
+              (snap as any)?.prospectoId
             ) || undefined
       } catch (e) {
         console.warn("No se pudo resolver prospecto desde snapshot:", e)
@@ -252,7 +247,7 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
     setContactCtx({
       nombre: student.name,
       programa: student.program,
-      monto: Number(student.totalDebt ?? 0),
+      monto: Number(student.totalConMora ?? student.montoCuota ?? 0),
       fecha: undefined,
     })
 

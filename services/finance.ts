@@ -1,5 +1,6 @@
 // services/finance.ts
 import api from "./api"
+import type { LatePaymentsResponse as LatePaymentsResponseType } from "@/types/collections"
 
 /* =========================
    Tipos compartidos
@@ -58,6 +59,13 @@ export interface PaginationMeta {
 export interface LatePaymentsResponse {
   data: LatePaymentRow[]
   meta: PaginationMeta
+  summary?: {
+    total_cuotas: number
+    total_deuda_original: number
+    total_mora: number
+    total_con_mora: number
+    estudiantes_unicos: number
+  }
 }
 export interface StudentSnapshot {
   prospectoId: any
@@ -456,7 +464,7 @@ export const fetchCollectionData = async (params?: any) => {
 /** Late payments (colecciones) */
 export const fetchLatePayments = async (
   params: LatePaymentsQuery = {},
-): Promise<LatePaymentsResponse> => {
+): Promise<LatePaymentsResponseType> => {
   const res = await api.get("/collections/late-payments", { params })
   // backend puede devolver {data, meta, summary} o un array; normalizamos:
   const data = Array.isArray(res.data) ? res.data : res.data?.data
@@ -473,7 +481,7 @@ export const fetchLatePayments = async (
     total_con_mora: 0,
     estudiantes_unicos: 0,
   }
-  return { data: data ?? [], meta, summary }
+  return { data: data ?? [], meta, summary, request_id: res.data?.request_id ?? '' }
 }
 
 /** Snapshot de estudiante (por EP id) */
@@ -483,7 +491,7 @@ export const fetchStudentSnapshot = async (epId: number | string): Promise<Stude
 }
 
 /** Cuotas pendientes con vencimiento en los próximos 30 días */
-export const fetchUpcomingPayments = async (params?: {
+export const fetchUpcomingPayments = async (params: {
   q?: string
   programa_id?: number | string
 } = {}) => {
