@@ -63,10 +63,11 @@ export function useMetrics(filters: FilterValues) {
   const { data, error, isLoading, mutate } = useSWR(key, fetcher, {
     revalidateOnFocus: false,
     revalidateOnReconnect: true,
-    dedupingInterval: 60000, // No duplicar requests en 1 minuto
-    refreshInterval: 300000, // Refrescar cada 5 minutos
-    errorRetryCount: 3,
-    errorRetryInterval: 5000,
+    dedupingInterval: 30000, // No duplicar requests en 30 segundos
+    refreshInterval: 120000, // Refrescar cada 2 minutos
+    errorRetryCount: 2,
+    errorRetryInterval: 3000,
+    keepPreviousData: true, // Mantener datos previos mientras recarga
   })
 
   return {

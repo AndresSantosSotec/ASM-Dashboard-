@@ -3,9 +3,8 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AlertCircle, RefreshCw, LineChart, ArrowUpRight, ArrowDownRight, Shield, Clock, Calendar } from "lucide-react"
+import { AlertCircle, RefreshCw, LineChart, ArrowUpRight, ArrowDownRight, Shield, Clock, Calendar as CalendarIcon } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -208,7 +207,7 @@ export function DashboardFinanciero() {
         </div>
         <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
           <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <CalendarIcon className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">Filtrar por mes:</span>
             <Select
               value={mesSeleccionado.toString()}
@@ -246,15 +245,7 @@ export function DashboardFinanciero() {
             </Select>
           </div>
           <div className="flex items-center gap-2">
-            <DatePickerWithRange
-              className="w-auto"
-              value={
-                dateRange
-                  ? { from: dateRange.from ?? new Date(), to: dateRange.to ?? new Date() }
-                  : undefined
-              }
-              onChange={(r) => handleDateRangeChange(r as unknown as DateRange)}
-            />
+            {/* DatePickerWithRange removido temporalmente - usar selectores de mes/año */}
             <Button variant="outline" size="icon" onClick={handleRefresh} title="Actualizar">
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -316,6 +307,58 @@ export function DashboardFinanciero() {
         </Card>
       </div>
 
+      {/* 📋 NUEVA SECCIÓN: Lista de Estudiantes Activos desde Moodle */}
+      {resumen.estudiantesActivosDetalle && resumen.estudiantesActivosDetalle.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Estudiantes Activos en Moodle - {meses.find(m => m.value === mesSeleccionado)?.label} {anioSeleccionado}</CardTitle>
+            <CardDescription>
+              {resumen.estudiantesActivos} estudiantes con cursos matriculados este mes
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="max-h-[500px] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Carnet</TableHead>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Correo</TableHead>
+                    <TableHead>Programa</TableHead>
+                    <TableHead className="text-center">Cursos</TableHead>
+                    <TableHead>Primera Matrícula</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {resumen.estudiantesActivosDetalle.slice(0, 100).map((estudiante: any, idx: number) => (
+                    <TableRow key={estudiante.carnet || idx}>
+                      <TableCell className="font-mono text-xs">{estudiante.carnet}</TableCell>
+                      <TableCell className="font-medium">{estudiante.nombre_completo}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{estudiante.correo || '—'}</TableCell>
+                      <TableCell>
+                        {estudiante.city ? (
+                          <Badge variant="outline">{estudiante.city}</Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge>{estudiante.total_matriculaciones || 0}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs">{formatDate(estudiante.primera_matricula)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {resumen.estudiantesActivos > 100 && (
+              <div className="mt-4 text-center text-sm text-muted-foreground">
+                Mostrando 100 de {resumen.estudiantesActivos} estudiantes
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>

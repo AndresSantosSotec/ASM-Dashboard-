@@ -8,6 +8,16 @@ export interface DashboardFinancieroData {
     recaudacionPendienteAnterior: number
     estudiantesActivos: number
     estudiantesActivosAnterior: number
+    estudiantesActivosDetalle?: Array<{
+      carnet: string
+      nombre_completo: string
+      correo?: string
+      telefono?: string
+      city?: string
+      estado_cuenta: string
+      total_matriculaciones: number
+      primera_matricula?: string
+    }>
   }
   pagosRecientes: Array<{
     id: number

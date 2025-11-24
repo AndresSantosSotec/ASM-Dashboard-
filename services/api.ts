@@ -35,4 +35,6 @@ api.interceptors.response.use(
   }
 );
 
+// ✅ Export default for backward compatibility
+// Allows: import api from './api'
 export default api;
