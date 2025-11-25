@@ -71,38 +71,86 @@ export function DashboardFinanciero() {
   const [cursosPorEstudiante, setCursosPorEstudiante] = useState<Record<string, any[]>>({})
   const [cargandoCursos, setCargandoCursos] = useState<Set<string>>(new Set())
   
+  // 🆕 Estado para deudas calculadas (lazy loading)
+  const [deudasCalculadas, setDeudasCalculadas] = useState<Record<string, any>>({})
+  const [cargandoDeudas, setCargandoDeudas] = useState<Set<string>>(new Set())
+  
   // 🆕 Estado para filtro de búsqueda
   const [filtroBusqueda, setFiltroBusqueda] = useState<string>("")
   
   // 🆕 Estado para filtro por carrera/programa
   const [filtroCarrera, setFiltroCarrera] = useState<string>("todas")
+  
+  // 🆕 Estado para filtro por cantidad de cursos
+  const [filtroCantidadCursos, setFiltroCantidadCursos] = useState<string>("todos")
+  
+  // 🆕 Estado para filtro por plan de estudio
+  const [filtroPlanEstudio, setFiltroPlanEstudio] = useState<string>("todos")
 
   /**
-   * 💰 Calcular deuda mensual del estudiante basada en cursos activos
-   * 
-   * 🎯 LÓGICA DE COBRO (desde ProgramaPriceCalculatorService):
-   * 
-   * CASO 1 — Mismo programa, múltiples cursos:
-   *   mensualidad = cuota_programa × cantidad_cursos
-   *   Ejemplo: 2 cursos BBA → Q1,500 × 2 = Q3,000
-   * 
-   * CASO 2 — Doble titulación real (cursos de ambos programas):
-   *   mensualidad = suma(cuota_programa_1, cuota_programa_2)
-   *   Ejemplo: BBA + MBA → Q1,500 + Q1,725 = Q3,225
-   * 
-   * CASO 3 — Doble titulación pero solo cursa un programa:
-   *   Se aplica CASO 1 (multiplicar por cantidad de cursos)
-   * 
-   * CASO 4 — Un solo curso:
-   *   mensualidad = cuota_programa
+   * 🔍 Función compartida para filtrar estudiantes
+   * Aplica TODOS los filtros activos (búsqueda, carrera, cantidad cursos, plan)
+   */
+  const filtrarEstudiantes = () => {
+    if (!dashboardData?.resumen?.estudiantesActivosDetalle) return []
+    
+    return dashboardData.resumen.estudiantesActivosDetalle.filter((est: any) => {
+      // Filtro de búsqueda
+      if (filtroBusqueda.trim()) {
+        const busqueda = filtroBusqueda.toLowerCase().trim()
+        const carnet = (est.carnet || "").toLowerCase()
+        const nombre = (est.nombre_completo || "").toLowerCase()
+        const correo = (est.correo || "").toLowerCase()
+        const programa = (est.city || "").toLowerCase()
+        if (!(carnet.includes(busqueda) || nombre.includes(busqueda) || correo.includes(busqueda) || programa.includes(busqueda))) return false
+      }
+      
+      // Filtro de carrera
+      if (filtroCarrera !== 'todas') {
+        const programa = (est.city || '').trim().toUpperCase()
+        const codigoPrograma = programa.split(/\s+/)[0]
+        const normalizarBBA = (codigo: string) => codigo.startsWith('BBA') ? 'BBA' : codigo
+        if (normalizarBBA(codigoPrograma) !== normalizarBBA(filtroCarrera)) return false
+      }
+      
+      // Filtro por cantidad de cursos
+      if (filtroCantidadCursos !== 'todos') {
+        const cantidadCursos = est.total_matriculaciones || 0
+        if (filtroCantidadCursos === '1' && cantidadCursos !== 1) return false
+        if (filtroCantidadCursos === '2' && cantidadCursos !== 2) return false
+        if (filtroCantidadCursos === '3' && cantidadCursos !== 3) return false
+        if (filtroCantidadCursos === '4+' && cantidadCursos < 4) return false
+      }
+      
+      // Filtro por plan de estudio
+      if (filtroPlanEstudio !== 'todos') {
+        const programa = (est.city || '').trim().toUpperCase()
+        const planMatch = programa.match(/(20\d{2})/)
+        const plan = planMatch ? planMatch[1] : 'DESCONOCIDO'
+        if (plan !== filtroPlanEstudio) return false
+      }
+      
+      return true
+    })
+  }
+
+  /**
+   * 💰 Calcular deuda mensual del estudiante
+   * Usa datos lazy-loaded del estado deudasCalculadas
    */
   const calcularDeudaMensual = (estudiante: any): number => {
-    // Usar datos calculados desde backend (ProgramaPriceCalculatorService)
+    const carnet = (estudiante.carnet || '').toLowerCase()
+    
+    // Prioridad 1: Deuda calculada lazy (estado local)
+    if (deudasCalculadas[carnet]) {
+      return deudasCalculadas[carnet].cuota_mensual || 0
+    }
+    
+    // Prioridad 2: Deuda que pudiera venir del backend (fallback)
     if (estudiante.deuda_calculada && typeof estudiante.deuda_calculada === 'object') {
       return estudiante.deuda_calculada.cuota_mensual || 0
     }
     
-    // Fallback: Si no hay cálculo previo, retornar 0
     return 0
   }
   const meses = [
@@ -137,7 +185,6 @@ export function DashboardFinanciero() {
         anio: anioSeleccionado,
         limit_pagos: 10,
         limit_alertas: 20,
-        calcular_deuda: false, // 🚀 OPTIMIZADO: false por defecto para carga rápida (evita 390+ segundos)
       })
       setDashboardData(data)
     } catch (error) {
@@ -157,6 +204,7 @@ export function DashboardFinanciero() {
     setPaginaEstudiantes(1)
     setEstudiantesExpandidos(new Set())
     setCursosPorEstudiante({})
+    setDeudasCalculadas({}) // Resetear deudas calculadas
     setFiltroBusqueda("") // Resetear filtro al cambiar mes/año
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mesSeleccionado, anioSeleccionado])
@@ -165,6 +213,68 @@ export function DashboardFinanciero() {
   useEffect(() => {
     setPaginaEstudiantes(1)
   }, [itemsPorPagina])
+
+  // 🚀 NUEVO: Calcular deudas en batch de estudiantes visibles
+  useEffect(() => {
+    if (!dashboardData?.resumen?.estudiantesActivosDetalle) return
+    
+    // Usar función compartida de filtrado
+    const estudiantesFiltrados = filtrarEstudiantes()
+    
+    // Obtener estudiantes de la página actual
+    const estudiantesPaginados = estudiantesFiltrados.slice(
+      itemsPorPagina === Infinity ? 0 : (paginaEstudiantes - 1) * itemsPorPagina,
+      itemsPorPagina === Infinity ? estudiantesFiltrados.length : paginaEstudiantes * itemsPorPagina
+    )
+    
+    // Calcular deudas solo de estudiantes visibles que NO estén ya calculadas
+    const carnetsParaCalcular = estudiantesPaginados
+      .map((est: any) => (est.carnet || '').toLowerCase())
+      .filter((carnet: string) => carnet && !deudasCalculadas[carnet] && !cargandoDeudas.has(carnet))
+    
+    if (carnetsParaCalcular.length > 0) {
+      // Marcar como cargando
+      setCargandoDeudas(prev => {
+        const nuevo = new Set(prev)
+        carnetsParaCalcular.forEach((c: string) => nuevo.add(c))
+        return nuevo
+      })
+      
+      // 🚀 SUPER OPTIMIZADO: 1 sola llamada batch en lugar de 20 individuales
+      // Reduce network overhead de 20 round-trips HTTP a 1 solo
+      api.post('/dashboard-financiero/deudas-batch', {
+        carnets: carnetsParaCalcular,
+        mes: mesSeleccionado,
+        anio: anioSeleccionado
+      }, {
+        timeout: 15000 // 15 segundos para batch
+      })
+      .then((response) => {
+        if (response.data.success && response.data.deudas) {
+          const nuevasDeudas: Record<string, any> = {}
+          
+          // Mapear resultados del batch
+          Object.entries(response.data.deudas).forEach(([carnet, deuda]) => {
+            nuevasDeudas[carnet.toLowerCase()] = deuda
+          })
+          
+          setDeudasCalculadas(prev => ({ ...prev, ...nuevasDeudas }))
+        }
+      })
+      .catch((error) => {
+        console.error('Error calculando deudas en batch:', error)
+      })
+      .finally(() => {
+        // Limpiar estado de carga
+        setCargandoDeudas(prev => {
+          const nuevo = new Set(prev)
+          carnetsParaCalcular.forEach((c: string) => nuevo.delete(c))
+          return nuevo
+        })
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paginaEstudiantes, itemsPorPagina, filtroBusqueda, filtroCarrera, filtroCantidadCursos, filtroPlanEstudio, dashboardData])
 
   // 🆕 Función para navegar entre meses
   const navegarMes = (direccion: 'anterior' | 'siguiente') => {
@@ -185,21 +295,15 @@ export function DashboardFinanciero() {
     }
   }
 
-  // 🆕 Función para obtener cursos de un estudiante
   const obtenerCursosEstudiante = async (carnet: string) => {
-    if (cursosPorEstudiante[carnet]) {
+    const carnetNormalizado = carnet.toLowerCase()
+    if (cursosPorEstudiante[carnetNormalizado]) {
       return // Ya están cargados
     }
 
-    setCargandoCursos(prev => new Set(prev).add(carnet))
+    setCargandoCursos(prev => new Set(prev).add(carnetNormalizado))
     
     try {
-      console.log('[Dashboard] 🔍 Consultando cursos para estudiante:', {
-        carnet,
-        mes: mesSeleccionado,
-        anio: anioSeleccionado
-      })
-
       const response = await api.get('/moodle/consultas/cursos-estudiante', {
         params: {
           carnet: carnet,
@@ -208,52 +312,27 @@ export function DashboardFinanciero() {
         }
       })
 
-      console.log('[Dashboard] ✅ Respuesta completa del backend:', response.data)
-      console.log('[Dashboard] 📚 Data keys:', Object.keys(response.data))
-      
-      // ✅ CORREGIDO: Laravel envuelve la respuesta en {data: {success, cursos, total}}
-      const responseData = response.data.data || response.data // Desempaquetar si está envuelto
-      console.log('[Dashboard] 📦 Response data desempaquetado:', responseData)
-      console.log('[Dashboard] 📚 Cursos recibidos:', responseData.cursos)
-      console.log('[Dashboard] 📊 Total de cursos:', responseData.total)
-      console.log('[Dashboard] 🐛 Debug info:', responseData.debug)
-      
-      // ✅ Manejar ambos formatos de respuesta
+      const responseData = response.data.data || response.data
       const cursosData = responseData.cursos || responseData.data || responseData || []
-      const success = responseData.success !== false // Por defecto true si no hay campo success
+      const success = responseData.success !== false
       
       if (success) {
-        console.log('[Dashboard] 💾 Guardando cursos para', carnet, ':', cursosData.length, 'cursos')
         setCursosPorEstudiante(prev => ({
           ...prev,
-          [carnet]: Array.isArray(cursosData) ? cursosData : []
+          [carnetNormalizado]: Array.isArray(cursosData) ? cursosData : []
         }))
       } else {
-        console.warn('[Dashboard] ⚠️ No se encontraron cursos o respuesta sin success:', response.data)
-        // Aún así guardar array vacío para marcar que ya se consultó
         setCursosPorEstudiante(prev => ({
           ...prev,
-          [carnet]: []
+          [carnetNormalizado]: []
         }))
       }
     } catch (error: any) {
-      console.error(`[Dashboard] ❌ Error cargando cursos para ${carnet}:`, error)
-      console.error('[Dashboard] 🔍 Detalles del error:', {
-        message: error?.message,
-        response: error?.response?.data,
-        status: error?.response?.status,
-        url: error?.config?.url,
-        params: error?.config?.params
-      })
-      toast({
-        title: "Error",
-        description: `No se pudieron cargar los cursos de ${carnet}`,
-        variant: "destructive"
-      })
+      console.error(`[Dashboard] Error cargando cursos para ${carnet}:`, error)
     } finally {
       setCargandoCursos(prev => {
         const nuevo = new Set(prev)
-        nuevo.delete(carnet)
+        nuevo.delete(carnetNormalizado)
         return nuevo
       })
     }
@@ -261,12 +340,14 @@ export function DashboardFinanciero() {
 
   // 🆕 Función para expandir/colapsar estudiante
   const toggleEstudiante = (carnet: string) => {
+    const carnetNormalizado = carnet.toLowerCase()
     const nuevoExpandidos = new Set(estudiantesExpandidos)
-    if (nuevoExpandidos.has(carnet)) {
-      nuevoExpandidos.delete(carnet)
+    if (nuevoExpandidos.has(carnetNormalizado)) {
+      nuevoExpandidos.delete(carnetNormalizado)
     } else {
-      nuevoExpandidos.add(carnet)
-      obtenerCursosEstudiante(carnet)
+      nuevoExpandidos.add(carnetNormalizado)
+      // Solo cargar cursos (deuda ya viene del backend)
+      obtenerCursosEstudiante(carnetNormalizado)
     }
     setEstudiantesExpandidos(nuevoExpandidos)
   }
@@ -488,143 +569,7 @@ export function DashboardFinanciero() {
         </Card>
       </div>
 
-      {/* 📊 SECCIÓN: Recaudación Proyectada por Programa */}
-      {resumen.estudiantesActivosDetalle && resumen.estudiantesActivosDetalle.length > 0 && (() => {
-        // Calcular estadísticas por programa desde estudiantesActivosDetalle
-        const estadisticasPorPrograma: { [key: string]: any } = {}
-        
-        resumen.estudiantesActivosDetalle.forEach((est: any) => {
-          const programasActivos = est.deuda_calculada?.programas_activos || []
-          const cursosActivos = est.deuda_calculada?.cursos_activos || 0
-          const cuotaMensual = est.deuda_calculada?.cuota_mensual || 0
-          
-          // Si no hay programas detectados, intentar del campo city
-          const programasAUsar = programasActivos.length > 0 
-            ? programasActivos 
-            : (est.city ? [est.city.split(/[\/\|,]/)[0].trim()] : [])
-          
-          programasAUsar.forEach((prog: string) => {
-            if (!estadisticasPorPrograma[prog]) {
-              estadisticasPorPrograma[prog] = {
-                total_estudiantes: 0,
-                deuda_mensual_total: 0,
-                total_cursos: 0,
-                estudiantes_un_curso: 0,
-                estudiantes_multiples_cursos: 0
-              }
-            }
-            
-            estadisticasPorPrograma[prog].total_estudiantes++
-            estadisticasPorPrograma[prog].deuda_mensual_total += cuotaMensual
-            estadisticasPorPrograma[prog].total_cursos += cursosActivos
-            
-            if (cursosActivos === 1) {
-              estadisticasPorPrograma[prog].estudiantes_un_curso++
-            } else if (cursosActivos > 1) {
-              estadisticasPorPrograma[prog].estudiantes_multiples_cursos++
-            }
-          })
-        })
-        
-        const programasOrdenados = Object.keys(estadisticasPorPrograma)
-          .sort((a, b) => estadisticasPorPrograma[b].deuda_mensual_total - estadisticasPorPrograma[a].deuda_mensual_total)
-        
-        const totalProyectado = Object.values(estadisticasPorPrograma)
-          .reduce((sum: number, prog: any) => sum + prog.deuda_mensual_total, 0)
-        
-        return programasOrdenados.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>💰 Recaudación Proyectada por Programa</CardTitle>
-              <CardDescription>
-                Estimación mensual basada en cursos activos (sin pagos registrados)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {programasOrdenados.map((programa: string, idx: number) => {
-                  const stats = estadisticasPorPrograma[programa]
-                  const promedio = stats.deuda_mensual_total / stats.total_estudiantes
-                  const porcentaje = (stats.deuda_mensual_total / totalProyectado) * 100
-                  
-                  return (
-                    <div 
-                      key={idx} 
-                      className="border rounded-lg p-4 bg-gradient-to-br from-background to-muted/30 hover:shadow-md transition-shadow cursor-pointer"
-                      onClick={() => setFiltroCarrera(programa)}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-bold text-lg text-primary">{programa}</h3>
-                        <Badge variant="outline" className="font-semibold">
-                          {stats.total_estudiantes}
-                        </Badge>
-                      </div>
-                      
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Total mensual:</span>
-                          <span className="font-bold text-lg text-green-700">
-                            {formatCurrency(stats.deuda_mensual_total)}
-                          </span>
-                        </div>
-                        
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Promedio/est:</span>
-                          <span className="font-medium">
-                            {formatCurrency(promedio)}
-                          </span>
-                        </div>
-                        
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">% del total:</span>
-                          <Badge variant="secondary">{porcentaje.toFixed(1)}%</Badge>
-                        </div>
-                        
-                        <div className="flex justify-between pt-2 border-t">
-                          <span className="text-muted-foreground">Cursos activos:</span>
-                          <Badge>{stats.total_cursos}</Badge>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t text-xs">
-                          <div className="text-center">
-                            <div className="text-muted-foreground">1 curso</div>
-                            <div className="font-semibold text-blue-600">{stats.estudiantes_un_curso}</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-muted-foreground">Múltiples</div>
-                            <div className="font-semibold text-purple-600">{stats.estudiantes_multiples_cursos}</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              
-              {/* Total General */}
-              <div className="mt-6 pt-4 border-t bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-950 dark:to-blue-950 rounded-lg p-4">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <span className="text-sm font-medium text-muted-foreground">Total Proyectado Mensual</span>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {resumen.estudiantesActivosDetalle.length} estudiantes activos • {programasOrdenados.length} programas
-                    </div>
-                  </div>
-                  <span className="text-3xl font-bold text-green-700">
-                    {formatCurrency(totalProyectado)}
-                  </span>
-                </div>
-              </div>
-              
-              <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-md text-xs text-muted-foreground">
-                💡 <strong>Tip:</strong> Haz clic en un programa para filtrar la tabla de estudiantes
-              </div>
-            </CardContent>
-          </Card>
-        )
-      })()}
-
-      {/* 📋 NUEVA SECCIÓN: Lista de Estudiantes Activos desde Moodle con Paginación */}
+      {/*  NUEVA SECCIÓN: Lista de Estudiantes Activos desde Moodle con Paginación */}
       {resumen.estudiantesActivosDetalle && resumen.estudiantesActivosDetalle.length > 0 && (
         <Card>
           <CardHeader>
@@ -635,21 +580,21 @@ export function DashboardFinanciero() {
                   {resumen.estudiantesActivos} estudiantes con cursos matriculados este mes
                 </CardDescription>
               </div>
-              {/* Resumen de deudas calculadas */}
+              {/* ✅ Recaudación mensual estimada (calculada dinámicamente según filtros) */}
               <div className="text-right">
                 <div className="text-2xl font-bold text-primary">
                   {formatCurrency(
-                    resumen.estudiantesActivosDetalle.reduce((sum, est) => sum + calcularDeudaMensual(est), 0)
+                    filtrarEstudiantes().reduce((sum, est) => sum + calcularDeudaMensual(est), 0)
                   )}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  Deuda mensual total estimada
+                  Recaudación mensual estimada
                 </div>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            {/* Filtros de búsqueda y carrera */}
+            {/* Filtros de búsqueda, carrera, cantidad de cursos y plan de estudio */}
             <div className="mb-4 space-y-3">
               <div className="flex flex-col sm:flex-row gap-3">
                 {/* Filtro de búsqueda */}
@@ -680,7 +625,7 @@ export function DashboardFinanciero() {
                 </div>
                 
                 {/* Filtro por carrera */}
-                <div className="w-full sm:w-[280px]">
+                <div className="w-full sm:w-[220px]">
                   <Select
                     value={filtroCarrera}
                     onValueChange={(value) => {
@@ -693,23 +638,76 @@ export function DashboardFinanciero() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="todas">📚 Todas las carreras</SelectItem>
-                      <SelectItem value="BBA">🎓 BBA (Bachelor of Business)</SelectItem>
-                      <SelectItem value="MBA">🎓 MBA (Master in Business)</SelectItem>
-                      <SelectItem value="MFIN">💰 MFIN (Maestría en Finanzas)</SelectItem>
-                      <SelectItem value="MMKD">📱 MMKD (Marketing Digital)</SelectItem>
-                      <SelectItem value="MLDO">👥 MLDO (Liderazgo y DO)</SelectItem>
-                      <SelectItem value="MHHRR">👔 MHHRR (RRHH)</SelectItem>
-                      <SelectItem value="MPM">📊 MPM (Gestión de Proyectos)</SelectItem>
+                      <SelectItem value="BBA">🎓 BBA</SelectItem>
+                      <SelectItem value="MBA">🎓 MBA</SelectItem>
+                      <SelectItem value="MFIN">💰 MFIN</SelectItem>
+                      <SelectItem value="MMKD">📱 MMKD</SelectItem>
+                      <SelectItem value="MLDO">👥 MLDO</SelectItem>
+                      <SelectItem value="MHHRR">👔 MHHRR</SelectItem>
+                      <SelectItem value="MPM">📊 MPM</SelectItem>
                       <SelectItem value="PMP">🏆 PMP</SelectItem>
                       <SelectItem value="DESCONOCIDO">❓ Desconocido</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* ✅ NUEVO: Filtro por cantidad de cursos */}
+                <div className="w-full sm:w-[180px]">
+                  <Select
+                    value={filtroCantidadCursos}
+                    onValueChange={(value) => {
+                      setFiltroCantidadCursos(value)
+                      setPaginaEstudiantes(1)
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Cantidad de cursos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos los cursos</SelectItem>
+                      <SelectItem value="1">1 curso</SelectItem>
+                      <SelectItem value="2">2 cursos</SelectItem>
+                      <SelectItem value="3">3 cursos</SelectItem>
+                      <SelectItem value="4+">4+ cursos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* ✅ NUEVO: Filtro por plan de estudio */}
+                <div className="w-full sm:w-[160px]">
+                  <Select
+                    value={filtroPlanEstudio}
+                    onValueChange={(value) => {
+                      setFiltroPlanEstudio(value)
+                      setPaginaEstudiantes(1)
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Plan de estudio" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos los planes</SelectItem>
+                      {(() => {
+                        // Extraer planes únicos de los estudiantes
+                        const planesUnicos = new Set<string>()
+                        resumen.estudiantesActivosDetalle.forEach((est: any) => {
+                          const programa = (est.city || '').trim().toUpperCase()
+                          const planMatch = programa.match(/(20\d{2})/)
+                          if (planMatch) planesUnicos.add(planMatch[1])
+                        })
+                        return Array.from(planesUnicos).sort().reverse().map(plan => (
+                          <SelectItem key={plan} value={plan}>Plan {plan}</SelectItem>
+                        ))
+                      })()}
+                      <SelectItem value="DESCONOCIDO">Sin plan</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               
               {/* Indicadores de filtros activos */}
-              {(filtroBusqueda.trim() || filtroCarrera !== 'todas') && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              {(filtroBusqueda.trim() || filtroCarrera !== 'todas' || filtroCantidadCursos !== 'todos' || filtroPlanEstudio !== 'todos') && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                   <span>Filtros activos:</span>
                   {filtroBusqueda.trim() && (
                     <Badge variant="secondary" className="gap-1">
@@ -723,6 +721,18 @@ export function DashboardFinanciero() {
                       <X className="h-3 w-3 cursor-pointer" onClick={() => setFiltroCarrera("todas")} />
                     </Badge>
                   )}
+                  {filtroCantidadCursos !== 'todos' && (
+                    <Badge variant="secondary" className="gap-1">
+                      Cursos: {filtroCantidadCursos}
+                      <X className="h-3 w-3 cursor-pointer" onClick={() => setFiltroCantidadCursos("todos")} />
+                    </Badge>
+                  )}
+                  {filtroPlanEstudio !== 'todos' && (
+                    <Badge variant="secondary" className="gap-1">
+                      Plan: {filtroPlanEstudio}
+                      <X className="h-3 w-3 cursor-pointer" onClick={() => setFiltroPlanEstudio("todos")} />
+                    </Badge>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -730,6 +740,8 @@ export function DashboardFinanciero() {
                     onClick={() => {
                       setFiltroBusqueda("")
                       setFiltroCarrera("todas")
+                      setFiltroCantidadCursos("todos")
+                      setFiltroPlanEstudio("todos")
                       setPaginaEstudiantes(1)
                     }}
                   >
@@ -769,64 +781,24 @@ export function DashboardFinanciero() {
                 </Select>
                 <span className="text-sm text-muted-foreground">
                   {(() => {
-                    const estudiantesFiltrados = resumen.estudiantesActivosDetalle.filter((est: any) => {
-                      // Filtro de búsqueda
-                      if (filtroBusqueda.trim()) {
-                        const busqueda = filtroBusqueda.toLowerCase().trim()
-                        const carnet = (est.carnet || "").toLowerCase()
-                        const nombre = (est.nombre_completo || "").toLowerCase()
-                        const correo = (est.correo || "").toLowerCase()
-                        const programa = (est.city || "").toLowerCase()
-                        if (!(carnet.includes(busqueda) || nombre.includes(busqueda) || correo.includes(busqueda) || programa.includes(busqueda))) return false
-                      }
-                      
-                      // Filtro de carrera
-                      if (filtroCarrera !== 'todas') {
-                        const programa = (est.city || '').trim().toUpperCase()
-                        const codigoPrograma = programa.split(/\s+/)[0]
-                        const normalizarBBA = (codigo: string) => codigo.startsWith('BBA') ? 'BBA' : codigo
-                        if (normalizarBBA(codigoPrograma) !== normalizarBBA(filtroCarrera)) return false
-                      }
-                      
-                      return true
-                    }).length
-                    
-                    const hayFiltros = filtroBusqueda.trim() || filtroCarrera !== 'todas'
+                    const estudiantesFiltrados = filtrarEstudiantes()
+                    const totalFiltrados = estudiantesFiltrados.length
+                    const hayFiltros = filtroBusqueda.trim() || filtroCarrera !== 'todas' || filtroCantidadCursos !== 'todos' || filtroPlanEstudio !== 'todos'
                     
                     if (itemsPorPagina === Infinity) {
-                      return `Mostrando todos los ${estudiantesFiltrados} estudiantes${hayFiltros ? ' (filtrados)' : ''}`
+                      return `Mostrando todos los ${totalFiltrados} estudiantes${hayFiltros ? ' (filtrados)' : ''}`
                     }
                     
                     const inicio = ((paginaEstudiantes - 1) * itemsPorPagina) + 1
-                    const fin = Math.min(paginaEstudiantes * itemsPorPagina, estudiantesFiltrados)
-                    return `Mostrando ${inicio} - ${fin} de ${estudiantesFiltrados} estudiantes${hayFiltros ? ' (filtrados)' : ''}`
+                    const fin = Math.min(paginaEstudiantes * itemsPorPagina, totalFiltrados)
+                    return `Mostrando ${inicio} - ${fin} de ${totalFiltrados} estudiantes${hayFiltros ? ' (filtrados)' : ''}`
                   })()}
                 </span>
               </div>
               {itemsPorPagina !== Infinity && (() => {
-                const estudiantesFiltrados = resumen.estudiantesActivosDetalle.filter((est: any) => {
-                  // Filtro de búsqueda
-                  if (filtroBusqueda.trim()) {
-                    const busqueda = filtroBusqueda.toLowerCase().trim()
-                    const carnet = (est.carnet || "").toLowerCase()
-                    const nombre = (est.nombre_completo || "").toLowerCase()
-                    const correo = (est.correo || "").toLowerCase()
-                    const programa = (est.city || "").toLowerCase()
-                    if (!(carnet.includes(busqueda) || nombre.includes(busqueda) || correo.includes(busqueda) || programa.includes(busqueda))) return false
-                  }
-                  
-                  // Filtro de carrera
-                  if (filtroCarrera !== 'todas') {
-                    const programa = (est.city || '').trim().toUpperCase()
-                    const codigoPrograma = programa.split(/\s+/)[0]
-                    const normalizarBBA = (codigo: string) => codigo.startsWith('BBA') ? 'BBA' : codigo
-                    if (normalizarBBA(codigoPrograma) !== normalizarBBA(filtroCarrera)) return false
-                  }
-                  
-                  return true
-                }).length
-                
-                const totalPaginas = Math.ceil(estudiantesFiltrados / itemsPorPagina)
+                const estudiantesFiltrados = filtrarEstudiantes()
+                const totalFiltrados = estudiantesFiltrados.length
+                const totalPaginas = Math.ceil(totalFiltrados / itemsPorPagina)
                 
                 return (
                   <div className="flex gap-2">
@@ -866,50 +838,14 @@ export function DashboardFinanciero() {
                     <TableHead>Correo</TableHead>
                     <TableHead>Programa</TableHead>
                     <TableHead className="text-center">Cursos</TableHead>
-                    <TableHead className="text-right">Deuda Mensual</TableHead>
+                    <TableHead className="text-right">Mensualidad</TableHead>
                     <TableHead>Primera Matrícula</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {(() => {
-                    // Filtrar estudiantes según búsqueda y carrera
-                    const estudiantesFiltrados = resumen.estudiantesActivosDetalle.filter((est: any) => {
-                      // Filtro de búsqueda
-                      if (filtroBusqueda.trim()) {
-                        const busqueda = filtroBusqueda.toLowerCase().trim()
-                        const carnet = (est.carnet || "").toLowerCase()
-                        const nombre = (est.nombre_completo || "").toLowerCase()
-                        const correo = (est.correo || "").toLowerCase()
-                        const programa = (est.city || "").toLowerCase()
-                        
-                        const cumpleBusqueda = carnet.includes(busqueda) ||
-                                              nombre.includes(busqueda) ||
-                                              correo.includes(busqueda) ||
-                                              programa.includes(busqueda)
-                        
-                        if (!cumpleBusqueda) return false
-                      }
-                      
-                      // Filtro de carrera
-                      if (filtroCarrera !== 'todas') {
-                        const programa = (est.city || '').trim().toUpperCase()
-                        const codigoPrograma = programa.split(/\s+/)[0]
-                        
-                        // Normalizar BBA variants
-                        const normalizarBBA = (codigo: string) => {
-                          if (codigo.startsWith('BBA')) return 'BBA'
-                          return codigo
-                        }
-                        
-                        const codigoNormalizado = normalizarBBA(codigoPrograma)
-                        const filtroNormalizado = normalizarBBA(filtroCarrera)
-                        
-                        if (codigoNormalizado !== filtroNormalizado) return false
-                      }
-                      
-                      return true
-                    })
-                    
+                    // Usar función compartida de filtrado
+                    const estudiantesFiltrados = filtrarEstudiantes()
                     const totalFiltrados = estudiantesFiltrados.length
                     const estudiantesPaginados = estudiantesFiltrados.slice(
                       itemsPorPagina === Infinity 
@@ -920,7 +856,9 @@ export function DashboardFinanciero() {
                         : paginaEstudiantes * itemsPorPagina
                     )
                     
-                    if (estudiantesPaginados.length === 0 && (filtroBusqueda.trim() || filtroCarrera !== 'todas')) {
+                    const hayFiltros = filtroBusqueda.trim() || filtroCarrera !== 'todas' || filtroCantidadCursos !== 'todos' || filtroPlanEstudio !== 'todos'
+                    
+                    if (estudiantesPaginados.length === 0 && hayFiltros) {
                       return (
                         <TableRow>
                           <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
@@ -931,10 +869,11 @@ export function DashboardFinanciero() {
                     }
                     
                     return estudiantesPaginados.map((estudiante: any, idx: number) => {
-                      const carnet = estudiante.carnet || `est-${idx}`
+                      const carnet = (estudiante.carnet || `est-${idx}`).toLowerCase()
                       const estaExpandido = estudiantesExpandidos.has(carnet)
                       const cursos = cursosPorEstudiante[carnet] || []
                       const cargando = cargandoCursos.has(carnet)
+                      const cargandoDeuda = cargandoDeudas.has(carnet)
                       const deudaMensual = calcularDeudaMensual(estudiante)
                       
                       return (
@@ -963,7 +902,9 @@ export function DashboardFinanciero() {
                               <Badge>{estudiante.total_matriculaciones || 0}</Badge>
                             </TableCell>
                             <TableCell className="text-right">
-                              {deudaMensual > 0 ? (
+                              {cargandoDeuda ? (
+                                <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground mx-auto" />
+                              ) : deudaMensual > 0 ? (
                                 <span className="font-semibold text-sm">
                                   {formatCurrency(deudaMensual)}
                                 </span>
@@ -974,51 +915,11 @@ export function DashboardFinanciero() {
                             <TableCell className="text-xs">{formatDate(estudiante.primera_matricula)}</TableCell>
                           </TableRow>
                           
-                          {/* Fila expandida con cursos y detalle de cálculo */}
+                          {/* Fila expandida con cursos */}
                           {estaExpandido && (
                             <TableRow>
                               <TableCell colSpan={8} className="bg-muted/30 p-4">
                                 <div className="space-y-4">
-                                  {/* 💰 Detalle del cálculo de cuota */}
-                                  {estudiante.deuda_calculada && (
-                                    <div className="bg-background border border-blue-200 rounded-md p-4">
-                                      <div className="flex items-start gap-3">
-                                        <DollarSign className="h-5 w-5 text-blue-600 mt-0.5" />
-                                        <div className="flex-1">
-                                          <div className="font-semibold text-sm mb-2">Detalle del Cálculo de Cuota</div>
-                                          <div className="space-y-1.5 text-sm">
-                                            <div className="flex items-center gap-2">
-                                              <span className="text-muted-foreground">Cursos activos:</span>
-                                              <Badge variant="secondary">{estudiante.deuda_calculada.cursos_activos}</Badge>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <span className="text-muted-foreground">Programas:</span>
-                                              <div className="flex gap-1">
-                                                {estudiante.deuda_calculada.programas_activos?.map((prog: string, idx: number) => (
-                                                  <Badge key={idx} variant="outline">{prog}</Badge>
-                                                ))}
-                                              </div>
-                                            </div>
-                                            <div className="flex items-start gap-2 mt-2 pt-2 border-t">
-                                              <span className="text-muted-foreground">Cálculo:</span>
-                                              <span className="font-medium text-blue-700">
-                                                {estudiante.deuda_calculada.detalle_calculo || 'Sin detalle'}
-                                              </span>
-                                            </div>
-                                            {estudiante.deuda_calculada.errores && estudiante.deuda_calculada.errores.length > 0 && (
-                                              <div className="flex items-start gap-2 mt-2 text-amber-700">
-                                                <AlertCircle className="h-4 w-4 mt-0.5" />
-                                                <div className="text-xs">
-                                                  {estudiante.deuda_calculada.errores.join(', ')}
-                                                </div>
-                                              </div>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-
                                   {/* 📚 Lista de cursos */}
                                   <div>
                                     <div className="flex items-center gap-2 mb-2">
