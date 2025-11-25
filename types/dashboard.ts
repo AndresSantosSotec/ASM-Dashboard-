@@ -17,6 +17,14 @@ export interface DashboardFinancieroData {
       estado_cuenta: string
       total_matriculaciones: number
       primera_matricula?: string
+      deuda_calculada?: {
+        cuota_mensual: number
+        inscripcion: number
+        cursos_activos: number
+        programas_activos: string[]
+        detalle_calculo: string
+        errores?: string[]
+      }
     }>
   }
   pagosRecientes: Array<{

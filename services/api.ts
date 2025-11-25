@@ -23,7 +23,19 @@ api.interceptors.request.use(config => {
 
 // Add response interceptor for error handling
 api.interceptors.response.use(
-  response => response,
+  response => {
+    // 🐛 Log para debugging de cursos-estudiante
+    if (response.config.url?.includes('cursos-estudiante')) {
+      console.log('🔴 [API INTERCEPTOR] Response recibido:', {
+        url: response.config.url,
+        status: response.status,
+        data: response.data,
+        data_keys: Object.keys(response.data),
+        cursos_length: response.data.cursos?.length
+      });
+    }
+    return response;
+  },
   error => {
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
