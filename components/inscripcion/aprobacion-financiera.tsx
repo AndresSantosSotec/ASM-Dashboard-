@@ -46,6 +46,7 @@ import { Badge } from "@/components/ui/badge"
 import { FichaEstudiante } from "@/components/inscripcion/types"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import AprobacionFinancieraModal from "./modal/AprobacionFinancieraModal"
+import NotificationsBanner from "@/components/inscripcion/NotificationsBanner"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || API_BASE_URL
 
@@ -259,6 +260,7 @@ export function AprobacionFinanciera() {
 
   return (
     <div className="space-y-6">
+      <NotificationsBanner etapa="financiera" />
       <div className="flex flex-col sm:flex-row sm:items-end gap-4">
         <div className="flex-1">
           <Label>Buscar</Label>

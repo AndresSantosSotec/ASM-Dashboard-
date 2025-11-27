@@ -684,8 +684,8 @@ export default function AprobacionAcademicaModal({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => onRetroceder("Pendiente de Aprobación")}>
-                  Retroceder a Pendiente de Aprobación
+                <DropdownMenuItem onClick={() => onRetroceder("Pendiente Aprobacion")}>
+                  Retroceder a Pendiente Aprobacion
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onRetroceder("Preinscripción")}>
                   Retroceder a Preinscripción

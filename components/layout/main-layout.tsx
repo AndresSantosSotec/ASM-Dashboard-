@@ -7,6 +7,7 @@ import Sidebar from "@/components/layout/sidebar"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import { cn } from "@/lib/utils"
 import { Toaster } from "@/components/ui/toaster"
+import NotificationBell from "@/components/layout/NotificationBell"
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -93,7 +94,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 </h1>
 
                 <div className="flex items-center space-x-2">
-                  {/* Aquí puedes añadir otros elementos de la barra superior */}
+                  <NotificationBell />
                 </div>
               </div>
             </header>

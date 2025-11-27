@@ -32,9 +32,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import axios from "axios";
+import { api } from "@/services/api";
 import Swal from "sweetalert2";
-import { API_BASE_URL } from "@/utils/apiConfig";
 
 interface DocumentoTipo {
   id: string;
@@ -79,8 +78,8 @@ export function DocumentsView() {
     try {
       setLoading(true);
       const [tiposRes, solicitudesRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/api/estudiante/documentos/tipos`),
-        axios.get(`${API_BASE_URL}/api/estudiante/documentos`),
+        api.get('/estudiante/documentos/tipos'),
+        api.get('/estudiante/documentos'),
       ]);
 
       if (tiposRes.data.success) {
@@ -147,8 +146,8 @@ export function DocumentsView() {
         }
       }
 
-      const response = await axios.post(
-        `${API_BASE_URL}/api/estudiante/documentos`,
+      const response = await api.post(
+        '/estudiante/documentos',
         formData,
         {
           headers: {

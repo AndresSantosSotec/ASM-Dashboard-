@@ -24,6 +24,24 @@ export interface LatePaymentStudent {
     estado: string
   }> // 🆕 Lista de cursos del mes actual en Moodle
   cantidadCursos?: number // 🆕 Cantidad de cursos matriculados este mes
+  excepciones?: {
+    skip_late_fee: boolean
+    skip_blocking: boolean
+    allows_partial_payments: boolean
+    due_day_override: number | null
+    categories: Array<{
+      id: number
+      name: string
+      description: string
+      due_day_override: number | null
+      skip_late_fee: boolean
+      allow_partial_payments: boolean
+      skip_blocking: boolean
+      effective_from?: string | null
+      effective_until?: string | null
+      notes?: string | null
+    }>
+  } // ✅ Información de excepciones activas
 }
 
 
@@ -79,6 +97,24 @@ export interface StudentSnapshot {
   }
   pending_installments: PendingInstallment[]
   recent_payments: RecentPayment[]
+  excepciones?: {
+    skip_late_fee: boolean
+    skip_blocking: boolean
+    allows_partial_payments: boolean
+    due_day_override: number | null
+    categories: Array<{
+      id: number
+      name: string
+      description: string
+      due_day_override: number | null
+      skip_late_fee: boolean
+      allow_partial_payments: boolean
+      skip_blocking: boolean
+      effective_from?: string | null
+      effective_until?: string | null
+      notes?: string | null
+    }>
+  } // ✅ Información de excepciones activas
 }
 
 export interface PaymentPlanInstallment {

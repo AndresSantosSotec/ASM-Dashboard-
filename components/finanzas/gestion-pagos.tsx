@@ -556,6 +556,31 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
                           <div className="text-xs text-muted-foreground">
                             {cuota.carnet || `Alumno-${cuota.studentId}`} | EP-{cuota.epId}
                           </div>
+                          {/* ✅ Mostrar excepciones activas */}
+                          {cuota.excepciones && cuota.excepciones.categories && cuota.excepciones.categories.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {cuota.excepciones.skip_late_fee && (
+                                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-300">
+                                  ⚡ Sin Mora
+                                </Badge>
+                              )}
+                              {cuota.excepciones.skip_blocking && (
+                                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-300">
+                                  🔓 Sin Bloqueo
+                                </Badge>
+                              )}
+                              {cuota.excepciones.allows_partial_payments && (
+                                <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-300">
+                                  💸 Pagos Parciales
+                                </Badge>
+                              )}
+                              {cuota.excepciones.due_day_override && (
+                                <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-300">
+                                  📆 Día {cuota.excepciones.due_day_override}
+                                </Badge>
+                              )}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="text-sm">{cuota.program}</TableCell>
                         <TableCell>

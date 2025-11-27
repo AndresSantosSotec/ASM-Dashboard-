@@ -12,6 +12,24 @@ export type ProspectoRow = {
   balance: number
   bloqueado: boolean
   ultimo_pago?: string | null
+  excepciones?: {
+    skip_late_fee: boolean
+    skip_blocking: boolean
+    allows_partial_payments: boolean
+    due_day_override: number | null
+    categories: Array<{
+      id: number
+      name: string
+      description: string
+      due_day_override: number | null
+      skip_late_fee: boolean
+      allow_partial_payments: boolean
+      skip_blocking: boolean
+      effective_from?: string | null
+      effective_until?: string | null
+      notes?: string | null
+    }>
+  } // ✅ Información de excepciones activas
 }
 
 export async function fetchProspectos(params: {
@@ -54,6 +72,24 @@ export type AccountData = {
     method: string
     reference: string
   }>
+  excepciones?: {
+    skip_late_fee: boolean
+    skip_blocking: boolean
+    allows_partial_payments: boolean
+    due_day_override: number | null
+    categories: Array<{
+      id: number
+      name: string
+      description: string
+      due_day_override: number | null
+      skip_late_fee: boolean
+      allow_partial_payments: boolean
+      skip_blocking: boolean
+      effective_from?: string | null
+      effective_until?: string | null
+      notes?: string | null
+    }>
+  }
 }
 
 export async function fetchEstadoCuenta(prospectoId: number) {

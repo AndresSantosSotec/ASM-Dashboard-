@@ -68,15 +68,42 @@ export default function StudentAccountModal({ open, onOpenChange, prospectoId }:
                     <CardTitle className="text-xl">Resumen</CardTitle>
                     <CardDescription>Situación actual de pagos</CardDescription>
                   </div>
-                  {data.balance.isBlocked ? (
-                    <Badge variant="destructive">Cuenta Bloqueada</Badge>
-                  ) : data.balance.warningLevel > 0 ? (
-                    <Badge variant="outline" className="border-yellow-500 text-yellow-700 bg-yellow-50">
-                      {data.balance.warningLevel === 2 ? "Riesgo de Bloqueo" : "Advertencia de Pago"}
-                    </Badge>
-                  ) : (
-                    <Badge className="bg-green-500">Al Día</Badge>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {data.balance.isBlocked ? (
+                      <Badge variant="destructive">Cuenta Bloqueada</Badge>
+                    ) : data.balance.warningLevel > 0 ? (
+                      <Badge variant="outline" className="border-yellow-500 text-yellow-700 bg-yellow-50">
+                        {data.balance.warningLevel === 2 ? "Riesgo de Bloqueo" : "Advertencia de Pago"}
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-green-500">Al Día</Badge>
+                    )}
+                    {/* ✅ Mostrar excepciones activas */}
+                    {data.excepciones && data.excepciones.categories && data.excepciones.categories.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {data.excepciones.skip_late_fee && (
+                          <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-300">
+                            ⚡ Sin Mora
+                          </Badge>
+                        )}
+                        {data.excepciones.skip_blocking && (
+                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-300">
+                            🔓 Sin Bloqueo
+                          </Badge>
+                        )}
+                        {data.excepciones.allows_partial_payments && (
+                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-300">
+                            💸 Pagos Parciales
+                          </Badge>
+                        )}
+                        {data.excepciones.due_day_override && (
+                          <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-300">
+                            📆 Día {data.excepciones.due_day_override}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="grid md:grid-cols-3 gap-6">
@@ -134,6 +161,64 @@ export default function StudentAccountModal({ open, onOpenChange, prospectoId }:
                     : "Regularice su pago para evitar recargos y bloqueo."}
                 </AlertDescription>
               </Alert>
+            )}
+
+            {/* ✅ Mostrar información de excepciones activas */}
+            {data.excepciones && data.excepciones.categories && data.excepciones.categories.length > 0 && (
+              <Card className="border-blue-200 bg-blue-50/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <span>⚡</span>
+                    Categorías de Excepción Activas
+                  </CardTitle>
+                  <CardDescription>Reglas especiales aplicadas a este estudiante</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {data.excepciones.categories.map((cat) => (
+                    <div key={cat.id} className="p-3 bg-white rounded-lg border border-blue-200">
+                      <div className="font-semibold text-sm mb-1">{cat.name}</div>
+                      {cat.description && (
+                        <div className="text-xs text-muted-foreground mb-2">{cat.description}</div>
+                      )}
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {cat.skip_late_fee && (
+                          <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-300">
+                            ⚡ Sin Mora
+                          </Badge>
+                        )}
+                        {cat.skip_blocking && (
+                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-300">
+                            🔓 Sin Bloqueo
+                          </Badge>
+                        )}
+                        {cat.allow_partial_payments && (
+                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-300">
+                            💸 Pagos Parciales
+                          </Badge>
+                        )}
+                        {cat.due_day_override && (
+                          <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-300">
+                            📆 Día {cat.due_day_override}
+                          </Badge>
+                        )}
+                      </div>
+                      {(cat.effective_from || cat.effective_until || cat.notes) && (
+                        <div className="text-xs text-muted-foreground mt-2 space-y-1">
+                          {cat.effective_from && cat.effective_until && (
+                            <div>📅 Vigencia: {new Date(cat.effective_from).toLocaleDateString('es-GT')} - {new Date(cat.effective_until).toLocaleDateString('es-GT')}</div>
+                          )}
+                          {cat.effective_from && !cat.effective_until && (
+                            <div>📅 Vigencia: Desde {new Date(cat.effective_from).toLocaleDateString('es-GT')}</div>
+                          )}
+                          {cat.notes && (
+                            <div>📝 {cat.notes}</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
             )}
 
             <Card>

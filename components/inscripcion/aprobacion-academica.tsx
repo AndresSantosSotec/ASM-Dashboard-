@@ -46,6 +46,7 @@ import { Badge } from "@/components/ui/badge"
 import { FichaEstudiante } from "@/components/inscripcion/types"
 import AprobacionAcademicaModal from "./modal/AprobacionAcademicaModal"
 import { API_BASE_URL } from "@/utils/apiConfig"
+import NotificationsBanner from "@/components/inscripcion/NotificationsBanner"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || API_BASE_URL
 
@@ -163,7 +164,7 @@ export function AprobacionAcademica() {
         },
         body: JSON.stringify({ 
           comentario,
-          estado_destino: "Pendiente de Aprobación"
+          estado_destino: "Pendiente Aprobacion"
         }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -259,6 +260,7 @@ export function AprobacionAcademica() {
 
   return (
     <div className="space-y-6">
+      <NotificationsBanner etapa="academica" />
       <div className="flex flex-col sm:flex-row sm:items-end gap-4">
         <div className="flex-1">
           <Label>Buscar</Label>

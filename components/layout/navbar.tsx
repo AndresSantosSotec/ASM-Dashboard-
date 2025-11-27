@@ -1,6 +1,6 @@
 "use client"
 
-import { Bell, Menu, Search, User } from "lucide-react"
+import { Menu, Search, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useMobile } from "@/hooks/use-mobile"
+import NotificationBell from "@/components/layout/NotificationBell"
 
 interface NavbarProps {
   onToggleSidebar: () => void
@@ -47,15 +48,8 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }: NavbarProps) {
         )}
 
         <div className="ml-auto flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative text-asm-navy dark:text-asm-light-gold hover:bg-asm-light-gold/10 hover:text-asm-navy dark:hover:bg-asm-medium-gold/20 dark:hover:text-asm-light-gold"
-            aria-label="Notifications"
-          >
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-          </Button>
+          <NotificationBell />
+
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

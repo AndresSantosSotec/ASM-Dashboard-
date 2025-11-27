@@ -41,6 +41,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { FichaEstudiante } from "@/components/inscripcion/types"
 import FichaDetalleModal from "@/components/inscripcion/modal/FichaDetalleModal"
 import { API_BASE_URL } from "@/utils/apiConfig"
+import NotificationsBanner from "@/components/inscripcion/NotificationsBanner"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || API_BASE_URL
 const CONTEO_REVISADAS_KEY = "fichasRevisadasCount"
@@ -301,6 +302,7 @@ export function GestionFichas() {
 
   return (
     <div className="space-y-6">
+      <NotificationsBanner etapa="revision" />
       <div className="flex flex-col sm:flex-row sm:items-end gap-4">
         <div className="flex-1">
           <Label>Buscar</Label>

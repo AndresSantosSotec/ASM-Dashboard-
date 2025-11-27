@@ -18,6 +18,7 @@ import {
   AlertTriangle
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import NotificationsPanel from "@/components/dashboard/NotificationsPanel"
 import dashboardService from "@/services/dashboard"
 
 interface WelcomeData {
@@ -957,6 +958,9 @@ export default function WelcomeView() {
           </Card>
         )}
       </div>
+
+      {/* Notificaciones de Inscripción */}
+      <NotificationsPanel />
 
       {/* Actividad Reciente */}
       <Card>

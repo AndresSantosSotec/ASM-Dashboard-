@@ -356,11 +356,33 @@ export default function GestionEstadosCuenta() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {r.bloqueado ? (
-                          <Badge variant="destructive" className="text-xs">Bloqueado</Badge>
-                        ) : (
-                          <Badge className="bg-green-500 hover:bg-green-600 text-xs">Al día</Badge>
-                        )}
+                        <div className="flex flex-col gap-1">
+                          {r.bloqueado ? (
+                            <Badge variant="destructive" className="text-xs">Bloqueado</Badge>
+                          ) : (
+                            <Badge className="bg-green-500 hover:bg-green-600 text-xs">Al día</Badge>
+                          )}
+                          {/* ✅ Mostrar excepciones activas */}
+                          {r.excepciones && r.excepciones.categories && r.excepciones.categories.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {r.excepciones.skip_late_fee && (
+                                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-300">
+                                  ⚡ Sin Mora
+                                </Badge>
+                              )}
+                              {r.excepciones.skip_blocking && (
+                                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-300">
+                                  🔓 Sin Bloqueo
+                                </Badge>
+                              )}
+                              {r.excepciones.allows_partial_payments && (
+                                <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-300">
+                                  💸 Parciales
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-1 justify-end">
