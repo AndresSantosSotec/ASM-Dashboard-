@@ -308,6 +308,109 @@ export function Advisors() {
   }
   const calculateCommission = (rev: number, rate: number) => Math.round((rev * rate) / 100)
 
+  // Funciones para Sistema V2
+  const loadGoals = async () => {
+    try {
+      const r = await safeFetch(`${API_COMM_V2}/goals`)
+      const json = await r.json()
+      setGoals(json.data || [])
+    } catch (err: any) {
+      console.error("Error cargando metas:", err)
+    }
+  }
+
+  const loadGlobalRules = async () => {
+    try {
+      const r = await safeFetch(`${API_COMM_V2}/global-rules`)
+      const json = await r.json()
+      setGlobalRules(json.data || [])
+    } catch (err: any) {
+      console.error("Error cargando reglas globales:", err)
+    }
+  }
+
+  const loadCommissionsV2 = async () => {
+    try {
+      const r = await safeFetch(`${API_COMM_V2}/${selectedMonth}/${selectedYear}`)
+      const json = await r.json()
+      setCommissionsV2(json.data || [])
+    } catch (err: any) {
+      console.error("Error cargando comisiones V2:", err)
+    }
+  }
+
+  const saveGoal = async () => {
+    if (!selectedGoalAdvisor) return
+    try {
+      await safeFetch(`${API_COMM_V2}/goal/${selectedGoalAdvisor.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ monthly_goal: newGoal, active: true }),
+      })
+      setGoalModalOpen(false)
+      Swal.fire("Meta guardada", "", "success")
+      loadGoals()
+    } catch (err: any) {
+      Swal.fire("Error guardando meta", err.message, "error")
+    }
+  }
+
+  const saveGlobalRules = async () => {
+    try {
+      await safeFetch(`${API_COMM_V2}/global-rules`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rules: globalRules }),
+      })
+      setGlobalRulesModalOpen(false)
+      Swal.fire("Reglas guardadas", "", "success")
+      loadGlobalRules()
+    } catch (err: any) {
+      Swal.fire("Error guardando reglas", err.message, "error")
+    }
+  }
+
+  const calculateCommissions = async () => {
+    try {
+      await safeFetch(`${API_COMM_V2}/calculate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month: selectedMonth, year: selectedYear }),
+      })
+      Swal.fire("Comisiones calculadas", "", "success")
+      loadCommissionsV2()
+    } catch (err: any) {
+      Swal.fire("Error calculando comisiones", err.message, "error")
+    }
+  }
+
+  const openGoalModal = (adv: Advisor) => {
+    setSelectedGoalAdvisor(adv)
+    const goal = goals.find(g => g.asesor_id.toString() === adv.id)
+    setNewGoal(goal?.monthly_goal || 10)
+    setGoalModalOpen(true)
+  }
+
+  const openCommissionDetail = async (commissionId: number) => {
+    try {
+      const r = await safeFetch(`${API_COMM_V2}/detail/${commissionId}`)
+      const json = await r.json()
+      setSelectedCommission(json.data)
+      setCommissionDetailModalOpen(true)
+    } catch (err: any) {
+      Swal.fire("Error cargando detalle", err.message, "error")
+    }
+  }
+
+  useEffect(() => {
+    loadGoals()
+    loadGlobalRules()
+  }, [])
+
+  useEffect(() => {
+    loadCommissionsV2()
+  }, [selectedMonth, selectedYear])
+
   // Render
   return (
     <>
@@ -443,6 +546,9 @@ export function Advisors() {
             <TabsList className="mb-4">
               <TabsTrigger value="table">Tabla General</TabsTrigger>
               <TabsTrigger value="commission">Comisiones</TabsTrigger>
+              <TabsTrigger value="goals">Metas por Asesor</TabsTrigger>
+              <TabsTrigger value="global-rules">Reglas Globales</TabsTrigger>
+              <TabsTrigger value="commissions-v2">Comisiones V2</TabsTrigger>
             </TabsList>
             <TabsContent value="table">
               <Table>
