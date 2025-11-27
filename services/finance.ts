@@ -34,6 +34,7 @@ export interface LatePaymentsQuery {
   q?: string
   bucket?: LatePaymentsBucket
   programa_id?: number | string
+  empresa?: string // 🆕 Filtro por empresa donde labora
   per_page?: number
   page?: number
 }

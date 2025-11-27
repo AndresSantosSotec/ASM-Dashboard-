@@ -74,6 +74,73 @@ interface CommissionRecord {
   trend_percent?: number
 }
 
+interface CommissionGoal {
+  id: number
+  asesor_id: number
+  monthly_goal: number
+  active: boolean
+  asesor?: {
+    id: number
+    full_name?: string
+    email?: string
+  }
+}
+
+interface GlobalRule {
+  id: number
+  level: 'superstar' | 'estrella' | 'punto_negro' | 'minimo' | 'cero'
+  min_sales: number
+  max_sales: number | null
+  percentage: number
+}
+
+interface CommissionV2 {
+  id: number
+  asesor_id: number
+  month: number
+  year: number
+  sales_count: number
+  sales_total_amount: number
+  performance_level: 'superstar' | 'estrella' | 'punto_negro' | 'minimo' | 'cero'
+  percentage_applied: number
+  commission_amount: number
+  goal_used: number
+  config_snapshot?: any
+  asesor?: {
+    id: number
+    full_name?: string
+    email?: string
+  }
+  sales_source?: Array<{
+    id: number
+    prospecto_id: number
+    amount: number
+    paid_status: boolean
+    prospecto?: {
+      id: number
+      nombre_completo?: string
+    }
+  }>
+}
+
+interface HistoricalCommission {
+  id: number
+  asesor_id: number
+  mes: number
+  anio: number
+  cantidad_inscritos: number
+  monto_comision: number
+  monto_total_inscripciones: number
+  observaciones?: string
+  created_at: string
+  updated_at: string
+  asesor?: {
+    id: number
+    full_name?: string
+    email?: string
+  }
+}
+
 export function Advisors() {
   const [asesores, setAsesores] = useState<Advisor[]>([])
   const [config, setConfig] = useState<CommissionConfig | null>(null)
@@ -100,9 +167,9 @@ export function Advisors() {
   const [editAdvisorName, setEditAdvisorName] = useState("")
 
   // Estados de UI: Sistema V2
-  const [goals, setGoals] = useState<any[]>([])
-  const [globalRules, setGlobalRules] = useState<any[]>([])
-  const [commissionsV2, setCommissionsV2] = useState<any[]>([])
+  const [goals, setGoals] = useState<CommissionGoal[]>([])
+  const [globalRules, setGlobalRules] = useState<GlobalRule[]>([])
+  const [commissionsV2, setCommissionsV2] = useState<CommissionV2[]>([])
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [goalModalOpen, setGoalModalOpen] = useState(false)
@@ -110,7 +177,24 @@ export function Advisors() {
   const [newGoal, setNewGoal] = useState(10)
   const [globalRulesModalOpen, setGlobalRulesModalOpen] = useState(false)
   const [commissionDetailModalOpen, setCommissionDetailModalOpen] = useState(false)
-  const [selectedCommission, setSelectedCommission] = useState<any>(null)
+  const [selectedCommission, setSelectedCommission] = useState<CommissionV2 | null>(null)
+  const [loadingV2, setLoadingV2] = useState(false)
+  const [calculating, setCalculating] = useState(false)
+  
+  // Estados para comisiones históricas (comisiones_asesores)
+  const [historicalCommissions, setHistoricalCommissions] = useState<HistoricalCommission[]>([])
+  const [loadingHistorical, setLoadingHistorical] = useState(false)
+  const [historicalMonth, setHistoricalMonth] = useState(new Date().getMonth() + 1)
+  const [historicalYear, setHistoricalYear] = useState(new Date().getFullYear())
+  
+  // Estados para ventas actuales del mes (inscripciones reales)
+  const [currentSales, setCurrentSales] = useState<Array<{asesor_id: number, sales_count: number}>>([])
+  const [loadingCurrentSales, setLoadingCurrentSales] = useState(false)
+  
+  // Estados para configuración global (meta por defecto)
+  const [globalSettings, setGlobalSettings] = useState<{global_default_goal: number}>({global_default_goal: 10})
+  const [globalGoalInput, setGlobalGoalInput] = useState(10)
+  const [globalSettingsModalOpen, setGlobalSettingsModalOpen] = useState(false)
 
   // 1) Función de carga de asesores (rol=7)
   const loadAdvisors = async () => {
@@ -313,9 +397,14 @@ export function Advisors() {
     try {
       const r = await safeFetch(`${API_COMM_V2}/goals`)
       const json = await r.json()
-      setGoals(json.data || [])
+      if (json.success) {
+        setGoals(json.data || [])
+      } else {
+        throw new Error(json.message || "Error al cargar metas")
+      }
     } catch (err: any) {
       console.error("Error cargando metas:", err)
+      Swal.fire("Error", "No se pudieron cargar las metas: " + err.message, "error")
     }
   }
 
@@ -323,64 +412,124 @@ export function Advisors() {
     try {
       const r = await safeFetch(`${API_COMM_V2}/global-rules`)
       const json = await r.json()
-      setGlobalRules(json.data || [])
+      if (json.success) {
+        setGlobalRules(json.data || [])
+      } else {
+        throw new Error(json.message || "Error al cargar reglas")
+      }
     } catch (err: any) {
       console.error("Error cargando reglas globales:", err)
+      Swal.fire("Error", "No se pudieron cargar las reglas globales: " + err.message, "error")
     }
   }
 
   const loadCommissionsV2 = async () => {
+    setLoadingV2(true)
     try {
       const r = await safeFetch(`${API_COMM_V2}/${selectedMonth}/${selectedYear}`)
       const json = await r.json()
-      setCommissionsV2(json.data || [])
+      if (json.success) {
+        setCommissionsV2(json.data || [])
+      } else {
+        throw new Error(json.message || "Error al cargar comisiones")
+      }
     } catch (err: any) {
       console.error("Error cargando comisiones V2:", err)
+      Swal.fire("Error", "No se pudieron cargar las comisiones: " + err.message, "error")
+      setCommissionsV2([])
+    } finally {
+      setLoadingV2(false)
     }
   }
 
   const saveGoal = async () => {
     if (!selectedGoalAdvisor) return
+    if (newGoal < 1 || newGoal > 100) {
+      Swal.fire("Error", "La meta debe estar entre 1 y 100 ventas", "error")
+      return
+    }
     try {
-      await safeFetch(`${API_COMM_V2}/goal/${selectedGoalAdvisor.id}`, {
+      const r = await safeFetch(`${API_COMM_V2}/goal/${selectedGoalAdvisor.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ monthly_goal: newGoal, active: true }),
       })
-      setGoalModalOpen(false)
-      Swal.fire("Meta guardada", "", "success")
-      loadGoals()
+      const json = await r.json()
+      if (json.success) {
+        setGoalModalOpen(false)
+        Swal.fire("Meta guardada", "La meta se ha actualizado correctamente", "success")
+        await loadGoals()
+        await loadCommissionsV2() // Recargar comisiones para ver cambios
+      } else {
+        throw new Error(json.message || "Error al guardar meta")
+      }
     } catch (err: any) {
-      Swal.fire("Error guardando meta", err.message, "error")
+      Swal.fire("Error", "No se pudo guardar la meta: " + err.message, "error")
     }
   }
 
   const saveGlobalRules = async () => {
+    // Validar reglas antes de guardar
+    const hasErrors = globalRules.some((r: GlobalRule) => {
+      if (r.percentage < 0 || r.percentage > 100) return true
+      if (r.min_sales < 0) return true
+      if (r.max_sales !== null && r.max_sales < r.min_sales) return true
+      return false
+    })
+
+    if (hasErrors) {
+      Swal.fire("Error", "Por favor verifica que los valores sean válidos", "error")
+      return
+    }
+
     try {
-      await safeFetch(`${API_COMM_V2}/global-rules`, {
+      const r = await safeFetch(`${API_COMM_V2}/global-rules`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rules: globalRules }),
       })
-      setGlobalRulesModalOpen(false)
-      Swal.fire("Reglas guardadas", "", "success")
-      loadGlobalRules()
+      const json = await r.json()
+      if (json.success) {
+        Swal.fire("Reglas guardadas", "Las reglas globales se han actualizado correctamente", "success")
+        await loadGlobalRules()
+      } else {
+        throw new Error(json.message || "Error al guardar reglas")
+      }
     } catch (err: any) {
-      Swal.fire("Error guardando reglas", err.message, "error")
+      Swal.fire("Error", "No se pudieron guardar las reglas: " + err.message, "error")
     }
   }
 
   const calculateCommissions = async () => {
+    const result = await Swal.fire({
+      title: "¿Calcular comisiones?",
+      text: `Se calcularán las comisiones para ${new Date(2000, selectedMonth - 1).toLocaleString('es', { month: 'long' })} ${selectedYear}`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Sí, calcular",
+      cancelButtonText: "Cancelar",
+    })
+
+    if (!result.isConfirmed) return
+
+    setCalculating(true)
     try {
-      await safeFetch(`${API_COMM_V2}/calculate`, {
+      const r = await safeFetch(`${API_COMM_V2}/calculate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ month: selectedMonth, year: selectedYear }),
       })
-      Swal.fire("Comisiones calculadas", "", "success")
-      loadCommissionsV2()
+      const json = await r.json()
+      if (json.success) {
+        Swal.fire("Comisiones calculadas", `Se procesaron ${json.results?.length || 0} asesores`, "success")
+        await loadCommissionsV2()
+      } else {
+        throw new Error(json.message || "Error al calcular comisiones")
+      }
     } catch (err: any) {
-      Swal.fire("Error calculando comisiones", err.message, "error")
+      Swal.fire("Error", "No se pudieron calcular las comisiones: " + err.message, "error")
+    } finally {
+      setCalculating(false)
     }
   }
 
@@ -410,6 +559,97 @@ export function Advisors() {
   useEffect(() => {
     loadCommissionsV2()
   }, [selectedMonth, selectedYear])
+
+  // Función para cargar comisiones históricas
+  const loadHistoricalCommissions = async () => {
+    setLoadingHistorical(true)
+    try {
+      const r = await safeFetch(`${API_COMM_V2}/historical/${historicalMonth}/${historicalYear}`)
+      const json = await r.json()
+      if (json.success) {
+        setHistoricalCommissions(json.data || [])
+      } else {
+        throw new Error(json.message || "Error al cargar comisiones históricas")
+      }
+    } catch (err: any) {
+      console.error("Error cargando comisiones históricas:", err)
+      Swal.fire("Error", "No se pudieron cargar las comisiones históricas: " + err.message, "error")
+      setHistoricalCommissions([])
+    } finally {
+      setLoadingHistorical(false)
+    }
+  }
+
+  useEffect(() => {
+    loadHistoricalCommissions()
+  }, [historicalMonth, historicalYear])
+
+  // Función para cargar ventas actuales del mes (inscripciones reales)
+  const loadCurrentSales = async () => {
+    setLoadingCurrentSales(true)
+    try {
+      const r = await safeFetch(`${API_COMM_V2}/current-sales/${selectedMonth}/${selectedYear}`)
+      const json = await r.json()
+      if (json.success) {
+        setCurrentSales(json.data || [])
+      } else {
+        throw new Error(json.message || "Error al cargar ventas actuales")
+      }
+    } catch (err: any) {
+      console.error("Error cargando ventas actuales:", err)
+      setCurrentSales([])
+    } finally {
+      setLoadingCurrentSales(false)
+    }
+  }
+
+  useEffect(() => {
+    loadCurrentSales()
+  }, [selectedMonth, selectedYear])
+
+  // Función para cargar configuración global
+  const loadGlobalSettings = async () => {
+    try {
+      const r = await safeFetch(`${API_COMM_V2}/global-settings`)
+      const json = await r.json()
+      if (json.success) {
+        setGlobalSettings(json.data)
+        setGlobalGoalInput(json.data.global_default_goal || 10)
+      }
+    } catch (err: any) {
+      console.error("Error cargando configuración global:", err)
+    }
+  }
+
+  // Función para guardar configuración global
+  const saveGlobalSettings = async () => {
+    if (globalGoalInput < 1 || globalGoalInput > 1000) {
+      Swal.fire("Error", "La meta global debe estar entre 1 y 1000 ventas", "error")
+      return
+    }
+    try {
+      const r = await safeFetch(`${API_COMM_V2}/global-settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ global_default_goal: globalGoalInput }),
+      })
+      const json = await r.json()
+      if (json.success) {
+        setGlobalSettings(json.data)
+        setGlobalSettingsModalOpen(false)
+        Swal.fire("Configuración guardada", "La meta global se ha actualizado correctamente", "success")
+        await loadGoals() // Recargar metas para reflejar el cambio
+      } else {
+        throw new Error(json.message || "Error al guardar configuración")
+      }
+    } catch (err: any) {
+      Swal.fire("Error", "No se pudo guardar la configuración: " + err.message, "error")
+    }
+  }
+
+  useEffect(() => {
+    loadGlobalSettings()
+  }, [])
 
   // Render
   return (
@@ -549,6 +789,7 @@ export function Advisors() {
               <TabsTrigger value="goals">Metas por Asesor</TabsTrigger>
               <TabsTrigger value="global-rules">Reglas Globales</TabsTrigger>
               <TabsTrigger value="commissions-v2">Comisiones V2</TabsTrigger>
+              <TabsTrigger value="historical">Rendimiento Histórico</TabsTrigger>
             </TabsList>
             <TabsContent value="table">
               <Table>
@@ -713,51 +954,160 @@ export function Advisors() {
 
             {/* Tab: Metas por Asesor */}
             <TabsContent value="goals">
-              <div className="flex justify-end mb-4">
-                <Button onClick={loadGoals}>Actualizar</Button>
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Establece metas personalizadas de ventas mensuales para cada asesor. Si no hay meta personalizada, se usa la meta global (10 ventas).
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Label>Período:</Label>
+                    <Select value={selectedMonth.toString()} onValueChange={(v) => {
+                      setSelectedMonth(parseInt(v))
+                    }}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                          <SelectItem key={m} value={m.toString()}>
+                            {new Date(2000, m - 1).toLocaleString('es', { month: 'long' })}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min="2020"
+                      max="2100"
+                      value={selectedYear}
+                      onChange={(e) => {
+                        const year = parseInt(e.target.value) || new Date().getFullYear()
+                        setSelectedYear(year)
+                      }}
+                      className="w-24"
+                    />
+                  </div>
+                </div>
+                <Button onClick={() => { loadGoals(); loadCurrentSales(); }} variant="outline" disabled={loadingCurrentSales}>
+                  {loadingCurrentSales ? "Cargando..." : "Actualizar"}
+                </Button>
               </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Asesor</TableHead>
-                    <TableHead>Meta Mensual</TableHead>
-                    <TableHead>Ventas Actuales</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {asesores.map(a => {
-                    const goal = goals.find(g => g.asesor_id.toString() === a.id)
-                    const currentSales = commissionsV2
-                      .find(c => c.asesor_id.toString() === a.id)?.sales_count || 0
-                    return (
-                      <TableRow key={a.id}>
-                        <TableCell>{a.name}</TableCell>
-                        <TableCell>{goal?.monthly_goal || 10}</TableCell>
-                        <TableCell>{currentSales}</TableCell>
-                        <TableCell>
-                          <Badge variant={goal?.active ? "default" : "secondary"}>
-                            {goal?.active ? "Activa" : "Inactiva"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Button variant="outline" size="sm" onClick={() => openGoalModal(a)}>
-                            Editar Meta
-                          </Button>
+              {loadingCurrentSales ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Cargando ventas actuales...
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Asesor</TableHead>
+                      <TableHead>Meta Mensual</TableHead>
+                      <TableHead>Ventas Actuales</TableHead>
+                      <TableHead>Progreso</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {asesores.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground">
+                          No hay asesores registrados
                         </TableCell>
                       </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+                    ) : (
+                      asesores.map(a => {
+                      const goal = goals.find((g: CommissionGoal) => g.asesor_id.toString() === a.id)
+                      const goalValue = goal?.monthly_goal || globalSettings.global_default_goal
+                        // Usar ventas actuales del mes basadas en inscripciones reales
+                        const salesData = currentSales.find(s => s.asesor_id.toString() === a.id)
+                        const actualSales = salesData?.sales_count || 0
+                        const progress = goalValue > 0 ? Math.min((actualSales / goalValue) * 100, 100) : 0
+                        const isGoalMet = actualSales >= goalValue
+                        return (
+                          <TableRow key={a.id}>
+                            <TableCell className="font-medium">{a.name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{goalValue} ventas</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <span className={isGoalMet ? "text-green-600 font-medium" : ""}>
+                                  {actualSales}
+                                </span>
+                                {isGoalMet && (
+                                  <Badge variant="default" className="bg-green-500">✓ Meta alcanzada</Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Progress 
+                                  value={progress} 
+                                  className={`h-2 flex-1 ${isGoalMet ? 'bg-green-500' : ''}`} 
+                                />
+                                <span className={`text-xs w-12 text-right ${isGoalMet ? 'text-green-600 font-medium' : 'text-muted-foreground'}`}>
+                                  {progress.toFixed(0)}%
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={goal?.active !== false ? "default" : "secondary"}>
+                                {goal?.active !== false ? "Activa" : "Inactiva"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Button variant="outline" size="sm" onClick={() => openGoalModal(a)}>
+                                Editar Meta
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </TabsContent>
 
             {/* Tab: Reglas Globales */}
             <TabsContent value="global-rules">
-              <div className="flex justify-between mb-4">
-                <Button onClick={loadGlobalRules}>Actualizar</Button>
-                <Button onClick={saveGlobalRules}>Guardar Cambios</Button>
+              <div className="flex justify-between items-center mb-4">
+                <p className="text-sm text-muted-foreground">
+                  Configura los porcentajes de comisión según el nivel de rendimiento y la meta global por defecto. Estos porcentajes se aplican globalmente a todos los asesores.
+                </p>
+                <div className="flex gap-2">
+                  <Button onClick={() => { loadGlobalRules(); loadGlobalSettings(); }} variant="outline">
+                    Actualizar
+                  </Button>
+                  <Button onClick={saveGlobalRules}>
+                    Guardar Reglas
+                  </Button>
+                  <Button onClick={() => setGlobalSettingsModalOpen(true)} variant="outline">
+                    Configurar Meta Global
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Card de Meta Global */}
+              <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-lg mb-1">Meta Global por Defecto</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Esta meta se aplica a todos los asesores que no tengan una meta personalizada configurada.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-sm text-muted-foreground">Meta actual</p>
+                      <p className="text-2xl font-bold text-blue-600">{globalSettings.global_default_goal} ventas</p>
+                    </div>
+                    <Button onClick={() => setGlobalSettingsModalOpen(true)} variant="outline" size="sm">
+                      Cambiar
+                    </Button>
+                  </div>
+                </div>
               </div>
               <Table>
                 <TableHeader>
@@ -765,70 +1115,93 @@ export function Advisors() {
                     <TableHead>Nivel</TableHead>
                     <TableHead>Ventas Mínimas</TableHead>
                     <TableHead>Ventas Máximas</TableHead>
-                    <TableHead>Porcentaje</TableHead>
+                    <TableHead>Porcentaje de Comisión</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {globalRules.map((rule: any) => (
-                    <TableRow key={rule.id}>
-                      <TableCell className="font-medium capitalize">{rule.level}</TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          value={rule.min_sales}
-                          onChange={(e) => {
-                            const updated = globalRules.map((r: any) =>
-                              r.id === rule.id ? { ...r, min_sales: parseInt(e.target.value) } : r
-                            )
-                            setGlobalRules(updated)
-                          }}
-                          className="w-24"
-                        />
+                  {globalRules.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        No hay reglas configuradas. Cargando...
                       </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          value={rule.max_sales || ""}
-                          onChange={(e) => {
-                            const updated = globalRules.map((r: any) =>
-                              r.id === rule.id ? { ...r, max_sales: e.target.value ? parseInt(e.target.value) : null } : r
-                            )
-                            setGlobalRules(updated)
-                          }}
-                          className="w-24"
-                          placeholder="Sin límite"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Slider
-                            min={0}
-                            max={100}
-                            step={0.5}
-                            value={[parseFloat(rule.percentage)]}
-                            onValueChange={(v) => {
-                              const updated = globalRules.map((r: any) =>
-                                r.id === rule.id ? { ...r, percentage: v[0] } : r
+                    </TableRow>
+                  ) : (
+                    globalRules.map((rule: GlobalRule) => (
+                      <TableRow key={rule.id}>
+                        <TableCell className="font-medium capitalize">
+                          <Badge variant="outline" className="capitalize">
+                            {rule.level === 'superstar' ? '⭐ Superstar' :
+                             rule.level === 'estrella' ? '✨ Estrella' :
+                             rule.level === 'punto_negro' ? '⚫ Punto Negro' :
+                             rule.level === 'minimo' ? '📊 Mínimo' :
+                             '❌ Cero'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={rule.min_sales}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value) || 0
+                              const updated = globalRules.map((r: GlobalRule) =>
+                                r.id === rule.id ? { ...r, min_sales: val } : r
                               )
                               setGlobalRules(updated)
                             }}
-                            className="flex-1"
+                            className="w-24"
                           />
-                          <span className="w-16 text-right font-medium">{rule.percentage}%</span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={rule.max_sales || ""}
+                            onChange={(e) => {
+                              const val = e.target.value ? parseInt(e.target.value) : null
+                              const updated = globalRules.map((r: GlobalRule) =>
+                                r.id === rule.id ? { ...r, max_sales: val } : r
+                              )
+                              setGlobalRules(updated)
+                            }}
+                            className="w-24"
+                            placeholder="Sin límite"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Slider
+                              min={0}
+                              max={100}
+                              step={0.5}
+                              value={[Number(rule.percentage)]}
+                              onValueChange={(v) => {
+                                const updated = globalRules.map((r: GlobalRule) =>
+                                  r.id === rule.id ? { ...r, percentage: v[0] } : r
+                                )
+                                setGlobalRules(updated)
+                              }}
+                              className="flex-1"
+                            />
+                            <span className="w-16 text-right font-medium">{rule.percentage}%</span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </TabsContent>
 
             {/* Tab: Comisiones V2 */}
             <TabsContent value="commissions-v2">
-              <div className="flex justify-between mb-4 gap-4">
-                <div className="flex gap-2">
-                  <Select value={selectedMonth.toString()} onValueChange={(v) => setSelectedMonth(parseInt(v))}>
-                    <SelectTrigger className="w-32">
+              <div className="flex justify-between items-center mb-4 gap-4">
+                <div className="flex items-center gap-2">
+                  <Label>Período:</Label>
+                  <Select value={selectedMonth.toString()} onValueChange={(v) => {
+                    setSelectedMonth(parseInt(v))
+                  }}>
+                    <SelectTrigger className="w-40">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -841,47 +1214,236 @@ export function Advisors() {
                   </Select>
                   <Input
                     type="number"
+                    min="2020"
+                    max="2100"
                     value={selectedYear}
-                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                    onChange={(e) => {
+                      const year = parseInt(e.target.value) || new Date().getFullYear()
+                      setSelectedYear(year)
+                    }}
                     className="w-24"
                   />
                 </div>
-                <Button onClick={calculateCommissions}>Calcular Comisiones</Button>
+                <Button 
+                  onClick={calculateCommissions} 
+                  disabled={calculating}
+                >
+                  {calculating ? "Calculando..." : "Calcular Comisiones"}
+                </Button>
               </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Asesor</TableHead>
-                    <TableHead>Ventas</TableHead>
-                    <TableHead>Nivel</TableHead>
-                    <TableHead>%</TableHead>
-                    <TableHead>Total Inscripciones</TableHead>
-                    <TableHead>Comisión</TableHead>
-                    <TableHead>Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {commissionsV2.map((comm: any) => (
-                    <TableRow key={comm.id}>
-                      <TableCell>{comm.asesor?.full_name || comm.asesor?.email || "N/A"}</TableCell>
-                      <TableCell>{comm.sales_count}</TableCell>
-                      <TableCell>
-                        <Badge className="capitalize">{comm.performance_level}</Badge>
-                      </TableCell>
-                      <TableCell>{comm.percentage_applied}%</TableCell>
-                      <TableCell>Q{parseFloat(comm.sales_total_amount).toLocaleString()}</TableCell>
-                      <TableCell className="font-medium text-green-600">
-                        Q{parseFloat(comm.commission_amount).toLocaleString()}
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="outline" size="sm" onClick={() => openCommissionDetail(comm.id)}>
-                          Ver Detalle
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              {loadingV2 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Cargando comisiones...
+                </div>
+              ) : commissionsV2.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground mb-4">
+                    No hay comisiones calculadas para este período.
+                  </p>
+                  <Button onClick={calculateCommissions} variant="outline">
+                    Calcular Comisiones
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total Comisiones</p>
+                        <p className="text-2xl font-bold text-green-600">
+                          Q{commissionsV2.reduce((sum, c: CommissionV2) => sum + parseFloat(String(c.commission_amount || 0)), 0).toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total Ventas</p>
+                        <p className="text-2xl font-bold">
+                          {commissionsV2.reduce((sum, c: CommissionV2) => sum + (c.sales_count || 0), 0)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total Inscripciones</p>
+                        <p className="text-2xl font-bold">
+                          Q{commissionsV2.reduce((sum, c: CommissionV2) => sum + parseFloat(String(c.sales_total_amount || 0)), 0).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Asesor</TableHead>
+                        <TableHead>Ventas</TableHead>
+                        <TableHead>Nivel</TableHead>
+                        <TableHead>%</TableHead>
+                        <TableHead>Total Inscripciones</TableHead>
+                        <TableHead>Comisión</TableHead>
+                        <TableHead>Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {commissionsV2.map((comm: CommissionV2) => (
+                        <TableRow key={comm.id}>
+                          <TableCell className="font-medium">
+                            {comm.asesor?.full_name || comm.asesor?.email || "N/A"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{comm.sales_count}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className="capitalize" variant={
+                              comm.performance_level === 'superstar' ? 'default' :
+                              comm.performance_level === 'estrella' ? 'default' :
+                              comm.performance_level === 'punto_negro' ? 'secondary' :
+                              comm.performance_level === 'minimo' ? 'outline' :
+                              'destructive'
+                            }>
+                              {comm.performance_level === 'superstar' ? '⭐ Superstar' :
+                               comm.performance_level === 'estrella' ? '✨ Estrella' :
+                               comm.performance_level === 'punto_negro' ? '⚫ Punto Negro' :
+                               comm.performance_level === 'minimo' ? '📊 Mínimo' :
+                               '❌ Cero'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">{comm.percentage_applied}%</Badge>
+                          </TableCell>
+                          <TableCell>Q{parseFloat(String(comm.sales_total_amount || 0)).toLocaleString()}</TableCell>
+                          <TableCell className="font-medium text-green-600">
+                            Q{parseFloat(String(comm.commission_amount || 0)).toLocaleString()}
+                          </TableCell>
+                          <TableCell>
+                            <Button variant="outline" size="sm" onClick={() => openCommissionDetail(comm.id)}>
+                              Ver Detalle
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </>
+              )}
+            </TabsContent>
+
+            {/* Tab: Rendimiento Histórico (comisiones_asesores) */}
+            <TabsContent value="historical">
+              <div className="flex justify-between items-center mb-4 gap-4">
+                <div className="flex items-center gap-2">
+                  <Label>Período:</Label>
+                  <Select value={historicalMonth.toString()} onValueChange={(v) => {
+                    setHistoricalMonth(parseInt(v))
+                  }}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                        <SelectItem key={m} value={m.toString()}>
+                          {new Date(2000, m - 1).toLocaleString('es', { month: 'long' })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="number"
+                    min="2020"
+                    max="2100"
+                    value={historicalYear}
+                    onChange={(e) => {
+                      const year = parseInt(e.target.value) || new Date().getFullYear()
+                      setHistoricalYear(year)
+                    }}
+                    className="w-24"
+                  />
+                </div>
+                <Button onClick={loadHistoricalCommissions} variant="outline" disabled={loadingHistorical}>
+                  {loadingHistorical ? "Cargando..." : "Actualizar"}
+                </Button>
+              </div>
+              {loadingHistorical ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Cargando rendimiento histórico...
+                </div>
+              ) : historicalCommissions.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground mb-4">
+                    No hay registros de rendimiento para este período.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <div className="grid grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total Inscritos</p>
+                        <p className="text-2xl font-bold">
+                          {historicalCommissions.reduce((sum, c) => sum + (c.cantidad_inscritos || 0), 0)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total Inscripciones</p>
+                        <p className="text-2xl font-bold">
+                          Q{historicalCommissions.reduce((sum, c) => sum + parseFloat(String(c.monto_total_inscripciones || 0)), 0).toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total Comisiones</p>
+                        <p className="text-2xl font-bold text-green-600">
+                          Q{historicalCommissions.reduce((sum, c) => sum + parseFloat(String(c.monto_comision || 0)), 0).toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Promedio por Asesor</p>
+                        <p className="text-2xl font-bold">
+                          Q{historicalCommissions.length > 0 
+                            ? (historicalCommissions.reduce((sum, c) => sum + parseFloat(String(c.monto_comision || 0)), 0) / historicalCommissions.length).toLocaleString(undefined, { maximumFractionDigits: 2 })
+                            : '0.00'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Asesor</TableHead>
+                        <TableHead>Inscritos</TableHead>
+                        <TableHead>Total Inscripciones</TableHead>
+                        <TableHead>Comisión</TableHead>
+                        <TableHead>Promedio por Inscrito</TableHead>
+                        <TableHead>Observaciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {historicalCommissions.map((comm: HistoricalCommission) => {
+                        const promedioPorInscrito = comm.cantidad_inscritos > 0 
+                          ? parseFloat(String(comm.monto_comision || 0)) / comm.cantidad_inscritos 
+                          : 0
+                        return (
+                          <TableRow key={comm.id}>
+                            <TableCell className="font-medium">
+                              {comm.asesor?.full_name || comm.asesor?.email || `ID: ${comm.asesor_id}`}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{comm.cantidad_inscritos}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              Q{parseFloat(String(comm.monto_total_inscripciones || 0)).toLocaleString()}
+                            </TableCell>
+                            <TableCell className="font-medium text-green-600">
+                              Q{parseFloat(String(comm.monto_comision || 0)).toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              Q{promedioPorInscrito.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
+                              {comm.observaciones || '-'}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </>
+              )}
             </TabsContent>
           </Tabs>
         </CardContent>
@@ -1010,6 +1572,254 @@ export function Advisors() {
               Cancelar
             </Button>
             <Button onClick={saveCommissionRate}>Guardar cambios</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Editar Meta */}
+      <Dialog open={goalModalOpen} onOpenChange={setGoalModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Meta para {selectedGoalAdvisor?.name}</DialogTitle>
+            <DialogDescription>
+              Establece la meta mensual de ventas para este asesor
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="monthly-goal">Meta Mensual (ventas)</Label>
+              <div className="flex items-center gap-4">
+                <Slider
+                  id="monthly-goal"
+                  min={1}
+                  max={50}
+                  step={1}
+                  value={[newGoal]}
+                  onValueChange={v => setNewGoal(v[0])}
+                  className="flex-1"
+                />
+                <span className="w-12 text-right font-medium">{newGoal}</span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGoalModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={saveGoal}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Detalle de Comisión */}
+      <Dialog open={commissionDetailModalOpen} onOpenChange={setCommissionDetailModalOpen}>
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle>Detalle de Comisión</DialogTitle>
+            <DialogDescription>
+              Información detallada de la comisión calculada
+            </DialogDescription>
+          </DialogHeader>
+          {selectedCommission && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Asesor</Label>
+                  <p className="font-medium">
+                    {selectedCommission.asesor?.full_name || selectedCommission.asesor?.email || "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <Label>Período</Label>
+                  <p className="font-medium">
+                    {new Date(2000, selectedCommission.month - 1).toLocaleString('es', { month: 'long' })} {selectedCommission.year}
+                  </p>
+                </div>
+                <div>
+                  <Label>Ventas</Label>
+                  <p className="font-medium">{selectedCommission.sales_count}</p>
+                </div>
+                <div>
+                  <Label>Nivel</Label>
+                  <Badge className="capitalize">{selectedCommission.performance_level}</Badge>
+                </div>
+                <div>
+                  <Label>Porcentaje Aplicado</Label>
+                  <p className="font-medium">{selectedCommission.percentage_applied}%</p>
+                </div>
+                <div>
+                  <Label>Total Inscripciones</Label>
+                  <p className="font-medium">Q{parseFloat(String(selectedCommission.sales_total_amount || 0)).toLocaleString()}</p>
+                </div>
+                <div>
+                  <Label>Comisión</Label>
+                  <p className="font-medium text-green-600">
+                    Q{parseFloat(String(selectedCommission.commission_amount || 0)).toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <Label>Meta Usada</Label>
+                  <p className="font-medium">{selectedCommission.goal_used}</p>
+                </div>
+              </div>
+              {selectedCommission.sales_source && selectedCommission.sales_source.length > 0 ? (
+                <div>
+                  <Label className="mb-2 block">Ventas del Mes ({selectedCommission.sales_source.length})</Label>
+                  <div className="max-h-64 overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Prospecto</TableHead>
+                          <TableHead>Monto</TableHead>
+                          <TableHead>Estado Pago</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedCommission.sales_source.map((sale: any) => (
+                          <TableRow key={sale.id}>
+                            <TableCell>
+                              {sale.prospecto?.nombre_completo || `ID: ${sale.prospecto_id}`}
+                            </TableCell>
+                            <TableCell>Q{parseFloat(String(sale.amount || 0)).toLocaleString()}</TableCell>
+                            <TableCell>
+                              <Badge variant={sale.paid_status ? "default" : "secondary"}>
+                                {sale.paid_status ? "Pagado" : "Pendiente"}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4 text-muted-foreground">
+                  No hay ventas registradas para esta comisión
+                </div>
+              )}
+              {selectedCommission.config_snapshot && (
+                <div>
+                  <Label>Configuración Aplicada</Label>
+                  <pre className="bg-gray-50 dark:bg-gray-800 p-4 rounded text-xs overflow-auto">
+                    {JSON.stringify(selectedCommission.config_snapshot, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCommissionDetailModalOpen(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Editar Asesor */}
+      <Dialog open={editAdvisorModalOpen} onOpenChange={setEditAdvisorModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Asesor</DialogTitle>
+            <DialogDescription>
+              Modifica la información del asesor
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="advisor-name">Nombre Completo</Label>
+              <Input
+                id="advisor-name"
+                value={editAdvisorName}
+                onChange={(e) => setEditAdvisorName(e.target.value)}
+                placeholder="Nombre del asesor"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditAdvisorModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleUpdateAdvisor}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Confirmar Eliminación */}
+      <Dialog open={deleteAdvisorConfirmOpen} onOpenChange={setDeleteAdvisorConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Eliminar Asesor?</DialogTitle>
+            <DialogDescription>
+              Esta acción no se puede deshacer. Se eliminará permanentemente el asesor{" "}
+              <strong>{currentAdvisor?.name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteAdvisorConfirmOpen(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteAdvisor}>
+              Eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Configuración Meta Global */}
+      <Dialog open={globalSettingsModalOpen} onOpenChange={setGlobalSettingsModalOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Configurar Meta Global por Defecto</DialogTitle>
+            <DialogDescription>
+              Establece la meta mensual de ventas que se aplicará a todos los asesores que no tengan una meta personalizada.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="global-goal">Meta Global Mensual (ventas)</Label>
+              <div className="flex items-center gap-4">
+                <Slider
+                  id="global-goal"
+                  min={1}
+                  max={100}
+                  step={1}
+                  value={[globalGoalInput]}
+                  onValueChange={v => setGlobalGoalInput(v[0])}
+                  className="flex-1"
+                />
+                <Input
+                  type="number"
+                  min={1}
+                  max={1000}
+                  value={globalGoalInput}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 10
+                    setGlobalGoalInput(Math.min(Math.max(val, 1), 1000))
+                  }}
+                  className="w-24"
+                />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Meta actual: <strong>{globalSettings.global_default_goal} ventas</strong>
+              </p>
+            </div>
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                <strong>Nota:</strong> Esta meta se aplicará automáticamente a todos los asesores que no tengan una meta personalizada configurada. 
+                Los asesores con metas personalizadas no se verán afectados por este cambio.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setGlobalGoalInput(globalSettings.global_default_goal)
+              setGlobalSettingsModalOpen(false)
+            }}>
+              Cancelar
+            </Button>
+            <Button onClick={saveGlobalSettings}>
+              Guardar Configuración
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

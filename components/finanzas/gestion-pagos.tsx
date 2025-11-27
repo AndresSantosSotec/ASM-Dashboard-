@@ -22,6 +22,7 @@ import {
 // componentes específicos
 import { CursosMatriculadosCell, CursosCountBadge } from "./cursos-matriculados-cell"
 import { ContactoMasivoTab } from "./contacto-masivo-tab"
+import { NotasPagoBadge } from "./NotasPagoBadge"
 
 // servicios
 import {
@@ -78,6 +79,7 @@ export function GestionPagos() {
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [bucketFilter, setBucketFilter] = useState<"all" | "b1" | "b2" | "b3" | "b4">("all")
   const [programaFilter, setProgramaFilter] = useState("")
+  const [empresaFilter, setEmpresaFilter] = useState("") // 🆕 Filtro por empresa donde labora
   const [cursosFilter, setCursosFilter] = useState<"all" | "1" | "2" | "3" | "4+">("all") // 🆕 Filtro por cantidad de cursos
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(25)
@@ -133,6 +135,7 @@ export function GestionPagos() {
         q: debouncedSearch || searchQuery || undefined,
         bucket: bucketFilter !== 'all' ? bucketFilter : undefined,
         programa_id: programaFilter || undefined,
+        empresa: empresaFilter || undefined, // 🆕 Filtro por empresa
         page,
         per_page: perPage,
       }
@@ -185,7 +188,7 @@ export function GestionPagos() {
     setLoading(true)
     loadLatePayments().finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, searchQuery, bucketFilter, programaFilter, page, perPage])
+  }, [debouncedSearch, searchQuery, bucketFilter, programaFilter, empresaFilter, page, perPage])
 
   // 🚀 Cargar otros datos solo cuando se cambie de tab
   useEffect(() => {
@@ -483,6 +486,17 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
                       <SelectItem value="4+">4+ cursos</SelectItem>
                     </SelectContent>
                   </Select>
+                  {/* 🆕 Filtro por empresa donde labora */}
+                  <Input
+                    type="text"
+                    placeholder="Empresa donde labora..."
+                    className="w-full md:w-[200px]"
+                    value={empresaFilter}
+                    onChange={(e) => {
+                      setEmpresaFilter(e.target.value)
+                      setPage(1)
+                    }}
+                  />
                 </div>
               </div>
             </CardHeader>
@@ -552,7 +566,18 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium">{cuota.name}</div>
+                          <div className="font-medium flex items-center gap-2">
+                            {cuota.name}
+                            {cuota.carnet && (
+                              <NotasPagoBadge 
+                                carnet={cuota.carnet} 
+                                variant="icon"
+                                onViewNotes={() => {
+                                  window.open(`/finanzas/notas?carnet=${cuota.carnet}`, '_blank')
+                                }}
+                              />
+                            )}
+                          </div>
                           <div className="text-xs text-muted-foreground">
                             {cuota.carnet || `Alumno-${cuota.studentId}`} | EP-{cuota.epId}
                           </div>

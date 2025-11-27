@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowUpDown, ArrowUp, ArrowDown, Download, Search, Filter } from "lucide-react"
 import { fetchProspectos, type ProspectoRow } from "@/services/estudiantes"
 import StudentAccountModal from "./StudentAccountModal"
+import { NotasPagoBadge } from "./NotasPagoBadge"
 import * as pdfGenerator from "@/lib/pdf-generator"
 
 type SortField = 'nombre' | 'monto_pagado' | 'balance' | 'fecha_pago'
@@ -329,7 +330,18 @@ export default function GestionEstadosCuenta() {
                     <TableRow key={r.id} className={index % 2 === 0 ? "bg-background" : "bg-muted/20"}>
                       <TableCell>
                         <div className="space-y-1">
-                          <div className="font-medium text-sm">{r.nombre}</div>
+                          <div className="font-medium text-sm flex items-center gap-2">
+                            {r.nombre}
+                            {r.carnet && (
+                              <NotasPagoBadge 
+                                carnet={r.carnet} 
+                                variant="icon"
+                                onViewNotes={() => {
+                                  window.open(`/finanzas/notas?carnet=${r.carnet}`, '_blank')
+                                }}
+                              />
+                            )}
+                          </div>
                           <div className="text-xs text-muted-foreground">
                             {r.carnet ? `Carnet: ${r.carnet}` : 'Sin carnet'}
                           </div>
