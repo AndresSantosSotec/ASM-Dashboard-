@@ -710,6 +710,179 @@ export function Advisors() {
                 </TableBody>
               </Table>
             </TabsContent>
+
+            {/* Tab: Metas por Asesor */}
+            <TabsContent value="goals">
+              <div className="flex justify-end mb-4">
+                <Button onClick={loadGoals}>Actualizar</Button>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Asesor</TableHead>
+                    <TableHead>Meta Mensual</TableHead>
+                    <TableHead>Ventas Actuales</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {asesores.map(a => {
+                    const goal = goals.find(g => g.asesor_id.toString() === a.id)
+                    const currentSales = commissionsV2
+                      .find(c => c.asesor_id.toString() === a.id)?.sales_count || 0
+                    return (
+                      <TableRow key={a.id}>
+                        <TableCell>{a.name}</TableCell>
+                        <TableCell>{goal?.monthly_goal || 10}</TableCell>
+                        <TableCell>{currentSales}</TableCell>
+                        <TableCell>
+                          <Badge variant={goal?.active ? "default" : "secondary"}>
+                            {goal?.active ? "Activa" : "Inactiva"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="outline" size="sm" onClick={() => openGoalModal(a)}>
+                            Editar Meta
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </TabsContent>
+
+            {/* Tab: Reglas Globales */}
+            <TabsContent value="global-rules">
+              <div className="flex justify-between mb-4">
+                <Button onClick={loadGlobalRules}>Actualizar</Button>
+                <Button onClick={saveGlobalRules}>Guardar Cambios</Button>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nivel</TableHead>
+                    <TableHead>Ventas Mínimas</TableHead>
+                    <TableHead>Ventas Máximas</TableHead>
+                    <TableHead>Porcentaje</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {globalRules.map((rule: any) => (
+                    <TableRow key={rule.id}>
+                      <TableCell className="font-medium capitalize">{rule.level}</TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          value={rule.min_sales}
+                          onChange={(e) => {
+                            const updated = globalRules.map((r: any) =>
+                              r.id === rule.id ? { ...r, min_sales: parseInt(e.target.value) } : r
+                            )
+                            setGlobalRules(updated)
+                          }}
+                          className="w-24"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          value={rule.max_sales || ""}
+                          onChange={(e) => {
+                            const updated = globalRules.map((r: any) =>
+                              r.id === rule.id ? { ...r, max_sales: e.target.value ? parseInt(e.target.value) : null } : r
+                            )
+                            setGlobalRules(updated)
+                          }}
+                          className="w-24"
+                          placeholder="Sin límite"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Slider
+                            min={0}
+                            max={100}
+                            step={0.5}
+                            value={[parseFloat(rule.percentage)]}
+                            onValueChange={(v) => {
+                              const updated = globalRules.map((r: any) =>
+                                r.id === rule.id ? { ...r, percentage: v[0] } : r
+                              )
+                              setGlobalRules(updated)
+                            }}
+                            className="flex-1"
+                          />
+                          <span className="w-16 text-right font-medium">{rule.percentage}%</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TabsContent>
+
+            {/* Tab: Comisiones V2 */}
+            <TabsContent value="commissions-v2">
+              <div className="flex justify-between mb-4 gap-4">
+                <div className="flex gap-2">
+                  <Select value={selectedMonth.toString()} onValueChange={(v) => setSelectedMonth(parseInt(v))}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                        <SelectItem key={m} value={m.toString()}>
+                          {new Date(2000, m - 1).toLocaleString('es', { month: 'long' })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="number"
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                    className="w-24"
+                  />
+                </div>
+                <Button onClick={calculateCommissions}>Calcular Comisiones</Button>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Asesor</TableHead>
+                    <TableHead>Ventas</TableHead>
+                    <TableHead>Nivel</TableHead>
+                    <TableHead>%</TableHead>
+                    <TableHead>Total Inscripciones</TableHead>
+                    <TableHead>Comisión</TableHead>
+                    <TableHead>Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {commissionsV2.map((comm: any) => (
+                    <TableRow key={comm.id}>
+                      <TableCell>{comm.asesor?.full_name || comm.asesor?.email || "N/A"}</TableCell>
+                      <TableCell>{comm.sales_count}</TableCell>
+                      <TableCell>
+                        <Badge className="capitalize">{comm.performance_level}</Badge>
+                      </TableCell>
+                      <TableCell>{comm.percentage_applied}%</TableCell>
+                      <TableCell>Q{parseFloat(comm.sales_total_amount).toLocaleString()}</TableCell>
+                      <TableCell className="font-medium text-green-600">
+                        Q{parseFloat(comm.commission_amount).toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="outline" size="sm" onClick={() => openCommissionDetail(comm.id)}>
+                          Ver Detalle
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TabsContent>
           </Tabs>
         </CardContent>
         <CardFooter className="flex flex-col sm:flex-row justify-between border-t p-4 gap-4">
