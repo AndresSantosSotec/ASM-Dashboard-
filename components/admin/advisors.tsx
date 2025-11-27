@@ -23,6 +23,7 @@ const API_BASE = `${API_BASE_URL}/api`
 const API_USERS_ROLE = `${API_BASE}/users/role/7`
 const API_USERS = `${API_BASE}/users`
 const API_COMM = `${API_BASE}/commissions`
+const API_COMM_V2 = `${API_BASE}/commissions-v2`
 
 // Wrappers
 const safeFetch = async (input: RequestInfo, init?: RequestInit) => {
@@ -97,6 +98,19 @@ export function Advisors() {
   const [deleteAdvisorConfirmOpen, setDeleteAdvisorConfirmOpen] = useState(false)
   const [currentAdvisor, setCurrentAdvisor] = useState<Advisor | null>(null)
   const [editAdvisorName, setEditAdvisorName] = useState("")
+
+  // Estados de UI: Sistema V2
+  const [goals, setGoals] = useState<any[]>([])
+  const [globalRules, setGlobalRules] = useState<any[]>([])
+  const [commissionsV2, setCommissionsV2] = useState<any[]>([])
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [goalModalOpen, setGoalModalOpen] = useState(false)
+  const [selectedGoalAdvisor, setSelectedGoalAdvisor] = useState<Advisor | null>(null)
+  const [newGoal, setNewGoal] = useState(10)
+  const [globalRulesModalOpen, setGlobalRulesModalOpen] = useState(false)
+  const [commissionDetailModalOpen, setCommissionDetailModalOpen] = useState(false)
+  const [selectedCommission, setSelectedCommission] = useState<any>(null)
 
   // 1) Función de carga de asesores (rol=7)
   const loadAdvisors = async () => {

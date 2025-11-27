@@ -393,10 +393,10 @@ export default function MassEmailModal({ open, onOpenChange, selectedStudents, o
                 onChange={setHtml}
                 placeholder="Personaliza el contenido del correo..."
                 variables={[
-                  { nombre: "nombre", descripcion: "Nombre del estudiante" },
-                  { nombre: "programa", descripcion: "Programa académico" },
-                  { nombre: "monto", descripcion: "Monto a pagar" },
-                  { nombre: "fecha", descripcion: "Fecha de vencimiento" },
+                  { nombre: "nombre", descripcion: "Nombre del estudiante", ejemplo: "Juan Pérez" },
+                  { nombre: "programa", descripcion: "Programa académico", ejemplo: "Ingeniería en Sistemas" },
+                  { nombre: "monto", descripcion: "Monto a pagar", ejemplo: "Q1,500.00" },
+                  { nombre: "fecha", descripcion: "Fecha de vencimiento", ejemplo: "15/12/2024" },
                 ]}
               />
             </div>

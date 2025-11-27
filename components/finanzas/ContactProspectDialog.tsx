@@ -404,10 +404,10 @@ export default function ContactProspectDialog({ open, onOpenChange, prospectoId,
                   onChange={setHtml}
                   placeholder="Personaliza el contenido del correo..."
                   variables={[
-                    { nombre: "nombre", descripcion: "Nombre del estudiante" },
-                    { nombre: "programa", descripcion: "Programa académico" },
-                    { nombre: "fecha", descripcion: "Fecha de vencimiento" },
-                    { nombre: "monto", descripcion: "Monto a pagar" },
+                    { nombre: "nombre", descripcion: "Nombre del estudiante", ejemplo: "Juan Pérez" },
+                    { nombre: "programa", descripcion: "Programa académico", ejemplo: "Ingeniería en Sistemas" },
+                    { nombre: "fecha", descripcion: "Fecha de vencimiento", ejemplo: "15/12/2024" },
+                    { nombre: "monto", descripcion: "Monto a pagar", ejemplo: "Q1,500.00" },
                   ]}
                 />
               </div>
