@@ -432,6 +432,38 @@ export const assignCategoryToStudent = async (categoryId: string | number, data:
   return res.data
 }
 
+export const assignCategoryBulk = async (categoryId: string | number, data: {
+  prospectos: number[]
+  effective_from?: string | null
+  effective_until?: string | null
+  notes?: string | null
+}) => {
+  const res = await api.post(`/payment-exception-categories/${categoryId}/assign-bulk`, data)
+  return res.data
+}
+
+export const assignCategoryToProspecto = async (categoryId: string | number, data: {
+  prospecto_id: number
+  effective_from?: string | null
+  effective_until?: string | null
+  notes?: string | null
+}) => {
+  const res = await api.post(`/payment-exception-categories/${categoryId}/assign-prospecto`, data)
+  return res.data
+}
+
+export const removeCategoryFromProspecto = async (categoryId: string | number, prospectoId: number) => {
+  const res = await api.delete(`/payment-exception-categories/${categoryId}/remove-prospecto`, {
+    data: { prospecto_id: prospectoId }
+  })
+  return res.data
+}
+
+export const getAssignedProspectos = async (categoryId: string | number) => {
+  const res = await api.get(`/payment-exception-categories/${categoryId}/assigned-prospectos`)
+  return res.data
+}
+
 /* =========================
    Gestión de Cobros / Colecciones
 ========================= */
@@ -533,6 +565,14 @@ export const getCuotasByPrograma = async (
 /* =========================
    Prospectos / Emails
 ========================= */
+
+export async function getProspectos(params?: { per_page?: number; page?: number; q?: string }) {
+  const res = await api.get("/prospectos", { params })
+  return {
+    data: Array.isArray(res.data) ? res.data : res.data?.data ?? [],
+    meta: res.data?.meta
+  }
+}
 
 export async function getProspectoById(id: number) {
   const res = await api.get(`/prospectos/${id}`)
@@ -638,3 +678,94 @@ export const getKardexConciliados = async (params: {
   const res = await api.get("/conciliacion/conciliados-desde-kardex", { params })
   return res.data
 }
+
+/* =========================
+   Prospectos + Moodle (Mailing Combinado)
+========================= */
+
+export interface ProspectoCombinado {
+  id: number | string // number para prospectos, string "moodle_XXX" para Moodle sin prospecto
+  nombre_completo: string
+  carnet: string
+  correo_electronico?: string
+  telefono?: string
+  correo_corporativo?: string
+  telefono_corporativo?: string
+  status: string
+  ciudad?: string
+  origen: "prospecto_con_moodle" | "moodle_sin_prospecto"
+  tiene_prospecto: boolean
+  prospecto_id?: number | null
+  moodle_activo: boolean
+  total_matriculaciones?: number
+  created_at?: string | null
+}
+
+export interface MailingCombinedResponse {
+  success: boolean
+  data: ProspectoCombinado[]
+  meta: {
+    current_page: number
+    per_page: number
+    total: number
+    last_page: number
+    mes_filtrado: number
+    anio_filtrado: number
+  }
+  summary: {
+    total_prospectos_con_moodle: number
+    total_moodle_sin_prospecto: number
+    total_combinado: number
+  }
+}
+
+/**
+ * 🆕 Obtener prospectos combinados con estudiantes de Moodle
+ * 
+ * Retorna prospectos activos en Moodle + estudiantes de Moodle sin prospecto
+ */
+export const getProspectosMoodleCombined = async (params?: {
+  mes?: number
+  anio?: number
+  filter?: "all" | "with_prospecto" | "without_prospecto"
+  per_page?: number
+  page?: number
+  all?: boolean
+  search?: string
+  incluirMoodle?: boolean
+  incluirCRM?: boolean
+}): Promise<MailingCombinedResponse> => {
+  // ✅ Si all=true o per_page >= 10000, forzar all=true
+  const finalParams = { ...params }
+  if (params?.all || (params?.per_page && params.per_page >= 10000)) {
+    finalParams.all = true
+    finalParams.per_page = undefined // No enviar per_page cuando all=true
+  }
+  
+  // 🔥 Corregido: usar la ruta correcta /prospectos/mailing-combined (no /administracion/prospectos/...)
+  const res = await api.get("/prospectos/mailing-combined", { params: finalParams })
+  return res.data
+}
+
+/**
+ * ✅ NUEVO: Obtener solo prospectos internos del CRM (sin Moodle)
+ * 
+ * Útil cuando se necesita solo datos del CRM sin combinación con Moodle
+ */
+export const getProspectosInternos = async (params?: {
+  search?: string
+  per_page?: number
+  page?: number
+  all?: boolean
+}): Promise<MailingCombinedResponse> => {
+  // ✅ Si all=true o per_page >= 10000, forzar all=true
+  const finalParams = { ...params }
+  if (params?.all || (params?.per_page && params.per_page >= 10000)) {
+    finalParams.all = true
+    finalParams.per_page = undefined // No enviar per_page cuando all=true
+  }
+  
+  const res = await api.get("/prospectos/mailing-internos", { params: finalParams })
+  return res.data
+}
+

@@ -19,6 +19,10 @@ import {
   Loader2,
 } from "lucide-react"
 
+// componentes específicos
+import { CursosMatriculadosCell, CursosCountBadge } from "./cursos-matriculados-cell"
+import { ContactoMasivoTab } from "./contacto-masivo-tab"
+
 // servicios
 import {
   getPayments,
@@ -31,6 +35,7 @@ import {
 import type { LatePaymentStudent, LatePaymentsResponse } from "@/types/collections"
 import { toast } from "@/hooks/use-toast"
 import ContactProspectDialog from "@/components/finanzas/ContactProspectDialog"
+import MassEmailModal from "@/components/finanzas/MassEmailModal"
 
 // 🎨 Skeleton Components
 function TableSkeleton({ rows = 5 }: { rows?: number }) {
@@ -66,15 +71,20 @@ function CardSkeleton() {
 }
 
 export function GestionPagos() {
-  const [activeTab, setActiveTab] = useState<"late-payments" | "upcoming-payments" | "recent-payments">("late-payments")
+  const [activeTab, setActiveTab] = useState<"late-payments" | "upcoming-payments" | "recent-payments" | "contact">("late-payments")
 
   // filtros (atrasados)
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [bucketFilter, setBucketFilter] = useState<"all" | "b1" | "b2" | "b3" | "b4">("all")
   const [programaFilter, setProgramaFilter] = useState("")
+  const [cursosFilter, setCursosFilter] = useState<"all" | "1" | "2" | "3" | "4+">("all") // 🆕 Filtro por cantidad de cursos
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(25)
+
+  // ✅ Estados para selección masiva y envío masivo
+  const [selectedCuotasIds, setSelectedCuotasIds] = useState<Set<string>>(new Set())
+  const [massEmailModalOpen, setMassEmailModalOpen] = useState(false)
 
   // datos
   const [latePayments, setLatePayments] = useState<LatePaymentStudent[]>([])
@@ -222,6 +232,22 @@ export function GestionPagos() {
     }
   }
 
+  // 🆕 Filtrado local por cantidad de cursos
+  const studentsData = useMemo(() => {
+    if (cursosFilter === "all") return latePayments
+
+    return latePayments.filter((cuota) => {
+      const cantidad = cuota.cantidadCursos ?? 0
+      switch (cursosFilter) {
+        case "1": return cantidad === 1
+        case "2": return cantidad === 2
+        case "3": return cantidad === 3
+        case "4+": return cantidad >= 4
+        default: return true
+      }
+    })
+  }, [latePayments, cursosFilter])
+
   // ----------- abrir ContactProspectDialog desde "Atrasados" -----------
 const openProspectContactFromLate = async (student: LatePaymentStudent) => {
   try {
@@ -305,9 +331,6 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
     return { upcomingPayments: sorted }
   }, [payments])
 
-  // fuente para atrasados
-  const studentsData = latePayments
-
   // ----------- cargar "Pagos recientes" con filtros + paginación -----------
   const loadRecentPayments = async () => {
     setRpLoading(true)
@@ -388,7 +411,7 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
       <div className="flex flex-col md:flex-row justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Gestión de Pagos</h2>
-          <p className="text-muted-foreground">Dashboard para contactar y enviar recordatorios de pagos</p>
+          <p className="text-muted-foreground">Contactar y enviar recordatorios de pagos</p>
         </div>
       </div>
 
@@ -397,6 +420,7 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
           <TabsTrigger value="late-payments">Pagos Atrasados</TabsTrigger>
           <TabsTrigger value="upcoming-payments">Siguientes pagos</TabsTrigger>
           <TabsTrigger value="recent-payments">Pagos recientes</TabsTrigger>
+          <TabsTrigger value="contact">Contactar</TabsTrigger>
         </TabsList>
 
         {/* --- Pagos atrasados --- */}
@@ -440,6 +464,25 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
                       <SelectItem value="b4">B4 (+30 días)</SelectItem>
                     </SelectContent>
                   </Select>
+                  {/* 🆕 Filtro por cantidad de cursos */}
+                  <Select
+                    value={cursosFilter}
+                    onValueChange={(v) => {
+                      setCursosFilter(v as any)
+                      setPage(1)
+                    }}
+                  >
+                    <SelectTrigger className="w-full md:w-[160px]">
+                      <SelectValue placeholder="Cantidad cursos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los cursos</SelectItem>
+                      <SelectItem value="1">1 curso</SelectItem>
+                      <SelectItem value="2">2 cursos</SelectItem>
+                      <SelectItem value="3">3 cursos</SelectItem>
+                      <SelectItem value="4+">4+ cursos</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </CardHeader>
@@ -456,9 +499,16 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
                       <TableHead>Cuota</TableHead>
                       <TableHead>Alumno</TableHead>
                       <TableHead>Programa</TableHead>
+                      <TableHead>
+                        Cursos del mes
+                        <span className="block text-xs font-normal text-muted-foreground">Matriculados en Moodle</span>
+                      </TableHead>
                       <TableHead>Monto Cuota</TableHead>
-                      <TableHead>Mora</TableHead>
-                      <TableHead>Total</TableHead>
+                      <TableHead>
+                        Mora adicional
+                        <span className="block text-xs font-normal text-muted-foreground">(Q50 único por estudiante)</span>
+                      </TableHead>
+                      <TableHead>Total Cuota</TableHead>
                       <TableHead>Vence</TableHead>
                       <TableHead>Días Atraso</TableHead>
                       <TableHead>Bucket</TableHead>
@@ -468,14 +518,34 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
                   <TableBody>
                     {studentsData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
-                        No hay cuotas atrasadas (solo se muestran estudiantes activos en Moodle)
-                      </TableCell>
-                    </TableRow>
+                        <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
+                          No hay cuotas atrasadas
+                          <div className="text-xs mt-2 space-y-1">
+                            <div>Solo se muestran estudiantes activos en Moodle con cuotas vencidas</div>
+                            <div className="text-orange-600">
+                              {loading ? "Cargando..." : "Verifique los filtros aplicados o que haya estudiantes con pagos pendientes"}
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
                   ) : (
                     studentsData.map((cuota) => (
                       <TableRow key={cuota.cuotaId}>
-                        <TableCell><Checkbox id={`select-${cuota.cuotaId}`} /></TableCell>
+                        <TableCell>
+                          <Checkbox 
+                            id={`select-${cuota.cuotaId}`}
+                            checked={selectedCuotasIds.has(String(cuota.cuotaId))}
+                            onCheckedChange={(checked) => {
+                              const newSet = new Set(selectedCuotasIds)
+                              if (checked) {
+                                newSet.add(String(cuota.cuotaId))
+                              } else {
+                                newSet.delete(String(cuota.cuotaId))
+                              }
+                              setSelectedCuotasIds(newSet)
+                            }}
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className="font-medium">
                             {cuota.numeroCuota ? `Cuota ${cuota.numeroCuota}` : `#${cuota.cuotaId}`}
@@ -489,16 +559,25 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
                         </TableCell>
                         <TableCell className="text-sm">{cuota.program}</TableCell>
                         <TableCell>
+                          {/* 🆕 Columna de Cursos del mes */}
+                          {cuota.cursosDelMes && cuota.cursosDelMes.length > 0 ? (
+                            <CursosMatriculadosCell cursos={cuota.cursosDelMes} maxVisibleItems={2} />
+                          ) : (
+                            <div className="text-xs text-muted-foreground italic">Sin cursos</div>
+                          )}
+                        </TableCell>
+                        <TableCell>
                           Q{(cuota.montoCuota || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
                         </TableCell>
                         <TableCell>
-                          <span className={cuota.lateFee && cuota.lateFee > 0 ? "text-orange-600 font-medium" : "text-muted-foreground"}>
-                            Q{(cuota.lateFee || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                          {/* La mora es Q50 única por estudiante, no por cuota */}
+                          <span className={(cuota.estudianteTieneMora) ? "text-orange-600 font-medium" : "text-muted-foreground"}>
+                            {(cuota.estudianteTieneMora) ? "+Q50 (cargo único)" : "—"}
                           </span>
                         </TableCell>
                         <TableCell>
                           <span className="font-semibold">
-                            Q{(cuota.totalConMora || cuota.montoCuota || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                            Q{(cuota.montoCuota || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
                           </span>
                         </TableCell>
                         <TableCell className="text-sm">
@@ -545,11 +624,16 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
                   Mostrando {studentsData.length} de {totalRows} cuotas atrasadas
                 </div>
                 {summary && (
-                  <div className="text-xs text-muted-foreground">
-                    Resumen: {summary.total_cuotas} cuotas | 
-                    Deuda: Q{summary.total_deuda_original.toLocaleString('es-GT', { minimumFractionDigits: 2 })} | 
-                    Mora: Q{summary.total_mora.toLocaleString('es-GT', { minimumFractionDigits: 2 })} | 
-                    Total: Q{summary.total_con_mora.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                  <div className="text-xs text-muted-foreground flex flex-col gap-1">
+                    <div>
+                      <strong>Estudiantes:</strong> {summary.estudiantes_unicos} | 
+                      <strong> Cuotas:</strong> {summary.total_cuotas}
+                    </div>
+                    <div>
+                      <strong>Deuda:</strong> Q{summary.total_deuda_original.toLocaleString('es-GT', { minimumFractionDigits: 2 })} | 
+                      <strong> Mora adicional:</strong> Q{summary.total_mora.toLocaleString('es-GT', { minimumFractionDigits: 2 })} (+Q50 por {summary.estudiantes_unicos} estudiante{summary.estudiantes_unicos !== 1 ? 's' : ''}) | 
+                      <strong> Total:</strong> Q{summary.total_con_mora.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                    </div>
                   </div>
                 )}
               </div>
@@ -574,12 +658,23 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button variant="outline">
-                    <Mail className="mr-2 h-4 w-4" /> Enviar Recordatorios
+                  <Button 
+                    variant="outline"
+                    onClick={() => setMassEmailModalOpen(true)}
+                    disabled={selectedCuotasIds.size === 0 || loading}
+                  >
+                    <Mail className="mr-2 h-4 w-4" /> 
+                    Enviar Recordatorios {selectedCuotasIds.size > 0 ? `(${selectedCuotasIds.size})` : ""}
                   </Button>
-                  <Button variant="outline">
-                    <MessageSquare className="mr-2 h-4 w-4" /> Enviar SMS
-                  </Button>
+                  {selectedCuotasIds.size > 0 && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => setSelectedCuotasIds(new Set())}
+                    >
+                      Limpiar selección
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardFooter>
@@ -763,6 +858,11 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* --- Tab de Contacto Masivo --- */}
+        <TabsContent value="contact" className="space-y-4">
+          <ContactoMasivoTab />
+        </TabsContent>
       </Tabs>
 
       {/* -------- ContactProspectDialog (WhatsApp / Email) -------- */}
@@ -771,6 +871,17 @@ const openProspectContactFromLate = async (student: LatePaymentStudent) => {
         onOpenChange={setContactOpen}
         prospectoId={contactProspectoId}
         contextoPago={contactCtx}
+      />
+
+      {/* ✅ Modal de Envío Masivo desde Pagos Atrasados */}
+      <MassEmailModal
+        open={massEmailModalOpen}
+        onOpenChange={setMassEmailModalOpen}
+        selectedStudents={studentsData.filter((s) => selectedCuotasIds.has(String(s.cuotaId)))}
+        onSuccess={() => {
+          setSelectedCuotasIds(new Set())
+          loadLatePayments()
+        }}
       />
     </div>
   )

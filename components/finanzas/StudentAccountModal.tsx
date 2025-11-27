@@ -29,8 +29,12 @@ export default function StudentAccountModal({ open, onOpenChange, prospectoId }:
       .finally(() => setLoading(false))
   }, [open, prospectoId])
 
-  const totalPending = () =>
-    (data?.pendingPayments ?? []).reduce((acc, p) => acc + p.amount + p.lateFee, 0)
+  // 🔥 CORRECCIÓN: Total = suma de montos base + mora única Q50
+  const totalPending = () => {
+    const sumaBase = (data?.pendingPayments ?? []).reduce((acc, p) => acc + p.amount, 0)
+    const moraTotal = (data?.balance?.totalMora ?? 0)
+    return sumaBase + moraTotal
+  }
 
   const handleGeneratePDF = async () => {
     if (!data) return
@@ -160,11 +164,31 @@ export default function StudentAccountModal({ open, onOpenChange, prospectoId }:
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          Q{(p.amount + p.lateFee).toLocaleString('es-GT',{ minimumFractionDigits: 2 })}
+                          Q{p.amount.toLocaleString('es-GT',{ minimumFractionDigits: 2 })}
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
+                  {(data.balance.totalMora ?? 0) > 0 && (
+                    <tfoot>
+                      <TableRow className="border-t-2 font-bold bg-muted/50">
+                        <TableCell colSpan={3} className="text-right">
+                          Mora (recargo único):
+                        </TableCell>
+                        <TableCell className="text-right">
+                          Q{(data.balance.totalMora ?? 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow className="font-bold">
+                        <TableCell colSpan={3} className="text-right">
+                          Total a pagar:
+                        </TableCell>
+                        <TableCell className="text-right text-lg">
+                          Q{totalPending().toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                      </TableRow>
+                    </tfoot>
+                  )}
                 </Table>
               </CardContent>
               <CardFooter className="justify-end">

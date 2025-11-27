@@ -33,6 +33,9 @@ export type AccountData = {
     nextDueDate?: string | null
     daysUntilDue?: number | null
     latePayments: number
+    totalMora?: number
+    totalPendiente?: number
+    totalConMora?: number
   }
   pendingPayments: Array<{
     id: number

@@ -297,12 +297,26 @@ export const generateDetailedAccountStatePDF = async (
     doc.text('PAGOS PENDIENTES', LEFT, y)
     y += 8
 
+    // 🔥 CORRECCIÓN: Mostrar solo monto base de cada cuota (sin mora individual)
     const pendingRows = pending.map(p => [
       p.concept,
       fmtDate(p.dueDate),
-      fmtMoney((Number(p.amount || 0) + Number(p.lateFee || 0))),
+      fmtMoney(Number(p.amount || 0)), // Solo monto base
       p.status === 'vencido' ? `Vencido${p.daysLate ? ` (${p.daysLate} días)` : ''}` : 'Pendiente',
     ])
+
+    // 🔥 Agregar filas de totales si hay mora
+    const totalMora = (data.balance?.totalMora ?? 0)
+    const totalPendiente = pending.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+    const totalConMora = totalPendiente + totalMora
+
+    if (totalMora > 0) {
+      pendingRows.push(
+        ['', '', '', ''], // Fila vacía
+        ['', 'Mora (recargo único):', fmtMoney(totalMora), ''], // Mora única Q50
+        ['', 'Total a pagar:', fmtMoney(totalConMora), ''] // Total con mora
+      )
+    }
 
     autoTable(doc, {
       startY: y,
@@ -321,6 +335,15 @@ export const generateDetailedAccountStatePDF = async (
         1: { cellWidth: 30 },
         2: { cellWidth: 30, halign: 'right' },
         3: { cellWidth: 30, halign: 'center' },
+      },
+      didParseCell: (data: any) => {
+        // 🔥 Resaltar las filas de totales (mora y total a pagar)
+        const lastIndex = pendingRows.length - 1
+        const secondLastIndex = pendingRows.length - 2
+        if (data.row.index === secondLastIndex || data.row.index === lastIndex) {
+          data.cell.styles.fontStyle = 'bold'
+          data.cell.styles.fillColor = [240, 240, 240] as RGB
+        }
       },
       pageBreak: 'auto',
     })

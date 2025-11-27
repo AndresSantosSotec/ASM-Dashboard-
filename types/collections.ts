@@ -7,14 +7,23 @@ export interface LatePaymentStudent {
   name: string
   program: string
   montoCuota: number // Monto de esta cuota específica
-  lateFee: number // Mora de esta cuota (Q50 o 0)
-  totalConMora: number // Monto + mora de esta cuota
+  lateFee: number // Mora de esta cuota (siempre 0, la mora se aplica por estudiante)
+  totalConMora: number // Monto de esta cuota (sin mora individual)
   fechaVencimiento: string
   daysLate: number
   lateMonths: number
   bucket: string
   carnet?: string
   activoEnMoodle?: boolean
+  calificaParaMora?: boolean // Si esta cuota califica para mora (calculado en backend)
+  estudianteTieneMora?: boolean // Si este estudiante tiene mora aplicada (Q50 único)
+  cursosDelMes?: Array<{
+    id: number
+    nombre: string
+    shortname: string
+    estado: string
+  }> // 🆕 Lista de cursos del mes actual en Moodle
+  cantidadCursos?: number // 🆕 Cantidad de cursos matriculados este mes
 }
 
 

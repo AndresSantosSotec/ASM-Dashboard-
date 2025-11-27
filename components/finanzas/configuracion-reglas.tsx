@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
-import { AlertCircle, Save, Plus, Trash2, Settings, Eye, Edit } from "lucide-react"
+import { AlertCircle, Save, Plus, Trash2, Settings, Eye, Edit, Users, List } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Dialog,
@@ -48,8 +48,11 @@ import {
   deleteExceptionCategory,
   toggleExceptionCategoryStatus,
   assignCategoryToStudent,
+  assignCategoryBulk,
 } from "@/services/finance"
 import { toast } from "@/hooks/use-toast"
+import { ExceptionAssignModal } from "./ExceptionAssignModal"
+import { ExceptionAssignedListModal } from "./ExceptionAssignedListModal"
 
 export function ConfiguracionReglas() {
   const [activeTab, setActiveTab] = useState("general")
@@ -69,6 +72,14 @@ export function ConfiguracionReglas() {
   // *** NUEVOS ESTADOS PARA EDICIÓN ***
   const [editingGateway, setEditingGateway] = useState<any | null>(null)
   const [editingCategory, setEditingCategory] = useState<any | null>(null)
+  
+  // ✅ Estado para asignación de categorías a estudiantes
+  const [showAssignModal, setShowAssignModal] = useState(false)
+  const [categoryToAssign, setCategoryToAssign] = useState<any | null>(null)
+  
+  // ✅ Estado para ver lista de asignados
+  const [showAssignedListModal, setShowAssignedListModal] = useState(false)
+  const [categoryToView, setCategoryToView] = useState<any | null>(null)
   
   const [showNotificationForm, setShowNotificationForm] = useState(false)
   const [notificationForm, setNotificationForm] = useState({
@@ -525,30 +536,30 @@ export function ConfiguracionReglas() {
     }
   }
 
-  // *** NUEVAS FUNCIONES PARA PASARELAS DE PAGO ***
-  const openGatewayForm = (gateway: any = null) => {
-    setEditingGateway(gateway)
-    if (gateway) {
-      setGatewayForm({
-        name: gateway.name,
-        description: gateway.description,
-        commission_percentage: gateway.commission_percentage,
-        api_key: gateway.api_key,
-        merchant_id: gateway.merchant_id,
-        active: gateway.active,
-      })
-    } else {
-      setGatewayForm({
-        name: '',
-        description: '',
-        commission_percentage: 0,
-        api_key: '',
-        merchant_id: '',
-        active: true,
-      })
-    }
-    setShowGatewayDialog(true)
-  }
+  // // *** NUEVAS FUNCIONES PARA PASARELAS DE PAGO ***
+  // const openGatewayForm = (gateway: any = null) => {
+  //   setEditingGateway(gateway)
+  //   if (gateway) {
+  //     setGatewayForm({
+  //       name: gateway.name,
+  //       description: gateway.description,
+  //       commission_percentage: gateway.commission_percentage,
+  //       api_key: gateway.api_key,
+  //       merchant_id: gateway.merchant_id,
+  //       active: gateway.active,
+  //     })
+  //   } else {
+  //     setGatewayForm({
+  //       name: '',
+  //       description: '',
+  //       commission_percentage: 0,
+  //       api_key: '',
+  //       merchant_id: '',
+  //       active: true,
+  //     })
+  //   }
+  //   setShowGatewayDialog(true)
+  // }
 
   const toggleGatewaySelection = (id: number, checked: boolean) => {
     setSelectedGateways((prev) => {
@@ -767,12 +778,11 @@ export function ConfiguracionReglas() {
         </div>
       </div>
 
-      <Tabs defaultValue="general" className="space-y-4" onValueChange={setActiveTab}>
+      <Tabs defaultValue="general" className="space-y-3" onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="general">Reglas Generales</TabsTrigger>
           <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
           <TabsTrigger value="blocking">Bloqueos</TabsTrigger>
-          <TabsTrigger value="gateways">Pasarelas de Pago</TabsTrigger>
           <TabsTrigger value="exceptions">Excepciones</TabsTrigger>
         </TabsList>
 
@@ -1241,7 +1251,7 @@ export function ConfiguracionReglas() {
           </Card>
         </TabsContent>
 
-        {/* *** ACTUALIZADO: Tab de Pasarelas completamente funcional *** */}
+        {/* *** ACTUALIZADO: Tab de Pasarelas completamente funcional ***
         <TabsContent value="gateways" className="space-y-4">
           <Card>
             <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between">
@@ -1350,7 +1360,7 @@ export function ConfiguracionReglas() {
               </Button>
             </CardFooter>
           </Card>
-        </TabsContent>
+        </TabsContent> */}
 
         {/* *** ACTUALIZADO: Tab de Excepciones completamente funcional *** */}
         <TabsContent value="exceptions" className="space-y-4">
@@ -1432,6 +1442,30 @@ export function ConfiguracionReglas() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setCategoryToView(category)
+                                  setShowAssignedListModal(true)
+                                }}
+                                className="text-blue-600 hover:text-blue-800"
+                                title="Ver asignados"
+                              >
+                                <List className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setCategoryToAssign(category)
+                                  setShowAssignModal(true)
+                                }}
+                                className="text-green-600 hover:text-green-800"
+                                title="Asignar a estudiantes"
+                              >
+                                <Users className="h-4 w-4" />
+                              </Button>
                               <Button variant="ghost" size="sm" onClick={() => openCategoryForm(category)}>
                                 <Edit className="h-4 w-4" />
                               </Button>
@@ -1579,7 +1613,7 @@ export function ConfiguracionReglas() {
         </DialogContent>
       </Dialog>
 
-      {/* *** NUEVO: Dialog de Pasarelas de Pago *** */}
+      {/* *** NUEVO: Dialog de Pasarelas de Pago ***
       <Dialog open={showGatewayDialog} onOpenChange={setShowGatewayDialog}>
         <DialogContent>
           <DialogHeader>
@@ -1685,7 +1719,7 @@ export function ConfiguracionReglas() {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog> */}
 
       {/* *** NUEVO: Dialog de Categorías de Excepción *** */}
       <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
@@ -1915,7 +1949,7 @@ export function ConfiguracionReglas() {
               )}
             </div>
 
-            {/* Pasarelas de Pago */}
+            {/* Pasarelas de Pago
             <div>
               <h4 className="font-semibold mb-3 text-lg border-b pb-2">Pasarelas de Pago ({paymentGateways.length})</h4>
               {paymentGateways.length === 0 ? (
@@ -1937,7 +1971,7 @@ export function ConfiguracionReglas() {
                   ))}
                 </div>
               )}
-            </div>
+            </div> */}
 
             {/* Categorías de Excepción */}
             <div>
@@ -1994,6 +2028,38 @@ export function ConfiguracionReglas() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ✅ Modal de Asignación de Categorías a Estudiantes */}
+      {categoryToAssign && (
+        <ExceptionAssignModal
+          open={showAssignModal}
+          onOpenChange={(open) => {
+            setShowAssignModal(open)
+            if (!open) setCategoryToAssign(null)
+          }}
+          categoryId={categoryToAssign.id}
+          categoryName={categoryToAssign.name}
+          onSuccess={() => {
+            refreshRules()
+          }}
+        />
+      )}
+
+      {/* ✅ Modal para Ver Lista de Asignados */}
+      {categoryToView && (
+        <ExceptionAssignedListModal
+          open={showAssignedListModal}
+          onOpenChange={(open) => {
+            setShowAssignedListModal(open)
+            if (!open) setCategoryToView(null)
+          }}
+          categoryId={categoryToView.id}
+          categoryName={categoryToView.name}
+          onSuccess={() => {
+            refreshRules()
+          }}
+        />
+      )}
     </div>
   )
 }
