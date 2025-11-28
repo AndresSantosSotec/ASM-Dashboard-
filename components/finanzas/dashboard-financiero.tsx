@@ -5,7 +5,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-import { AlertCircle, RefreshCw, LineChart, ArrowUpRight, ArrowDownRight, Shield, Clock, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, BookOpen, Search, X, DollarSign } from "lucide-react"
+import { AlertCircle, RefreshCw, LineChart, ArrowUpRight, ArrowDownRight, Shield, Clock, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, BookOpen, Search, X, DollarSign, Download } from "lucide-react"
+import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select"
+import { SimpleDateRangePicker, type DateRange as DateRangeType } from "@/components/ui/simple-date-range-picker"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -78,14 +80,70 @@ export function DashboardFinanciero() {
   // 🆕 Estado para filtro de búsqueda
   const [filtroBusqueda, setFiltroBusqueda] = useState<string>("")
   
-  // 🆕 Estado para filtro por carrera/programa
-  const [filtroCarrera, setFiltroCarrera] = useState<string>("todas")
+  // 🆕 Estado para filtro por carrera/programa (selección múltiple)
+  const [filtroCarrera, setFiltroCarrera] = useState<string[]>([])
   
-  // 🆕 Estado para filtro por cantidad de cursos
-  const [filtroCantidadCursos, setFiltroCantidadCursos] = useState<string>("todos")
+  // 🆕 Estado para filtro por cantidad de cursos (selección múltiple)
+  const [filtroCantidadCursos, setFiltroCantidadCursos] = useState<string[]>([])
   
-  // 🆕 Estado para filtro por plan de estudio
-  const [filtroPlanEstudio, setFiltroPlanEstudio] = useState<string>("todos")
+  // 🆕 Estado para filtro por plan de estudio (selección múltiple)
+  const [filtroPlanEstudio, setFiltroPlanEstudio] = useState<string[]>([])
+  
+  // 🆕 Estado para filtro de estado de pago (selección múltiple)
+  const [filtroEstadoPago, setFiltroEstadoPago] = useState<string[]>([])
+  
+  // 🆕 Estado para filtro de rango de fechas de pagos
+  const [filtroRangoFechasPagos, setFiltroRangoFechasPagos] = useState<DateRange | undefined>(undefined)
+  
+  // 🆕 Estado para filtro de días hacia atrás
+  const [filtroDiasAtras, setFiltroDiasAtras] = useState<number | null>(null)
+  
+  // 🆕 Estado para almacenar el estado de pago de cada estudiante
+  const [estadoPagos, setEstadoPagos] = useState<Record<string, any>>({})
+  const [cargandoEstadoPagos, setCargandoEstadoPagos] = useState(false)
+  
+  // 🆕 Estado para filtro por asesor asignado (selección múltiple)
+  const [filtroAsesor, setFiltroAsesor] = useState<string[]>([])
+  
+  // 🆕 Estado para almacenar información de asesores por estudiante
+  const [asesoresPorEstudiante, setAsesoresPorEstudiante] = useState<Record<string, { id: number; nombre: string } | null>>({})
+  
+  // 🆕 Estado para lista de asesores disponibles
+  const [asesoresDisponibles, setAsesoresDisponibles] = useState<Array<{ id: number; name: string }>>([])
+
+  /**
+   * 🔍 Extraer todas las variantes de BBA que existen en los datos
+   * Detecta dinámicamente todas las variantes de BBA desde los datos de Moodle
+   */
+  const obtenerVariantesBBA = (): string[] => {
+    if (!dashboardData?.resumen?.estudiantesActivosDetalle) return []
+    
+    const variantesBBA = new Set<string>()
+    
+    dashboardData.resumen.estudiantesActivosDetalle.forEach((est: any) => {
+      const programa = (est.city || '').trim().toUpperCase()
+      
+      // Si el programa empieza con BBA, agregarlo a las variantes
+      if (/^BBA/i.test(programa)) {
+        // Normalizar: quitar años (2024, 2025, etc.) para agrupar mejor
+        const programaNormalizado = programa.replace(/\s*\d{4}\s*$/, '').trim()
+        if (programaNormalizado) {
+          variantesBBA.add(programaNormalizado)
+        }
+        // También agregar la versión original completa
+        variantesBBA.add(programa)
+      }
+    })
+    
+    // Ordenar: primero "BBA" solo, luego las demás alfabéticamente
+    const variantesArray = Array.from(variantesBBA).sort((a, b) => {
+      if (a === 'BBA') return -1
+      if (b === 'BBA') return 1
+      return a.localeCompare(b)
+    })
+    
+    return variantesArray
+  }
 
   /**
    * 🔍 Función compartida para filtrar estudiantes
@@ -105,29 +163,114 @@ export function DashboardFinanciero() {
         if (!(carnet.includes(busqueda) || nombre.includes(busqueda) || correo.includes(busqueda) || programa.includes(busqueda))) return false
       }
       
-      // Filtro de carrera
-      if (filtroCarrera !== 'todas') {
+      // Filtro de carrera con regex para BBA (captura TODA la familia de BBA) - SELECCIÓN MÚLTIPLE
+      if (filtroCarrera.length > 0) {
         const programa = (est.city || '').trim().toUpperCase()
-        const codigoPrograma = programa.split(/\s+/)[0]
-        const normalizarBBA = (codigo: string) => codigo.startsWith('BBA') ? 'BBA' : codigo
-        if (normalizarBBA(codigoPrograma) !== normalizarBBA(filtroCarrera)) return false
+        let matchesAny = false
+        
+        for (const filtro of filtroCarrera) {
+          // Si el filtro es "BBA" o cualquier variante de BBA, usar regex
+          if (filtro.startsWith('BBA') || filtro === 'BBA') {
+            // Si es una variante específica (ej: "BBA CM"), hacer match exacto (sin año)
+            if (filtro !== 'BBA') {
+              // Normalizar ambos para comparar (quitar años y espacios extra)
+              const programaNormalizado = programa.replace(/\s*\d{4}\s*$/, '').trim().replace(/\s+/g, ' ')
+              const filtroNormalizado = filtro.replace(/\s+/g, ' ')
+              
+              // Comparar con y sin espacios
+              const programaSinEspacios = programaNormalizado.replace(/\s+/g, '')
+              const filtroSinEspacios = filtroNormalizado.replace(/\s+/g, '')
+              
+              if (programaNormalizado === filtroNormalizado || programaSinEspacios === filtroSinEspacios) {
+                matchesAny = true
+                break
+              }
+            } else {
+              // Si es solo "BBA", capturar TODAS las variantes con regex
+              const regexBBA = /^BBA/i
+              if (regexBBA.test(programa)) {
+                matchesAny = true
+                break
+              }
+            }
+          } else {
+            // Para otras carreras (MBA, MFIN, etc.), usar la lógica normal
+            const codigoPrograma = programa.split(/\s+/)[0]
+            const normalizarBBA = (codigo: string) => codigo.startsWith('BBA') ? 'BBA' : codigo
+            if (normalizarBBA(codigoPrograma) === normalizarBBA(filtro)) {
+              matchesAny = true
+              break
+            }
+          }
+        }
+        
+        if (!matchesAny) return false
       }
       
-      // Filtro por cantidad de cursos
-      if (filtroCantidadCursos !== 'todos') {
+      // Filtro por cantidad de cursos - SELECCIÓN MÚLTIPLE
+      if (filtroCantidadCursos.length > 0) {
         const cantidadCursos = est.total_matriculaciones || 0
-        if (filtroCantidadCursos === '1' && cantidadCursos !== 1) return false
-        if (filtroCantidadCursos === '2' && cantidadCursos !== 2) return false
-        if (filtroCantidadCursos === '3' && cantidadCursos !== 3) return false
-        if (filtroCantidadCursos === '4+' && cantidadCursos < 4) return false
+        let matchesAny = false
+        
+        for (const filtro of filtroCantidadCursos) {
+          if (filtro === '1' && cantidadCursos === 1) {
+            matchesAny = true
+            break
+          }
+          if (filtro === '2' && cantidadCursos === 2) {
+            matchesAny = true
+            break
+          }
+          if (filtro === '3' && cantidadCursos === 3) {
+            matchesAny = true
+            break
+          }
+          if (filtro === '4+' && cantidadCursos >= 4) {
+            matchesAny = true
+            break
+          }
+        }
+        
+        if (!matchesAny) return false
       }
       
-      // Filtro por plan de estudio
-      if (filtroPlanEstudio !== 'todos') {
+      // Filtro por plan de estudio - SELECCIÓN MÚLTIPLE
+      if (filtroPlanEstudio.length > 0) {
         const programa = (est.city || '').trim().toUpperCase()
         const planMatch = programa.match(/(20\d{2})/)
         const plan = planMatch ? planMatch[1] : 'DESCONOCIDO'
-        if (plan !== filtroPlanEstudio) return false
+        
+        if (!filtroPlanEstudio.includes(plan)) return false
+      }
+      
+      // 🆕 Filtro por estado de pago (pagado/no pagado en últimos 30 días) - SELECCIÓN MÚLTIPLE
+      if (filtroEstadoPago.length > 0) {
+        const carnet = (est.carnet || '').toLowerCase()
+        const estadoPago = estadoPagos[carnet]
+        
+        if (!estadoPago) {
+          // Si no tenemos el estado de pago cargado, solo mostrar si "Sin información" está seleccionado
+          if (!filtroEstadoPago.includes('sin_informacion')) return false
+          return true
+        }
+        
+        // Verificar si el estado del estudiante coincide con alguno de los filtros seleccionados
+        if (!filtroEstadoPago.includes(estadoPago.estado)) return false
+      }
+      
+      // 🆕 Filtro por asesor asignado (created_by o updated_by) - SELECCIÓN MÚLTIPLE
+      if (filtroAsesor.length > 0) {
+        const carnet = (est.carnet || '').toLowerCase()
+        const asesorEstudiante = asesoresPorEstudiante[carnet]
+        
+        if (!asesorEstudiante) {
+          // Si no tenemos información del asesor, solo mostrar si "Sin asesor" está seleccionado
+          if (!filtroAsesor.includes('sin_asesor')) return false
+          return true
+        }
+        
+        // Verificar si el ID del asesor coincide con alguno de los filtros seleccionados
+        if (!filtroAsesor.includes(asesorEstudiante.id.toString())) return false
       }
       
       return true
@@ -152,6 +295,201 @@ export function DashboardFinanciero() {
     }
     
     return 0
+  }
+
+  /**
+   * 📥 Exportar estudiantes filtrados a CSV
+   */
+  const exportarEstudiantesCSV = (estudiantes: any[]) => {
+    try {
+      // Encabezados CSV
+      const headers = [
+        'Carnet',
+        'Nombre Completo',
+        'Correo',
+        'Programa',
+        'Cantidad Cursos',
+        'Cuota Mensual',
+        'Monto Total a Cobrar',
+        'Estado de Pago (30 días)',
+        'Última Fecha Pago',
+        'Total Pagado (30 días)',
+        'Cantidad Pagos'
+      ]
+      
+      // Convertir datos a filas CSV
+      const rows = estudiantes.map((est: any) => {
+        const carnet = est.carnet || ''
+        const estadoPago = estadoPagos[carnet.toLowerCase()] || {}
+        const mensualidad = calcularDeudaMensual(est)
+        const cantidadCursos = est.total_matriculaciones || 0
+        const montoTotalACobrar = mensualidad * cantidadCursos
+        
+        return [
+          carnet,
+          est.nombre_completo || '',
+          est.correo || '',
+          est.city || '',
+          cantidadCursos,
+          mensualidad,
+          montoTotalACobrar,
+          estadoPago.estado === 'pagado' ? 'Pagado' : estadoPago.estado === 'no_pagado' ? 'No pagado' : 'Sin información',
+          estadoPago.ultima_fecha_pago ? new Date(estadoPago.ultima_fecha_pago).toLocaleDateString() : '',
+          estadoPago.total_pagado_30dias || 0,
+          estadoPago.cantidad_pagos || 0
+        ]
+      })
+      
+      // Crear contenido CSV
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      ].join('\n')
+      
+      // Crear blob y descargar
+      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `estudiantes_activos_${mesSeleccionado}_${anioSeleccionado}_${new Date().getTime()}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      toast({
+        title: "Exportación exitosa",
+        description: `Se exportaron ${estudiantes.length} estudiantes a CSV`,
+      })
+    } catch (error) {
+      console.error('Error al exportar:', error)
+      toast({
+        title: "Error",
+        description: "No se pudo exportar el archivo CSV",
+        variant: "destructive"
+      })
+    }
+  }
+
+  /**
+   * 📥 Exportar estudiantes filtrados a Excel (XLSX)
+   */
+  const exportarEstudiantesExcel = (estudiantes: any[]) => {
+    try {
+      // Crear tabla HTML que Excel puede interpretar
+      const headers = [
+        'Carnet',
+        'Nombre Completo',
+        'Correo',
+        'Programa',
+        'Cantidad Cursos',
+        'Cuota Mensual',
+        'Monto Total a Cobrar',
+        'Estado de Pago (30 días)',
+        'Última Fecha Pago',
+        'Total Pagado (30 días)',
+        'Cantidad Pagos'
+      ]
+      
+      let tableHTML = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta charset="utf-8">
+          <!--[if gte mso 9]>
+          <xml>
+            <x:ExcelWorkbook>
+              <x:ExcelWorksheets>
+                <x:ExcelWorksheet>
+                  <x:Name>Estudiantes Activos</x:Name>
+                  <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+                </x:ExcelWorksheet>
+              </x:ExcelWorksheets>
+            </x:ExcelWorkbook>
+          </xml>
+          <![endif]-->
+          <style>
+            table { border-collapse: collapse; width: 100%; }
+            th { 
+              background-color: #2563eb; 
+              color: white; 
+              font-weight: bold; 
+              padding: 10px; 
+              border: 1px solid #ddd;
+              text-align: left;
+            }
+            td { 
+              padding: 8px; 
+              border: 1px solid #ddd;
+            }
+            tr:nth-child(even) { background-color: #f9fafb; }
+          </style>
+        </head>
+        <body>
+          <table>
+            <thead>
+              <tr>
+                ${headers.map(h => `<th>${h}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+      `
+      
+      estudiantes.forEach((est: any) => {
+        const carnet = est.carnet || ''
+        const estadoPago = estadoPagos[carnet.toLowerCase()] || {}
+        const mensualidad = calcularDeudaMensual(est)
+        const cantidadCursos = est.total_matriculaciones || 0
+        const montoTotalACobrar = mensualidad * cantidadCursos
+        
+        tableHTML += `
+          <tr>
+            <td>${carnet}</td>
+            <td>${est.nombre_completo || ''}</td>
+            <td>${est.correo || ''}</td>
+            <td>${est.city || ''}</td>
+            <td>${cantidadCursos}</td>
+            <td>${mensualidad}</td>
+            <td>${montoTotalACobrar}</td>
+            <td>${estadoPago.estado === 'pagado' ? 'Pagado' : estadoPago.estado === 'no_pagado' ? 'No pagado' : 'Sin información'}</td>
+            <td>${estadoPago.ultima_fecha_pago ? new Date(estadoPago.ultima_fecha_pago).toLocaleDateString() : ''}</td>
+            <td>${estadoPago.total_pagado_30dias || 0}</td>
+            <td>${estadoPago.cantidad_pagos || 0}</td>
+          </tr>
+        `
+      })
+      
+      tableHTML += `
+            </tbody>
+          </table>
+        </body>
+        </html>
+      `
+      
+      // Crear blob y descargar
+      const blob = new Blob([tableHTML], { type: 'application/vnd.ms-excel' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      
+      link.setAttribute('href', url)
+      link.setAttribute('download', `estudiantes_activos_${mesSeleccionado}_${anioSeleccionado}_${new Date().getTime()}.xls`)
+      link.style.visibility = 'hidden'
+      
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      toast({
+        title: "Exportación exitosa",
+        description: `Se exportaron ${estudiantes.length} estudiantes a Excel`,
+      })
+    } catch (error) {
+      console.error('Error al exportar:', error)
+      toast({
+        title: "Error",
+        description: "No se pudo exportar el archivo Excel",
+        variant: "destructive"
+      })
+    }
   }
   const meses = [
     { value: 1, label: "Enero" },
@@ -206,6 +544,11 @@ export function DashboardFinanciero() {
     setCursosPorEstudiante({})
     setDeudasCalculadas({}) // Resetear deudas calculadas
     setFiltroBusqueda("") // Resetear filtro al cambiar mes/año
+    setFiltroCarrera([]) // Resetear filtros múltiples
+    setFiltroCantidadCursos([])
+    setFiltroPlanEstudio([])
+    setFiltroEstadoPago([])
+    setFiltroAsesor([])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mesSeleccionado, anioSeleccionado])
 
@@ -213,6 +556,117 @@ export function DashboardFinanciero() {
   useEffect(() => {
     setPaginaEstudiantes(1)
   }, [itemsPorPagina])
+
+  // 🆕 Cargar lista de asesores disponibles
+  useEffect(() => {
+    api.get('/reports/advisors')
+      .then((response) => {
+        if (Array.isArray(response.data)) {
+          setAsesoresDisponibles(response.data)
+        }
+      })
+      .catch((error) => {
+        console.error('Error al cargar asesores:', error)
+      })
+  }, [])
+
+  // 🆕 Cargar información de asesores para cada estudiante
+  useEffect(() => {
+    if (!dashboardData?.resumen?.estudiantesActivosDetalle || asesoresDisponibles.length === 0) return
+    
+    const todosLosCarnets = dashboardData.resumen.estudiantesActivosDetalle
+      .map((est: any) => est.carnet)
+      .filter((carnet: string) => carnet && carnet.trim())
+    
+    if (todosLosCarnets.length === 0) return
+    
+    // Verificar qué carnets necesitan información de asesor
+    const carnetsFaltantes = todosLosCarnets.filter((carnet: string) => {
+      const carnetLower = carnet.toLowerCase()
+      return !asesoresPorEstudiante[carnetLower]
+    })
+    
+    if (carnetsFaltantes.length === 0) return
+    
+    // Cargar información de asesores en batch usando el parámetro q (búsqueda)
+    Promise.all(
+      carnetsFaltantes.map((carnet: string) => {
+        const carnetUpper = carnet.toUpperCase().trim()
+        return api.get(`/prospectos?q=${encodeURIComponent(carnetUpper)}&per_page=1`)
+          .then((response) => {
+            if (response.data?.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
+              // Buscar el prospecto que coincida exactamente con el carnet
+              const prospecto = response.data.data.find((p: any) => 
+                p.carnet && p.carnet.toUpperCase().trim() === carnetUpper
+              ) || response.data.data[0]
+              
+              // Prioridad: updated_by si existe y es diferente de created_by, sino created_by
+              const asesorId = prospecto.updated_by && prospecto.updated_by !== prospecto.created_by
+                ? prospecto.updated_by
+                : prospecto.created_by
+              
+              if (asesorId) {
+                // Buscar el asesor en la lista disponible
+                const asesor = asesoresDisponibles.find((a: any) => a.id === asesorId)
+                if (asesor) {
+                  return {
+                    carnet: carnet.toLowerCase(),
+                    asesor: { id: asesor.id, nombre: asesor.name }
+                  }
+                }
+              }
+            }
+            return { carnet: carnet.toLowerCase(), asesor: null }
+          })
+          .catch((error) => {
+            console.error(`Error al cargar asesor para carnet ${carnet}:`, error)
+            return { carnet: carnet.toLowerCase(), asesor: null }
+          })
+      })
+    ).then((resultados) => {
+      const nuevosAsesores: Record<string, { id: number; nombre: string } | null> = {}
+      resultados.forEach((result) => {
+        nuevosAsesores[result.carnet] = result.asesor
+      })
+      setAsesoresPorEstudiante((prev) => ({ ...prev, ...nuevosAsesores }))
+    })
+  }, [dashboardData?.resumen?.estudiantesActivosDetalle, asesoresDisponibles])
+
+  // 🆕 Cargar estado de pagos de todos los estudiantes activos
+  useEffect(() => {
+    if (!dashboardData?.resumen?.estudiantesActivosDetalle || cargandoEstadoPagos) return
+    
+    const todosLosCarnets = dashboardData.resumen.estudiantesActivosDetalle
+      .map((est: any) => est.carnet)
+      .filter((carnet: string) => carnet && carnet.trim())
+    
+    if (todosLosCarnets.length === 0) return
+    
+    // Verificar si ya tenemos los estados cargados
+    const carnetsFaltantes = todosLosCarnets.filter((carnet: string) => !estadoPagos[carnet.toLowerCase()])
+    if (carnetsFaltantes.length === 0) return
+    
+    setCargandoEstadoPagos(true)
+    
+    api.post('/dashboard-financiero/estado-pagos', { carnets: carnetsFaltantes })
+      .then((response) => {
+        if (response.data.success && response.data.data) {
+          const nuevosEstados: Record<string, any> = {}
+          Object.values(response.data.data).forEach((estado: any) => {
+            if (estado.carnet) {
+              nuevosEstados[estado.carnet.toLowerCase()] = estado
+            }
+          })
+          setEstadoPagos((prev) => ({ ...prev, ...nuevosEstados }))
+        }
+      })
+      .catch((error) => {
+        console.error('Error al cargar estado de pagos:', error)
+      })
+      .finally(() => {
+        setCargandoEstadoPagos(false)
+      })
+  }, [dashboardData?.resumen?.estudiantesActivosDetalle])
 
   // 🚀 NUEVO: Calcular deudas en batch de estudiantes visibles
   useEffect(() => {
@@ -254,15 +708,28 @@ export function DashboardFinanciero() {
           const nuevasDeudas: Record<string, any> = {}
           
           // Mapear resultados del batch
-          Object.entries(response.data.deudas).forEach(([carnet, deuda]) => {
-            nuevasDeudas[carnet.toLowerCase()] = deuda
+          Object.entries(response.data.deudas).forEach(([carnet, deuda]: [string, any]) => {
+            const carnetNormalizado = carnet.toLowerCase()
+            nuevasDeudas[carnetNormalizado] = deuda
+            
+            // Log para debugging
+            if (deuda?.errores && deuda.errores.length > 0) {
+              console.warn(`[Dashboard] Errores para carnet ${carnet}:`, deuda.errores)
+            } else if (deuda?.cuota_mensual > 0) {
+              console.log(`[Dashboard] Cuota calculada para ${carnet}: Q${deuda.cuota_mensual}`)
+            }
           })
           
           setDeudasCalculadas(prev => ({ ...prev, ...nuevasDeudas }))
+        } else {
+          console.error('[Dashboard] Respuesta inválida del endpoint de deudas:', response.data)
         }
       })
       .catch((error) => {
-        console.error('Error calculando deudas en batch:', error)
+        console.error('[Dashboard] Error calculando deudas en batch:', error)
+        if (error.response) {
+          console.error('[Dashboard] Detalles del error:', error.response.data)
+        }
       })
       .finally(() => {
         // Limpiar estado de carga
@@ -584,7 +1051,12 @@ export function DashboardFinanciero() {
               <div className="text-right">
                 <div className="text-2xl font-bold text-primary">
                   {formatCurrency(
-                    filtrarEstudiantes().reduce((sum, est) => sum + calcularDeudaMensual(est), 0)
+                    filtrarEstudiantes().reduce((sum, est) => {
+                      const mensualidad = calcularDeudaMensual(est)
+                      const cantidadCursos = est.total_matriculaciones || 0
+                      const montoTotalACobrar = mensualidad * cantidadCursos
+                      return sum + montoTotalACobrar
+                    }, 0)
                   )}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
@@ -595,160 +1067,436 @@ export function DashboardFinanciero() {
           </CardHeader>
           <CardContent>
             {/* Filtros de búsqueda, carrera, cantidad de cursos y plan de estudio */}
-            <div className="mb-4 space-y-3">
-              <div className="flex flex-col sm:flex-row gap-3">
-                {/* Filtro de búsqueda */}
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar por carnet, nombre, correo o programa..."
-                    value={filtroBusqueda}
-                    onChange={(e) => {
-                      setFiltroBusqueda(e.target.value)
+            <div className="mb-4 space-y-4">
+              {/* Fila 1: Búsqueda principal */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+                <Input
+                  placeholder="Buscar por carnet, nombre, correo o programa..."
+                  value={filtroBusqueda}
+                  onChange={(e) => {
+                    setFiltroBusqueda(e.target.value)
+                    setPaginaEstudiantes(1)
+                  }}
+                  className="pl-10 pr-10 h-11 text-sm"
+                />
+                {filtroBusqueda && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 hover:bg-muted"
+                    onClick={() => {
+                      setFiltroBusqueda("")
                       setPaginaEstudiantes(1)
                     }}
-                    className="pl-10 pr-10"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              
+              {/* Fila 2: Filtros múltiples en grid responsive */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                
+                {/* 🆕 Filtro por carrera (selección múltiple) */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground px-1">
+                    Programa
+                  </label>
+                  <MultiSelect
+                    options={[
+                      // 🎓 BBA y todas sus variantes detectadas dinámicamente
+                      { label: '🎓 BBA (Todas las variantes)', value: 'BBA' },
+                      ...obtenerVariantesBBA()
+                        .filter(v => v !== 'BBA')
+                        .map(v => ({ label: `🎓 ${v}`, value: v })),
+                      // Otras carreras
+                      { label: '🎓 MBA', value: 'MBA' },
+                      { label: '💰 MFIN', value: 'MFIN' },
+                      { label: '📱 MMKD', value: 'MMKD' },
+                      { label: '👥 MLDO', value: 'MLDO' },
+                      { label: '👔 MHHRR', value: 'MHHRR' },
+                      { label: '📊 MPM', value: 'MPM' },
+                      { label: '🏆 PMP', value: 'PMP' },
+                      { label: '👔 MHTM', value: 'MHTM' },
+                      { label: '📱 MKD', value: 'MKD' },
+                      { label: '📊 MDGP', value: 'MDGP' },
+                      { label: '📱 MDM', value: 'MDM' },
+                      { label: '🎓 DBA', value: 'DBA' },
+                      { label: '📊 MGP', value: 'MGP' },
+                      { label: '💰 MFM', value: 'MFM' },
+                      { label: '📝 TEMP', value: 'TEMP' },
+                      { label: '❓ Desconocido', value: 'DESCONOCIDO' },
+                    ]}
+                    selected={filtroCarrera}
+                    onChange={(values) => {
+                      setFiltroCarrera(values)
+                      setPaginaEstudiantes(1)
+                    }}
+                    placeholder="Todos los programas"
+                    searchPlaceholder="Buscar programa..."
+                    emptyMessage="No se encontraron programas"
+                    maxCount={1}
                   />
-                  {filtroBusqueda && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7"
-                      onClick={() => {
-                        setFiltroBusqueda("")
+                </div>
+                
+                {/* 🆕 Filtro por cantidad de cursos (selección múltiple) */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground px-1">
+                    Cantidad de cursos
+                  </label>
+                  <MultiSelect
+                    options={[
+                      { label: '1 curso', value: '1' },
+                      { label: '2 cursos', value: '2' },
+                      { label: '3 cursos', value: '3' },
+                      { label: '4+ cursos', value: '4+' },
+                    ]}
+                    selected={filtroCantidadCursos}
+                    onChange={(values) => {
+                      setFiltroCantidadCursos(values)
+                      setPaginaEstudiantes(1)
+                    }}
+                    placeholder="Todos los cursos"
+                    searchPlaceholder="Buscar..."
+                    emptyMessage="No se encontraron opciones"
+                    maxCount={2}
+                  />
+                </div>
+                
+                {/* 🆕 Filtro por asesor asignado (selección múltiple) */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground px-1">
+                    Asesor asignado
+                  </label>
+                  <MultiSelect
+                    options={[
+                      ...asesoresDisponibles.map((asesor: any) => ({
+                        label: `👤 ${asesor.name}`,
+                        value: asesor.id.toString()
+                      })),
+                      { label: '❓ Sin asesor', value: 'sin_asesor' },
+                    ]}
+                    selected={filtroAsesor}
+                    onChange={(values) => {
+                      setFiltroAsesor(values)
+                      setPaginaEstudiantes(1)
+                    }}
+                    placeholder="Todos los asesores"
+                    searchPlaceholder="Buscar asesor..."
+                    emptyMessage="No se encontraron asesores"
+                    maxCount={2}
+                  />
+                </div>
+                
+                {/* 🆕 Filtro por estado de pago (selección múltiple) */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground px-1">
+                    Estado de pago
+                  </label>
+                  <MultiSelect
+                    options={[
+                      { label: '✅ Pagados', value: 'pagado' },
+                      { label: '❌ No pagados', value: 'no_pagado' },
+                      { label: '❓ Sin información', value: 'sin_informacion' },
+                    ]}
+                    selected={filtroEstadoPago}
+                    onChange={(values) => {
+                      setFiltroEstadoPago(values)
+                      setPaginaEstudiantes(1)
+                    }}
+                    placeholder="Todos los estados"
+                    searchPlaceholder="Buscar..."
+                    emptyMessage="No se encontraron opciones"
+                    maxCount={2}
+                  />
+                </div>
+                
+                {/* 🆕 Filtro por rango de fechas de pagos */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground px-1">
+                    Rango de fechas de pagos
+                  </label>
+                  <SimpleDateRangePicker
+                    value={filtroRangoFechasPagos}
+                    onChange={(range) => {
+                      setFiltroRangoFechasPagos(range)
+                      setFiltroDiasAtras(null) // Limpiar días hacia atrás si se selecciona rango
+                      setPaginaEstudiantes(1)
+                    }}
+                    placeholder="Seleccionar rango"
+                    className="w-full"
+                  />
+                </div>
+                
+                {/* 🆕 Filtro por días hacia atrás */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground px-1">
+                    Días hacia atrás
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      min="1"
+                      max="365"
+                      placeholder="Ej: 30"
+                      value={filtroDiasAtras || ''}
+                      onChange={(e) => {
+                        const value = e.target.value ? parseInt(e.target.value) : null
+                        setFiltroDiasAtras(value)
+                        setFiltroRangoFechasPagos(undefined) // Limpiar rango si se selecciona días
                         setPaginaEstudiantes(1)
                       }}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
+                      className="h-10 text-sm"
+                    />
+                    {filtroDiasAtras && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-10 w-10 shrink-0"
+                        onClick={() => {
+                          setFiltroDiasAtras(null)
+                          setPaginaEstudiantes(1)
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground px-1">
+                    {filtroDiasAtras ? `Ver pagos de los últimos ${filtroDiasAtras} días` : 'Opcional: días hacia atrás'}
+                  </div>
                 </div>
                 
-                {/* Filtro por carrera */}
-                <div className="w-full sm:w-[220px]">
-                  <Select
-                    value={filtroCarrera}
-                    onValueChange={(value) => {
-                      setFiltroCarrera(value)
+                {/* 🆕 Filtro por plan de estudio (selección múltiple) */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground px-1">
+                    Plan de estudio
+                  </label>
+                  <MultiSelect
+                    options={(() => {
+                      // Extraer planes únicos de los estudiantes
+                      const planesUnicos = new Set<string>()
+                      resumen.estudiantesActivosDetalle.forEach((est: any) => {
+                        const programa = (est.city || '').trim().toUpperCase()
+                        const planMatch = programa.match(/(20\d{2})/)
+                        if (planMatch) planesUnicos.add(planMatch[1])
+                      })
+                      return [
+                        ...Array.from(planesUnicos).sort().reverse().map(plan => ({
+                          label: `Plan ${plan}`,
+                          value: plan
+                        })),
+                        { label: 'Sin plan', value: 'DESCONOCIDO' }
+                      ]
+                    })()}
+                    selected={filtroPlanEstudio}
+                    onChange={(values) => {
+                      setFiltroPlanEstudio(values)
                       setPaginaEstudiantes(1)
                     }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Filtrar por programa" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todas">📚 Todas las carreras</SelectItem>
-                      <SelectItem value="BBA">🎓 BBA</SelectItem>
-                      <SelectItem value="MBA">🎓 MBA</SelectItem>
-                      <SelectItem value="MFIN">💰 MFIN</SelectItem>
-                      <SelectItem value="MMKD">📱 MMKD</SelectItem>
-                      <SelectItem value="MLDO">👥 MLDO</SelectItem>
-                      <SelectItem value="MHHRR">👔 MHHRR</SelectItem>
-                      <SelectItem value="MPM">📊 MPM</SelectItem>
-                      <SelectItem value="PMP">🏆 PMP</SelectItem>
-                      <SelectItem value="DESCONOCIDO">❓ Desconocido</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {/* ✅ NUEVO: Filtro por cantidad de cursos */}
-                <div className="w-full sm:w-[180px]">
-                  <Select
-                    value={filtroCantidadCursos}
-                    onValueChange={(value) => {
-                      setFiltroCantidadCursos(value)
-                      setPaginaEstudiantes(1)
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Cantidad de cursos" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todos los cursos</SelectItem>
-                      <SelectItem value="1">1 curso</SelectItem>
-                      <SelectItem value="2">2 cursos</SelectItem>
-                      <SelectItem value="3">3 cursos</SelectItem>
-                      <SelectItem value="4+">4+ cursos</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {/* ✅ NUEVO: Filtro por plan de estudio */}
-                <div className="w-full sm:w-[160px]">
-                  <Select
-                    value={filtroPlanEstudio}
-                    onValueChange={(value) => {
-                      setFiltroPlanEstudio(value)
-                      setPaginaEstudiantes(1)
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Plan de estudio" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todos los planes</SelectItem>
-                      {(() => {
-                        // Extraer planes únicos de los estudiantes
-                        const planesUnicos = new Set<string>()
-                        resumen.estudiantesActivosDetalle.forEach((est: any) => {
-                          const programa = (est.city || '').trim().toUpperCase()
-                          const planMatch = programa.match(/(20\d{2})/)
-                          if (planMatch) planesUnicos.add(planMatch[1])
-                        })
-                        return Array.from(planesUnicos).sort().reverse().map(plan => (
-                          <SelectItem key={plan} value={plan}>Plan {plan}</SelectItem>
-                        ))
-                      })()}
-                      <SelectItem value="DESCONOCIDO">Sin plan</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    placeholder="Todos los planes"
+                    searchPlaceholder="Buscar plan..."
+                    emptyMessage="No se encontraron planes"
+                    maxCount={2}
+                  />
                 </div>
               </div>
               
-              {/* Indicadores de filtros activos */}
-              {(filtroBusqueda.trim() || filtroCarrera !== 'todas' || filtroCantidadCursos !== 'todos' || filtroPlanEstudio !== 'todos') && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
-                  <span>Filtros activos:</span>
-                  {filtroBusqueda.trim() && (
-                    <Badge variant="secondary" className="gap-1">
-                      Búsqueda: {filtroBusqueda}
-                      <X className="h-3 w-3 cursor-pointer" onClick={() => setFiltroBusqueda("")} />
-                    </Badge>
-                  )}
-                  {filtroCarrera !== 'todas' && (
-                    <Badge variant="secondary" className="gap-1">
-                      Carrera: {filtroCarrera}
-                      <X className="h-3 w-3 cursor-pointer" onClick={() => setFiltroCarrera("todas")} />
-                    </Badge>
-                  )}
-                  {filtroCantidadCursos !== 'todos' && (
-                    <Badge variant="secondary" className="gap-1">
-                      Cursos: {filtroCantidadCursos}
-                      <X className="h-3 w-3 cursor-pointer" onClick={() => setFiltroCantidadCursos("todos")} />
-                    </Badge>
-                  )}
-                  {filtroPlanEstudio !== 'todos' && (
-                    <Badge variant="secondary" className="gap-1">
-                      Plan: {filtroPlanEstudio}
-                      <X className="h-3 w-3 cursor-pointer" onClick={() => setFiltroPlanEstudio("todos")} />
-                    </Badge>
-                  )}
+              {/* 🆕 Botones de exportación y filtros activos - Layout mejorado */}
+              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between pt-2 border-t">
+                {/* Indicadores de filtros activos */}
+                {(filtroBusqueda.trim() || filtroCarrera.length > 0 || filtroCantidadCursos.length > 0 || filtroPlanEstudio.length > 0 || filtroEstadoPago.length > 0 || filtroAsesor.length > 0 || filtroRangoFechasPagos || filtroDiasAtras) ? (
+                  <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+                    <span className="text-xs font-medium text-muted-foreground shrink-0">Filtros activos:</span>
+                    {filtroBusqueda.trim() && (
+                      <Badge variant="secondary" className="gap-1.5 px-2 py-1 text-xs shrink-0">
+                        <Search className="h-3 w-3" />
+                        <span className="max-w-[150px] truncate">
+                          {filtroBusqueda.length > 20 ? `${filtroBusqueda.substring(0, 20)}...` : filtroBusqueda}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setFiltroBusqueda("")
+                            setPaginaEstudiantes(1)
+                          }}
+                          className="ml-0.5 hover:bg-secondary-foreground/20 rounded-full p-0.5 transition-colors focus:outline-none"
+                          aria-label="Eliminar filtro de búsqueda"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                    {filtroCarrera.length > 0 && (
+                      <Badge variant="secondary" className="gap-1.5 px-2 py-1 text-xs shrink-0">
+                        <BookOpen className="h-3 w-3" />
+                        {filtroCarrera.length} programa{filtroCarrera.length > 1 ? 's' : ''}
+                        <button
+                          onClick={() => {
+                            setFiltroCarrera([])
+                            setPaginaEstudiantes(1)
+                          }}
+                          className="ml-0.5 hover:bg-secondary-foreground/20 rounded-full p-0.5 transition-colors focus:outline-none"
+                          aria-label="Eliminar filtro de programas"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                    {filtroCantidadCursos.length > 0 && (
+                      <Badge variant="secondary" className="gap-1.5 px-2 py-1 text-xs shrink-0">
+                        Cursos: {filtroCantidadCursos.join(', ')}
+                        <button
+                          onClick={() => {
+                            setFiltroCantidadCursos([])
+                            setPaginaEstudiantes(1)
+                          }}
+                          className="ml-0.5 hover:bg-secondary-foreground/20 rounded-full p-0.5 transition-colors focus:outline-none"
+                          aria-label="Eliminar filtro de cursos"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                    {filtroPlanEstudio.length > 0 && (
+                      <Badge variant="secondary" className="gap-1.5 px-2 py-1 text-xs shrink-0">
+                        Planes: {filtroPlanEstudio.length}
+                        <button
+                          onClick={() => {
+                            setFiltroPlanEstudio([])
+                            setPaginaEstudiantes(1)
+                          }}
+                          className="ml-0.5 hover:bg-secondary-foreground/20 rounded-full p-0.5 transition-colors focus:outline-none"
+                          aria-label="Eliminar filtro de planes"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                    {filtroEstadoPago.length > 0 && (
+                      <Badge variant="secondary" className="gap-1.5 px-2 py-1 text-xs shrink-0">
+                        <DollarSign className="h-3 w-3" />
+                        {filtroEstadoPago.length} estado{filtroEstadoPago.length > 1 ? 's' : ''}
+                        <button
+                          onClick={() => {
+                            setFiltroEstadoPago([])
+                            setPaginaEstudiantes(1)
+                          }}
+                          className="ml-0.5 hover:bg-secondary-foreground/20 rounded-full p-0.5 transition-colors focus:outline-none"
+                          aria-label="Eliminar filtro de estado de pago"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                    {filtroAsesor.length > 0 && (
+                      <Badge variant="secondary" className="gap-1.5 px-2 py-1 text-xs shrink-0">
+                        <Shield className="h-3 w-3" />
+                        {filtroAsesor.length} asesor{filtroAsesor.length > 1 ? 'es' : ''}
+                        <button
+                          onClick={() => {
+                            setFiltroAsesor([])
+                            setPaginaEstudiantes(1)
+                          }}
+                          className="ml-0.5 hover:bg-secondary-foreground/20 rounded-full p-0.5 transition-colors focus:outline-none"
+                          aria-label="Eliminar filtro de asesor"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                    {filtroRangoFechasPagos && (
+                      <Badge variant="secondary" className="gap-1.5 px-2 py-1 text-xs shrink-0">
+                        <CalendarIcon className="h-3 w-3" />
+                        {filtroRangoFechasPagos.from && filtroRangoFechasPagos.to
+                          ? `${filtroRangoFechasPagos.from.toLocaleDateString()} - ${filtroRangoFechasPagos.to.toLocaleDateString()}`
+                          : filtroRangoFechasPagos.from
+                          ? `Desde ${filtroRangoFechasPagos.from.toLocaleDateString()}`
+                          : 'Rango de fechas'}
+                        <button
+                          onClick={() => {
+                            setFiltroRangoFechasPagos(undefined)
+                            setPaginaEstudiantes(1)
+                          }}
+                          className="ml-0.5 hover:bg-secondary-foreground/20 rounded-full p-0.5 transition-colors focus:outline-none"
+                          aria-label="Eliminar filtro de rango de fechas"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                    {filtroDiasAtras && (
+                      <Badge variant="secondary" className="gap-1.5 px-2 py-1 text-xs shrink-0">
+                        <Clock className="h-3 w-3" />
+                        Últimos {filtroDiasAtras} días
+                        <button
+                          onClick={() => {
+                            setFiltroDiasAtras(null)
+                            setPaginaEstudiantes(1)
+                          }}
+                          className="ml-0.5 hover:bg-secondary-foreground/20 rounded-full p-0.5 transition-colors focus:outline-none"
+                          aria-label="Eliminar filtro de días hacia atrás"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs px-2 shrink-0"
+                      onClick={() => {
+                        setFiltroBusqueda("")
+                        setFiltroCarrera([])
+                        setFiltroCantidadCursos([])
+                        setFiltroPlanEstudio([])
+                        setFiltroEstadoPago([])
+                        setFiltroAsesor([])
+                        setFiltroRangoFechasPagos(undefined)
+                        setFiltroDiasAtras(null)
+                        setPaginaEstudiantes(1)
+                      }}
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      Limpiar todo
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">
+                    Sin filtros aplicados
+                  </div>
+                )}
+                
+                {/* Botones de exportación */}
+                <div className="flex gap-2 w-full sm:w-auto shrink-0">
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    className="h-6 text-xs"
                     onClick={() => {
-                      setFiltroBusqueda("")
-                      setFiltroCarrera("todas")
-                      setFiltroCantidadCursos("todos")
-                      setFiltroPlanEstudio("todos")
-                      setPaginaEstudiantes(1)
+                      const estudiantesFiltrados = filtrarEstudiantes()
+                      exportarEstudiantesCSV(estudiantesFiltrados)
                     }}
+                    className="gap-2 flex-1 sm:flex-initial"
                   >
-                    Limpiar todo
+                    <Download className="h-4 w-4" />
+                    <span className="hidden sm:inline">Exportar CSV</span>
+                    <span className="sm:hidden">CSV</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const estudiantesFiltrados = filtrarEstudiantes()
+                      exportarEstudiantesExcel(estudiantesFiltrados)
+                    }}
+                    className="gap-2 flex-1 sm:flex-initial"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span className="hidden sm:inline">Exportar Excel</span>
+                    <span className="sm:hidden">Excel</span>
                   </Button>
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Paginación */}
@@ -783,7 +1531,7 @@ export function DashboardFinanciero() {
                   {(() => {
                     const estudiantesFiltrados = filtrarEstudiantes()
                     const totalFiltrados = estudiantesFiltrados.length
-                    const hayFiltros = filtroBusqueda.trim() || filtroCarrera !== 'todas' || filtroCantidadCursos !== 'todos' || filtroPlanEstudio !== 'todos'
+                    const hayFiltros = filtroBusqueda.trim() || filtroCarrera.length > 0 || filtroCantidadCursos.length > 0 || filtroPlanEstudio.length > 0 || filtroEstadoPago.length > 0 || filtroAsesor.length > 0
                     
                     if (itemsPorPagina === Infinity) {
                       return `Mostrando todos los ${totalFiltrados} estudiantes${hayFiltros ? ' (filtrados)' : ''}`
@@ -839,6 +1587,7 @@ export function DashboardFinanciero() {
                     <TableHead>Programa</TableHead>
                     <TableHead className="text-center">Cursos</TableHead>
                     <TableHead className="text-right">Mensualidad</TableHead>
+                    <TableHead className="text-right">Monto Total a Cobrar</TableHead>
                     <TableHead>Primera Matrícula</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -856,12 +1605,12 @@ export function DashboardFinanciero() {
                         : paginaEstudiantes * itemsPorPagina
                     )
                     
-                    const hayFiltros = filtroBusqueda.trim() || filtroCarrera !== 'todas' || filtroCantidadCursos !== 'todos' || filtroPlanEstudio !== 'todos'
+                    const hayFiltros = filtroBusqueda.trim() || filtroCarrera.length > 0 || filtroCantidadCursos.length > 0 || filtroPlanEstudio.length > 0 || filtroEstadoPago.length > 0 || filtroAsesor.length > 0
                     
                     if (estudiantesPaginados.length === 0 && hayFiltros) {
                       return (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                          <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                             No se encontraron estudiantes con los filtros aplicados
                           </TableCell>
                         </TableRow>
@@ -875,6 +1624,8 @@ export function DashboardFinanciero() {
                       const cargando = cargandoCursos.has(carnet)
                       const cargandoDeuda = cargandoDeudas.has(carnet)
                       const deudaMensual = calcularDeudaMensual(estudiante)
+                      const cantidadCursos = estudiante.total_matriculaciones || 0
+                      const montoTotalACobrar = deudaMensual * cantidadCursos
                       
                       return (
                         <React.Fragment key={carnet}>
@@ -899,7 +1650,7 @@ export function DashboardFinanciero() {
                               )}
                             </TableCell>
                             <TableCell className="text-center">
-                              <Badge>{estudiante.total_matriculaciones || 0}</Badge>
+                              <Badge>{cantidadCursos}</Badge>
                             </TableCell>
                             <TableCell className="text-right">
                               {cargandoDeuda ? (
@@ -912,13 +1663,24 @@ export function DashboardFinanciero() {
                                 <span className="text-xs text-muted-foreground">—</span>
                               )}
                             </TableCell>
+                            <TableCell className="text-right">
+                              {cargandoDeuda ? (
+                                <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground mx-auto" />
+                              ) : montoTotalACobrar > 0 ? (
+                                <span className="font-bold text-sm text-primary">
+                                  {formatCurrency(montoTotalACobrar)}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
                             <TableCell className="text-xs">{formatDate(estudiante.primera_matricula)}</TableCell>
                           </TableRow>
                           
                           {/* Fila expandida con cursos */}
                           {estaExpandido && (
                             <TableRow>
-                              <TableCell colSpan={8} className="bg-muted/30 p-4">
+                              <TableCell colSpan={9} className="bg-muted/30 p-4">
                                 <div className="space-y-4">
                                   {/* 📚 Lista de cursos */}
                                   <div>
