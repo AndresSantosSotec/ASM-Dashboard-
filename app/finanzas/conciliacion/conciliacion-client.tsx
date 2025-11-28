@@ -32,14 +32,15 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 
 // ✅ services centralizados
-import {
-  getKardexPendientes,
-  getKardexConciliados,
-  importConciliacion,
-  downloadConciliacionTemplate,
-  exportConciliacionXlsx,
-  exportConciliados,
-} from "@/services/finance"
+  import {
+    getKardexPendientes,
+    getKardexConciliados,
+    importConciliacion,
+    downloadConciliacionTemplate,
+    exportConciliacionXlsx,
+    exportConciliados,
+    getFiltrosDisponibles,
+  } from "@/services/finance"
 
 /** ====== Tipos ====== */
 type StructureItem = { id: number; name: string; column: number }
@@ -153,10 +154,15 @@ export default function ConciliacionClient() {
 
   // filtros
   const [bankFilter, setBankFilter] = useState<string>("todos")
+  const [programaFilter, setProgramaFilter] = useState<string>("todos")
   const [search, setSearch] = useState<string>("")
   const debouncedSearch = useDebouncedValue(search, 350)
   const [fromDate, setFromDate] = useState<string>("") // YYYY-MM-DD
   const [toDate, setToDate] = useState<string>("") // YYYY-MM-DD
+  
+  // 🆕 Lista de bancos y programas disponibles
+  const [bancosDisponibles, setBancosDisponibles] = useState<string[]>([])
+  const [programasDisponibles, setProgramasDisponibles] = useState<Array<{id: number; nombre: string; abreviatura: string}>>([])
 
   const [expectedStructure] = useState<StructureItem[]>([
     { id: 1, name: "Fecha", column: 1 },
@@ -198,11 +204,25 @@ export default function ConciliacionClient() {
   // 🚀 Lazy loading: solo cargar tabs cuando se activan
   const [tabsLoaded, setTabsLoaded] = useState<Set<string>>(new Set())
 
+  // 🆕 Cargar filtros disponibles al montar
+  useEffect(() => {
+    getFiltrosDisponibles()
+      .then((data) => {
+        if (data?.ok) {
+          setBancosDisponibles(data.bancos || [])
+          setProgramasDisponibles(data.programas || [])
+        }
+      })
+      .catch((err) => {
+        console.error("Error cargando filtros disponibles:", err)
+      })
+  }, [])
+
   // Reset de página al cambiar filtros o búsqueda
   useEffect(() => {
     setPagePend(1)
     setPageConc(1)
-  }, [debouncedSearch, bankFilter, fromDate, toDate])
+  }, [debouncedSearch, bankFilter, programaFilter, fromDate, toDate])
 
   // ====== Cargar PENDIENTES desde Kardex (backend) - 🚀 CON PAGINACIÓN DEL SERVIDOR ======
   const loadPendientesFromKardex = async () => {
@@ -213,6 +233,7 @@ export default function ConciliacionClient() {
         from: fromDate || undefined,
         to: toDate || undefined,
         banco: bankFilter === "todos" ? undefined : bankFilter,
+        programa_id: programaFilter === "todos" ? undefined : Number(programaFilter),
         page: pagePend,
         per_page: pageSizePend,
       })
@@ -236,6 +257,7 @@ export default function ConciliacionClient() {
         from: fromDate || undefined,
         to: toDate || undefined,
         banco: bankFilter === "todos" ? undefined : bankFilter,
+        programa_id: programaFilter === "todos" ? undefined : Number(programaFilter),
         page: pageConc,
         per_page: pageSizeConc,
       })
@@ -285,7 +307,7 @@ export default function ConciliacionClient() {
       loadPendientesFromKardex()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromDate, toDate, bankFilter])
+  }, [fromDate, toDate, bankFilter, programaFilter])
 
   useEffect(() => {
     if (activeTab === "conciliados" && tabsLoaded.has("conciliados")) {
@@ -293,7 +315,7 @@ export default function ConciliacionClient() {
       loadConciliadosFromKardex()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromDate, toDate, bankFilter])
+  }, [fromDate, toDate, bankFilter, programaFilter])
 
   // ===== Handlers =====
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -339,6 +361,7 @@ export default function ConciliacionClient() {
         from: fromDate || undefined,
         to: toDate || undefined,
         bank: bankFilter === "todos" ? undefined : bankFilter,
+        programa_id: programaFilter === "todos" ? undefined : Number(programaFilter),
       })
       const url = URL.createObjectURL(new Blob([blob]))
       const a = document.createElement("a")
@@ -490,11 +513,20 @@ export default function ConciliacionClient() {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="todos">Todos los bancos</SelectItem>
-          <SelectItem value="BANCO INDUSTRIAL">Banco Industrial</SelectItem>
-          <SelectItem value="BANRURAL">Banrural</SelectItem>
-          <SelectItem value="G&T CONTINENTAL">Banco G&amp;T</SelectItem>
-          <SelectItem value="BAM">BAM</SelectItem>
-          <SelectItem value="PROMERICA">Promérica</SelectItem>
+          {bancosDisponibles.map((banco) => (
+            <SelectItem key={banco} value={banco}>{banco}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={programaFilter} onValueChange={setProgramaFilter}>
+        <SelectTrigger className="w-[220px]">
+          <SelectValue placeholder="Filtrar por programa" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="todos">Todos los programas</SelectItem>
+          {programasDisponibles.map((programa) => (
+            <SelectItem key={programa.id} value={String(programa.id)}>{programa.nombre}</SelectItem>
+          ))}
         </SelectContent>
       </Select>
       <Button variant="outline" size="sm" onClick={handleExportXlsx} disabled={loading}>
@@ -761,6 +793,7 @@ export default function ConciliacionClient() {
                           from: fromDate || undefined,
                           to: toDate || undefined,
                           banco: bankFilter === "todos" ? undefined : bankFilter,
+                          programa_id: programaFilter === "todos" ? undefined : Number(programaFilter),
                         })
                         const url = URL.createObjectURL(blob)
                         const a = document.createElement('a')
@@ -789,6 +822,7 @@ export default function ConciliacionClient() {
                           from: fromDate || undefined,
                           to: toDate || undefined,
                           banco: bankFilter === "todos" ? undefined : bankFilter,
+                          programa_id: programaFilter === "todos" ? undefined : Number(programaFilter),
                         })
                         const url = URL.createObjectURL(blob)
                         const a = document.createElement('a')
@@ -817,6 +851,7 @@ export default function ConciliacionClient() {
                           from: fromDate || undefined,
                           to: toDate || undefined,
                           banco: bankFilter === "todos" ? undefined : bankFilter,
+                          programa_id: programaFilter === "todos" ? undefined : Number(programaFilter),
                         })
                         const url = URL.createObjectURL(blob)
                         const a = document.createElement('a')

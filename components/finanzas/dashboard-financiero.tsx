@@ -244,6 +244,7 @@ export function DashboardFinanciero() {
       }
       
       // 🆕 Filtro por estado de pago (pagado/no pagado en últimos 30 días) - SELECCIÓN MÚLTIPLE
+      // 🆕 ACTUALIZADO: También filtra por si tiene registro en kardex
       if (filtroEstadoPago.length > 0) {
         const carnet = (est.carnet || '').toLowerCase()
         const estadoPago = estadoPagos[carnet]
@@ -255,7 +256,24 @@ export function DashboardFinanciero() {
         }
         
         // Verificar si el estado del estudiante coincide con alguno de los filtros seleccionados
-        if (!filtroEstadoPago.includes(estadoPago.estado)) return false
+        let matchesFilter = false
+        
+        for (const filtro of filtroEstadoPago) {
+          if (filtro === 'tiene_kardex' && estadoPago.tiene_registro_kardex) {
+            matchesFilter = true
+            break
+          }
+          if (filtro === 'sin_kardex' && !estadoPago.tiene_registro_kardex) {
+            matchesFilter = true
+            break
+          }
+          if (filtro === estadoPago.estado) {
+            matchesFilter = true
+            break
+          }
+        }
+        
+        if (!matchesFilter) return false
       }
       
       // 🆕 Filtro por asesor asignado (created_by o updated_by) - SELECCIÓN MÚLTIPLE
@@ -588,47 +606,39 @@ export function DashboardFinanciero() {
     
     if (carnetsFaltantes.length === 0) return
     
-    // Cargar información de asesores en batch usando el parámetro q (búsqueda)
-    Promise.all(
-      carnetsFaltantes.map((carnet: string) => {
-        const carnetUpper = carnet.toUpperCase().trim()
-        return api.get(`/prospectos?q=${encodeURIComponent(carnetUpper)}&per_page=1`)
+    // 🚀 OPTIMIZACIÓN: Cargar información de asesores en batch usando endpoint optimizado
+    api.post('/prospectos/batch-por-carnets', { carnets: carnetsFaltantes })
           .then((response) => {
-            if (response.data?.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
-              // Buscar el prospecto que coincida exactamente con el carnet
-              const prospecto = response.data.data.find((p: any) => 
-                p.carnet && p.carnet.toUpperCase().trim() === carnetUpper
-              ) || response.data.data[0]
-              
-              // Prioridad: updated_by si existe y es diferente de created_by, sino created_by
-              const asesorId = prospecto.updated_by && prospecto.updated_by !== prospecto.created_by
-                ? prospecto.updated_by
-                : prospecto.created_by
-              
-              if (asesorId) {
+        if (response.data?.success && response.data?.data) {
+          const resultados = carnetsFaltantes.map((carnet: string) => {
+            const carnetLower = carnet.toLowerCase()
+            const prospectoData = response.data.data[carnet]
+            
+            if (!prospectoData || !prospectoData.asesor_id) {
+              return { carnet: carnetLower, asesor: null }
+            }
+            
                 // Buscar el asesor en la lista disponible
-                const asesor = asesoresDisponibles.find((a: any) => a.id === asesorId)
+            const asesor = asesoresDisponibles.find((a: any) => a.id === prospectoData.asesor_id)
                 if (asesor) {
                   return {
-                    carnet: carnet.toLowerCase(),
+                carnet: carnetLower,
                     asesor: { id: asesor.id, nombre: asesor.name }
                   }
                 }
-              }
-            }
-            return { carnet: carnet.toLowerCase(), asesor: null }
+            
+            return { carnet: carnetLower, asesor: null }
           })
-          .catch((error) => {
-            console.error(`Error al cargar asesor para carnet ${carnet}:`, error)
-            return { carnet: carnet.toLowerCase(), asesor: null }
-          })
-      })
-    ).then((resultados) => {
+          
       const nuevosAsesores: Record<string, { id: number; nombre: string } | null> = {}
-      resultados.forEach((result) => {
+          resultados.forEach((result: any) => {
         nuevosAsesores[result.carnet] = result.asesor
       })
       setAsesoresPorEstudiante((prev) => ({ ...prev, ...nuevosAsesores }))
+        }
+      })
+      .catch((error) => {
+        console.error('Error al cargar asesores en batch:', error)
     })
   }, [dashboardData?.resumen?.estudiantesActivosDetalle, asesoresDisponibles])
 
@@ -1196,8 +1206,10 @@ export function DashboardFinanciero() {
                   </label>
                   <MultiSelect
                     options={[
-                      { label: '✅ Pagados', value: 'pagado' },
-                      { label: '❌ No pagados', value: 'no_pagado' },
+                      { label: '✅ Pagados (30 días)', value: 'pagado' },
+                      { label: '❌ No pagados (30 días)', value: 'no_pagado' },
+                      { label: '📋 Tiene registro en Kardex', value: 'tiene_kardex' },
+                      { label: '📭 Sin registro en Kardex', value: 'sin_kardex' },
                       { label: '❓ Sin información', value: 'sin_informacion' },
                     ]}
                     selected={filtroEstadoPago}
@@ -1208,7 +1220,7 @@ export function DashboardFinanciero() {
                     placeholder="Todos los estados"
                     searchPlaceholder="Buscar..."
                     emptyMessage="No se encontraron opciones"
-                    maxCount={2}
+                    maxCount={5}
                   />
                 </div>
                 

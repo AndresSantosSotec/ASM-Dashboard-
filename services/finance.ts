@@ -603,6 +603,7 @@ export const getKardexPendientes = async (params: {
   from?: string; // YYYY-MM-DD
   to?: string;   // YYYY-MM-DD
   banco?: string;
+  programa_id?: number;
   page?: number; // 🚀 Paginación del servidor
   per_page?: number; // 🚀 Paginación del servidor
 } = {}) => {
@@ -659,6 +660,7 @@ export const exportConciliados = async (
     from?: string;
     to?: string;
     banco?: string;
+    programa_id?: number;
   }
 ) => {
   const res = await api.get("/conciliacion/export-conciliados", {
@@ -668,11 +670,18 @@ export const exportConciliados = async (
   return res.data as Blob
 }
 
+// Obtener filtros disponibles (bancos y programas)
+export const getFiltrosDisponibles = async () => {
+  const res = await api.get("/conciliacion/filtros-disponibles")
+  return res.data
+}
+
 // services/finance.ts
 export const getKardexConciliados = async (params: {
   from?: string; 
   to?: string; 
   banco?: string;
+  programa_id?: number;
   page?: number; // 🚀 Paginación del servidor
   per_page?: number; // 🚀 Paginación del servidor
 } = {}) => {
