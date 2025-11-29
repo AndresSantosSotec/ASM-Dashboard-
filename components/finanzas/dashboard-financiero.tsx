@@ -993,7 +993,7 @@ export function DashboardFinanciero() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
+        {/* <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Ingresos Mensuales</CardTitle>
           </CardHeader>
@@ -1004,9 +1004,9 @@ export function DashboardFinanciero() {
               <span className="text-xs text-muted-foreground ml-2">vs. mes anterior</span>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
 
-        <Card>
+        {/* <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Tasa de Morosidad</CardTitle>
           </CardHeader>
@@ -1017,9 +1017,9 @@ export function DashboardFinanciero() {
               <span className="text-xs text-muted-foreground ml-2">vs. mes anterior</span>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
 
-        <Card>
+        {/* <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Recaudación Pendiente</CardTitle>
           </CardHeader>
@@ -1030,7 +1030,7 @@ export function DashboardFinanciero() {
               <span className="text-xs text-muted-foreground ml-2">vs. mes anterior</span>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
 
         <Card>
           <CardHeader className="pb-2">

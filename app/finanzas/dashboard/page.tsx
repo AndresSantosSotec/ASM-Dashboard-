@@ -3,7 +3,7 @@ import { DashboardFinancieroHibrido } from "@/components/finanzas/DashboardFinan
 
 export const metadata: Metadata = {
   title: "Dashboard Financiero - Vista Completa",
-  description: "Dashboard financiero con dos perspectivas: estudiantes activos + métricas de negocio con reglas de validación.",
+  description: "Dashboard financiero con dos perspectivas: estudiantes activos del mes y universo completo de estudiantes.",
 }
 
 export default function DashboardFinancieroPage() {

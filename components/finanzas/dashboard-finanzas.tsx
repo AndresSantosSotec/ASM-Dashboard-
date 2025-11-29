@@ -121,7 +121,7 @@ export function DashboardFinanzas() {
           {/* Gráficas y tablas */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
             {/* Gráfica de ingresos mensuales */}
-            <Card className="lg:col-span-4">
+            {/* <Card className="lg:col-span-4">
               <CardHeader>
                 <CardTitle>Ingresos Mensuales</CardTitle>
                 <CardDescription>Comparativa de ingresos por mes</CardDescription>
@@ -131,7 +131,7 @@ export function DashboardFinanzas() {
                   Sin datos
                 </div>
               </CardContent>
-            </Card>
+            </Card> */}
 
             {/* Buckets de morosidad */}
             <Card className="lg:col-span-3">

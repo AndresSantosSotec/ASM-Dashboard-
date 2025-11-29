@@ -4,30 +4,26 @@
  * 💰 DASHBOARD FINANCIERO HÍBRIDO
  * 
  * Combina dos vistas:
- * 1. Vista CLÁSICA - Estudiantes activos, cursos matriculados (dashboard anterior)
- * 2. Vista MÉTRICAS - Reglas de negocio, warnings, validaciones (dashboard nuevo)
+ * 1. Vista ACTIVOS - Estudiantes activos este mes en Moodle
+ * 2. Vista UNIVERSO - TODOS los estudiantes (Moodle + CRM)
  * 
- * El usuario puede alternar entre ambas vistas con tabs
+ * El usuario puede alternar entre las dos vistas con tabs
  */
 
 import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { 
-  BarChart3, 
-  Users, 
-  DollarSign, 
-  AlertTriangle,
   BookOpen,
-  TrendingUp
+  Globe
 } from "lucide-react"
 
 // Componentes existentes
 import { DashboardFinanciero as DashboardClasico } from "./dashboard-financiero"
-import { DashboardFinanciero as DashboardMetricas } from "./DashboardFinanciero"
+import { UniversoEstudiantes } from "./UniversoEstudiantes"
 
 export function DashboardFinancieroHibrido() {
-  const [tabActiva, setTabActiva] = useState<"clasico" | "metricas">("clasico")
+  const [tabActiva, setTabActiva] = useState<"activos" | "universo">("activos")
 
   return (
     <div className="space-y-6">
@@ -36,7 +32,7 @@ export function DashboardFinancieroHibrido() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard Financiero</h1>
           <p className="text-muted-foreground">
-            Análisis completo con dos perspectivas: estudiantes activos y métricas de negocio
+            Análisis completo con dos perspectivas: activos del mes y universo completo de estudiantes
           </p>
         </div>
       </div>
@@ -44,38 +40,36 @@ export function DashboardFinancieroHibrido() {
       {/* Tabs para alternar vistas */}
       <Tabs value={tabActiva} onValueChange={(v) => setTabActiva(v as any)} className="w-full">
         <TabsList className="grid w-full max-w-[600px] grid-cols-2">
-          {/* TAB 1: Vista Clásica */}
-          <TabsTrigger value="clasico" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            <span>Estudiantes Activos</span>
-            <Badge variant="secondary" className="ml-2">
-              <BookOpen className="h-3 w-3 mr-1" />
-              Cursos
+          {/* TAB 1: Estudiantes Activos Este Mes */}
+          <TabsTrigger value="activos" className="flex items-center gap-2">
+            <BookOpen className="h-4 w-4" />
+            <span>Activos del Mes</span>
+            <Badge variant="secondary" className="ml-1">
+              Moodle
             </Badge>
           </TabsTrigger>
 
-          {/* TAB 2: Vista Métricas */}
-          <TabsTrigger value="metricas" className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
-            <span>Métricas & Reglas</span>
-            <Badge variant="secondary" className="ml-2">
-              <AlertTriangle className="h-3 w-3 mr-1" />
-              Warnings
+          {/* TAB 2: Universo Completo */}
+          <TabsTrigger value="universo" className="flex items-center gap-2">
+            <Globe className="h-4 w-4" />
+            <span>Universo Completo</span>
+            <Badge variant="secondary" className="ml-1">
+              Todos
             </Badge>
           </TabsTrigger>
         </TabsList>
 
-        {/* TAB CONTENT 1: Dashboard Clásico */}
-        <TabsContent value="clasico" className="space-y-4 mt-6">
+        {/* TAB CONTENT 1: Estudiantes Activos Este Mes */}
+        <TabsContent value="activos" className="space-y-4 mt-6">
           <div className="rounded-lg border bg-card p-4">
             <div className="flex items-center gap-2 mb-4">
-              <Users className="h-5 w-5 text-primary" />
-              <h2 className="text-xl font-semibold">Vista Clásica</h2>
-              <Badge variant="outline">Estudiantes & Cursos</Badge>
+              <BookOpen className="h-5 w-5 text-primary" />
+              <h2 className="text-xl font-semibold">Estudiantes Activos Este Mes</h2>
+              <Badge variant="outline">Matriculados en Moodle</Badge>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
-              • Estudiantes activos este mes en Moodle<br/>
-              • Cursos matriculados por estudiante<br/>
+              • Estudiantes con cursos matriculados este mes en Moodle<br/>
+              • Cursos activos por estudiante<br/>
               • Pagos recientes y alertas de mora<br/>
               • Filtros por mes/año
             </p>
@@ -84,27 +78,27 @@ export function DashboardFinancieroHibrido() {
           <DashboardClasico />
         </TabsContent>
 
-        {/* TAB CONTENT 2: Dashboard Métricas */}
-        <TabsContent value="metricas" className="space-y-4 mt-6">
+        {/* TAB CONTENT 2: Universo Completo de Estudiantes */}
+        <TabsContent value="universo" className="space-y-4 mt-6">
           <div className="rounded-lg border bg-card p-4">
             <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              <h2 className="text-xl font-semibold">Vista Métricas de Negocio</h2>
-              <Badge variant="outline">Reglas & Validaciones</Badge>
+              <Globe className="h-5 w-5 text-primary" />
+              <h2 className="text-xl font-semibold">Universo Completo de Estudiantes</h2>
+              <Badge variant="outline">Moodle + CRM</Badge>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
-              • Cálculo de cuotas reales (cuota × cursos activos)<br/>
-              • Sistema de mora automático (después del día 5)<br/>
-              • Validación de paths Moodle (depth=3)<br/>
-              • Warnings de inconsistencias Moodle ↔ PostgreSQL<br/>
-              • Estados financieros: PAGADO_COMPLETO, MOROSO, PAGO_PARCIAL, etc.<br/>
-              • Detección de pagos duplicados
+              • TODOS los estudiantes registrados en Moodle (histórico completo)<br/>
+              • Información de programas inscritos en CRM<br/>
+              • Estado financiero: deudas, pagos realizados<br/>
+              • Filtros por programa, estado financiero, búsqueda por carnet/nombre<br/>
+              • Fechas de primera y última matrícula
             </p>
           </div>
 
-          <DashboardMetricas />
+          <UniversoEstudiantes />
         </TabsContent>
       </Tabs>
     </div>
   )
 }
+

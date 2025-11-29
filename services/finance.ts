@@ -647,7 +647,7 @@ export const downloadConciliacionTemplate = async () => {
 }
 
 export const exportConciliacionXlsx = async (params: {
-  from?: string; to?: string; bank?: string; status?: string
+  from?: string; to?: string; bank?: string; status?: string; programa_id?: number;
 }) => {
   const res = await api.get("/conciliacion/export", { params, responseType: "blob" })
   return res.data as Blob
@@ -776,6 +776,22 @@ export const getProspectosInternos = async (params?: {
   }
   
   const res = await api.get("/prospectos/mailing-internos", { params: finalParams })
+  return res.data
+}
+
+/**
+ * 🌐 NUEVO: Obtener UNIVERSO COMPLETO de estudiantes
+ * Incluye TODOS los estudiantes de Moodle + CRM interno
+ * Con información de programas, cuotas, estado financiero
+ */
+export const getUniversoEstudiantes = async (params?: {
+  page?: number
+  per_page?: number
+  search?: string
+  programa_id?: number
+  estado_financiero?: 'moroso' | 'al_dia' | 'sin_programa'
+}) => {
+  const res = await api.get("/dashboard-financiero/universo-estudiantes", { params })
   return res.data
 }
 
