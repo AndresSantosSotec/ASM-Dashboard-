@@ -85,6 +85,7 @@ interface Prospecto {
   asesor: string;
   notasGenerales?: string;
   observaciones?: string;
+  programInteres?: string;
 }
 
 interface Actividad {
@@ -290,6 +291,33 @@ export default function SeguimientoPage() {
     }
   }, [appointmentDate, appointmentDescription]);
 
+  // Prefill descripción cita con programa de interés desde detalle del prospecto
+  useEffect(() => {
+    if (!selectedProspecto) return;
+    const nombre = selectedProspecto.nombre || "";
+    const telefono = selectedProspecto.telefono || "";
+    (async () => {
+      try {
+        const resp = await api.get(`/prospectos/${selectedProspecto.id}`);
+        const detalle = resp.data?.data || resp.data;
+        const programas = Array.isArray(detalle?.programas) ? detalle.programas : [];
+        const programasNombres = programas
+          .map((p: any) => p.programa?.nombre_del_programa)
+          .filter((n: string) => !!n)
+          .join(", ");
+        const programaFinal = programasNombres || selectedProspecto.programInteres || "—";
+        const asesorFinal = detalle?.creator?.first_name 
+          ? `${detalle.creator.first_name} ${detalle.creator.last_name || ""}`.trim()
+          : (selectedProspecto.asesor || "Sin asignar");
+        const prefill = `Nombre completo: ${nombre}\nTeléfono: ${telefono}\nPrograma de interés: ${programaFinal}\nAsesor asignado: ${asesorFinal}`;
+        setAppointmentDescription(prefill);
+      } catch {
+        const prefillFallback = `Nombre completo: ${nombre}\nTeléfono: ${telefono}\nPrograma de interés: ${selectedProspecto.programInteres || '—'}\nAsesor asignado: ${selectedProspecto.asesor || 'Sin asignar'}`;
+        setAppointmentDescription(prefillFallback);
+      }
+    })();
+  }, [selectedProspecto]);
+
   // Función para asignar colores según el estado del prospecto
   const getEstadoColor = (estado: Prospecto["estado"]) => {
     switch (estado) {
@@ -344,10 +372,20 @@ export default function SeguimientoPage() {
             email: item.correo_electronico,
             telefono: item.telefono,
             estado: item.status,
-            asesor: item.asesor || "Sin asignar",
+            asesor:
+              item.asesor ||
+              (item.creator
+                ? `${item.creator.first_name || ""} ${item.creator.last_name || ""}`.trim()
+                : "Sin asignar"),
             ultimoCambio: item.updated_at ?? "N/A",
             notasGenerales: item.notas_generales ?? "",
             observaciones: item.observaciones ?? "",
+            programInteres:
+              item.programa_interes_nombre ||
+              item.programa_interes ||
+              item.programaInteres ||
+              item.programa ||
+              "—",
           }))
           .sort((a, b) => {
             const getTime = (d: string) => {
@@ -813,8 +851,9 @@ export default function SeguimientoPage() {
                     />
                   </div>
                   <div className="mt-4 space-y-4">
-                    <Input
+                    <Textarea
                       placeholder="Descripción de la cita"
+                      className="min-h-[100px]"
                       value={appointmentDescription}
                       onChange={(e) => setAppointmentDescription(e.target.value)}
                     />
@@ -835,7 +874,7 @@ export default function SeguimientoPage() {
                             className="flex justify-between items-center text-sm border-b py-2"
                           >
                             <span>{formatDate(cita.datecita)}</span>
-                            <span>{cita.descricita}</span>
+                            <span className="whitespace-pre-wrap">{cita.descricita}</span>
                           </div>
                         ))
                       ) : (
