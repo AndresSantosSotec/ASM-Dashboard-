@@ -50,6 +50,12 @@ export function DashboardFinanciero() {
   const firstOfMonth = new Date()
   firstOfMonth.setDate(1)
 
+  // Array de nombres de meses
+  const mesNombres = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  ]
+
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: firstOfMonth,
     to: new Date(),
@@ -399,8 +405,11 @@ export function DashboardFinanciero() {
         'Carnet',
         'Nombre Completo',
         'Correo',
+        'Teléfono',
+        'Detalle de Pago',
         'Programa',
         'Cantidad Cursos',
+        'Cursos Matriculados (Mes)',
         'Cuota Mensual',
         'Monto Total a Cobrar',
         'Estado de Pago (30 días)',
@@ -459,13 +468,28 @@ export function DashboardFinanciero() {
         const cantidadCursos = est.total_matriculaciones || 0
         const montoTotalACobrar = mensualidad * cantidadCursos
         
+        // 🆕 Obtener teléfono (prioridad CRM sobre Moodle)
+        const telefono = est.telefono || ''
+        
+        // 🆕 Obtener detalle de pago desde campo personalizado de Moodle
+        const detallePago = est.detalle_pago || ''
+        
+        // 🆕 Obtener cursos matriculados del mes
+        const cursosDelMes = est.cursos_matriculados_mes || []
+        const cursosListaTexto = cursosDelMes.length > 0 
+          ? cursosDelMes.map((c: any) => c.nombre_curso || c.course_name || '').join('; ')
+          : 'Sin cursos matriculados este mes'
+        
         tableHTML += `
           <tr>
             <td>${carnet}</td>
             <td>${est.nombre_completo || ''}</td>
             <td>${est.correo || ''}</td>
-            <td>${est.city || ''}</td>
+            <td>${telefono}</td>
+            <td>${detallePago}</td>
+            <td>${est.city || ''}
             <td>${cantidadCursos}</td>
+            <td>${cursosListaTexto}</td>
             <td>${mensualidad}</td>
             <td>${montoTotalACobrar}</td>
             <td>${estadoPago.estado === 'pagado' ? 'Pagado' : estadoPago.estado === 'no_pagado' ? 'No pagado' : 'Sin información'}</td>
@@ -1595,9 +1619,12 @@ export function DashboardFinanciero() {
                     <TableHead className="w-[50px]"></TableHead>
                     <TableHead>Carnet</TableHead>
                     <TableHead>Nombre</TableHead>
+                    <TableHead>Teléfono</TableHead>
+                    <TableHead>Detalle de Pago</TableHead>
                     <TableHead>Correo</TableHead>
                     <TableHead>Programa</TableHead>
                     <TableHead className="text-center">Cursos</TableHead>
+                    <TableHead className="text-center">Cursos del Mes</TableHead>
                     <TableHead className="text-right">Mensualidad</TableHead>
                     <TableHead className="text-right">Monto Total a Cobrar</TableHead>
                     <TableHead>Primera Matrícula</TableHead>
@@ -1622,7 +1649,7 @@ export function DashboardFinanciero() {
                     if (estudiantesPaginados.length === 0 && hayFiltros) {
                       return (
                         <TableRow>
-                          <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                          <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                             No se encontraron estudiantes con los filtros aplicados
                           </TableCell>
                         </TableRow>
@@ -1653,6 +1680,29 @@ export function DashboardFinanciero() {
                             </TableCell>
                             <TableCell className="font-mono text-xs">{carnet}</TableCell>
                             <TableCell className="font-medium">{estudiante.nombre_completo}</TableCell>
+                            <TableCell className="text-sm">
+                              {estudiante.telefono ? (
+                                <div className="flex flex-col">
+                                  <span className="font-mono">{estudiante.telefono}</span>
+                                  {estudiante.telefono_fuente && (
+                                    <span className="text-xs text-muted-foreground">
+                                      {estudiante.telefono_fuente === 'CRM' ? '📋 CRM' : '🎓 Moodle'}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : estudiante.phone1 || estudiante.phone2 ? (
+                                <span className="font-mono">{estudiante.phone1 || estudiante.phone2}</span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {estudiante.detalle_pago ? (
+                                <span className="text-sm">{estudiante.detalle_pago}</span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
                             <TableCell className="text-xs text-muted-foreground">{estudiante.correo || '—'}</TableCell>
                             <TableCell>
                               {estudiante.city ? (
@@ -1663,6 +1713,18 @@ export function DashboardFinanciero() {
                             </TableCell>
                             <TableCell className="text-center">
                               <Badge>{cantidadCursos}</Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {estudiante.cursos_matriculados_mes && estudiante.cursos_matriculados_mes.length > 0 ? (
+                                <div className="flex flex-col items-center gap-1">
+                                  <Badge variant="secondary">{estudiante.total_cursos_matriculados_mes || estudiante.cursos_matriculados_mes.length}</Badge>
+                                  <span className="text-xs text-muted-foreground">
+                                    {mesNombres[parseInt(mesSeleccionado.toString()) - 1]} {anioSeleccionado}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
                             </TableCell>
                             <TableCell className="text-right">
                               {cargandoDeuda ? (
@@ -1692,45 +1754,37 @@ export function DashboardFinanciero() {
                           {/* Fila expandida con cursos */}
                           {estaExpandido && (
                             <TableRow>
-                              <TableCell colSpan={9} className="bg-muted/30 p-4">
+                              <TableCell colSpan={12} className="bg-muted/30 p-4">
                                 <div className="space-y-4">
-                                  {/* 📚 Lista de cursos */}
-                                  <div>
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <BookOpen className="h-4 w-4 text-muted-foreground" />
-                                      <span className="font-semibold text-sm">Cursos Matriculados ({cursos.length})</span>
-                                    </div>
-                                    
-                                    {cargando ? (
-                                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                        <RefreshCw className="h-4 w-4 animate-spin" />
-                                        Cargando cursos...
+                                  {/* 📚 Lista de cursos del mes (desde backend) */}
+                                  {estudiante.cursos_matriculados_mes && estudiante.cursos_matriculados_mes.length > 0 && (
+                                    <div>
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <BookOpen className="h-4 w-4 text-muted-foreground" />
+                                        <span className="font-semibold text-sm">
+                                          Cursos Matriculados en {mesNombres[parseInt(mesSeleccionado.toString()) - 1]} {anioSeleccionado} ({estudiante.cursos_matriculados_mes.length})
+                                        </span>
                                       </div>
-                                    ) : cursos.length > 0 ? (
                                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                                        {cursos.map((curso: any, cursoIdx: number) => (
+                                        {estudiante.cursos_matriculados_mes.map((curso: any, cursoIdx: number) => (
                                           <div
                                             key={cursoIdx}
                                             className="p-3 bg-background border rounded-md hover:bg-muted/50 transition-colors"
                                           >
-                                            <div className="font-medium text-sm">{curso.fullname || curso.nombre || 'Curso sin nombre'}</div>
-                                            {curso.shortname && (
-                                              <div className="text-xs text-muted-foreground mt-1">{curso.shortname}</div>
+                                            <div className="font-medium text-sm">{curso.course_name || 'Curso sin nombre'}</div>
+                                            {curso.course_shortname && (
+                                              <div className="text-xs text-muted-foreground mt-1">{curso.course_shortname}</div>
                                             )}
-                                            {curso.category && (
+                                            {curso.programa_detectado && (
                                               <Badge variant="outline" className="mt-2 text-xs">
-                                                {curso.category}
+                                                {curso.programa_detectado}
                                               </Badge>
                                             )}
                                           </div>
                                         ))}
                                       </div>
-                                    ) : (
-                                      <div className="text-sm text-muted-foreground">
-                                        No se encontraron cursos para este estudiante en este mes.
-                                      </div>
-                                    )}
-                                  </div>
+                                    </div>
+                                  )}
                                 </div>
                               </TableCell>
                             </TableRow>
