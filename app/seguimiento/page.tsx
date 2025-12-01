@@ -435,9 +435,25 @@ export default function SeguimientoPage() {
     }
     const formattedDate = interactionDate.split("T")[0];
     const leadId = parseInt(selectedProspecto.id, 10);
+    
+    // Buscar el id_actividades o usar el interactionType directamente si no hay actividades cargadas
+    const actividadId = actividades.length > 0 
+      ? actividades.find((act) => act.id.toString() === interactionType)?.id 
+      : parseInt(interactionType, 10);
+    
+    // Validar que se haya seleccionado una actividad válida
+    if (!actividadId) {
+      Swal.fire({
+        icon: "warning",
+        title: "Actividad no seleccionada",
+        text: "Por favor selecciona un tipo de interacción válido.",
+      });
+      return;
+    }
+    
     const newInteraction = {
       id_lead: leadId,
-      id_actividades: actividades.find((act) => act.id.toString() === interactionType)?.id,
+      id_actividades: actividadId,
       fecha: formattedDate,
       duracion: interactionDuration,
       notas: interactionNotes,

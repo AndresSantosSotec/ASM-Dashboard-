@@ -32,6 +32,11 @@ export interface DashboardFinancieroData {
     estudiante: string
     concepto: string
     fecha: string
+    fecha_recibo?: string | null // 🆕 Fecha de recibo
+    mes?: number | null // 🆕 Mes numérico (1-12)
+    ano?: number | null // 🆕 Año numérico (YYYY)
+    mes_pago?: string | null // 🆕 Mes como texto del Excel
+    anio_pago?: string | null // 🆕 Año como texto del Excel
     monto: number
     metodo_pago: string
   }>

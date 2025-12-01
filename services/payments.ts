@@ -17,6 +17,11 @@ export interface PendingPayment {
   late_fee_total?: number
   total_with_late_fee?: number
   urgent?: boolean
+  // 🆕 Campos mes/año para mostrar período del pago
+  mes_pago?: string | null // Mes como texto (ej: "Octubre", "Noviembre")
+  mes?: number | null // Mes como número (1-12)
+  ano?: number | null // Año como número (YYYY)
+  anio_pago?: string | null // Año como texto
 }
 
 export interface PaymentHistory {

@@ -43,6 +43,24 @@ const formatDateGT = (d: string | Date) =>
 const formatCurrencyGT = (n?: number) =>
   typeof n === "number" ? `Q${n.toLocaleString("es-GT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"
 
+// 🆕 Formatear mes/año para mostrar en las tarjetas
+const formatMesAnio = (payment: PendingPayment): string => {
+  // Intentar usar mes_pago/anio_pago primero
+  if (payment.mes_pago && payment.ano) {
+    return `${payment.mes_pago} ${payment.ano}`
+  }
+  // Fallback: calcular desde fecha_vencimiento
+  if (payment.fecha_vencimiento) {
+    const fecha = new Date(payment.fecha_vencimiento)
+    const meses = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ]
+    return `${meses[fecha.getMonth()]} ${fecha.getFullYear()}`
+  }
+  return '—'
+}
+
 export function PaymentsView() {
   const [activeTab, setActiveTab] = useState("pending-window")
   const [showReceiptUpload, setShowReceiptUpload] = useState(false)
@@ -196,21 +214,31 @@ export function PaymentsView() {
 
   // Iniciar carga de recibo
   const startReceiptUpload = (payment: PendingPayment) => {
+    // 🆕 Validar si puede pagar esta cuota antes de abrir el modal
+    const validacion = puedePagarCuota(payment)
+    if (!validacion.puede) {
+      toast({
+        title: "No se puede procesar este pago",
+        description: validacion.razon || "Debe pagar primero todas las cuotas vencidas antes de pagar cuotas futuras.",
+        variant: "destructive"
+      })
+      return
+    }
+
     setSelectedPayment(payment)
-    // ⬅️ Monto arranca en el máximo permitido (se puede bajar, nunca subir)
+    // 🆕 Monto fijo - el estudiante NO puede modificarlo (incluye mora si existe)
     const anyP = payment as any
     const withLate = typeof anyP.total_with_late_fee === "number" ? anyP.total_with_late_fee : null
-    const startAmount = Number(withLate ?? payment.monto) || 0
+    const fixedAmount = Number(withLate ?? payment.monto) || 0
 
     setReceiptForm({
       numero_boleta: '',
       banco: '',
-      monto: startAmount,
-      fecha_recibo: '' // ⬅️ NUEVO
+      monto: fixedAmount, // Monto fijo - no modificable
+      fecha_recibo: ''
     })
     setUploadFile(null)
     setValidationError(null)
-    setAmountError(null)
     setShowReceiptUpload(true)
   }
 
@@ -296,7 +324,6 @@ export function PaymentsView() {
       setSelectedPayment(null)
       setReceiptForm({ numero_boleta: '', banco: '', monto: 0, fecha_recibo: new Date().toISOString().slice(0, 10) })
       setValidationError(null)
-      setAmountError(null)
 
       await loadPaymentData(true)
       setTimeout(async () => { await loadPaymentData(true) }, 1000)
@@ -415,18 +442,79 @@ export function PaymentsView() {
   const overdueCount = computedOverdue.length
   const upcomingCount = computedUpcoming.length
 
+  // 🆕 Validar si hay cuotas vencidas pendientes
+  const tieneCuotasVencidas = useMemo(() => {
+    // Buscar en todas las cuotas pendientes si hay alguna vencida
+    const hayVencidas = allPendingPayments.some(p => {
+      const fechaVenc = parseDate(p.fecha_vencimiento)
+      return fechaVenc && fechaVenc < startOfToday && p.estado !== 'pagado'
+    })
+    return hayVencidas || computedOverdue.length > 0 || (overduePaymentsServer && overduePaymentsServer.length > 0)
+  }, [allPendingPayments, computedOverdue, overduePaymentsServer, startOfToday])
+
+  // 🆕 Obtener la cuota vencida más antigua (la primera que debe pagarse)
+  const primeraCuotaVencida = useMemo(() => {
+    const cuotasVencidas = allPendingPayments
+      .filter(p => {
+        const fechaVenc = parseDate(p.fecha_vencimiento)
+        return fechaVenc && fechaVenc < startOfToday && p.estado !== 'pagado'
+      })
+      .sort((a, b) => {
+        const fechaA = parseDate(a.fecha_vencimiento)
+        const fechaB = parseDate(b.fecha_vencimiento)
+        if (!fechaA || !fechaB) return 0
+        return fechaA.getTime() - fechaB.getTime() // Ordenar por fecha más antigua primero
+      })
+    
+    return cuotasVencidas.length > 0 ? cuotasVencidas[0] : null
+  }, [allPendingPayments, startOfToday])
+
+  // 🆕 Verificar si un pago puede ser procesado (solo puede pagar la cuota vencida más antigua)
+  const puedePagarCuota = useCallback((payment: PendingPayment): { puede: boolean; razon?: string } => {
+    // Si NO está vencida pero hay cuotas vencidas pendientes, NO puede pagar
+    if (!isOverdue(payment) && tieneCuotasVencidas) {
+      const mesAnioPrimerVencida = primeraCuotaVencida ? formatMesAnio(primeraCuotaVencida) : null
+      
+      return {
+        puede: false,
+        razon: `Debe pagar primero todas las cuotas vencidas${mesAnioPrimerVencida ? ` (comenzando por ${mesAnioPrimerVencida})` : ''} antes de pagar cuotas futuras. Cada cuota debe pagarse con una boleta separada.`
+      }
+    }
+    
+    // Si está vencida, verificar si es la más antigua
+    if (isOverdue(payment)) {
+      // Si hay una cuota vencida más antigua que esta, NO puede pagar esta
+      if (primeraCuotaVencida && primeraCuotaVencida.id !== payment.id) {
+        const fechaEsta = parseDate(payment.fecha_vencimiento)
+        const fechaPrimera = parseDate(primeraCuotaVencida.fecha_vencimiento)
+        
+        if (fechaEsta && fechaPrimera && fechaEsta.getTime() > fechaPrimera.getTime()) {
+          const mesAnioPrimerVencida = formatMesAnio(primeraCuotaVencida)
+          return {
+            puede: false,
+            razon: `Debe pagar primero la cuota de ${mesAnioPrimerVencida} antes de poder pagar esta cuota. Cada cuota debe pagarse con una boleta separada.`
+          }
+        }
+      }
+      // Si es la cuota vencida más antigua (o la única), puede pagar
+      return { puede: true }
+    }
+    
+    // Si no está vencida y no hay vencidas pendientes, puede pagar
+    return { puede: true }
+  }, [tieneCuotasVencidas, primeraCuotaVencida, allPendingPayments, startOfToday])
+
   // Check if form is valid for submission
   const isFormValid = useMemo(() => {
     return (
       uploadFile &&
       receiptForm.numero_boleta.trim() &&
       receiptForm.banco.trim() &&
-      receiptForm.monto > 0 &&
+      receiptForm.monto > 0 && // Monto fijo, siempre debería ser válido
       !validationError &&
-      !isValidating &&
-      !amountError // ⬅️ NUEVO // LIMITE DE MONTO
+      !isValidating
     )
-  }, [uploadFile, receiptForm, validationError, isValidating, amountError])
+  }, [uploadFile, receiptForm, validationError, isValidating])
 
   if (loading) {
     return (
@@ -521,7 +609,14 @@ export function PaymentsView() {
                       </Badge>
                     </div>
                     <CardDescription>
-                      Fecha límite: {formatDate(payment.fecha_vencimiento)}
+                      <div className="flex items-center gap-2">
+                        <span>Fecha límite: {formatDate(payment.fecha_vencimiento)}</span>
+                        {formatMesAnio(payment) !== '—' && (
+                          <Badge variant="outline" className="text-xs">
+                            {formatMesAnio(payment)}
+                          </Badge>
+                        )}
+                      </div>
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pb-2">
@@ -534,16 +629,37 @@ export function PaymentsView() {
                     )}
                   </CardContent>
                   <CardFooter className="flex flex-col sm:flex-row gap-2 pt-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => startReceiptUpload(payment)}
-                      className="w-full sm:w-auto"
-                      disabled={payment.estado === 'en_revision' || payment.estado === 'pagado'}
-                    >
-                      <Upload className="mr-2 h-4 w-4" />
-                      {payment.estado === 'en_revision' ? 'En Revisión' :
-                        payment.estado === 'pagado' ? 'Pagado' : 'Subir Recibo'}
-                    </Button>
+                    {(() => {
+                      const validacion = puedePagarCuota(payment)
+                      const estaDeshabilitado = payment.estado === 'en_revision' || payment.estado === 'pagado' || !validacion.puede
+                      
+                      return (
+                        <>
+                          {!validacion.puede && validacion.razon && (
+                            <Alert className="mb-2 border-orange-200 bg-orange-50">
+                              <AlertTriangle className="h-4 w-4 text-orange-600" />
+                              <AlertTitle className="text-orange-800 text-xs">No puede pagar esta cuota</AlertTitle>
+                              <AlertDescription className="text-orange-700 text-xs">
+                                {validacion.razon}
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                          <Button
+                            variant="outline"
+                            onClick={() => startReceiptUpload(payment)}
+                            className="w-full sm:w-auto"
+                            disabled={estaDeshabilitado}
+                            title={validacion.razon || ''}
+                          >
+                            <Upload className="mr-2 h-4 w-4" />
+                            {payment.estado === 'en_revision' ? 'En Revisión' :
+                              payment.estado === 'pagado' ? 'Pagado' :
+                              !validacion.puede ? 'Cuota Bloqueada' :
+                              'Subir Recibo'}
+                          </Button>
+                        </>
+                      )
+                    })()}
                   </CardFooter>
                 </Card>
               ))}
@@ -604,7 +720,14 @@ export function PaymentsView() {
                       </Badge>
                     </div>
                     <CardDescription>
-                      Fecha límite: {formatDate(payment.fecha_vencimiento)}
+                      <div className="flex items-center gap-2">
+                        <span>Fecha límite: {formatDate(payment.fecha_vencimiento)}</span>
+                        {formatMesAnio(payment) !== '—' && (
+                          <Badge variant="outline" className="text-xs">
+                            {formatMesAnio(payment)}
+                          </Badge>
+                        )}
+                      </div>
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pb-2">
@@ -618,16 +741,37 @@ export function PaymentsView() {
                     )}
                   </CardContent>
                   <CardFooter className="flex flex-col sm:flex-row gap-2 pt-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => startReceiptUpload(payment)}
-                      className="w-full sm:w-auto"
-                      disabled={payment.estado === 'en_revision' || payment.estado === 'pagado'}
-                    >
-                      <Upload className="mr-2 h-4 w-4" />
-                      {payment.estado === 'en_revision' ? 'En Revisión' :
-                        payment.estado === 'pagado' ? 'Pagado' : 'Subir Recibo'}
-                    </Button>
+                    {(() => {
+                      const validacion = puedePagarCuota(payment)
+                      const estaDeshabilitado = payment.estado === 'en_revision' || payment.estado === 'pagado' || !validacion.puede
+                      
+                      return (
+                        <>
+                          {!validacion.puede && validacion.razon && (
+                            <Alert className="mb-2 border-orange-200 bg-orange-50">
+                              <AlertTriangle className="h-4 w-4 text-orange-600" />
+                              <AlertTitle className="text-orange-800 text-xs">No puede pagar esta cuota</AlertTitle>
+                              <AlertDescription className="text-orange-700 text-xs">
+                                {validacion.razon}
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                          <Button
+                            variant="outline"
+                            onClick={() => startReceiptUpload(payment)}
+                            className="w-full sm:w-auto"
+                            disabled={estaDeshabilitado}
+                            title={validacion.razon || ''}
+                          >
+                            <Upload className="mr-2 h-4 w-4" />
+                            {payment.estado === 'en_revision' ? 'En Revisión' :
+                              payment.estado === 'pagado' ? 'Pagado' :
+                              !validacion.puede ? 'Cuota Bloqueada' :
+                              'Subir Recibo'}
+                          </Button>
+                        </>
+                      )
+                    })()}
                   </CardFooter>
                 </Card>
               ))}
@@ -702,25 +846,25 @@ export function PaymentsView() {
 
       {/* Diálogo de carga de recibo */}
       <Dialog open={showReceiptUpload} onOpenChange={setShowReceiptUpload}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Subir Recibo de Pago</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-lg sm:text-xl">Subir Recibo de Pago</DialogTitle>
+            <DialogDescription className="text-sm">
               Suba el comprobante de su depósito o transferencia para la Cuota {selectedPayment?.numero_cuota}.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-3 sm:space-y-4 py-2 sm:py-4">
             <div className="grid gap-2">
-              <Label htmlFor="receipt-number">Número de Boleta/Referencia</Label>
+              <Label htmlFor="receipt-number" className="text-sm font-medium">Número de Boleta/Referencia</Label>
               <Input
                 id="receipt-number"
                 placeholder="Ej: 123456789"
                 value={receiptForm.numero_boleta}
                 onChange={(e) => updateReceiptForm('numero_boleta', e.target.value)}
-                className={validationError ? "border-red-500" : ""}
+                className={`text-sm ${validationError ? "border-red-500" : ""}`}
               />
               {isValidating && (
-                <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   <span>Validando boleta...</span>
                 </div>
@@ -728,12 +872,12 @@ export function PaymentsView() {
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="bank">Banco</Label>
+              <Label htmlFor="bank" className="text-sm font-medium">Banco</Label>
               <Select
                 value={receiptForm.banco}
                 onValueChange={(value) => updateReceiptForm('banco', value)}
               >
-                <SelectTrigger className={validationError ? "border-red-500" : ""}>
+                <SelectTrigger className={`text-sm ${validationError ? "border-red-500" : ""}`}>
                   <SelectValue placeholder="Seleccione el banco" />
                 </SelectTrigger>
                 <SelectContent>
@@ -758,37 +902,39 @@ export function PaymentsView() {
             )}
 
             <div className="grid gap-2">
-              <Label htmlFor="amount">Monto (Q)</Label>
-              <Input
-                id="amount"
-                type="number"
-                step="0.01"
-                min={0}
-                // ⬅️ NUEVO // LIMITE DE MONTO: tope visual del input
-                max={allowedMax || undefined}
-                value={receiptForm.monto}
-                onChange={(e) => updateReceiptForm('monto', Number(e.target.value))}
-                onBlur={(e) => updateReceiptForm('monto', Number(e.target.value))} // re-clamp al salir
-                className={amountError ? "border-red-500" : ""}
-              />
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">
-                  Máximo permitido: <strong>{formatCurrencyGT(allowedMax)}</strong>
-                </span>
-                {amountError && <span className="text-red-600">{amountError}</span>}
+              <Label htmlFor="amount">Monto a Pagar (Q)</Label>
+              {/* 🆕 Campo de monto de solo lectura - el estudiante NO puede modificarlo */}
+              <div className="relative">
+                <Input
+                  id="amount"
+                  type="text"
+                  value={formatCurrencyGT(receiptForm.monto)}
+                  readOnly
+                  disabled
+                  className="bg-gray-50 border-gray-200 text-gray-900 font-semibold text-lg cursor-not-allowed pr-10"
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <span className="text-gray-500 text-sm">🔒</span>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                * Puede pagar un monto menor (pago parcial). No puede exceder el saldo.
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-xs">
+                <span className="text-muted-foreground">
+                  Monto total de la cuota: <strong className="text-gray-900">{formatCurrencyGT(allowedMax)}</strong>
+                </span>
+              </div>
+              <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded border border-blue-200">
+                <strong>Nota:</strong> El monto es fijo y no puede ser modificado. Debe pagar el monto completo de la cuota.
               </p>
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="receipt-date">Fecha del Recibo</Label>
+              <Label htmlFor="receipt-date" className="text-sm font-medium">Fecha del Recibo</Label>
               <Input
                 id="receipt-date"
                 type="date"
                 value={receiptForm.fecha_recibo}
                 onChange={(e) => updateReceiptForm("fecha_recibo", e.target.value)}
+                className="text-sm"
               />
               <p className="text-xs text-muted-foreground">
                 Seleccione la fecha en que fue emitido el recibo o boleta.
@@ -796,53 +942,65 @@ export function PaymentsView() {
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="receipt-upload">Comprobante de Pago</Label>
+              <Label htmlFor="receipt-upload" className="text-sm font-medium">Comprobante de Pago</Label>
               <Input
                 id="receipt-upload"
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png"
                 onChange={handleFileUpload}
+                className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
               />
               <p className="text-xs text-gray-500">Formatos aceptados: PDF, JPG, PNG (máx. 5MB)</p>
             </div>
 
             {uploadFile && (
-              <div className="flex items-center gap-2 text-sm text-green-600">
-                <FileText className="h-4 w-4" />
-                <span>Archivo seleccionado: {uploadFile.name}</span>
+              <div className="flex items-center gap-2 text-xs sm:text-sm text-green-600 bg-green-50 p-2 rounded border border-green-200">
+                <FileText className="h-4 w-4 flex-shrink-0" />
+                <span className="truncate">Archivo: {uploadFile.name}</span>
               </div>
             )}
 
-            <Alert className="bg-blue-50 border-blue-200">
-              <AlertCircle className="h-4 w-4 text-blue-600" />
-              <AlertTitle className="text-blue-800">Procesamiento Automático</AlertTitle>
-              <AlertDescription className="text-blue-700">
+            <Alert className="bg-blue-50 border-blue-200 text-xs sm:text-sm">
+              <AlertCircle className="h-4 w-4 text-blue-600 flex-shrink-0" />
+              <AlertTitle className="text-blue-800 text-sm font-semibold">Procesamiento Automático</AlertTitle>
+              <AlertDescription className="text-blue-700 text-xs sm:text-sm">
                 Su pago será procesado automáticamente una vez que suba el comprobante.
                 La cuota se marcará como pagada inmediatamente si el monto coincide.
               </AlertDescription>
             </Alert>
+            
+            {/* 🆕 Mensaje sobre boletas separadas */}
+            <Alert className="bg-amber-50 border-amber-200 text-xs sm:text-sm">
+              <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+              <AlertTitle className="text-amber-800 text-sm font-semibold">Importante: Boletas Separadas</AlertTitle>
+              <AlertDescription className="text-amber-700 text-xs sm:text-sm">
+                Cada cuota debe pagarse con una boleta o comprobante separado. No puede usar una sola boleta para pagar múltiples cuotas.
+              </AlertDescription>
+            </Alert>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
             <Button
               variant="outline"
               onClick={() => {
                 setShowReceiptUpload(false)
                 setValidationError(null)
-                setAmountError(null)
               }}
               disabled={uploading}
+              className="w-full sm:w-auto order-2 sm:order-1"
             >
               Cancelar
             </Button>
             <Button
               onClick={confirmReceiptUpload}
               disabled={!isFormValid || uploading}
+              className="w-full sm:w-auto order-1 sm:order-2"
             >
               {uploading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Procesando Pago...
+                  <span className="hidden sm:inline">Procesando Pago...</span>
+                  <span className="sm:hidden">Procesando...</span>
                 </>
               ) : (
                 'Procesar Pago'

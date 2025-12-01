@@ -95,16 +95,10 @@ export function DashboardFinanciero() {
   // 🆕 Estado para filtro por plan de estudio (selección múltiple)
   const [filtroPlanEstudio, setFiltroPlanEstudio] = useState<string[]>([])
   
-  // 🆕 Estado para filtro de estado de pago (selección múltiple)
+  // 🔶 Estado para filtro de estado de pago del mes (selección múltiple)
   const [filtroEstadoPago, setFiltroEstadoPago] = useState<string[]>([])
   
-  // 🆕 Estado para filtro de rango de fechas de pagos
-  const [filtroRangoFechasPagos, setFiltroRangoFechasPagos] = useState<DateRange | undefined>(undefined)
-  
-  // 🆕 Estado para filtro de días hacia atrás
-  const [filtroDiasAtras, setFiltroDiasAtras] = useState<number | null>(null)
-  
-  // 🆕 Estado para almacenar el estado de pago de cada estudiante
+  // 🔶 Estado para almacenar el estado de pago de cada estudiante
   const [estadoPagos, setEstadoPagos] = useState<Record<string, any>>({})
   const [cargandoEstadoPagos, setCargandoEstadoPagos] = useState(false)
   
@@ -249,8 +243,8 @@ export function DashboardFinanciero() {
         if (!filtroPlanEstudio.includes(plan)) return false
       }
       
-      // 🆕 Filtro por estado de pago (pagado/no pagado en últimos 30 días) - SELECCIÓN MÚLTIPLE
-      // 🆕 ACTUALIZADO: También filtra por si tiene registro en kardex
+      // 🔶 Filtro por estado de pago (pagado/no pagado) - SELECCIÓN MÚLTIPLE
+      // Usa la nueva lógica de mes/año exacta
       if (filtroEstadoPago.length > 0) {
         const carnet = (est.carnet || '').toLowerCase()
         const estadoPago = estadoPagos[carnet]
@@ -265,14 +259,16 @@ export function DashboardFinanciero() {
         let matchesFilter = false
         
         for (const filtro of filtroEstadoPago) {
-          if (filtro === 'tiene_kardex' && estadoPago.tiene_registro_kardex) {
+          // 🔶 ACTUALIZADO: Usar detalle.tiene_kardex en lugar de tiene_registro_kardex
+          if (filtro === 'tiene_kardex' && estadoPago.detalle?.tiene_kardex) {
             matchesFilter = true
             break
           }
-          if (filtro === 'sin_kardex' && !estadoPago.tiene_registro_kardex) {
+          if (filtro === 'sin_kardex' && !estadoPago.detalle?.tiene_kardex) {
             matchesFilter = true
             break
           }
+          // Estado principal (pagado/no_pagado)
           if (filtro === estadoPago.estado) {
             matchesFilter = true
             break
@@ -335,10 +331,7 @@ export function DashboardFinanciero() {
         'Cantidad Cursos',
         'Cuota Mensual',
         'Monto Total a Cobrar',
-        'Estado de Pago (30 días)',
-        'Última Fecha Pago',
-        'Total Pagado (30 días)',
-        'Cantidad Pagos'
+        'Estado de Pago (Mes)'
       ]
       
       // Convertir datos a filas CSV
@@ -357,10 +350,7 @@ export function DashboardFinanciero() {
           cantidadCursos,
           mensualidad,
           montoTotalACobrar,
-          estadoPago.estado === 'pagado' ? 'Pagado' : estadoPago.estado === 'no_pagado' ? 'No pagado' : 'Sin información',
-          estadoPago.ultima_fecha_pago ? new Date(estadoPago.ultima_fecha_pago).toLocaleDateString() : '',
-          estadoPago.total_pagado_30dias || 0,
-          estadoPago.cantidad_pagos || 0
+          estadoPago.estado === 'pagado' ? 'Pagado' : estadoPago.estado === 'no_pagado' ? 'No pagado' : 'Sin información'
         ]
       })
       
@@ -412,10 +402,7 @@ export function DashboardFinanciero() {
         'Cursos Matriculados (Mes)',
         'Cuota Mensual',
         'Monto Total a Cobrar',
-        'Estado de Pago (30 días)',
-        'Última Fecha Pago',
-        'Total Pagado (30 días)',
-        'Cantidad Pagos'
+        'Estado de Pago (Mes)'
       ]
       
       let tableHTML = `
@@ -487,15 +474,12 @@ export function DashboardFinanciero() {
             <td>${est.correo || ''}</td>
             <td>${telefono}</td>
             <td>${detallePago}</td>
-            <td>${est.city || ''}
+            <td>${est.city || ''}</td>
             <td>${cantidadCursos}</td>
             <td>${cursosListaTexto}</td>
             <td>${mensualidad}</td>
             <td>${montoTotalACobrar}</td>
             <td>${estadoPago.estado === 'pagado' ? 'Pagado' : estadoPago.estado === 'no_pagado' ? 'No pagado' : 'Sin información'}</td>
-            <td>${estadoPago.ultima_fecha_pago ? new Date(estadoPago.ultima_fecha_pago).toLocaleDateString() : ''}</td>
-            <td>${estadoPago.total_pagado_30dias || 0}</td>
-            <td>${estadoPago.cantidad_pagos || 0}</td>
           </tr>
         `
       })
@@ -585,6 +569,7 @@ export function DashboardFinanciero() {
     setEstudiantesExpandidos(new Set())
     setCursosPorEstudiante({})
     setDeudasCalculadas({}) // Resetear deudas calculadas
+    setEstadoPagos({}) // 🔶 Resetear estados de pago al cambiar mes/año
     setFiltroBusqueda("") // Resetear filtro al cambiar mes/año
     setFiltroCarrera([]) // Resetear filtros múltiples
     setFiltroCantidadCursos([])
@@ -666,7 +651,7 @@ export function DashboardFinanciero() {
     })
   }, [dashboardData?.resumen?.estudiantesActivosDetalle, asesoresDisponibles])
 
-  // 🆕 Cargar estado de pagos de todos los estudiantes activos
+  // 🔶 Cargar estado de pagos de todos los estudiantes activos
   useEffect(() => {
     if (!dashboardData?.resumen?.estudiantesActivosDetalle || cargandoEstadoPagos) return
     
@@ -674,16 +659,40 @@ export function DashboardFinanciero() {
       .map((est: any) => est.carnet)
       .filter((carnet: string) => carnet && carnet.trim())
     
-    if (todosLosCarnets.length === 0) return
+    if (todosLosCarnets.length === 0) {
+      console.log('[EstadoPagos] No hay carnets para cargar')
+      return
+    }
     
     // Verificar si ya tenemos los estados cargados
     const carnetsFaltantes = todosLosCarnets.filter((carnet: string) => !estadoPagos[carnet.toLowerCase()])
-    if (carnetsFaltantes.length === 0) return
+    
+    console.log('[EstadoPagos] Verificando carnets:', {
+      total: todosLosCarnets.length,
+      faltantes: carnetsFaltantes.length,
+      mes: mesSeleccionado,
+      anio: anioSeleccionado,
+      yaExisten: Object.keys(estadoPagos).length
+    })
+    
+    if (carnetsFaltantes.length === 0) {
+      console.log('[EstadoPagos] Todos los estados ya están cargados')
+      return
+    }
     
     setCargandoEstadoPagos(true)
     
-    api.post('/dashboard-financiero/estado-pagos', { carnets: carnetsFaltantes })
+    // 🔶 ACTUALIZADO: Enviar mes y año para lógica exacta de pagos
+    console.log('[EstadoPagos] Cargando estados para carnets:', carnetsFaltantes.slice(0, 5), '...')
+    
+    api.post('/dashboard-financiero/estado-pagos', { 
+      carnets: carnetsFaltantes,
+      mes: mesSeleccionado,
+      anio: anioSeleccionado
+    })
       .then((response) => {
+        console.log('[EstadoPagos] Respuesta del servidor:', response.data)
+        
         if (response.data.success && response.data.data) {
           const nuevosEstados: Record<string, any> = {}
           Object.values(response.data.data).forEach((estado: any) => {
@@ -691,16 +700,29 @@ export function DashboardFinanciero() {
               nuevosEstados[estado.carnet.toLowerCase()] = estado
             }
           })
+          
+          console.log('[EstadoPagos] Estados procesados:', {
+            cantidad: Object.keys(nuevosEstados).length,
+            ejemplos: Object.entries(nuevosEstados).slice(0, 3).map(([carnet, estado]) => ({
+              carnet,
+              estado: estado.estado,
+              detalle: estado.detalle
+            }))
+          })
+          
           setEstadoPagos((prev) => ({ ...prev, ...nuevosEstados }))
+        } else {
+          console.error('[EstadoPagos] Respuesta sin datos válidos:', response.data)
         }
       })
       .catch((error) => {
-        console.error('Error al cargar estado de pagos:', error)
+        console.error('[EstadoPagos] Error al cargar estado de pagos:', error)
+        console.error('[EstadoPagos] Detalles del error:', error.response?.data)
       })
       .finally(() => {
         setCargandoEstadoPagos(false)
       })
-  }, [dashboardData?.resumen?.estudiantesActivosDetalle])
+  }, [dashboardData?.resumen?.estudiantesActivosDetalle, mesSeleccionado, anioSeleccionado])
 
   // 🚀 NUEVO: Calcular deudas en batch de estudiantes visibles
   useEffect(() => {
@@ -1223,18 +1245,15 @@ export function DashboardFinanciero() {
                   />
                 </div>
                 
-                {/* 🆕 Filtro por estado de pago (selección múltiple) */}
+                {/* 🔶 Filtro por estado de pago del mes (selección múltiple) */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground px-1">
-                    Estado de pago
+                    Estado de pago del mes
                   </label>
                   <MultiSelect
                     options={[
-                      { label: '✅ Pagados (30 días)', value: 'pagado' },
-                      { label: '❌ No pagados (30 días)', value: 'no_pagado' },
-                      { label: '📋 Tiene registro en Kardex', value: 'tiene_kardex' },
-                      { label: '📭 Sin registro en Kardex', value: 'sin_kardex' },
-                      { label: '❓ Sin información', value: 'sin_informacion' },
+                      { label: '✅ Pagado este mes', value: 'pagado' },
+                      { label: '❌ No pagado este mes', value: 'no_pagado' },
                     ]}
                     selected={filtroEstadoPago}
                     onChange={(values) => {
@@ -1246,62 +1265,6 @@ export function DashboardFinanciero() {
                     emptyMessage="No se encontraron opciones"
                     maxCount={5}
                   />
-                </div>
-                
-                {/* 🆕 Filtro por rango de fechas de pagos */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground px-1">
-                    Rango de fechas de pagos
-                  </label>
-                  <SimpleDateRangePicker
-                    value={filtroRangoFechasPagos}
-                    onChange={(range) => {
-                      setFiltroRangoFechasPagos(range)
-                      setFiltroDiasAtras(null) // Limpiar días hacia atrás si se selecciona rango
-                      setPaginaEstudiantes(1)
-                    }}
-                    placeholder="Seleccionar rango"
-                    className="w-full"
-                  />
-                </div>
-                
-                {/* 🆕 Filtro por días hacia atrás */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground px-1">
-                    Días hacia atrás
-                  </label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="number"
-                      min="1"
-                      max="365"
-                      placeholder="Ej: 30"
-                      value={filtroDiasAtras || ''}
-                      onChange={(e) => {
-                        const value = e.target.value ? parseInt(e.target.value) : null
-                        setFiltroDiasAtras(value)
-                        setFiltroRangoFechasPagos(undefined) // Limpiar rango si se selecciona días
-                        setPaginaEstudiantes(1)
-                      }}
-                      className="h-10 text-sm"
-                    />
-                    {filtroDiasAtras && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-10 w-10 shrink-0"
-                        onClick={() => {
-                          setFiltroDiasAtras(null)
-                          setPaginaEstudiantes(1)
-                        }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                  <div className="text-xs text-muted-foreground px-1">
-                    {filtroDiasAtras ? `Ver pagos de los últimos ${filtroDiasAtras} días` : 'Opcional: días hacia atrás'}
-                  </div>
                 </div>
                 
                 {/* 🆕 Filtro por plan de estudio (selección múltiple) */}
@@ -1342,7 +1305,7 @@ export function DashboardFinanciero() {
               {/* 🆕 Botones de exportación y filtros activos - Layout mejorado */}
               <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between pt-2 border-t">
                 {/* Indicadores de filtros activos */}
-                {(filtroBusqueda.trim() || filtroCarrera.length > 0 || filtroCantidadCursos.length > 0 || filtroPlanEstudio.length > 0 || filtroEstadoPago.length > 0 || filtroAsesor.length > 0 || filtroRangoFechasPagos || filtroDiasAtras) ? (
+                {(filtroBusqueda.trim() || filtroCarrera.length > 0 || filtroCantidadCursos.length > 0 || filtroPlanEstudio.length > 0 || filtroEstadoPago.length > 0 || filtroAsesor.length > 0) ? (
                   <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
                     <span className="text-xs font-medium text-muted-foreground shrink-0">Filtros activos:</span>
                     {filtroBusqueda.trim() && (
@@ -1441,42 +1404,6 @@ export function DashboardFinanciero() {
                         </button>
                       </Badge>
                     )}
-                    {filtroRangoFechasPagos && (
-                      <Badge variant="secondary" className="gap-1.5 px-2 py-1 text-xs shrink-0">
-                        <CalendarIcon className="h-3 w-3" />
-                        {filtroRangoFechasPagos.from && filtroRangoFechasPagos.to
-                          ? `${filtroRangoFechasPagos.from.toLocaleDateString()} - ${filtroRangoFechasPagos.to.toLocaleDateString()}`
-                          : filtroRangoFechasPagos.from
-                          ? `Desde ${filtroRangoFechasPagos.from.toLocaleDateString()}`
-                          : 'Rango de fechas'}
-                        <button
-                          onClick={() => {
-                            setFiltroRangoFechasPagos(undefined)
-                            setPaginaEstudiantes(1)
-                          }}
-                          className="ml-0.5 hover:bg-secondary-foreground/20 rounded-full p-0.5 transition-colors focus:outline-none"
-                          aria-label="Eliminar filtro de rango de fechas"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    )}
-                    {filtroDiasAtras && (
-                      <Badge variant="secondary" className="gap-1.5 px-2 py-1 text-xs shrink-0">
-                        <Clock className="h-3 w-3" />
-                        Últimos {filtroDiasAtras} días
-                        <button
-                          onClick={() => {
-                            setFiltroDiasAtras(null)
-                            setPaginaEstudiantes(1)
-                          }}
-                          className="ml-0.5 hover:bg-secondary-foreground/20 rounded-full p-0.5 transition-colors focus:outline-none"
-                          aria-label="Eliminar filtro de días hacia atrás"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    )}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -1488,8 +1415,6 @@ export function DashboardFinanciero() {
                         setFiltroPlanEstudio([])
                         setFiltroEstadoPago([])
                         setFiltroAsesor([])
-                        setFiltroRangoFechasPagos(undefined)
-                        setFiltroDiasAtras(null)
                         setPaginaEstudiantes(1)
                       }}
                     >
@@ -1813,25 +1738,43 @@ export function DashboardFinanciero() {
                   <TableHead>Estudiante</TableHead>
                   <TableHead>Concepto</TableHead>
                   <TableHead>Fecha</TableHead>
+                  <TableHead>Mes/Año Pago</TableHead>
                   <TableHead className="text-right">Monto</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {pagosRecientes.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center">
+                    <TableCell colSpan={5} className="text-center">
                       Sin datos
                     </TableCell>
                   </TableRow>
                 ) : (
-                  pagosRecientes.map((pago) => (
+                  pagosRecientes.map((pago) => {
+                    // 🆕 Formatear mes/año del pago: usar mes_pago/anio_pago si están disponibles, sino mes/ano
+                    const mesPagoDisplay = pago.mes_pago && pago.anio_pago 
+                      ? `${pago.mes_pago}/${pago.anio_pago}`
+                      : (pago.mes && pago.ano 
+                        ? `${pago.mes}/${pago.ano}`
+                        : '—')
+                    
+                    return (
                     <TableRow key={pago.id}>
                       <TableCell className="font-medium">{pago.estudiante}</TableCell>
                       <TableCell>{pago.concepto}</TableCell>
                       <TableCell>{formatDate(pago.fecha)}</TableCell>
+                        <TableCell>
+                          {mesPagoDisplay !== '—' && (
+                            <Badge variant="outline" className="text-xs">
+                              {mesPagoDisplay}
+                            </Badge>
+                          )}
+                          {mesPagoDisplay === '—' && <span className="text-muted-foreground">—</span>}
+                        </TableCell>
                       <TableCell className="text-right">{formatCurrency(pago.monto)}</TableCell>
                     </TableRow>
-                  ))
+                    )
+                  })
                 )}
               </TableBody>
             </Table>
