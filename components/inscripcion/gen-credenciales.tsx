@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
+import { API_BASE_URL } from '@/utils/apiConfig'
 import { 
   Table, 
   TableBody, 
@@ -162,7 +163,7 @@ export function GeneracionCredenciales() {
       })
 
       // Usar el endpoint de datos crudos
-      const response = await fetch(`http://localhost:8000/api/gen-credenciales/datos-crudos?${params}`)
+      const response = await fetch(`${API_BASE_URL}/api/gen-credenciales/datos-crudos?${params}`)
       const data = await response.json()
       
       if (data.success) {
@@ -181,7 +182,7 @@ export function GeneracionCredenciales() {
 
   const cargarEstadisticas = async () => {
     try {
-      const response = await fetch("http://localhost:8000/api/gen-credenciales/estadisticas")
+      const response = await fetch(`${API_BASE_URL}/api/gen-credenciales/estadisticas`)
       const data = await response.json()
       if (data.success) {
         setEstadisticas(data.data)
@@ -203,7 +204,7 @@ export function GeneracionCredenciales() {
 
     setLoading(true)
     try {
-      const response = await fetch("http://localhost:8000/api/gen-credenciales/generar-carnets", {
+      const response = await fetch(`${API_BASE_URL}/api/gen-credenciales/generar-carnets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prospecto_ids: selectedIds })
@@ -241,7 +242,7 @@ export function GeneracionCredenciales() {
     }
 
     try {
-      const response = await fetch("http://localhost:8000/api/gen-credenciales/plantilla-microsoft", {
+      const response = await fetch(`${API_BASE_URL}/api/gen-credenciales/plantilla-microsoft`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prospecto_ids: selectedIds })
@@ -282,7 +283,7 @@ export function GeneracionCredenciales() {
     }
 
     try {
-      const response = await fetch("http://localhost:8000/api/gen-credenciales/plantilla-moodle", {
+      const response = await fetch(`${API_BASE_URL}/api/gen-credenciales/plantilla-moodle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prospecto_ids: selectedIds })
@@ -378,7 +379,7 @@ export function GeneracionCredenciales() {
       const formData = new FormData()
       formData.append("archivo", file)
 
-      const response = await fetch("http://localhost:8000/api/gen-credenciales/cargar-credenciales-microsoft", {
+      const response = await fetch(`${API_BASE_URL}/api/gen-credenciales/cargar-credenciales-microsoft`, {
         method: "POST",
         body: formData
       })
@@ -474,7 +475,7 @@ export function GeneracionCredenciales() {
 
     setLoading(true)
     try {
-      const response = await fetch("http://localhost:8000/api/gen-credenciales/enviar-credenciales", {
+      const response = await fetch(`${API_BASE_URL}/api/gen-credenciales/enviar-credenciales`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ credenciales: credencialesMicrosoft })
@@ -541,7 +542,7 @@ export function GeneracionCredenciales() {
 
     setEnviandoWhatsApp(cred.prospecto_id)
     try {
-      const response = await fetch("http://localhost:8000/api/gen-credenciales/enviar-whatsapp", {
+      const response = await fetch(`${API_BASE_URL}/api/gen-credenciales/enviar-whatsapp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -592,7 +593,7 @@ export function GeneracionCredenciales() {
 
   const cargarResumenComisiones = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/gen-credenciales/resumen?mes=${mesResumen}&anio=${anioResumen}`)
+      const response = await fetch(`${API_BASE_URL}/api/gen-credenciales/resumen?mes=${mesResumen}&anio=${anioResumen}`)
       const data = await response.json()
       
       if (data.success) {
