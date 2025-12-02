@@ -296,9 +296,9 @@ export default function FirmaPage() {
               </div>
               <div className="bg-white p-3 rounded-lg border">
                 <h4 className="font-semibold text-blue-900 mb-2">👁️ Visualización</h4>
-                <p className="text-gray-700">
+                {/* <p className="text-gray-700">
                   Haz clic en "Ver Todos los Contratos" para consultar contratos con ambas firmas guardadas.
-                </p>
+                </p> */}
               </div>
             </div>
           </CardContent>

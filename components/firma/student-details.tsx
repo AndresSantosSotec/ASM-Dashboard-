@@ -25,6 +25,7 @@ interface Student {
   id: string
   name: string
   email: string
+  dpi?: string // Número de identificación (DPI)
 }
 interface ProgramaItem {
   id: number
@@ -99,6 +100,7 @@ export function StudentDetails() {
               json.data.correo ||
               json.data.email ||
               "",
+            dpi: json.data.numero_identificacion || "", // ✅ Capturar DPI
           })
         } catch (err) {
           console.error(err)
@@ -289,7 +291,9 @@ export function StudentDetails() {
             firma_asesor: signature,
             datos_contrato: {
               prospecto: student?.name,
-              email: currentUser?.email || student?.email,
+              email: student?.email, // ✅ Email del prospecto (estudiante)
+              email_asesor: currentUser?.email, // ✅ Email del asesor
+              dpi: student?.dpi || "No proporcionado", // ✅ Incluir DPI
               programa: programa?.programa.nombre_del_programa,
               programa_abreviatura: programa?.programa.abreviatura,
               matricula: programa?.inscripcion,
@@ -311,6 +315,7 @@ export function StudentDetails() {
 
       const firmaData = await firmaRes.json()
       const urlFirmaEstudiante = firmaData.url_firma_estudiante
+      const tokenFirma = firmaData.token // ✅ Obtener el token
 
       // 2. Enviar contrato por email con el link para que el estudiante firme
       const res = await fetch(
@@ -334,6 +339,7 @@ export function StudentDetails() {
               : "",
             fecha: formattedDate,
             url_firma_estudiante: urlFirmaEstudiante, // Link para firma del estudiante
+            token_firma: tokenFirma, // ✅ Enviar el token para recuperar datos del asesor
           }),
         }
       )

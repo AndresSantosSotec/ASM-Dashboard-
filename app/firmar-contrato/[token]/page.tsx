@@ -265,16 +265,12 @@ export default function FirmarContratoPage() {
             </div>
             <div>
               <p className="text-sm text-slate-500 mb-1">Correo Electrónico</p>
-              <p className="font-semibold text-slate-900">{datos.email}</p>
+              <p className="font-semibold text-slate-900">{prospecto?.email || prospecto?.correo_electronico || "No proporcionado"}</p>
             </div>
             <div>
               <p className="text-sm text-slate-500 mb-1">Fecha de Emisión</p>
               <p className="font-semibold text-slate-900">
-                {new Date(datos.fecha).toLocaleDateString("es-GT", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
+                {datos.fecha || "No especificada"}
               </p>
             </div>
           </div>
@@ -297,7 +293,7 @@ export default function FirmarContratoPage() {
             </p>
             
             <p className="text-justify">
-              Yo: <strong className="text-slate-900">{datos.prospecto}</strong> ({datos.email})
+              Yo: <strong className="text-slate-900">{datos.prospecto}</strong> ({prospecto?.email || prospecto?.correo_electronico || datos.email})
             </p>
 
             <p className="text-justify">
