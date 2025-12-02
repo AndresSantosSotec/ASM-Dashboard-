@@ -103,7 +103,10 @@ export default function AlertaAlumnoNuevo({
         
         if (res.ok) {
           const data = await res.json()
-          setProgramasAcademicos(Array.isArray(data) ? data : data.data || [])
+          const programas = Array.isArray(data) ? data : data.data || []
+          // 🔥 Filtrar programas válidos (no null, no undefined)
+          const programasValidos = programas.filter(p => p && p.id && p.nombre_del_programa)
+          setProgramasAcademicos(programasValidos)
         }
       } catch (err) {
         console.error("Error cargando programas:", err)
@@ -183,8 +186,8 @@ export default function AlertaAlumnoNuevo({
   // Actualizar duración cuando se selecciona un programa
   useEffect(() => {
     if (formData.programa_id) {
-      const programaSeleccionado = programasAcademicos.find(p => p.id.toString() === formData.programa_id)
-      if (programaSeleccionado && programaSeleccionado.meses) {
+      const programaSeleccionado = programasAcademicos.find(p => p && p.id && p.id.toString() === formData.programa_id)
+      if (programaSeleccionado?.meses) {
         setFormData(prev => ({
           ...prev,
           duracion_meses: programaSeleccionado.meses.toString(),
@@ -1069,11 +1072,13 @@ export default function AlertaAlumnoNuevo({
                       {programasAcademicos.length === 0 ? (
                         <SelectItem value="no-data" disabled>No hay programas disponibles</SelectItem>
                       ) : (
-                        programasAcademicos.map((prog) => (
-                          <SelectItem key={prog.id} value={prog.id.toString()}>
-                            {prog.nombre_del_programa} {prog.abreviatura ? `(${prog.abreviatura})` : ""}
-                          </SelectItem>
-                        ))
+                        programasAcademicos
+                          .filter(prog => prog && prog.id && prog.nombre_del_programa)
+                          .map((prog) => (
+                            <SelectItem key={prog.id} value={prog.id.toString()}>
+                              {prog.nombre_del_programa} {prog.abreviatura ? `(${prog.abreviatura})` : ""}
+                            </SelectItem>
+                          ))
                       )}
                     </SelectContent>
                   </Select>
@@ -1095,9 +1100,9 @@ export default function AlertaAlumnoNuevo({
                   placeholder="Ej: 12"
                   inputMode="numeric"
                 />
-                {formData.programa_id && programasAcademicos.find(p => p.id.toString() === formData.programa_id)?.meses && (
+                {formData.programa_id && programasAcademicos.find(p => p && p.id && p.id.toString() === formData.programa_id)?.meses && (
                   <p className="text-xs text-blue-600 mt-1">
-                    💡 Duración sugerida del programa seleccionado: {programasAcademicos.find(p => p.id.toString() === formData.programa_id)?.meses} meses (puedes editarla)
+                    💡 Duración sugerida del programa seleccionado: {programasAcademicos.find(p => p && p.id && p.id.toString() === formData.programa_id)?.meses} meses (puedes editarla)
                   </p>
                 )}
               </div>
