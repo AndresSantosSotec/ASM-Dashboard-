@@ -83,8 +83,8 @@ export function HistorialAcademicoTab() {
 
   return (
     <div className="space-y-6">
-      {/* Alerta si no hay datos en Moodle */}
-      {(!tieneDatosMoodle || noHayCursos) && (
+      {/* Alerta solo si NO tiene datos en Moodle (usuario no existe) */}
+      {!tieneDatosMoodle && (
         <Alert variant="default" className="border-yellow-500 bg-yellow-50">
           <AlertCircle className="h-4 w-4 text-yellow-600" />
           <AlertTitle className="text-yellow-800">Estudiante aún no creado en Moodle</AlertTitle>
@@ -127,7 +127,22 @@ export function HistorialAcademicoTab() {
         </Alert>
       )}
 
-      {/* Resumen Académico */}
+      {/* Alerta informativa si existe en Moodle pero sin cursos */}
+      {tieneDatosMoodle && noHayCursos && (
+        <Alert variant="default" className="border-blue-400 bg-blue-50">
+          <AlertCircle className="h-4 w-4 text-blue-600" />
+          <AlertTitle className="text-blue-800">Sin cursos asignados</AlertTitle>
+          <AlertDescription className="text-blue-700">
+            <p>
+              Tu cuenta en Moodle está activa, pero aún no tienes cursos asignados. 
+              Los cursos estarán disponibles una vez que se complete tu inscripción o al inicio del ciclo académico.
+            </p>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Resumen Académico - Solo mostrar si tiene datos de Moodle */}
+      {tieneDatosMoodle && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -236,6 +251,7 @@ export function HistorialAcademicoTab() {
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   )
 }

@@ -706,7 +706,7 @@ export default function ProfileView() {
                           ))}\n                        </tbody>
                       </table>
                     </div>
-                  ) : (
+                  ) : (historialAcademico as any)?.tiene_datos_moodle === false ? (
                     <Alert variant="default" className="border-yellow-500 bg-yellow-50">
                       <AlertCircle className="h-4 w-4 text-yellow-600" />
                       <AlertTitle className="text-yellow-800">Estudiante aún no creado en Moodle</AlertTitle>
@@ -745,6 +745,17 @@ export default function ProfileView() {
                             </a>
                           </div>
                         </div>
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <Alert variant="default" className="border-blue-400 bg-blue-50">
+                      <AlertCircle className="h-4 w-4 text-blue-600" />
+                      <AlertTitle className="text-blue-800">Sin cursos asignados</AlertTitle>
+                      <AlertDescription className="text-blue-700">
+                        <p>
+                          Tu cuenta en Moodle está activa, pero aún no tienes cursos asignados. 
+                          Los cursos estarán disponibles una vez que se complete tu inscripción o al inicio del ciclo académico.
+                        </p>
                       </AlertDescription>
                     </Alert>
                   )}
