@@ -29,7 +29,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select"
-import { Eye, CheckCircle, XCircle, Calendar, Loader2 } from "lucide-react"
+import { Eye, CheckCircle, XCircle, Calendar, Loader2, RefreshCcw } from "lucide-react"
 import {
   Tooltip,
   TooltipContent,
@@ -203,6 +203,103 @@ export function GestionFichas() {
     } catch (err) {
       console.error("Error al aprobar ficha:", err)
       Swal.fire("Error", "No se pudo aprobar la ficha", "error")
+    }
+  }
+
+  const handleRetrocederDirecto = async (ficha: FichaEstudiante) => {
+    const { value: comentario } = await Swal.fire({
+      title: "Retroceder a Preinscripción",
+      input: "textarea",
+      inputLabel: "Comentario (obligatorio)",
+      inputPlaceholder: "Indica la razón por la que retrocede esta ficha...",
+      showCancelButton: true,
+      confirmButtonText: "Retroceder",
+      cancelButtonText: "Cancelar",
+      customClass: {
+        container: 'swal-retroceder-container'
+      },
+      inputValidator: (value) => {
+        if (!value || value.trim() === "") {
+          return "Debes ingresar un comentario"
+        }
+      },
+    })
+
+    if (!comentario) return
+
+    setProcessingId(ficha.id)
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_URL}/prospectos/${ficha.id}/retroceder`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({ 
+          estado_destino: "Preinscripción",
+          comentario: comentario.trim(),
+        }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      
+      setFichas(prev => prev.filter(f => f.id !== ficha.id))
+      
+      await Swal.fire({
+        icon: "success",
+        title: "Ficha retrocedida",
+        text: "La ficha ha sido devuelta a Preinscripción",
+        timer: 2000,
+        showConfirmButton: false,
+      })
+    } catch (err) {
+      console.error("Error al retroceder ficha:", err)
+      Swal.fire("Error", "No se pudo retroceder la ficha", "error")
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const handleAprobarDirecto = async (ficha: FichaEstudiante) => {
+    const result = await Swal.fire({
+      title: "¿Aprobar esta ficha?",
+      text: "La ficha será enviada a Aprobación Académica",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Sí, aprobar",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#10b981",
+    })
+
+    if (!result.isConfirmed) return
+
+    setProcessingId(ficha.id)
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_URL}/prospectos/${ficha.id}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({ status: "Pendiente de Aprobación Académica" }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      
+      setFichas(prev => prev.filter(f => f.id !== ficha.id))
+      
+      await Swal.fire({
+        icon: "success",
+        title: "Ficha aprobada",
+        text: "La ficha ha sido enviada a Aprobación Académica",
+        timer: 2000,
+        showConfirmButton: false,
+      })
+    } catch (err) {
+      console.error("Error al aprobar ficha:", err)
+      Swal.fire("Error", "No se pudo aprobar la ficha", "error")
+    } finally {
+      setProcessingId(null)
     }
   }
 
@@ -395,11 +492,46 @@ export function GestionFichas() {
                               variant="ghost"
                               size="icon"
                               onClick={() => handleViewDetalle(f)}
+                              disabled={processingId === f.id}
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Ver ficha</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                              onClick={() => handleAprobarDirecto(f)}
+                              disabled={processingId === f.id}
+                            >
+                              {processingId === f.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <CheckCircle className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Aprobar ficha</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                              onClick={() => handleRetrocederDirecto(f)}
+                              disabled={processingId === f.id}
+                            >
+                              <RefreshCcw className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Retroceder a Preinscripción</TooltipContent>
                         </Tooltip>
                       </div>
                     </TooltipProvider>
