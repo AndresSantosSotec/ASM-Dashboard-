@@ -83,19 +83,28 @@ export default function FirmarContratoPage() {
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
+    // Aumentar grosor de línea en dispositivos móviles
+    const isMobile = window.innerWidth < 768
     ctx.strokeStyle = "#000000"
-    ctx.lineWidth = 2
+    ctx.lineWidth = isMobile ? 3 : 2
     ctx.lineCap = "round"
     ctx.lineJoin = "round"
   }, [])
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
     const canvas = canvasRef.current
     if (!canvas) return
 
     const rect = canvas.getBoundingClientRect()
-    const x = "touches" in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left
-    const y = "touches" in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY
+    
+    const x = (clientX - rect.left) * scaleX
+    const y = (clientY - rect.top) * scaleY
 
     setIsDrawing(true)
     setLastX(x)
@@ -104,6 +113,7 @@ export default function FirmarContratoPage() {
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return
+    e.preventDefault()
 
     const canvas = canvasRef.current
     if (!canvas) return
@@ -112,8 +122,14 @@ export default function FirmarContratoPage() {
     if (!ctx) return
 
     const rect = canvas.getBoundingClientRect()
-    const x = "touches" in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left
-    const y = "touches" in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY
+    
+    const x = (clientX - rect.left) * scaleX
+    const y = (clientY - rect.top) * scaleY
 
     ctx.beginPath()
     ctx.moveTo(lastX, lastY)
@@ -442,7 +458,11 @@ export default function FirmarContratoPage() {
                 onTouchMove={draw}
                 onTouchEnd={stopDrawing}
                 className="w-full cursor-crosshair touch-none"
-                style={{ touchAction: "none" }}
+                style={{ 
+                  touchAction: "none",
+                  maxHeight: "200px",
+                  display: "block"
+                }}
               />
             </div>
             <div className="mt-3 flex gap-3">
