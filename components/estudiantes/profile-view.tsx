@@ -703,7 +703,7 @@ export default function ProfileView() {
                                 </Badge>
                               </td>
                             </tr>
-                          ))}\n                        </tbody>
+                          ))}                       </tbody>
                       </table>
                     </div>
                   ) : (historialAcademico as any)?.tiene_datos_moodle === false ? (
