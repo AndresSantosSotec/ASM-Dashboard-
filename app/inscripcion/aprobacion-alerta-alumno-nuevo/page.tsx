@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/tooltip"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import Swal from "sweetalert2"
-import { CheckCircle, Clock, User, Calendar, GraduationCap, Eye, XCircle, ArrowLeft, Loader2 } from "lucide-react"
+import { CheckCircle, Clock, User, Calendar, GraduationCap, Eye, XCircle, ArrowLeft, Loader2, AlertCircle } from "lucide-react"
 
 interface Alerta {
   id: number
@@ -237,18 +237,26 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
 
   const handleSolicitarCorreccion = async (alerta: Alerta, prospectoId: number) => {
     const { value: comentario } = await Swal.fire({
-      title: "Solicitar corrección",
+      title: "Rechazar Alerta de Alumno Nuevo",
+      html: `
+        <p class="mb-4">¿Confirmas que deseas rechazar esta alerta?</p>
+        <p class="text-sm text-gray-600 mb-4">El prospecto será regresado a estado "En Seguimiento" y la alerta será anulada.</p>
+      `,
       input: "textarea",
-      inputLabel: "Comentario (obligatorio)",
-      inputPlaceholder: "Describe las correcciones necesarias...",
+      inputLabel: "Motivo del rechazo (obligatorio)",
+      inputPlaceholder: "Describe el motivo del rechazo y las correcciones necesarias...",
       inputValidator: (value) => {
         if (!value || value.trim() === "") {
-          return "Debes ingresar un comentario"
+          return "Debes ingresar un motivo para rechazar la alerta"
+        }
+        if (value.trim().length < 10) {
+          return "El motivo debe tener al menos 10 caracteres"
         }
       },
       showCancelButton: true,
-      confirmButtonText: "Enviar",
+      confirmButtonText: "Rechazar Alerta",
       cancelButtonText: "Cancelar",
+      confirmButtonColor: "#dc2626",
     })
 
     if (!comentario) return
@@ -256,29 +264,46 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
     setProcessingId(prospectoId)
     try {
       const token = localStorage.getItem("token")
+      if (!token) {
+        throw new Error("No hay token de autenticación")
+      }
+
       const res = await fetch(`${API_BASE_URL}/api/alerta-alumno-nuevo/${alerta.id}/rechazar`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ comentarios: comentario }),
+        body: JSON.stringify({ comentarios: comentario.trim() }),
       })
 
-      if (!res.ok) throw new Error("Error al solicitar corrección")
+      const data = await res.json().catch(() => ({ message: "Error al procesar respuesta del servidor" }))
 
-      Swal.fire({
-        icon: "info",
-        title: "Corrección solicitada",
-        text: "La alerta ha sido rechazada y se notificará al asesor",
-        timer: 2000,
+      if (!res.ok) {
+        const errorMessage = data.message || data.error || "Error al rechazar la alerta"
+        console.error("Error rechazando alerta:", data)
+        throw new Error(errorMessage)
+      }
+
+      await Swal.fire({
+        icon: "success",
+        title: "Alerta rechazada",
+        html: `
+          <p>La alerta ha sido rechazada correctamente.</p>
+          <p class="text-sm text-gray-600 mt-2">El prospecto ha sido regresado a estado "En Seguimiento" y la alerta ha sido anulada.</p>
+        `,
+        timer: 3000,
         showConfirmButton: false,
       })
 
       cargarPendientes()
-    } catch (err) {
-      console.error("Error:", err)
-      Swal.fire("Error", "No se pudo solicitar la corrección", "error")
+    } catch (err: any) {
+      console.error("Error rechazando alerta:", err)
+      Swal.fire({
+        icon: "error",
+        title: "Error al rechazar alerta",
+        text: err.message || "No se pudo rechazar la alerta. Intenta nuevamente.",
+      })
     } finally {
       setProcessingId(null)
     }
@@ -369,6 +394,26 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
 
   return (
     <div className="space-y-6">
+      {/* 🆕 Identificador visual de Alerta Alumno Nuevo */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg p-4 shadow-lg">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-white/20 rounded-full p-2">
+              <AlertCircle className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">Alerta Alumno Nuevo</h1>
+              <p className="text-blue-100 text-sm mt-1">
+                Vista de aprobación para prospectos en proceso de generación de credenciales
+              </p>
+            </div>
+          </div>
+          <Badge className="bg-white text-blue-700 font-semibold px-3 py-1">
+            Módulo de Aprobación
+          </Badge>
+        </div>
+      </div>
+
       {/* Filtros */}
       <div className="flex flex-col sm:flex-row sm:items-end gap-4">
         <div className="flex-1">

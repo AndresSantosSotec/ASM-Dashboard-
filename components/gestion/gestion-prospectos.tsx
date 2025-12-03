@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Swal from "sweetalert2"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle } from "lucide-react"
+import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle, RefreshCw } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -182,7 +182,7 @@ export default function GestionProspectos() {
         if (cached && cacheTime) {
           const now = Date.now();
           const elapsed = now - parseInt(cacheTime);
-          if (elapsed < 300000) { // 5 minutos
+          if (elapsed < 60000) { // 1 minuto (reducido de 5 minutos para mejor sincronización)
             console.log("✅ Usando caché de gestión prospectos");
             const cachedData = JSON.parse(cached);
             setProspectos(cachedData.items || cachedData);
@@ -295,6 +295,51 @@ export default function GestionProspectos() {
       if (storedUser) setCurrentUser(JSON.parse(storedUser))
     }
   }, [])
+
+  // 🔄 Invalidar caché cuando se crea/actualiza un prospecto desde otro componente
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const handleProspectoChange = () => {
+      console.log("🔄 Invalidando caché por cambio de prospecto")
+      localStorage.removeItem("gestion_prospectos_cache")
+      localStorage.removeItem("gestion_prospectos_cache_time")
+      fetchProspectos(currentPage, true)
+    }
+
+    // Escuchar eventos personalizados para invalidar caché
+    window.addEventListener("prospecto:created", handleProspectoChange)
+    window.addEventListener("prospecto:updated", handleProspectoChange)
+    window.addEventListener("prospecto:deleted", handleProspectoChange)
+
+    // Invalidar caché cuando la página vuelve a estar visible (usuario regresa a la pestaña)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        // Verificar si el caché tiene más de 30 segundos de antigüedad
+        const cacheTime = localStorage.getItem("gestion_prospectos_cache_time")
+        if (cacheTime) {
+          const elapsed = Date.now() - parseInt(cacheTime)
+          if (elapsed > 30000) { // 30 segundos - refrescar más frecuentemente
+            console.log("🔄 Refrescando datos al volver a la pestaña (caché > 30 seg)")
+            handleProspectoChange()
+          }
+        } else {
+          // Si no hay caché, cargar datos frescos
+          console.log("🔄 Cargando datos frescos al volver a la pestaña")
+          handleProspectoChange()
+        }
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener("prospecto:created", handleProspectoChange)
+      window.removeEventListener("prospecto:updated", handleProspectoChange)
+      window.removeEventListener("prospecto:deleted", handleProspectoChange)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [currentPage, fetchProspectos])
 
   // Helpers
   const getEstadoColor = (estado: string) => {
@@ -541,6 +586,22 @@ export default function GestionProspectos() {
         <Button variant="outline">
           <Filter className="h-4 w-4 mr-2" />
           Filtros
+        </Button>
+        
+        <Button
+          variant="outline"
+          onClick={() => {
+            if (typeof window !== "undefined") {
+              localStorage.removeItem("gestion_prospectos_cache")
+              localStorage.removeItem("gestion_prospectos_cache_time")
+            }
+            fetchProspectos(currentPage, true)
+          }}
+          disabled={loading}
+          title="Refrescar lista de prospectos"
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+          Refrescar
         </Button>
         
         <Button

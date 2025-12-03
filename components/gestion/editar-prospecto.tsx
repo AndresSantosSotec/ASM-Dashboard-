@@ -96,6 +96,11 @@ export default function EditarProspecto({ prospecto, onClose, onUpdate }: Editar
       localStorage.removeItem("gestion_prospectos_cache");
       localStorage.removeItem("gestion_prospectos_cache_time");
 
+      // 🔄 Disparar evento para invalidar caché en otros componentes
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("prospecto:updated"))
+      }
+
       onClose() // cierra el modal primero
 
       // Llamar callback de actualización

@@ -67,6 +67,11 @@ export default function AlertaAlumnoNuevo({
     fecha_inicio_especifica: "",
     programa_id: "",
     duracion_meses: "",
+    // 🆕 Nuevos campos para días de estudio y talleres
+    dia_estudio: "", // String separado por comas para múltiples días
+    fecha_taller_integracion: "",
+    fecha_taller_reduccion: "", // Taller de inicio/reducción
+    mes_inicio: "", // Mes de inicio (derivado de fecha_inicio_especifica o manual)
   })
   
   // Estados para programas académicos
@@ -163,10 +168,25 @@ export default function AlertaAlumnoNuevo({
           telefono: data.telefono || "",
           modalidad: data.modalidad || "",
           fecha_inicio_especifica: data.fecha_inicio_especifica || "",
+          // 🆕 Cargar días de estudio, talleres y mes de inicio
+          dia_estudio: data.dia_estudio || "",
+          fecha_taller_integracion: data.fecha_taller_integracion || "",
+          fecha_taller_reduccion: data.fecha_taller_reduccion || "",
+          mes_inicio: data.fecha_inicio_especifica 
+            ? new Date(data.fecha_inicio_especifica).toLocaleDateString('es-GT', { month: 'long', year: 'numeric' })
+            : "",
         }))
         
-        // Validar datos mínimos
+        // Validar datos mínimos después de cargar los datos
         await validarDatosMinimos()
+        
+        // 🆕 Si hay datos faltantes, cambiar automáticamente al tab de "Completar Datos"
+        // Esto se hará después de que se establezcan los datosFaltantes
+        setTimeout(() => {
+          if (datosFaltantes.length > 0 || !data.correo_electronico || !data.numero_identificacion || !data.telefono) {
+            // No cambiar automáticamente, solo mostrar el tab disponible
+          }
+        }, 100)
         
       } catch (err) {
         console.error("Error cargando datos:", err)
@@ -211,7 +231,12 @@ export default function AlertaAlumnoNuevo({
       
       const data = await res.json()
       
-      if (!res.ok && data.tipo === "datos_faltantes") {
+      // 🆕 Siempre establecer datosFaltantes si vienen en la respuesta
+      // Esto asegura que los campos aparezcan si faltan datos
+      if (data.faltantes && Array.isArray(data.faltantes)) {
+        setDatosFaltantes(data.faltantes)
+      } else if (res.ok && data.faltantes) {
+        // Si la respuesta es OK pero tiene faltantes, establecerlos
         setDatosFaltantes(data.faltantes || [])
       } else {
         setDatosFaltantes([])
@@ -222,6 +247,8 @@ export default function AlertaAlumnoNuevo({
       // Verificar carnet
       if (data.necesita_carnet) {
         setTieneCarnet(false)
+      } else if (data.tiene_carnet) {
+        setTieneCarnet(true)
       }
       
     } catch (err) {
@@ -299,6 +326,17 @@ export default function AlertaAlumnoNuevo({
       
       if (datosFaltantes.includes("Fecha de inicio del programa") && formData.fecha_inicio_especifica) {
         payload.fechaInicioEspecifica = formData.fecha_inicio_especifica
+      }
+      
+      // 🆕 Guardar nuevos campos académicos
+      if (formData.dia_estudio) {
+        payload.diaEstudio = formData.dia_estudio
+      }
+      if (formData.fecha_taller_integracion) {
+        payload.fechaTallerIntegracion = formData.fecha_taller_integracion
+      }
+      if (formData.fecha_taller_reduccion) {
+        payload.fechaTallerReduccion = formData.fecha_taller_reduccion
       }
       
       // Si se seleccionó un programa académico y hay duración, crear/actualizar estudiante_programa
@@ -493,21 +531,13 @@ export default function AlertaAlumnoNuevo({
         },
       })
 
+      // 🆕 Solo feedback visual, sin SweetAlert
       setBoletaSubida(true)
-      
-      await Swal.fire({
-        icon: "success",
-        title: "Boleta guardada",
-        html: `
-          <p>El comprobante de pago fue guardado correctamente.</p>
-        `,
-        timer: 2000,
-        showConfirmButton: false
-      })
       
     } catch (error: any) {
       console.error("Error al subir boleta:", error)
       Swal.fire("Error", error.response?.data?.message || "Ocurrió un error al procesar la boleta", "error")
+      setBoletaSubida(false) // Asegurar que se resetee el estado en caso de error
     } finally {
       setIsUploading(false)
     }
@@ -517,44 +547,138 @@ export default function AlertaAlumnoNuevo({
     setLoading(true)
     try {
       const token = localStorage.getItem("token")
+      if (!token) {
+        throw new Error("No hay token de autenticación")
+      }
 
       // 🔥 PASO 1: Guardar/actualizar todos los datos del prospecto antes de crear la alerta
       const payload: any = {}
       
-      // Siempre actualizar estos campos si tienen valor
-      if (formData.nombre_completo) {
-        payload.nombreCompleto = formData.nombre_completo
+      // Limpiar y validar datos antes de agregarlos al payload
+      // Siempre actualizar estos campos si tienen valor válido
+      if (formData.nombre_completo && formData.nombre_completo.trim()) {
+        payload.nombreCompleto = formData.nombre_completo.trim()
       }
-      if (formData.correo_electronico) {
-        payload.correoElectronico = formData.correo_electronico
+      if (formData.correo_electronico && formData.correo_electronico.trim()) {
+        const email = formData.correo_electronico.trim()
+        // Validar formato de email básico
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          payload.correoElectronico = email
+        }
       }
-      if (formData.numero_identificacion) {
-        payload.numeroIdentificacion = formData.numero_identificacion
+      if (formData.numero_identificacion && formData.numero_identificacion.trim()) {
+        payload.numeroIdentificacion = formData.numero_identificacion.trim()
       }
-      if (formData.telefono) {
-        payload.telefono = formData.telefono
+      if (formData.telefono && formData.telefono.trim()) {
+        const telefono = formData.telefono.trim().replace(/\D/g, '') // Solo números
+        if (telefono.length >= 8) {
+          payload.telefono = telefono
+        }
       }
-      if (formData.modalidad) {
-        payload.modalidad = formData.modalidad
+      if (formData.modalidad && formData.modalidad.trim()) {
+        payload.modalidad = formData.modalidad.trim()
       }
-      if (formData.fecha_inicio_especifica) {
-        payload.fechaInicioEspecifica = formData.fecha_inicio_especifica
+      if (formData.fecha_inicio_especifica && formData.fecha_inicio_especifica.trim()) {
+        payload.fechaInicioEspecifica = formData.fecha_inicio_especifica.trim()
+      }
+      
+      // 🆕 Guardar nuevos campos académicos en crearAlerta también
+      if (formData.dia_estudio && formData.dia_estudio.trim()) {
+        const diaEstudio = formData.dia_estudio.trim()
+        // Limitar a 20 caracteres como máximo
+        if (diaEstudio.length <= 20) {
+          payload.diaEstudio = diaEstudio
+        }
+      }
+      if (formData.fecha_taller_integracion && formData.fecha_taller_integracion.trim()) {
+        payload.fechaTallerIntegracion = formData.fecha_taller_integracion.trim()
+      }
+      if (formData.fecha_taller_reduccion && formData.fecha_taller_reduccion.trim()) {
+        payload.fechaTallerReduccion = formData.fecha_taller_reduccion.trim()
       }
 
       // Actualizar prospecto
       if (Object.keys(payload).length > 0) {
-        const resUpdate = await fetch(`${API_URL}/prospectos/${prospectoId}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        })
-        
-        if (!resUpdate.ok) {
-          const errorData = await resUpdate.json()
-          throw new Error(errorData.message || "Error al actualizar datos del prospecto")
+        try {
+          // Validar datos antes de enviar
+          if (payload.telefono && payload.telefono.length < 8) {
+            throw new Error("El teléfono debe tener al menos 8 dígitos")
+          }
+          
+          if (payload.correoElectronico && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.correoElectronico)) {
+            throw new Error("El correo electrónico no tiene un formato válido")
+          }
+          
+          if (payload.diaEstudio && payload.diaEstudio.length > 20) {
+            throw new Error("El campo 'Días de Estudio' no puede exceder 20 caracteres")
+          }
+
+          const resUpdate = await fetch(`${API_URL}/prospectos/${prospectoId}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+          })
+          
+          if (!resUpdate.ok) {
+            const errorData = await resUpdate.json().catch(() => ({ message: "Error desconocido" }))
+            
+            // Extraer mensajes de error específicos de validación
+            let errorMessage = errorData.message || errorData.error || "Error al actualizar datos del prospecto"
+            
+            // Si hay errores de validación específicos, mostrarlos de forma más clara
+            if (errorData.messages && typeof errorData.messages === 'object') {
+              const validationErrors: string[] = []
+              Object.entries(errorData.messages).forEach(([field, messages]) => {
+                if (Array.isArray(messages)) {
+                  messages.forEach((msg: string) => {
+                    validationErrors.push(`${field}: ${msg}`)
+                  })
+                } else if (typeof messages === 'string') {
+                  validationErrors.push(`${field}: ${messages}`)
+                }
+              })
+              if (validationErrors.length > 0) {
+                errorMessage = `Errores de validación:\n${validationErrors.join('\n')}`
+              }
+            } else if (errorData.errors && typeof errorData.errors === 'object') {
+              const validationErrors: string[] = []
+              Object.entries(errorData.errors).forEach(([field, messages]) => {
+                if (Array.isArray(messages)) {
+                  messages.forEach((msg: string) => {
+                    validationErrors.push(`${field}: ${msg}`)
+                  })
+                } else if (typeof messages === 'string') {
+                  validationErrors.push(`${field}: ${messages}`)
+                }
+              })
+              if (validationErrors.length > 0) {
+                errorMessage = `Errores de validación:\n${validationErrors.join('\n')}`
+              }
+            }
+            
+            console.error("Error actualizando prospecto:", errorData)
+            console.error("Payload enviado:", payload)
+            throw new Error(errorMessage)
+          }
+          
+          // Recargar datos del prospecto después de actualizar
+          const resProspecto = await fetch(`${API_URL}/prospectos/${prospectoId}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          })
+          
+          if (resProspecto.ok) {
+            const { data: prospectoActualizado } = await resProspecto.json()
+            setProspectoData(prospectoActualizado)
+          }
+        } catch (err: any) {
+          console.error("Error en actualización de prospecto:", err)
+          console.error("Payload que causó el error:", payload)
+          throw new Error(`No se pudieron actualizar los datos del prospecto: ${err.message}`)
         }
       }
 
@@ -601,7 +725,7 @@ export default function AlertaAlumnoNuevo({
           let estudianteProgramaId = null
           if (resEP.ok) {
             const epData = await resEP.json()
-            if (epData && epData.length > 0) {
+            if (epData && Array.isArray(epData) && epData.length > 0) {
               estudianteProgramaId = epData[0].id
             }
           }
@@ -628,8 +752,10 @@ export default function AlertaAlumnoNuevo({
             })
             
             if (!resUpdate.ok) {
-              const errorData = await resUpdate.json()
-              throw new Error(errorData.message || "Error al actualizar programa del estudiante")
+              const errorData = await resUpdate.json().catch(() => ({ message: "Error desconocido" }))
+              const errorMessage = errorData.message || errorData.error || "Error al actualizar programa del estudiante"
+              console.error("Error actualizando estudiante_programa:", errorData)
+              throw new Error(`Error al actualizar programa: ${errorMessage}`)
             }
           } else {
             // Crear nuevo - usar el formato que espera el endpoint
@@ -646,34 +772,54 @@ export default function AlertaAlumnoNuevo({
             })
             
             if (!resCreate.ok) {
-              const errorData = await resCreate.json()
-              throw new Error(errorData.message || "Error al crear programa del estudiante")
+              const errorData = await resCreate.json().catch(() => ({ message: "Error desconocido" }))
+              const errorMessage = errorData.message || errorData.error || "Error al crear programa del estudiante"
+              console.error("Error creando estudiante_programa:", errorData)
+              throw new Error(`Error al crear programa: ${errorMessage}`)
             }
           }
         } catch (err: any) {
           console.error("Error guardando programa:", err)
-          throw new Error(`Error al guardar programa académico: ${err.message}`)
+          throw new Error(`Error al guardar programa académico: ${err.message || "Error desconocido"}`)
         }
       }
 
       // 🔥 PASO 3: Crear la alerta
-      const res = await fetch(`${API_URL}/alerta-alumno-nuevo/crear`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ prospecto_id: Number(prospectoId) }),
-      })
+      try {
+        const res = await fetch(`${API_URL}/alerta-alumno-nuevo/crear`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ prospecto_id: Number(prospectoId) }),
+        })
 
-      const data = await res.json()
+        const data = await res.json().catch(() => ({ message: "Error al procesar respuesta del servidor" }))
 
-      if (!res.ok) {
-        // Si aún faltan datos, mostrar mensaje específico
-        if (data.tipo === "datos_faltantes") {
-          throw new Error(`Faltan los siguientes datos: ${data.faltantes?.join(", ") || "datos requeridos"}`)
+        if (!res.ok) {
+          // Si aún faltan datos, mostrar mensaje específico
+          if (data.tipo === "datos_faltantes") {
+            const faltantesList = Array.isArray(data.faltantes) ? data.faltantes.join(", ") : "datos requeridos"
+            throw new Error(`Faltan los siguientes datos: ${faltantesList}`)
+          }
+          if (data.tipo === "necesita_carnet") {
+            throw new Error("El prospecto necesita tener un carnet antes de crear la alerta")
+          }
+          if (data.tipo === "correo_duplicado") {
+            throw new Error("El correo electrónico ya está registrado en otro estudiante")
+          }
+          const errorMessage = data.message || data.error || "Error al crear la alerta"
+          console.error("Error creando alerta:", data)
+          throw new Error(errorMessage)
         }
-        throw new Error(data.message || "Error al crear la alerta")
+      } catch (err: any) {
+        // Si el error ya tiene mensaje, re-lanzarlo
+        if (err.message) {
+          throw err
+        }
+        console.error("Error en creación de alerta:", err)
+        throw new Error(`Error al crear la alerta: ${err.message || "Error desconocido"}`)
       }
 
       await Swal.fire({
@@ -697,10 +843,35 @@ export default function AlertaAlumnoNuevo({
 
     } catch (err: any) {
       console.error("❌ Error:", err)
+      
+      // Extraer mensaje de error más específico
+      let errorMessage = err.message || "No se pudo crear la alerta. Intenta nuevamente."
+      
+      // Si el error contiene información sobre validación, mostrarla
+      if (errorMessage.includes("Validación fallida") || errorMessage.includes("validación")) {
+        // Intentar obtener más detalles del error
+        if (err.response?.data?.messages) {
+          const validationErrors = Object.values(err.response.data.messages).flat()
+          errorMessage = `Error de validación:\n${validationErrors.join('\n')}`
+        } else if (err.response?.data?.errors) {
+          const validationErrors = Object.values(err.response.data.errors).flat()
+          errorMessage = `Error de validación:\n${validationErrors.join('\n')}`
+        }
+      }
+      
       await Swal.fire({
         icon: "error",
-        title: "Error",
-        text: err.message || "No se pudo crear la alerta. Intenta nuevamente.",
+        title: "Error al crear la alerta",
+        html: `
+          <div class="text-left">
+            <p class="mb-2"><strong>No se pudo crear la alerta de alumno nuevo.</strong></p>
+            <p class="text-sm text-gray-700">${errorMessage}</p>
+            <p class="text-xs text-gray-500 mt-3">
+              Por favor, verifica que todos los datos estén correctos y vuelve a intentar.
+            </p>
+          </div>
+        `,
+        width: "500px",
       })
     } finally {
       setLoading(false)
@@ -738,7 +909,7 @@ export default function AlertaAlumnoNuevo({
 
   return (
     <Dialog open onOpenChange={onClose} modal={true}>
-      <DialogContent className="max-w-5xl max-h-[90vh] z-[9999]">
+      <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-hidden flex flex-col z-[9999]">
         <DialogHeader>
           <DialogTitle>Alerta Alumno Nuevo - {prospectoNombre}</DialogTitle>
           <DialogDescription>
@@ -957,24 +1128,33 @@ export default function AlertaAlumnoNuevo({
           </TabsContent>
 
           {/* TAB 2: COMPLETAR DATOS */}
-          <TabsContent value="datos" className="space-y-4 mt-4">
+          <TabsContent value="datos" className="space-y-4 mt-4 max-h-[calc(90vh-250px)] overflow-y-auto">
             <Alert className="bg-yellow-50 border-yellow-200">
               <AlertCircle className="h-4 w-4 text-yellow-600" />
-              <AlertDescription className="text-yellow-800">
-                Completa los datos faltantes para continuar con el proceso.
+              <AlertDescription className="text-yellow-800 text-sm">
+                Completa los datos faltantes para continuar con el proceso. Todos los campos marcados con * son obligatorios.
               </AlertDescription>
             </Alert>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {datosFaltantes.includes("Nombre completo") && (
+            {/* Sección: Datos Personales Básicos */}
+            <div className="border rounded-lg p-4 space-y-4">
+              <h3 className="font-semibold text-lg border-b pb-2">Datos Personales Básicos</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Nombre completo - Siempre visible si falta */}
+              {(datosFaltantes.includes("Nombre completo") || !prospectoData?.nombre_completo) && (
                 <div>
                   <Label>
                     Nombre completo <span className="text-red-500">*</span>
+                    {datosFaltantes.includes("Nombre completo") && (
+                      <Badge variant="destructive" className="ml-2 text-xs">Faltante</Badge>
+                    )}
                   </Label>
                   <Input
                     value={formData.nombre_completo}
                     onChange={(e) => setFormData(prev => ({ ...prev, nombre_completo: e.target.value }))}
                     required
+                    placeholder="Nombre completo del prospecto"
+                    className={datosFaltantes.includes("Nombre completo") ? "border-red-500" : ""}
                   />
                 </div>
               )}
@@ -983,6 +1163,9 @@ export default function AlertaAlumnoNuevo({
               <div>
                 <Label>
                   DPI / Número de Identificación <span className="text-red-500">*</span>
+                  {datosFaltantes.includes("DPI") && (
+                    <Badge variant="destructive" className="ml-2 text-xs">Faltante</Badge>
+                  )}
                 </Label>
                 <Input
                   value={formData.numero_identificacion}
@@ -993,47 +1176,64 @@ export default function AlertaAlumnoNuevo({
                   required
                   placeholder="Solo números"
                   inputMode="numeric"
+                  className={datosFaltantes.includes("DPI") ? "border-red-500" : ""}
                 />
               </div>
 
-              {datosFaltantes.includes("Correo electrónico") && (
+              {/* Correo electrónico - Siempre visible si falta */}
+              {(datosFaltantes.includes("Correo electrónico") || !prospectoData?.correo_electronico) && (
                 <div>
                   <Label>
                     Correo electrónico <span className="text-red-500">*</span>
+                    {datosFaltantes.includes("Correo electrónico") && (
+                      <Badge variant="destructive" className="ml-2 text-xs">Faltante</Badge>
+                    )}
                   </Label>
                   <Input
                     type="email"
                     value={formData.correo_electronico}
                     onChange={(e) => setFormData(prev => ({ ...prev, correo_electronico: e.target.value }))}
                     required
+                    placeholder="ejemplo@correo.com"
+                    className={datosFaltantes.includes("Correo electrónico") ? "border-red-500" : ""}
                   />
                 </div>
               )}
 
-              {datosFaltantes.includes("Teléfono") && (
+              {/* Teléfono - Siempre visible si falta */}
+              {(datosFaltantes.includes("Teléfono") || !prospectoData?.telefono) && (
                 <div>
                   <Label>
                     Teléfono <span className="text-red-500">*</span>
+                    {datosFaltantes.includes("Teléfono") && (
+                      <Badge variant="destructive" className="ml-2 text-xs">Faltante</Badge>
+                    )}
                   </Label>
                   <Input
                     value={formData.telefono}
                     onChange={(e) => setFormData(prev => ({ ...prev, telefono: e.target.value }))}
                     required
+                    placeholder="Ej: 12345678"
+                    className={datosFaltantes.includes("Teléfono") ? "border-red-500" : ""}
                   />
                 </div>
               )}
 
-              {datosFaltantes.includes("Modalidad") && (
+              {/* Modalidad - Siempre visible si falta */}
+              {(datosFaltantes.includes("Modalidad") || !prospectoData?.modalidad) && (
                 <div>
                   <Label>
                     Modalidad <span className="text-red-500">*</span>
+                    {datosFaltantes.includes("Modalidad") && (
+                      <Badge variant="destructive" className="ml-2 text-xs">Faltante</Badge>
+                    )}
                   </Label>
                   <Select
                     value={formData.modalidad}
                     onValueChange={(v) => setFormData(prev => ({ ...prev, modalidad: v }))}
                     required
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={datosFaltantes.includes("Modalidad") ? "border-red-500" : ""}>
                       <SelectValue placeholder="Seleccionar modalidad" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1043,10 +1243,14 @@ export default function AlertaAlumnoNuevo({
                 </div>
               )}
 
-              {datosFaltantes.includes("Fecha de inicio del programa") && (
+              {/* Fecha de inicio - Siempre visible si falta */}
+              {(datosFaltantes.includes("Fecha de inicio del programa") || !prospectoData?.fecha_inicio_especifica) && (
                 <div>
                   <Label>
                     Fecha de inicio del programa <span className="text-red-500">*</span>
+                    {datosFaltantes.includes("Fecha de inicio del programa") && (
+                      <Badge variant="destructive" className="ml-2 text-xs">Faltante</Badge>
+                    )}
                   </Label>
                   <SimpleDatePicker
                     value={formData.fecha_inicio_especifica}
@@ -1105,6 +1309,114 @@ export default function AlertaAlumnoNuevo({
                     💡 Duración sugerida del programa seleccionado: {programasAcademicos.find(p => p && p.id && p.id.toString() === formData.programa_id)?.meses} meses (puedes editarla)
                   </p>
                 )}
+              </div>
+            </div>
+            </div>
+
+            {/* 🆕 Sección: Datos Académicos Adicionales */}
+            <div className="border rounded-lg p-4 space-y-4">
+              <h3 className="font-semibold text-lg border-b pb-2">Datos Académicos y Talleres</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Fecha de inicio específica - Siempre visible */}
+                <div>
+                  <Label>
+                    Fecha de inicio específica <span className="text-red-500">*</span>
+                  </Label>
+                  <SimpleDatePicker
+                    value={formData.fecha_inicio_especifica}
+                    onChange={(v) => {
+                      setFormData(prev => ({ ...prev, fecha_inicio_especifica: v }))
+                      // 🆕 Actualizar mes de inicio automáticamente
+                      if (v) {
+                        const fecha = new Date(v)
+                        const mesTexto = fecha.toLocaleDateString('es-GT', { month: 'long', year: 'numeric' })
+                        setFormData(prev => ({ ...prev, mes_inicio: mesTexto }))
+                      }
+                    }}
+                  />
+                </div>
+
+                {/* Mes de inicio - Mostrado automáticamente */}
+                <div>
+                  <Label>
+                    Mes de inicio
+                  </Label>
+                  <Input
+                    value={formData.mes_inicio || (formData.fecha_inicio_especifica 
+                      ? new Date(formData.fecha_inicio_especifica).toLocaleDateString('es-GT', { month: 'long', year: 'numeric' })
+                      : "")}
+                    readOnly
+                    className="bg-gray-50 text-gray-700"
+                    placeholder="Se calculará automáticamente"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Se calcula automáticamente según la fecha de inicio</p>
+                </div>
+
+                {/* 🆕 Taller de integración */}
+                <div>
+                  <Label>
+                    Fecha taller de integración <span className="text-red-500">*</span>
+                  </Label>
+                  <SimpleDatePicker
+                    value={formData.fecha_taller_integracion}
+                    onChange={(v) => setFormData(prev => ({ ...prev, fecha_taller_integracion: v }))}
+                    placeholder="Seleccionar fecha del taller"
+                  />
+                </div>
+
+                {/* 🆕 Taller de inicio/reducción */}
+                <div>
+                  <Label>
+                    Fecha taller de inicio/reducción <span className="text-red-500">*</span>
+                  </Label>
+                  <SimpleDatePicker
+                    value={formData.fecha_taller_reduccion}
+                    onChange={(v) => setFormData(prev => ({ ...prev, fecha_taller_reduccion: v }))}
+                    placeholder="Seleccionar fecha del taller"
+                  />
+                </div>
+              </div>
+
+              {/* 🆕 Selección múltiple de días de estudio */}
+              <div className="space-y-2">
+                <Label>
+                  Días que estudiará <span className="text-red-500">*</span>
+                </Label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border p-3 rounded-md bg-gray-50">
+                  {["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"].map((dia) => {
+                    const seleccionados = formData.dia_estudio ? formData.dia_estudio.split(", ").map(d => d.trim().toLowerCase()) : []
+                    const activo = seleccionados.includes(dia.toLowerCase())
+                    
+                    return (
+                      <button
+                        type="button"
+                        key={dia}
+                        onClick={() => {
+                          let nuevosSeleccionados = [...seleccionados]
+                          if (activo) {
+                            nuevosSeleccionados = nuevosSeleccionados.filter(d => d !== dia.toLowerCase())
+                          } else {
+                            nuevosSeleccionados.push(dia.toLowerCase())
+                          }
+                          setFormData(prev => ({ 
+                            ...prev, 
+                            dia_estudio: nuevosSeleccionados.join(", ") 
+                          }))
+                        }}
+                        className={`text-sm p-2 rounded border transition-colors ${
+                          activo
+                            ? "bg-blue-600 text-white border-blue-700 font-semibold"
+                            : "bg-white border-gray-300 text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        {dia.charAt(0).toUpperCase() + dia.slice(1)}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-xs text-gray-600">
+                  Seleccionados: <strong>{formData.dia_estudio || "Ninguno"}</strong>
+                </p>
               </div>
             </div>
 

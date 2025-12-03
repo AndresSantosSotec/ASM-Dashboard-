@@ -331,6 +331,11 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
       localStorage.removeItem("gestion_prospectos_cache_time")
       localStorage.removeItem("seguimiento_prospectos_cache")
       localStorage.removeItem("seguimiento_prospectos_cache_time")
+
+      // 🔄 Disparar evento para invalidar caché en otros componentes
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("prospecto:updated"))
+      }
       
       onClose()
       

@@ -466,6 +466,12 @@ export default function CapturaProspectos() {
       await axios.post(`${API_BASE_URL}/api/prospectos`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       })
+      
+      // 🔄 Disparar evento para invalidar caché en otros componentes
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("prospecto:created"))
+      }
+      
       Swal.fire({
         icon: "success",
         title: "Guardado",
