@@ -11,6 +11,8 @@ export interface MantenimientosFilters {
   search?: string
   fecha_inicio?: string
   fecha_fin?: string
+  mes?: number | string // 🆕 Filtrar por mes (1-12)
+  ano?: number | string // 🆕 Filtrar por año (YYYY)
   limit?: number
   page?: number
   per_page?: number
@@ -88,6 +90,10 @@ export interface KardexPagoResumen {
   numero_boleta: string | null
   banco: string | null
   observaciones: string | null
+  mes?: number | null // 🆕 Mes de referencia (1-12)
+  ano?: number | null // 🆕 Año de referencia (YYYY)
+  mes_pago?: string | null // 🆕 Mes del pago como texto (ej: "Octubre")
+  anio_pago?: string | null // 🆕 Año del pago como texto (ej: "2025")
   prospecto: ProspectoResumen | null
   programa: ProgramaResumen | null
   cuota: KardexCuotaResumen | null
@@ -108,6 +114,10 @@ export interface ReconciliationRecordResumen {
   amount: number
   date: string | null
   status: string | null
+  mes?: number | null // 🆕 Mes de referencia (1-12)
+  ano?: number | null // 🆕 Año de referencia (YYYY)
+  mes_pago?: string | null // 🆕 Mes del pago como texto (ej: "Octubre")
+  anio_pago?: string | null // 🆕 Año del pago como texto (ej: "2025")
   prospecto: ProspectoResumen | null
   kardex: KardexRelacionadoResumen | null
   programa: ProgramaResumen | null
@@ -130,6 +140,14 @@ export interface KardexDataResponse {
   kardex: KardexPagoResumen[]
   reconciliaciones: ReconciliationRecordResumen[]
   cuotas: CuotaProgramaResumen[]
+  pagination?: {
+    current_page: number
+    per_page: number
+    total: number
+    total_pages: number
+    from: number
+    to: number
+  }
 }
 
 export interface CuotaDetalladaResumen {
@@ -227,7 +245,7 @@ export const getKardexDashboard = async (
 }
 
 export const getKardexData = async (
-  params?: MantenimientosFilters,
+  params?: MantenimientosFilters & { module?: string }, // 🆕 Agregar módulo
   config?: AxiosRequestConfig,
 ): Promise<KardexDataResponse> => {
   const response = await api.get<KardexDataResponse>("/mantenimientos/kardex/datos", {

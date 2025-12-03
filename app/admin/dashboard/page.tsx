@@ -612,10 +612,6 @@ export default function AdminDashboardPage() {
                   </Link>
                 </Button>
                 <Button asChild variant="outline" className="w-full justify-start">
-                  <Link href="/admin/reporte-graduaciones">
-                    <Graduation className="mr-2 h-4 w-4" />
-                    Reporte de Graduaciones
-                  </Link>
                 </Button>
                 <Button asChild variant="outline" className="w-full justify-start">
                   <Link href="/admin/plantillas-mailing">

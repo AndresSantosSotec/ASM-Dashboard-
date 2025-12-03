@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, useRef } from "react"
 import axios from "axios"
 import {
   Card,
@@ -40,6 +40,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Eye, Loader2, Pencil, Plus, RefreshCw, Trash2, Calendar } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { FiltrosCuotas, FiltrosKardex, FiltrosReconciliaciones } from "@/components/finanzas/reportes"
 import { ReconciliacionModal } from "./modals/ReconciliacionModal"
 import {
   getCuotasDashboard,
@@ -70,134 +71,29 @@ import {
   type ReconciliationRecordResumen,
   type EstudianteProgramaSelect,
 } from "@/services/mantenimientos"
+import {
+  buildRequestFilters,
+  createDefaultFilters,
+  formatCurrency,
+  formatDate,
+  formatDateTime,
+  estadoPagoLabels,
+  estadoPagoClasses,
+  conciliacionLabels,
+  conciliacionClasses,
+  cuotaEstadoLabels,
+  cuotaEstadoClasses,
+  PAGE_SIZE_OPTIONS,
+  getKardexReference,
+  getReconciliationReference,
+  createKardexEditFormState,
+  createReconciliationEditFormState,
+} from "@/components/finanzas/reportes/utils"
+import type { ReportFilters, TabKey, PaginationKey, PaginationState, PageSizeValue } from "@/components/finanzas/reportes"
 
-const currencyFormatter = new Intl.NumberFormat("es-GT", {
-  style: "currency",
-  currency: "GTQ",
-})
+type RowAction = "view" | "edit" | "delete"
 
-const formatCurrency = (value: number | null | undefined) => {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return currencyFormatter.format(0)
-  }
-
-  return currencyFormatter.format(value)
-}
-
-const formatDate = (value: string | null | undefined) => {
-  if (!value) {
-    return "-"
-  }
-
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) {
-    return value
-  }
-
-  return parsed.toLocaleDateString("es-GT")
-}
-
-const formatDateTime = (value: string | null | undefined) => {
-  if (!value) {
-    return "-"
-  }
-
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) {
-    return value
-  }
-
-  return parsed.toLocaleString("es-GT")
-}
-
-const estadoPagoLabels: Record<string, string> = {
-  aprobado: "Aprobado",
-  pendiente_revision: "Pendiente",
-  rechazado: "Rechazado",
-}
-
-const estadoPagoClasses: Record<string, string> = {
-  aprobado: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
-  pendiente_revision: "bg-amber-500/15 text-amber-700 border-amber-500/30",
-  rechazado: "bg-red-500/15 text-red-600 border-red-500/30",
-}
-
-const conciliacionLabels: Record<string, string> = {
-  conciliado: "Conciliado",
-  rechazado: "Rechazado",
-  pendiente: "Pendiente",
-  sin_coincidencia: "Sin coincidencia",
-  imported: "Importado",
-}
-
-const conciliacionClasses: Record<string, string> = {
-  conciliado: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
-  rechazado: "bg-red-500/15 text-red-600 border-red-500/30",
-  pendiente: "bg-amber-500/15 text-amber-700 border-amber-500/30",
-  sin_coincidencia: "bg-sky-500/15 text-sky-700 border-sky-500/30",
-  imported: "bg-slate-500/15 text-slate-700 border-slate-500/30",
-}
-
-const cuotaEstadoLabels: Record<string, string> = {
-  pagado: "Pagado",
-  pendiente: "Pendiente",
-  cancelado: "Cancelado",
-  vencido: "Vencido",
-}
-
-const cuotaEstadoClasses: Record<string, string> = {
-  pagado: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
-  pendiente: "bg-amber-500/15 text-amber-700 border-amber-500/30",
-  cancelado: "bg-sky-500/15 text-sky-700 border-sky-500/30",
-  vencido: "bg-red-500/15 text-red-600 border-red-500/30",
-}
-
-type LimitValue = number | "all"
-
-interface ReportFilters {
-  search: string
-  estadoPago: string
-  estadoReconciliacion: string
-  estadoCuota: string
-  limit: LimitValue
-}
-
-const BASE_FILTERS: ReportFilters = {
-  search: "",
-  estadoPago: "todos",
-  estadoReconciliacion: "todos",
-  estadoCuota: "todos",
-  limit: 100, // 🚀 OPTIMIZACIÓN: Límite por defecto de 100 en lugar de "all" para mejor rendimiento
-}
-
-type TabKey = "kardex" | "reconciliaciones" | "cuotas" | "generacion-masiva"
-type PaginationKey = "kardex" | "reconciliaciones" | "cuotasEstudiantes" | "cuotas"
-
-type PageSizeValue = number | "all"
-
-interface PaginationState {
-  page: number
-  pageSize: PageSizeValue
-}
-
-const PAGE_SIZE_OPTIONS: Array<{ label: string; value: PageSizeValue }> = [
-  { label: "10", value: 10 },
-  { label: "25", value: 25 },
-  { label: "50", value: 50 },
-  { label: "100", value: 100 },
-  { label: "Todos", value: "all" },
-]
-
-const LIMIT_OPTIONS: Array<{ label: string; value: LimitValue }> = [
-  { label: "Todos los registros", value: "all" },
-  { label: "25 registros", value: 25 },
-  { label: "50 registros", value: 50 },
-  { label: "100 registros", value: 100 },
-  { label: "200 registros", value: 200 },
-  { label: "500 registros", value: 500 },
-]
-
-
+const MAX_SERVER_PAGE_SIZE = 1000
 
 type KardexRow = KardexPagoResumen
 type ReconciliationRow = ReconciliationRecordResumen
@@ -235,72 +131,23 @@ interface ReconciliationEditFormState {
   reference: string
 }
 
-const createDefaultFilters = (): ReportFilters => ({
-  ...BASE_FILTERS,
-})
-
-type RowAction = "view" | "edit" | "delete"
-
 const TAB_LABELS: Record<"kardex" | "reconciliaciones", string> = {
   kardex: "Kardex",
   reconciliaciones: "Conciliaciones",
 }
 
-const buildRequestFilters = (filters: ReportFilters) => ({
-  search: filters.search || undefined,
-  estado_pago: filters.estadoPago !== "todos" ? filters.estadoPago : undefined,
-  estado_reconciliacion: filters.estadoReconciliacion !== "todos" ? filters.estadoReconciliacion : undefined,
-  estado_cuota: filters.estadoCuota !== "todos" ? filters.estadoCuota : undefined,
-  limit: filters.limit === "all" ? undefined : filters.limit,
-})
-
-const getKardexReference = (row: KardexRow) =>
-  row.numero_boleta ? `Boleta ${row.numero_boleta}` : `Pago #${row.id}`
-
-const getReconciliationReference = (row: ReconciliationRow) =>
-  row.reference ?? `Conciliación #${row.id}`
-
-const toDateInputValue = (value: string | null | undefined) => {
-  if (!value) {
-    return ""
-  }
-
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) {
-    return ""
-  }
-
-  const offset = parsed.getTimezoneOffset()
-  const local = new Date(parsed.getTime() - offset * 60_000)
-
-  return local.toISOString().slice(0, 10)
-}
-
-const createKardexEditFormState = (row: KardexRow): KardexEditFormState => ({
-  monto_pagado: row.monto_pagado != null ? String(row.monto_pagado) : "",
-  fecha_pago: toDateInputValue(row.fecha_pago),
-  fecha_recibo: toDateInputValue(row.fecha_recibo),
-  metodo_pago: row.metodo_pago ?? "",
-  estado_pago: row.estado_pago ?? "",
-  numero_boleta: row.numero_boleta ?? "",
-  banco: row.banco ?? "",
-  observaciones: row.observaciones ?? "",
-})
-
-const createReconciliationEditFormState = (
-  row: ReconciliationRow,
-): ReconciliationEditFormState => ({
-  amount: row.amount != null ? String(row.amount) : "",
-  date: toDateInputValue(row.date),
-  status: row.status ?? "",
-  bank: row.bank ?? "",
-  reference: row.reference ?? "",
-})
+const BULK_SITUACION_OPTIONS = [
+  { value: "todos", label: "Todas las situaciones" },
+  { value: "con-saldo", label: "Con saldo pendiente" },
+  { value: "sin-saldo", label: "Sin saldo pendiente" },
+  { value: "en-mora", label: "En mora" },
+]
 
 export const ReportesFinancieros = () => {
   const { toast } = useToast()
+  const [selectedModule, setSelectedModule] = useState<TabKey | null>(null) // 🆕 Selección inicial
   const [activeTab, setActiveTab] = useState<TabKey>("kardex")
-  const [tabsLoaded, setTabsLoaded] = useState<Set<TabKey>>(new Set(["kardex"])) // Cargar tab inicial
+  const [tabsLoaded, setTabsLoaded] = useState<Set<TabKey>>(new Set()) // 🆕 No cargar nada hasta seleccionar
   const [filtersByTab, setFiltersByTab] = useState<Record<TabKey, ReportFilters>>({
     kardex: createDefaultFilters(),
     reconciliaciones: createDefaultFilters(),
@@ -342,7 +189,17 @@ export const ReportesFinancieros = () => {
     reconciliaciones: { page: 1, pageSize: 10 },
     cuotasEstudiantes: { page: 1, pageSize: 10 },
     cuotas: { page: 1, pageSize: 10 },
+    bulkEstudiantes: { page: 1, pageSize: 10 },
   })
+  // 🆕 Estado para paginación del servidor (movido aquí para cumplir reglas de hooks)
+  const [serverPagination, setServerPagination] = useState<{
+    current_page: number
+    per_page: number
+    total: number
+    total_pages: number
+    from: number
+    to: number
+  } | null>(null)
 
   // Estado para indicar cuando se están refrescando datos después de operaciones CRUD
   const [isRefreshingData, setIsRefreshingData] = useState(false)
@@ -380,6 +237,8 @@ export const ReportesFinancieros = () => {
   const [bulkGenerationFilters, setBulkGenerationFilters] = useState({
     search: "",
     carnet: "",
+    programa: "todos",
+    situacion: "todos",
   })
   const [selectedStudents, setSelectedStudents] = useState<Set<number>>(new Set())
   const [bulkCuotaForm, setBulkCuotaForm] = useState({
@@ -393,6 +252,8 @@ export const ReportesFinancieros = () => {
   const [isGeneratingBulk, setIsGeneratingBulk] = useState(false)
   const [allStudentsData, setAllStudentsData] = useState<CuotasDashboardEstudiante[]>([])
   const [isLoadingAllStudents, setIsLoadingAllStudents] = useState(false)
+  const [bulkStudentsTimestamp, setBulkStudentsTimestamp] = useState<string | null>(null)
+  const [bulkStudentsTotal, setBulkStudentsTotal] = useState(0)
 
   // Estados para crear Kardex
   const [showCreateKardexModal, setShowCreateKardexModal] = useState(false)
@@ -631,10 +492,10 @@ export const ReportesFinancieros = () => {
     }
   }
 
-  // 🚀 LAZY LOADING: Solo cargar cuando el tab esté activo (OPTIMIZADO - Peticiones secuenciales)
+  // 🚀 OPTIMIZADO: Solo cargar cuando el módulo kardex esté seleccionado y activo
   useEffect(() => {
-    if (activeTab !== "kardex" && !tabsLoaded.has("kardex")) {
-      return // No cargar si el tab no está activo y nunca se ha cargado
+    if (selectedModule !== "kardex" || activeTab !== "kardex") {
+      return // Solo cargar cuando el módulo está seleccionado y el tab está activo
     }
 
     const controller = new AbortController()
@@ -643,33 +504,46 @@ export const ReportesFinancieros = () => {
       setLoadingStates((prev) => ({ ...prev, kardex: true }))
       setErrors((prev) => ({ ...prev, kardex: null }))
 
-      const params = buildRequestFilters(filtersByTab.kardex)
+      const { page, pageSize } = pagination.kardex
+      const perPage =
+        pageSize === "all"
+          ? Math.min(MAX_SERVER_PAGE_SIZE, serverPagination?.total ?? MAX_SERVER_PAGE_SIZE)
+          : pageSize
+      
+      const { limit: _kardexLimit, ...kardexFilters } = buildRequestFilters(filtersByTab.kardex)
+      const params = {
+        ...kardexFilters,
+        page,
+        per_page: perPage,
+      }
 
       try {
-        // ⚡ OPTIMIZACIÓN: Cargar datos secuencialmente para evitar "Too Many Attempts"
-        const dashboardResponse = await getKardexDashboard(params, { signal: controller.signal })
-        
-        if (controller.signal.aborted) {
-          return
+        // ⚡ Solo cargar dashboard si no está cargado o si cambian los filtros básicos
+        if (!tabsLoaded.has("kardex")) {
+          const dashboardResponse = await getKardexDashboard(params, { signal: controller.signal })
+          if (controller.signal.aborted) return
+          setKardexTotals(dashboardResponse.kardex)
         }
 
-        // Pequeño delay para no sobrecargar el servidor
-        await new Promise(resolve => setTimeout(resolve, 150))
-
+        // Cargar datos con paginación del servidor
         const dataResponse = await getKardexData(params, { signal: controller.signal })
+        if (controller.signal.aborted) return
 
-        if (controller.signal.aborted) {
-          return
-        }
-
-        setKardexTotals(dashboardResponse.kardex)
         setKardexRows(dataResponse.kardex)
         setKardexLastUpdated(dataResponse.timestamp)
-        setPagination((prev) => ({
-          ...prev,
-          kardex:
-            prev.kardex.page === 1 ? prev.kardex : { ...prev.kardex, page: 1 },
-        }))
+        
+        // Actualizar paginación desde el servidor si está disponible
+        if (dataResponse.pagination) {
+          setServerPagination(dataResponse.pagination)
+          setPagination((prev) => ({
+            ...prev,
+            kardex: {
+              page: dataResponse.pagination!.current_page,
+              pageSize: dataResponse.pagination!.per_page,
+            },
+          }))
+        }
+        
         setTabsLoaded((prev) => new Set(prev).add("kardex"))
       } catch (err) {
         if ((err as { code?: string })?.code === "ERR_CANCELED") {
@@ -695,12 +569,12 @@ export const ReportesFinancieros = () => {
     return () => {
       controller.abort()
     }
-  }, [filtersByTab.kardex, activeTab, tabsLoaded])
+  }, [filtersByTab.kardex, activeTab, pagination.kardex.page, pagination.kardex.pageSize, selectedModule])
 
-  // 🚀 LAZY LOADING: Solo cargar cuando el tab esté activo (OPTIMIZADO - Peticiones secuenciales)
+  // 🚀 OPTIMIZADO: Solo cargar cuando el módulo reconciliaciones esté seleccionado y activo
   useEffect(() => {
-    if (activeTab !== "reconciliaciones" && !tabsLoaded.has("reconciliaciones")) {
-      return // No cargar si el tab no está activo y nunca se ha cargado
+    if (selectedModule !== "reconciliaciones" || activeTab !== "reconciliaciones") {
+      return // Solo cargar cuando el módulo está seleccionado y el tab está activo
     }
 
     const controller = new AbortController()
@@ -762,12 +636,12 @@ export const ReportesFinancieros = () => {
     return () => {
       controller.abort()
     }
-  }, [filtersByTab.reconciliaciones, activeTab, tabsLoaded])
+  }, [filtersByTab.reconciliaciones, activeTab, selectedModule])
 
-  // 🚀 LAZY LOADING: Solo cargar cuando el tab esté activo (OPTIMIZADO - Peticiones secuenciales con delays)
+  // 🚀 OPTIMIZADO: Solo cargar cuando el módulo cuotas esté seleccionado y activo
   useEffect(() => {
-    if (activeTab !== "cuotas" && !tabsLoaded.has("cuotas")) {
-      return // No cargar si el tab no está activo y nunca se ha cargado
+    if (selectedModule !== "cuotas" || activeTab !== "cuotas") {
+      return // Solo cargar cuando el módulo está seleccionado y el tab está activo
     }
 
     const controller = new AbortController()
@@ -840,35 +714,60 @@ export const ReportesFinancieros = () => {
     return () => {
       controller.abort()
     }
-  }, [filtersByTab.cuotas, activeTab, tabsLoaded])
+  }, [filtersByTab.cuotas, activeTab, selectedModule])
+
+  // 🚀 Debouncing para evitar demasiadas peticiones
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleFiltersChange = (tab: TabKey, updates: Partial<ReportFilters>) => {
+    // Actualizar inmediatamente el estado visual
     setFormFiltersByTab((prev) => ({
       ...prev,
       [tab]: { ...prev[tab], ...updates },
     }))
+
+    // Para búsqueda, usar debounce; para otros filtros, aplicar inmediatamente
+    if ('search' in updates) {
+      // Limpiar timeout anterior
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current)
+      }
+      // Aplicar filtros después de 500ms sin cambios
+      debounceTimeoutRef.current = setTimeout(() => {
+        setFiltersByTab((prev) => ({
+          ...prev,
+          [tab]: { ...prev[tab], ...updates },
+        }))
+      }, 500)
+    } else {
+      // Aplicar inmediatamente para otros filtros
+      setFiltersByTab((prev) => ({
+        ...prev,
+        [tab]: { ...prev[tab], ...updates },
+      }))
+    }
   }
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>, tab: TabKey) => {
     event.preventDefault()
 
     setFiltersByTab((prev) => ({
       ...prev,
-      [activeTab]: { ...formFiltersByTab[activeTab] },
+      [tab]: { ...formFiltersByTab[tab] },
     }))
   }
 
-  const handleReset = () => {
+  const handleReset = (tab: TabKey) => {
     const defaults = createDefaultFilters()
 
     setFormFiltersByTab((prev) => ({
       ...prev,
-      [activeTab]: defaults,
+      [tab]: defaults,
     }))
 
     setFiltersByTab((prev) => ({
       ...prev,
-      [activeTab]: defaults,
+      [tab]: defaults,
     }))
   }
 
@@ -880,6 +779,8 @@ export const ReportesFinancieros = () => {
         return reconciliationRows.length
       case "cuotasEstudiantes":
         return cuotasDashboard?.estudiantes?.length ?? 0
+      case "bulkEstudiantes":
+        return filteredBulkStudents.length
       case "cuotas":
       default:
         return cuotasRows.length
@@ -888,6 +789,20 @@ export const ReportesFinancieros = () => {
 
   const handlePageChange = (key: PaginationKey, nextPage: number) => {
     setPagination((prev) => {
+      if (key === "kardex" && serverPagination) {
+        const totalPages = Math.max(1, serverPagination.total_pages)
+        const page = Math.min(Math.max(1, nextPage), totalPages)
+
+        if (page === prev[key].page) {
+          return prev
+        }
+
+        return {
+          ...prev,
+          [key]: { ...prev[key], page },
+        }
+      }
+
       const { pageSize } = prev[key]
       const totalItems = getTotalItems(key)
       let totalPages = 1
@@ -921,6 +836,10 @@ export const ReportesFinancieros = () => {
 
     if (key === "reconciliaciones") {
       return loadingStates.reconciliaciones
+    }
+
+    if (key === "bulkEstudiantes") {
+      return loadingStates["generacion-masiva"] || isLoadingAllStudents
     }
 
     return loadingStates.cuotas
@@ -1399,22 +1318,65 @@ export const ReportesFinancieros = () => {
   }, [selectedCuota, toast, filtersByTab.cuotas, selectedEstudiante])
 
   // Handlers para generación masiva
-  const loadAllStudents = useCallback(async () => {
-    setIsLoadingAllStudents(true)
-    try {
-      const response = await getCuotasDashboard({ limit: 10000 })
-      setAllStudentsData(response.estudiantes || [])
-    } catch (error: any) {
-      console.error("Error loading all students:", error)
-      toast({
-        title: "Error",
-        description: "No se pudieron cargar los estudiantes",
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoadingAllStudents(false)
-    }
-  }, [toast])
+  const loadAllStudents = useCallback(
+    async (filters: ReportFilters, options?: { signal?: AbortSignal }) => {
+      const isAborted = () => options?.signal?.aborted ?? false
+
+      setIsLoadingAllStudents(true)
+      setLoadingStates((prev) => ({ ...prev, "generacion-masiva": true }))
+      setErrors((prev) => ({ ...prev, "generacion-masiva": null }))
+
+      try {
+        const params = buildRequestFilters(filters)
+        const response = await getCuotasDashboard(
+          params,
+          options?.signal ? { signal: options.signal } : undefined,
+        )
+
+        if (isAborted()) {
+          return
+        }
+
+        setAllStudentsData(response.estudiantes || [])
+        setBulkStudentsTimestamp(response.timestamp ?? null)
+        const totalFromResponse =
+          response.pagination?.total ??
+          response.summary?.estudiantes_activos ??
+          response.estudiantes?.length ??
+          0
+        setBulkStudentsTotal(totalFromResponse)
+        setPagination((prev) => ({
+          ...prev,
+          bulkEstudiantes: { ...prev.bulkEstudiantes, page: 1 },
+        }))
+        setTabsLoaded((prev) => new Set(prev).add("generacion-masiva"))
+      } catch (error: any) {
+        if (isAborted()) {
+          return
+        }
+
+        console.error("Error loading all students:", error)
+        const message = axios.isAxiosError(error)
+          ? error.response?.data?.message ?? error.message ?? "No se pudieron cargar los estudiantes"
+          : (error as Error).message ?? "No se pudieron cargar los estudiantes"
+
+        setErrors((prev) => ({ ...prev, "generacion-masiva": message }))
+        toast({
+          title: "Error",
+          description: message,
+          variant: "destructive",
+        })
+      } finally {
+        if (isAborted()) {
+          return
+        }
+
+        setIsLoadingAllStudents(false)
+        setLoadingStates((prev) => ({ ...prev, "generacion-masiva": false }))
+      }
+    },
+    [toast],
+  )
 
   const toggleStudentSelection = useCallback((estudianteId: number) => {
     setSelectedStudents(prev => {
@@ -1514,7 +1476,7 @@ export const ReportesFinancieros = () => {
 
       // Limpiar selección y recargar datos
       setSelectedStudents(new Set())
-      await loadAllStudents()
+      await loadAllStudents(filtersByTab["generacion-masiva"])
 
     } catch (error: any) {
       console.error("Error generating bulk cuotas:", error)
@@ -1526,35 +1488,83 @@ export const ReportesFinancieros = () => {
     } finally {
       setIsGeneratingBulk(false)
     }
-  }, [selectedStudents, allStudentsData, bulkCuotaForm, toast, loadAllStudents])
+  }, [selectedStudents, allStudentsData, bulkCuotaForm, toast, loadAllStudents, filtersByTab["generacion-masiva"]])
 
   // Cargar todos los estudiantes cuando se activa el tab de generación masiva
   useEffect(() => {
-    if (activeTab === "generacion-masiva" && allStudentsData.length === 0) {
-      loadAllStudents()
+    if (selectedModule !== "cuotas" || activeTab !== "generacion-masiva") {
+      return
     }
-  }, [activeTab, allStudentsData.length, loadAllStudents])
+
+    const controller = new AbortController()
+
+    loadAllStudents(filtersByTab["generacion-masiva"], { signal: controller.signal })
+
+    return () => {
+      controller.abort()
+    }
+  }, [selectedModule, activeTab, filtersByTab["generacion-masiva"], loadAllStudents])
 
   const estudiantesResumen = useMemo(() => cuotasDashboard?.summary ?? null, [cuotasDashboard])
   const estudiantes = useMemo(() => cuotasDashboard?.estudiantes ?? [], [cuotasDashboard])
 
+  const bulkProgramOptions = useMemo(() => {
+    const programs = new Set<string>()
+    allStudentsData.forEach((estudiante) => {
+      if (estudiante.programa?.nombre) {
+        programs.add(estudiante.programa.nombre)
+      }
+    })
+    return Array.from(programs).sort((a, b) => a.localeCompare(b))
+  }, [allStudentsData])
+
   // Filtrar estudiantes para generación masiva
   const filteredBulkStudents = useMemo(() => {
-    return allStudentsData.filter(estudiante => {
-      const searchLower = bulkGenerationFilters.search.toLowerCase()
-      const carnetLower = bulkGenerationFilters.carnet.toLowerCase()
-      
-      const matchesSearch = !searchLower || 
+    const searchLower = bulkGenerationFilters.search.trim().toLowerCase()
+    const carnetLower = bulkGenerationFilters.carnet.trim().toLowerCase()
+    const selectedPrograma = bulkGenerationFilters.programa
+    const situacion = bulkGenerationFilters.situacion
+
+    return allStudentsData.filter((estudiante) => {
+      const matchesSearch =
+        !searchLower ||
         estudiante.prospecto?.nombre?.toLowerCase().includes(searchLower)
-        // estudiante.prospecto?.apellido_paterno?.toLowerCase().includes(searchLower) ||
-        // estudiante.prospecto?.apellido_materno?.toLowerCase().includes(searchLower)
-      
-      const matchesCarnet = !carnetLower || 
+
+      const matchesCarnet =
+        !carnetLower ||
         (estudiante.prospecto as any)?.carnet?.toLowerCase().includes(carnetLower)
-      
-      return matchesSearch && matchesCarnet
+
+      const matchesPrograma =
+        selectedPrograma === "todos" || estudiante.programa?.nombre === selectedPrograma
+
+      const saldoPendiente = Number.parseFloat(String(estudiante.saldo_pendiente ?? 0)) || 0
+      const estaEnMora = Array.isArray(estudiante.cuotas)
+        ? estudiante.cuotas.some((cuota) => cuota.estado === "vencido")
+        : false
+
+      let matchesSituacion = true
+      if (situacion === "con-saldo") {
+        matchesSituacion = saldoPendiente > 0
+      } else if (situacion === "sin-saldo") {
+        matchesSituacion = saldoPendiente <= 0
+      } else if (situacion === "en-mora") {
+        matchesSituacion = estaEnMora
+      }
+
+      return matchesSearch && matchesCarnet && matchesPrograma && matchesSituacion
     })
   }, [allStudentsData, bulkGenerationFilters])
+
+  const paginatedBulkStudents = useMemo(() => {
+    const { page, pageSize } = pagination.bulkEstudiantes
+    if (pageSize === "all") {
+      return filteredBulkStudents
+    }
+
+    const size = pageSize > 0 ? pageSize : 10
+    const start = (page - 1) * size
+    return filteredBulkStudents.slice(start, start + size)
+  }, [filteredBulkStudents, pagination.bulkEstudiantes])
 
   // Handlers para crear Kardex
   const handleCreateKardex = useCallback(() => {
@@ -1662,12 +1672,8 @@ export const ReportesFinancieros = () => {
     setShowCreateReconciliacionModal(true)
   }, [])
 
-  const paginatedKardexRows = useMemo(() => {
-    const { page, pageSize } = pagination.kardex
-    if (pageSize === "all") return kardexRows
-    const start = (page - 1) * pageSize
-    return kardexRows.slice(start, start + pageSize)
-  }, [kardexRows, pagination.kardex])
+  // Ya no necesitamos paginación del frontend para kardex, usamos la del servidor
+  const paginatedKardexRows = kardexRows
 
   const paginatedReconciliationRows = useMemo(() => {
     const { page, pageSize } = pagination.reconciliaciones
@@ -1691,6 +1697,10 @@ export const ReportesFinancieros = () => {
   }, [estudiantes, pagination.cuotasEstudiantes])
 
   useEffect(() => {
+    if (serverPagination) {
+      return
+    }
+
     setPagination((prev) => {
       const { page, pageSize } = prev.kardex
       const totalPages =
@@ -1706,7 +1716,7 @@ export const ReportesFinancieros = () => {
         kardex: { ...prev.kardex, page: totalPages },
       }
     })
-  }, [kardexRows])
+  }, [kardexRows, serverPagination])
 
   useEffect(() => {
     setPagination((prev) => {
@@ -1761,6 +1771,31 @@ export const ReportesFinancieros = () => {
       }
     })
   }, [estudiantes])
+
+  useEffect(() => {
+    setPagination((prev) => {
+      const { page, pageSize } = prev.bulkEstudiantes
+
+      if (pageSize === "all") {
+        return page === 1
+          ? prev
+          : {
+              ...prev,
+              bulkEstudiantes: { ...prev.bulkEstudiantes, page: 1 },
+            }
+      }
+
+      const totalPages = Math.max(1, Math.ceil(filteredBulkStudents.length / pageSize))
+      if (page <= totalPages) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        bulkEstudiantes: { ...prev.bulkEstudiantes, page: totalPages },
+      }
+    })
+  }, [filteredBulkStudents])
 
   const activeFormFilters = formFiltersByTab[activeTab]
   const activeLoading = loadingStates[activeTab]
@@ -1833,118 +1868,85 @@ export const ReportesFinancieros = () => {
     )
   }
 
+  // 🆕 Pantalla de selección inicial
+  if (!selectedModule) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Mantenimientos financieros</CardTitle>
+            <CardDescription>Selecciona el módulo que deseas consultar</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-3">
+              <Card 
+                className="cursor-pointer hover:bg-accent transition-colors"
+                onClick={() => {
+                  setSelectedModule("kardex")
+                  setActiveTab("kardex")
+                }}
+              >
+                <CardHeader>
+                  <CardTitle className="text-lg">Kardex</CardTitle>
+                  <CardDescription>Movimientos de pago y registros del kardex</CardDescription>
+                </CardHeader>
+              </Card>
+              <Card 
+                className="cursor-pointer hover:bg-accent transition-colors"
+                onClick={() => {
+                  setSelectedModule("reconciliaciones")
+                  setActiveTab("reconciliaciones")
+                }}
+              >
+                <CardHeader>
+                  <CardTitle className="text-lg">Conciliaciones</CardTitle>
+                  <CardDescription>Reconciliaciones bancarias y registros importados</CardDescription>
+                </CardHeader>
+              </Card>
+              <Card 
+                className="cursor-pointer hover:bg-accent transition-colors"
+                onClick={() => {
+                  setSelectedModule("cuotas")
+                  setActiveTab("cuotas")
+                }}
+              >
+                <CardHeader>
+                  <CardTitle className="text-lg">Cuotas</CardTitle>
+                  <CardDescription>Seguimiento de cuotas y planes de pago</CardDescription>
+                </CardHeader>
+              </Card>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Reportes financieros</CardTitle>
-          <CardDescription>Consulta la información consolidada del kardex, conciliaciones bancarias y cuotas registradas.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div className="flex flex-1 flex-wrap gap-3">
-                <Input
-                  value={activeFormFilters.search}
-                  onChange={(event) =>
-                    handleFiltersChange(activeTab, { search: event.target.value })
-                  }
-                  placeholder="Buscar por estudiante, carnet, programa o referencia"
-                  className="w-full min-w-[220px] flex-1"
-                />
-                {activeTab === "kardex" ? (
-                  <Select
-                    value={activeFormFilters.estadoPago}
-                    onValueChange={(value) =>
-                      handleFiltersChange("kardex", { estadoPago: value })
-                    }
-                  >
-                    <SelectTrigger className="w-full min-w-[160px] sm:w-[180px]">
-                      <SelectValue placeholder="Estado de pago" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todos los pagos</SelectItem>
-                      <SelectItem value="aprobado">Aprobado</SelectItem>
-                      <SelectItem value="pendiente_revision">Pendiente</SelectItem>
-                      <SelectItem value="rechazado">Rechazado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : null}
-                {activeTab !== "cuotas" ? (
-                  <Select
-                    value={activeFormFilters.estadoReconciliacion}
-                    onValueChange={(value) =>
-                      handleFiltersChange(activeTab, {
-                        estadoReconciliacion: value,
-                      })
-                    }
-                  >
-                    <SelectTrigger className="w-full min-w-[160px] sm:w-[180px]">
-                      <SelectValue placeholder="Estado conciliación" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todas las conciliaciones</SelectItem>
-                      <SelectItem value="conciliado">Conciliado</SelectItem>
-                      <SelectItem value="pendiente">Pendiente</SelectItem>
-                      <SelectItem value="rechazado">Rechazado</SelectItem>
-                      <SelectItem value="sin_coincidencia">Sin coincidencia</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : null}
-                {activeTab === "cuotas" ? (
-                  <Select
-                    value={activeFormFilters.estadoCuota}
-                    onValueChange={(value) =>
-                      handleFiltersChange("cuotas", { estadoCuota: value })
-                    }
-                  >
-                    <SelectTrigger className="w-full min-w-[160px] sm:w-[180px]">
-                      <SelectValue placeholder="Estado de cuota" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todas las cuotas</SelectItem>
-                      <SelectItem value="pendiente">Pendiente</SelectItem>
-                      <SelectItem value="pagado">Pagado</SelectItem>
-                      <SelectItem value="cancelado">Cancelado</SelectItem>
-                      <SelectItem value="vencido">Vencido</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : null}
-                <Select
-                  value={String(activeFormFilters.limit)}
-                  onValueChange={(value) => {
-                    const limitValue = value === "all" ? "all" : Number(value)
-                    handleFiltersChange(activeTab, { limit: limitValue as LimitValue })
-                  }}
-                >
-                  <SelectTrigger className="w-full min-w-[120px] sm:w-[140px]">
-                    <SelectValue placeholder="Límite" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LIMIT_OPTIONS.map(({ value, label }) => (
-                      <SelectItem key={value} value={String(value)}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={handleReset} disabled={activeLoading}>
-                  Restablecer
-                </Button>
-                <Button type="submit" disabled={activeLoading}>
-                  {activeLoading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                  )}
-                  Aplicar filtros
-                </Button>
-              </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Reportes financieros</CardTitle>
+              <CardDescription>
+                {selectedModule === "kardex" && "Movimientos del kardex"}
+                {selectedModule === "reconciliaciones" && "Conciliaciones bancarias"}
+                {selectedModule === "cuotas" && "Seguimiento de cuotas"}
+              </CardDescription>
             </div>
-          </form>
-        </CardContent>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setSelectedModule(null)
+                setActiveTab("kardex")
+                setTabsLoaded(new Set())
+              }}
+            >
+              Cambiar módulo
+            </Button>
+          </div>
+        </CardHeader>
       </Card>
 
       {activeError ? (
@@ -2050,8 +2052,7 @@ export const ReportesFinancieros = () => {
       <Tabs value={activeTab} onValueChange={(value) => {
         const newTab = value as TabKey
         setActiveTab(newTab)
-        // Marcar el tab como cargado cuando se activa para que se ejecute el useEffect
-        setTabsLoaded((prev) => new Set(prev).add(newTab))
+        // El useEffect ya verifica selectedModule, no necesitamos tabsLoaded
       }}>
         <TabsList className="w-full overflow-x-auto">
           <TabsTrigger value="kardex" className="flex-1">Kardex</TabsTrigger>
@@ -2076,7 +2077,15 @@ export const ReportesFinancieros = () => {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
+            <CardContent className="space-y-4">
+              <FiltrosKardex
+                filters={formFiltersByTab.kardex}
+                loading={loadingStates.kardex}
+                onFiltersChange={(updates) => handleFiltersChange("kardex", updates)}
+                onSubmit={(event) => handleSubmit(event, "kardex")}
+                onReset={() => handleReset("kardex")}
+              />
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -2084,6 +2093,7 @@ export const ReportesFinancieros = () => {
                     <TableHead>Programa</TableHead>
                     <TableHead>Monto</TableHead>
                     <TableHead>Fechas</TableHead>
+                    <TableHead>Mes/Año</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Método</TableHead>
                     <TableHead>Conciliaciones</TableHead>
@@ -2094,11 +2104,11 @@ export const ReportesFinancieros = () => {
                   {kardexRows.length === 0 ? (
                     renderTablePlaceholder(
                       "No se encontraron movimientos para los filtros seleccionados",
-                      8,
+                      9,
                       loadingStates.kardex,
                     )
                   ) : (
-                    paginatedKardexRows.map((row, index) => {
+                    kardexRows.map((row, index) => {
                       const estado = row.estado_pago ?? ""
                       const estadoClase = estadoPagoClasses[estado] ?? "bg-slate-500/15 text-slate-700 border-slate-500/30"
                       const estadoLabel = estadoPagoLabels[estado] ?? (estado ? estado.replace(/_/g, " ") : "Sin estado")
@@ -2120,6 +2130,19 @@ export const ReportesFinancieros = () => {
                           <TableCell>
                             <div>{formatDate(row.fecha_pago)}</div>
                             <div className="text-xs text-muted-foreground">Recibo: {formatDate(row.fecha_recibo)}</div>
+                          </TableCell>
+                          <TableCell>
+                            {row.mes_pago && row.anio_pago ? (
+                              <div className="text-sm font-medium">
+                                {row.mes_pago} {row.anio_pago}
+                              </div>
+                            ) : row.mes && row.ano ? (
+                              <div className="text-sm">
+                                {new Date(2000, row.mes - 1).toLocaleString('es-GT', { month: 'long' })} {row.ano}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">-</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={cn("capitalize", estadoClase)}>
@@ -2184,7 +2207,60 @@ export const ReportesFinancieros = () => {
                   )}
                 </TableBody>
               </Table>
-              {renderPaginationControls("kardex", kardexRows.length)}
+              {serverPagination ? (
+                <div className="flex flex-col gap-3 px-2 py-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                    <span className="text-sm text-muted-foreground">
+                      Mostrando {serverPagination.from} - {serverPagination.to} de {serverPagination.total} registros
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Filas por página:</span>
+                      <Select
+                        value={String(pagination.kardex.pageSize)}
+                        onValueChange={(value) =>
+                          handlePageSizeChange("kardex", value === "all" ? "all" : Number(value))
+                        }
+                        disabled={loadingStates.kardex}
+                      >
+                        <SelectTrigger className="h-8 w-[130px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAGE_SIZE_OPTIONS.map(({ label, value }) => (
+                            <SelectItem key={value} value={String(value)}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">
+                      Página {serverPagination.current_page} de {serverPagination.total_pages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange("kardex", serverPagination.current_page - 1)}
+                      disabled={serverPagination.current_page <= 1 || loadingStates.kardex}
+                    >
+                      Anterior
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange("kardex", serverPagination.current_page + 1)}
+                      disabled={serverPagination.current_page >= serverPagination.total_pages || loadingStates.kardex}
+                    >
+                      Siguiente
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                renderPaginationControls("kardex", kardexRows.length)
+              )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -2209,13 +2285,22 @@ export const ReportesFinancieros = () => {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
+            <CardContent className="space-y-4">
+              <FiltrosReconciliaciones
+                filters={formFiltersByTab.reconciliaciones}
+                loading={loadingStates.reconciliaciones}
+                onFiltersChange={(updates) => handleFiltersChange("reconciliaciones", updates)}
+                onSubmit={(event) => handleSubmit(event, "reconciliaciones")}
+                onReset={() => handleReset("reconciliaciones")}
+              />
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Referencia</TableHead>
                     <TableHead>Monto</TableHead>
                     <TableHead>Fecha</TableHead>
+                    <TableHead>Mes/Año</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Prospecto</TableHead>
                     <TableHead>Kardex vinculado</TableHead>
@@ -2226,7 +2311,7 @@ export const ReportesFinancieros = () => {
                   {reconciliationRows.length === 0 ? (
                     renderTablePlaceholder(
                       "No se encontraron conciliaciones para los filtros seleccionados",
-                      7,
+                      8,
                       loadingStates.reconciliaciones,
                     )
                   ) : (
@@ -2243,6 +2328,19 @@ export const ReportesFinancieros = () => {
                           </TableCell>
                           <TableCell>{formatCurrency(row.amount)}</TableCell>
                           <TableCell>{formatDate(row.date)}</TableCell>
+                          <TableCell>
+                            {row.mes_pago && row.anio_pago ? (
+                              <div className="text-sm font-medium">
+                                {row.mes_pago} {row.anio_pago}
+                              </div>
+                            ) : row.mes && row.ano ? (
+                              <div className="text-sm">
+                                {new Date(2000, row.mes - 1).toLocaleString('es-GT', { month: 'long' })} {row.ano}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={cn("capitalize", estadoClase)}>
                               {estadoLabel}
@@ -2300,6 +2398,7 @@ export const ReportesFinancieros = () => {
                   )}
                 </TableBody>
               </Table>
+              </div>
               {renderPaginationControls("reconciliaciones", reconciliationRows.length)}
             </CardContent>
           </Card>
@@ -2329,73 +2428,82 @@ export const ReportesFinancieros = () => {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Estudiante</TableHead>
-                    <TableHead>Programa</TableHead>
-                    <TableHead>Saldo pendiente</TableHead>
-                    <TableHead>Cuotas pendientes</TableHead>
-                    <TableHead>Cuotas pagadas</TableHead>
-                    <TableHead>Próxima cuota</TableHead>
-                    <TableHead className="text-center">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {estudiantes.length === 0 ? (
-                    renderTablePlaceholder(
-                      "No se encontraron estudiantes con cuotas para los filtros seleccionados",
-                      7,
-                      loadingStates.cuotas,
-                    )
-                  ) : (
-                    paginatedCuotasEstudiantes.map(
-                      (estudiante: CuotasDashboardEstudiante, index) => (
-                        <TableRow
-                          key={
-                            estudiante.estudiante_programa_id ??
-                            estudiante.prospecto?.id ??
-                            `est-${index}`
-                          }
-                        >
-                          <TableCell className="min-w-[220px]">
-                            <div className="font-medium">{estudiante.prospecto?.nombre ?? "Sin nombre"}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {estudiante.prospecto?.carnet ?? "-"}
-                              {estudiante.prospecto?.telefono ? ` · ${estudiante.prospecto.telefono}` : ""}
-                            </div>
-                          </TableCell>
-                          <TableCell className="min-w-[160px]">{estudiante.programa?.nombre ?? "-"}</TableCell>
-                          <TableCell>{formatCurrency(estudiante.saldo_pendiente)}</TableCell>
-                          <TableCell>{estudiante.cuotas_pendientes}</TableCell>
-                          <TableCell>{estudiante.cuotas_pagadas}</TableCell>
-                          <TableCell>
-                            {estudiante.proxima_cuota ? (
-                              <div className="text-xs">
-                                <div className="font-medium">Cuota #{estudiante.proxima_cuota.numero_cuota}</div>
-                                <div>{formatDate(estudiante.proxima_cuota.fecha_vencimiento)}</div>
-                                <div className="text-muted-foreground">{formatCurrency(estudiante.proxima_cuota.monto)}</div>
+            <CardContent className="space-y-4">
+              <FiltrosCuotas
+                filters={formFiltersByTab.cuotas}
+                loading={loadingStates.cuotas}
+                onFiltersChange={(updates) => handleFiltersChange("cuotas", updates)}
+                onSubmit={(event) => handleSubmit(event, "cuotas")}
+                onReset={() => handleReset("cuotas")}
+              />
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Estudiante</TableHead>
+                      <TableHead>Programa</TableHead>
+                      <TableHead>Saldo pendiente</TableHead>
+                      <TableHead>Cuotas pendientes</TableHead>
+                      <TableHead>Cuotas pagadas</TableHead>
+                      <TableHead>Próxima cuota</TableHead>
+                      <TableHead className="text-center">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {estudiantes.length === 0 ? (
+                      renderTablePlaceholder(
+                        "No se encontraron estudiantes con cuotas para los filtros seleccionados",
+                        7,
+                        loadingStates.cuotas,
+                      )
+                    ) : (
+                      paginatedCuotasEstudiantes.map(
+                        (estudiante: CuotasDashboardEstudiante, index) => (
+                          <TableRow
+                            key={
+                              estudiante.estudiante_programa_id ??
+                              estudiante.prospecto?.id ??
+                              `est-${index}`
+                            }
+                          >
+                            <TableCell className="min-w-[220px]">
+                              <div className="font-medium">{estudiante.prospecto?.nombre ?? "Sin nombre"}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {estudiante.prospecto?.carnet ?? "-"}
+                                {estudiante.prospecto?.telefono ? ` · ${estudiante.prospecto.telefono}` : ""}
                               </div>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">Sin próximas cuotas</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleViewCuotas(estudiante)}
-                            >
-                              Ver Cuotas
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ),
-                    )
-                  )}
-                </TableBody>
-              </Table>
+                            </TableCell>
+                            <TableCell className="min-w-[160px]">{estudiante.programa?.nombre ?? "-"}</TableCell>
+                            <TableCell>{formatCurrency(estudiante.saldo_pendiente)}</TableCell>
+                            <TableCell>{estudiante.cuotas_pendientes}</TableCell>
+                            <TableCell>{estudiante.cuotas_pagadas}</TableCell>
+                            <TableCell>
+                              {estudiante.proxima_cuota ? (
+                                <div className="text-xs">
+                                  <div className="font-medium">Cuota #{estudiante.proxima_cuota.numero_cuota}</div>
+                                  <div>{formatDate(estudiante.proxima_cuota.fecha_vencimiento)}</div>
+                                  <div className="text-muted-foreground">{formatCurrency(estudiante.proxima_cuota.monto)}</div>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Sin próximas cuotas</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleViewCuotas(estudiante)}
+                              >
+                                Ver Cuotas
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ),
+                      )
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
               {renderPaginationControls("cuotasEstudiantes", estudiantes.length)}
             </CardContent>
           </Card>
@@ -2413,6 +2521,25 @@ export const ReportesFinancieros = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              <FiltrosCuotas
+                filters={formFiltersByTab["generacion-masiva"]}
+                loading={loadingStates["generacion-masiva"] || isLoadingAllStudents}
+                onFiltersChange={(updates) => handleFiltersChange("generacion-masiva", updates)}
+                onSubmit={(event) => handleSubmit(event, "generacion-masiva")}
+                onReset={() => handleReset("generacion-masiva")}
+              />
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">
+                  {bulkStudentsTimestamp
+                    ? `Última carga: ${formatDateTime(bulkStudentsTimestamp)}`
+                    : "La lista se actualizará al aplicar filtros"}
+                </span>
+                <span className="font-medium">
+                  {isLoadingAllStudents
+                    ? "Cargando estudiantes filtrados..."
+                    : `${filteredBulkStudents.length.toLocaleString()} / ${(bulkStudentsTotal || allStudentsData.length).toLocaleString()} estudiantes visibles`}
+                </span>
+              </div>
               {/* Formulario de configuración */}
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-2">
@@ -2580,7 +2707,7 @@ export const ReportesFinancieros = () => {
                     {selectedStudents.size === filteredBulkStudents.length ? "Deseleccionar Todos" : "Seleccionar Todos"}
                   </Button>
                 </div>
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                   <div className="space-y-2">
                     <Label htmlFor="filter-nombre">Buscar por Nombre</Label>
                     <Input
@@ -2598,6 +2725,43 @@ export const ReportesFinancieros = () => {
                       value={bulkGenerationFilters.carnet}
                       onChange={(e) => setBulkGenerationFilters({ ...bulkGenerationFilters, carnet: e.target.value })}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="filter-programa">Programa</Label>
+                    <Select
+                      value={bulkGenerationFilters.programa}
+                      onValueChange={(value) => setBulkGenerationFilters({ ...bulkGenerationFilters, programa: value })}
+                    >
+                      <SelectTrigger id="filter-programa">
+                        <SelectValue placeholder="Programa" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos los programas</SelectItem>
+                        {bulkProgramOptions.map((programa) => (
+                          <SelectItem key={programa} value={programa}>
+                            {programa}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="filter-situacion">Situación</Label>
+                    <Select
+                      value={bulkGenerationFilters.situacion}
+                      onValueChange={(value) => setBulkGenerationFilters({ ...bulkGenerationFilters, situacion: value })}
+                    >
+                      <SelectTrigger id="filter-situacion">
+                        <SelectValue placeholder="Situación" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BULK_SITUACION_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -2628,7 +2792,7 @@ export const ReportesFinancieros = () => {
                       ) : filteredBulkStudents.length === 0 ? (
                         renderTablePlaceholder("No se encontraron estudiantes", 6)
                       ) : (
-                        filteredBulkStudents.map((estudiante) => (
+                        paginatedBulkStudents.map((estudiante) => (
                           <TableRow key={estudiante.estudiante_programa_id}>
                             <TableCell>
                               <Checkbox
@@ -2661,6 +2825,7 @@ export const ReportesFinancieros = () => {
                   </Table>
                 </div>
               </div>
+              {renderPaginationControls("bulkEstudiantes", filteredBulkStudents.length)}
             </CardContent>
           </Card>
         </TabsContent>
@@ -3171,11 +3336,13 @@ export const ReportesFinancieros = () => {
                         <SelectValue placeholder="Estado" />
                       </SelectTrigger>
                       <SelectContent>
-                        {Object.entries(estadoPagoLabels).map(([value, label]) => (
-                          <SelectItem key={value} value={value}>
-                            {label}
-                          </SelectItem>
-                        ))}
+                        {Object.entries(estadoPagoLabels)
+                          .filter(([value]) => value && value.trim() !== '')
+                          .map(([value, label]) => (
+                            <SelectItem key={value} value={value}>
+                              {label}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -3386,11 +3553,13 @@ export const ReportesFinancieros = () => {
                         <SelectValue placeholder="Estado" />
                       </SelectTrigger>
                       <SelectContent>
-                        {Object.entries(conciliacionLabels).map(([value, label]) => (
-                          <SelectItem key={value} value={value}>
-                            {label}
-                          </SelectItem>
-                        ))}
+                        {Object.entries(conciliacionLabels)
+                          .filter(([value]) => value && value.trim() !== '')
+                          .map(([value, label]) => (
+                            <SelectItem key={value} value={value}>
+                              {label}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
