@@ -5,11 +5,21 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { User, Settings, Download } from "lucide-react";
+import { User, Settings, Download, GraduationCap, AlertTriangle } from "lucide-react";
 import { exportarYDescargarCursos } from "@/services/courses";
 import { useToast } from "@/components/ui/use-toast";
 import { useState, useEffect, useRef } from "react";
 import { fetchAvailablePensumForStudent } from "@/services/courses";
+
+// Interfaz para el progreso de carrera desde Moodle
+interface CareerProgress {
+  cursos_aprobados: number;
+  total_cursos_carrera: number;
+  cursos_faltantes: number;
+  en_area_cierre: boolean;
+  porcentaje_avance: number;
+  programa?: string;
+}
 
 interface StudentCardProps {
   student: Student
@@ -30,6 +40,7 @@ export function StudentCard({
   const [downloadState, setDownloadState] = useState<'idle' | 'processing' | 'downloading'>('idle');
   const [pendingCoursesCount, setPendingCoursesCount] = useState<number | null>(null);
   const [pensumProgress, setPensumProgress] = useState<{ completed: number; total: number } | null>(null);
+  const [careerProgress, setCareerProgress] = useState<CareerProgress | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -91,12 +102,42 @@ export function StudentCard({
         } catch (progressError) {
           console.warn('[StudentCard] Could not fetch pensum progress:', progressError);
         }
+
+        // Obtener progreso de carrera desde Moodle (cursos aprobados con nota >= 71)
+        try {
+          const careerResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/completed-courses/career-progress/${student.carnet}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Accept': 'application/json',
+              }
+            }
+          );
+          
+          if (careerResponse.ok) {
+            const careerData = await careerResponse.json();
+            if (careerData.success) {
+              // Los datos vienen en careerData.progreso y careerData.estado
+              setCareerProgress({
+                cursos_aprobados: careerData.progreso?.cursos_aprobados ?? 0,
+                total_cursos_carrera: careerData.progreso?.total_cursos_carrera ?? 0,
+                cursos_faltantes: careerData.progreso?.cursos_faltantes ?? 0,
+                en_area_cierre: careerData.estado?.en_area_cierre ?? false,
+                porcentaje_avance: careerData.progreso?.porcentaje_avance ?? 0,
+                programa: careerData.programa?.nombre ?? ''
+              });
+            }
+          }
+        } catch (careerError) {
+          console.warn('[StudentCard] Could not fetch career progress:', careerError);
+        }
       } catch (error) {
         console.error('[StudentCard] Error fetching pensum:', error);
         setPendingCoursesCount(null);
       }
     })();
-  }, [isVisible, student.programId, student.id]);
+  }, [isVisible, student.programId, student.id, student.carnet]);
 
   const handleExportCourses = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -150,13 +191,29 @@ export function StudentCard({
     }
   };
 
+  // Determinar si el card debe mostrar alerta (área de cierre: le faltan 4 cursos o menos)
+  const isInClosingArea = careerProgress?.en_area_cierre === true;
+
   return (
-    <Card ref={cardRef} className="hover:shadow-md transition-shadow">
+    <Card 
+      ref={cardRef} 
+      className={`hover:shadow-md transition-shadow ${
+        isInClosingArea 
+          ? 'border-2 border-amber-500 bg-amber-50 ring-2 ring-amber-200' 
+          : ''
+      }`}
+    >
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center space-x-2">
-            <User className="h-5 w-5 text-blue-600" />
+            <User className={`h-5 w-5 ${isInClosingArea ? 'text-amber-600' : 'text-blue-600'}`} />
             <h3 className="font-semibold text-lg">{student.name}</h3>
+            {isInClosingArea && (
+              <Badge variant="destructive" className="bg-amber-500 hover:bg-amber-600 animate-pulse">
+                <AlertTriangle className="h-3 w-3 mr-1" />
+                Área de Cierre
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline">{student.carnet}</Badge>
@@ -186,6 +243,49 @@ export function StudentCard({
               )}
             </span>
           </div>
+          
+          {/* Progreso de carrera desde Moodle */}
+          {careerProgress && careerProgress.total_cursos_carrera > 0 && (
+            <div className={`mt-2 p-2 rounded-lg ${isInClosingArea ? 'bg-amber-100 border border-amber-300' : 'bg-gray-50'}`}>
+              <div className="flex items-center gap-2 mb-1">
+                <GraduationCap className={`h-4 w-4 ${isInClosingArea ? 'text-amber-600' : 'text-green-600'}`} />
+                <span className="font-medium text-xs uppercase tracking-wide">
+                  Progreso en Moodle
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs">
+                  <strong className={isInClosingArea ? 'text-amber-700' : 'text-green-700'}>
+                    {careerProgress.cursos_aprobados}
+                  </strong> de {careerProgress.total_cursos_carrera} cursos aprobados
+                </span>
+                <Badge 
+                  variant="outline" 
+                  className={`text-xs ${
+                    isInClosingArea 
+                      ? 'bg-amber-200 text-amber-800 border-amber-400' 
+                      : 'bg-green-50 text-green-700 border-green-300'
+                  }`}
+                >
+                  {careerProgress.porcentaje_avance}%
+                </Badge>
+              </div>
+              {/* Barra de progreso */}
+              <div className="mt-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full transition-all duration-500 ${
+                    isInClosingArea ? 'bg-amber-500' : 'bg-green-500'
+                  }`}
+                  style={{ width: `${Math.min(careerProgress.porcentaje_avance, 100)}%` }}
+                />
+              </div>
+              {isInClosingArea && (
+                <p className="text-xs text-amber-700 mt-1 font-medium">
+                  ⚠️ Faltan solo {careerProgress.cursos_faltantes} curso{careerProgress.cursos_faltantes !== 1 ? 's' : ''} para completar
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2 mt-4">

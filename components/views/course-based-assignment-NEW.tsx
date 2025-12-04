@@ -11,7 +11,7 @@ import {Accordion,AccordionContent,AccordionItem,AccordionTrigger,} from "@/comp
 import {Dialog,DialogContent,DialogDescription,DialogFooter,DialogHeader,DialogTitle,} from "@/components/ui/dialog";
 import {Alert,AlertDescription,AlertTitle,} from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import {Loader2,Search,Filter,CheckCircle2,X,Users,BookOpen,UserCheck,AlertCircle,Calendar,Award,ChevronLeft,ChevronRight,} from "lucide-react";
+import {Loader2,Search,Filter,CheckCircle2,X,Users,BookOpen,UserCheck,AlertCircle,Calendar,Award,ChevronLeft,ChevronRight,AlertTriangle,GraduationCap,} from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchMoodleCursosHistoricos, fetchMoodleEstudiantesMultiplesCursos, type MoodleCursoHistorico,} from "@/services/moodleHistoricoCursos";
 import {
@@ -24,6 +24,16 @@ import fetchApprovedMoodleCourses, { MoodleQueryCourse } from "@/services/moodle
 
 // 🎯 Configuración de paginación
 const ITEMS_PER_PAGE = 20;
+
+// Interfaz para el progreso de carrera desde Moodle
+interface CareerProgress {
+  cursos_aprobados: number;
+  total_cursos_carrera: number;
+  cursos_faltantes: number;
+  en_area_cierre: boolean;
+  porcentaje_avance: number;
+  programa?: string;
+}
 
 interface CourseBasedAssignmentProps {
   students: any[]; // No se usa en la nueva lógica
@@ -85,15 +95,18 @@ const StudentAccordionItem = memo(({
   currentMonthCourses,
   onLoadCourses,
   onToggleCourseSelection,
+  careerProgress,
 }: {
   student: StudentWithInternalData;
   currentMonthCourses: Course[];
   onLoadCourses: (carnet: string) => void;
   onToggleCourseSelection: (carnet: string, courseId: string) => void;
+  careerProgress?: CareerProgress;
 }) => {
   const hasInternal = !!student.internalStudent;
   const selectedCount = student.selectedCourseIds.length;
   const totalCursosLlevados = student.totalCursosLlevados || 0;
+  const isInClosingArea = careerProgress?.en_area_cierre === true;
 
   // Calcular cursos completados
   const systemCompleted = currentMonthCourses.filter((course) =>
@@ -136,11 +149,15 @@ const StudentAccordionItem = memo(({
       key={student.carnet}
       value={student.carnet}
       className={`border rounded-lg ${
-        hasInternal ? "border-green-300 bg-green-50" : "border-orange-200 bg-orange-50"
+        isInClosingArea 
+          ? "border-2 border-amber-400 bg-amber-50 ring-2 ring-amber-200" 
+          : hasInternal 
+            ? "border-green-300 bg-green-50" 
+            : "border-orange-200 bg-orange-50"
       }`}
     >
       <AccordionTrigger 
-        className="px-3 py-2 hover:no-underline"
+        className={`px-3 py-2 hover:no-underline ${isInClosingArea ? 'hover:bg-amber-100' : ''}`}
         onClick={() => {
           if (hasInternal && !student.coursesLoaded) {
             onLoadCourses(student.carnet);
@@ -149,16 +166,33 @@ const StudentAccordionItem = memo(({
       >
         <div className="flex items-center justify-between w-full pr-3">
           <div className="flex items-center space-x-2">
-            {hasInternal ? (
+            {isInClosingArea ? (
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+            ) : hasInternal ? (
               <UserCheck className="h-4 w-4 text-green-600" />
             ) : (
               <AlertCircle className="h-4 w-4 text-orange-600" />
             )}
             <div className="text-left">
-              <p className="font-medium text-sm">{student.nombreCompleto}</p>
+              <div className="flex items-center gap-2">
+                <p className="font-medium text-sm">{student.nombreCompleto}</p>
+                {isInClosingArea && (
+                  <Badge variant="destructive" className="bg-amber-500 hover:bg-amber-600 animate-pulse text-xs">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    Área de Cierre
+                  </Badge>
+                )}
+              </div>
               <p className="text-xs text-gray-600">
                 {student.carnet} • {totalCompleted} completado(s) • {totalCursosLlevados} histórico(s)
               </p>
+              {careerProgress && careerProgress.total_cursos_carrera > 0 && (
+                <p className={`text-xs ${isInClosingArea ? 'text-amber-700 font-medium' : 'text-green-600'}`}>
+                  <GraduationCap className="h-3 w-3 inline mr-1" />
+                  {careerProgress.cursos_aprobados}/{careerProgress.total_cursos_carrera} ({careerProgress.porcentaje_avance}%)
+                  {isInClosingArea && ` - Faltan ${careerProgress.cursos_faltantes}`}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -397,6 +431,9 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
   const [showMassiveAssignmentModal, setShowMassiveAssignmentModal] = useState(false);
   const [massiveSelectedCourseIds, setMassiveSelectedCourseIds] = useState<string[]>([]);
 
+  // Estado para progreso de carrera (área de cierre)
+  const [careerProgressMap, setCareerProgressMap] = useState<Record<string, CareerProgress>>({});
+
   // 1️⃣ Cargar cursos históricos de Moodle
   useEffect(() => {
     const loadMoodleCursos = async () => {
@@ -471,6 +508,50 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
 
         setStudentsData(mappedStudents);
         setCurrentPage(1); // Reset a página 1
+
+        // Cargar progreso de carrera para todos los estudiantes
+        try {
+          // Enviar carnets en mayúsculas para mejor compatibilidad con el sistema interno
+          const carnets = mappedStudents.map(s => s.carnet.toUpperCase());
+          const careerResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/completed-courses/career-progress-batch`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ carnets }),
+            }
+          );
+          
+          if (careerResponse.ok) {
+            const careerData = await careerResponse.json();
+            if (careerData.success && careerData.data) {
+              const progressMap: Record<string, CareerProgress> = {};
+              // Si es objeto, usarlo directamente; si es array, convertir
+              if (Array.isArray(careerData.data)) {
+                careerData.data.forEach((item: any) => {
+                  // Guardar tanto en mayúsculas como en minúsculas para fácil acceso
+                  progressMap[item.carnet] = item;
+                  progressMap[item.carnet.toLowerCase()] = item;
+                  progressMap[item.carnet.toUpperCase()] = item;
+                });
+              } else {
+                // Es un objeto, normalizar keys
+                Object.entries(careerData.data).forEach(([key, value]: [string, any]) => {
+                  progressMap[key] = value;
+                  progressMap[key.toLowerCase()] = value;
+                  progressMap[key.toUpperCase()] = value;
+                });
+              }
+              setCareerProgressMap(progressMap);
+            }
+          }
+        } catch (careerError) {
+          console.warn('[CourseBasedAssignment-NEW] Could not fetch career progress:', careerError);
+        }
 
         toast({
           title: "✅ Estudiantes cargados",
@@ -1299,6 +1380,16 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
                     <span className="text-blue-700">
                       <strong>{studentsData.filter(s => s.selectedCourseIds.length > 0).length}</strong> con selecciones
                     </span>
+                    {/* Contador de estudiantes en área de cierre */}
+                    {Object.values(careerProgressMap).filter(p => p.en_area_cierre).length > 0 && (
+                      <>
+                        <span className="text-gray-400 hidden sm:inline">|</span>
+                        <span className="text-amber-700 font-medium">
+                          <AlertTriangle className="h-3 w-3 inline mr-1" />
+                          <strong>{Object.values(careerProgressMap).filter(p => p.en_area_cierre).length}</strong> en área de cierre
+                        </span>
+                      </>
+                    )}
                     
                     {/* 🎯 Resumen por especialidad con cursos disponibles */}
                     {programSummary.length > 0 && (
@@ -1347,6 +1438,7 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
                           currentMonthCourses={currentMonthCourses}
                           onLoadCourses={loadStudentCompletedCourses}
                           onToggleCourseSelection={toggleStudentCourseSelection}
+                          careerProgress={careerProgressMap[student.carnet] || careerProgressMap[student.carnet.toUpperCase()]}
                         />
                       ))}
                     </Accordion>

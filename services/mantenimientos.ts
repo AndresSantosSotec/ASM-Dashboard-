@@ -509,8 +509,142 @@ export interface EstudianteProgramaSelect {
 }
 
 export const getEstudiantesProgramaSelect = async (
+  search?: string,
   config?: AxiosRequestConfig,
 ): Promise<{ data: EstudianteProgramaSelect[]; total: number }> => {
-  const response = await api.get("/mantenimientos/estudiante-programa/select", config)
+  const params = new URLSearchParams()
+  if (search && search.trim()) {
+    params.append('search', search.trim())
+  }
+  const queryString = params.toString()
+  const url = `/mantenimientos/estudiante-programa/select${queryString ? '?' + queryString : ''}`
+  const response = await api.get(url, config)
+  return response.data
+}
+
+// ==================== ASISTENTE DE PAGO UNIFICADO ====================
+
+/**
+ * Línea de distribución del pago
+ */
+export interface PagoDistribucionLinea {
+  estudiante_programa_id: number
+  cuota_id?: number | null
+  crear_cuota?: boolean
+  cuota_nueva?: {
+    numero_cuota?: number
+    concepto?: string
+    fecha_vencimiento?: string
+  }
+  monto: number
+}
+
+/**
+ * Payload para el asistente de pago unificado
+ */
+export interface PagoAsistidoPayload {
+  metodo_pago: string
+  fecha_pago: string
+  numero_boleta?: string
+  banco?: string
+  monto_total: number
+  observaciones?: string
+  distribucion: PagoDistribucionLinea[]
+  crear_conciliacion?: boolean
+  conciliacion_automatica?: boolean
+}
+
+/**
+ * Respuesta del asistente de pago
+ */
+export interface PagoAsistidoResponse {
+  message: string
+  resumen: {
+    monto_total: number
+    kardex_creados: number
+    cuotas_creadas: number
+    cuotas_actualizadas: number
+    conciliacion_creada: boolean
+  }
+  kardex: Array<{
+    id: number
+    estudiante_programa_id: number
+    cuota_id: number | null
+    monto_pagado: number
+    estado_pago: string
+    prospecto: string | null
+    carnet: string | null
+    programa: string | null
+  }>
+  cuotas_nuevas: Array<{
+    id: number
+    estudiante_programa_id: number
+    numero_cuota: number
+    monto: number
+  }>
+  cuotas_actualizadas: Array<{
+    id: number
+    numero_cuota: number
+  }>
+  conciliacion: {
+    id: number
+    bank: string
+    reference: string
+    amount: number
+    status: string
+  } | null
+}
+
+/**
+ * Cuota pendiente para el asistente
+ */
+export interface CuotaPendienteAsistente {
+  id: number
+  numero_cuota: number
+  concepto: string | null
+  fecha_vencimiento: string | null
+  monto: number
+  monto_pagado: number
+  saldo_pendiente: number
+  estado: string
+  vencida: boolean
+}
+
+/**
+ * Respuesta de cuotas pendientes
+ */
+export interface CuotasPendientesAsistenteResponse {
+  estudiante: {
+    estudiante_programa_id: number
+    nombre: string | null
+    carnet: string | null
+    programa: string | null
+  }
+  cuotas_pendientes: CuotaPendienteAsistente[]
+  total_pendiente: number
+}
+
+/**
+ * Crear pago mediante el asistente unificado
+ */
+export const crearPagoAsistido = async (
+  payload: PagoAsistidoPayload,
+  config?: AxiosRequestConfig,
+): Promise<PagoAsistidoResponse> => {
+  const response = await api.post<PagoAsistidoResponse>("/mantenimientos/pago-asistido", payload, config)
+  return response.data
+}
+
+/**
+ * Obtener cuotas pendientes de un estudiante para el asistente
+ */
+export const getCuotasPendientesAsistente = async (
+  estudianteProgramaId: number,
+  config?: AxiosRequestConfig,
+): Promise<CuotasPendientesAsistenteResponse> => {
+  const response = await api.get<CuotasPendientesAsistenteResponse>("/mantenimientos/cuotas-pendientes-asistente", {
+    ...(config ?? {}),
+    params: { estudiante_programa_id: estudianteProgramaId },
+  })
   return response.data
 }

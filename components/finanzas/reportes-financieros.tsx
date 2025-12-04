@@ -42,6 +42,7 @@ import { Eye, Loader2, Pencil, Plus, RefreshCw, Trash2, Calendar } from "lucide-
 import { cn } from "@/lib/utils"
 import { FiltrosCuotas, FiltrosKardex, FiltrosReconciliaciones } from "@/components/finanzas/reportes"
 import { ReconciliacionModal } from "./modals/ReconciliacionModal"
+import { AsistentePagoModal } from "./modals/AsistentePagoModal"
 import {
   getCuotasDashboard,
   getKardexDashboard,
@@ -293,6 +294,9 @@ export const ReportesFinancieros = () => {
 
   // Estados para crear Reconciliación - SIMPLIFICADO
   const [showCreateReconciliacionModal, setShowCreateReconciliacionModal] = useState(false)
+
+  // 🎯 ASISTENTE DE PAGO UNIFICADO
+  const [showAsistentePago, setShowAsistentePago] = useState(false)
 
   const closeDetailModal = useCallback(() => {
     setKardexModal(null)
@@ -2071,10 +2075,16 @@ export const ReportesFinancieros = () => {
                     Actualizado {kardexLastUpdated ? formatDateTime(kardexLastUpdated) : "sin información"}
                   </CardDescription>
                 </div>
-                <Button onClick={handleCreateKardex}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nuevo Movimiento
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="default" onClick={() => setShowAsistentePago(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Asistente de Pago
+                  </Button>
+                  <Button variant="outline" onClick={handleCreateKardex}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Nuevo Movimiento
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -3829,7 +3839,20 @@ export const ReportesFinancieros = () => {
           </AlertDialogContent>
         ) : null}
       </AlertDialog>
+
+      {/* 🎯 Asistente de Pago Unificado */}
+      <AsistentePagoModal
+        open={showAsistentePago}
+        onOpenChange={setShowAsistentePago}
+        onSuccess={() => {
+          // Forzar recarga limpiando el estado de tabs cargados
+          setTabsLoaded(new Set())
+          toast({
+            title: "Datos actualizados",
+            description: "Se han recargado los datos después del pago.",
+          })
+        }}
+      />
     </div>
   )
 }
-

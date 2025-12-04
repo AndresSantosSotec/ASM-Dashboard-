@@ -63,6 +63,7 @@ export const estadoPagoClasses: Record<string, string> = {
 
 export const conciliacionLabels: Record<string, string> = {
   conciliado: "Conciliado",
+  reconciled: "Conciliado", // Alias usado en importación histórica
   rechazado: "Rechazado",
   pendiente: "Pendiente",
   sin_coincidencia: "Sin coincidencia",
@@ -71,6 +72,7 @@ export const conciliacionLabels: Record<string, string> = {
 
 export const conciliacionClasses: Record<string, string> = {
   conciliado: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
+  reconciled: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30", // Alias usado en importación histórica
   rechazado: "bg-red-500/15 text-red-600 border-red-500/30",
   pendiente: "bg-amber-500/15 text-amber-700 border-amber-500/30",
   sin_coincidencia: "bg-sky-500/15 text-sky-700 border-sky-500/30",

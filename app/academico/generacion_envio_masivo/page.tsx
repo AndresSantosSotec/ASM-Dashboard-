@@ -87,6 +87,12 @@ export default function GeneracionEnvioMasivoPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("Inscrito");
   const [orderBy, setOrderBy] = useState<string>("created_desc"); // new, old
   
+  // 🆕 NUEVO: Filtro de estudiantes activos en Moodle
+  const [soloActivosMoodle, setSoloActivosMoodle] = useState(false);
+  const [mesMoodle, setMesMoodle] = useState<number>(new Date().getMonth() + 1);
+  const [anioMoodle, setAnioMoodle] = useState<number>(new Date().getFullYear());
+  const [totalActivosMoodle, setTotalActivosMoodle] = useState<number | null>(null);
+  
   // Estados de progreso
   const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
   const [batchStats, setBatchStats] = useState<BatchStats | null>(null);
@@ -104,14 +110,16 @@ export default function GeneracionEnvioMasivoPage() {
     fetchProgramas();
   }, []);
 
-  // Recargar cuando cambien los filtros
+  // Recargar cuando cambien los filtros (incluyendo filtro Moodle)
   useEffect(() => {
     if (currentPage !== 1) {
       setCurrentPage(1);
     } else {
       fetchProspectos(1);
     }
-  }, [perPage, selectedPrograma, selectedStatus, orderBy]);
+    // Actualizar conteo también
+    fetchProspectoCount();
+  }, [perPage, selectedPrograma, selectedStatus, orderBy, soloActivosMoodle, mesMoodle, anioMoodle]);
 
   // Monitorear progreso del batch actual
   useEffect(() => {
@@ -130,8 +138,22 @@ export default function GeneracionEnvioMasivoPage() {
 
   const fetchProspectoCount = async () => {
     try {
-      const response = await api.get('/massive-user-generation/prospectos/count');
+      const params = new URLSearchParams();
+      
+      // 🆕 Agregar filtro Moodle si está activo
+      if (soloActivosMoodle) {
+        params.append('solo_activos_moodle', 'true');
+        params.append('mes_moodle', mesMoodle.toString());
+        params.append('anio_moodle', anioMoodle.toString());
+      }
+      
+      const response = await api.get(`/massive-user-generation/prospectos/count?${params}`);
       setProspectoCount(response.data.count);
+      
+      // 🆕 Guardar total de activos en Moodle
+      if (response.data.filtro_moodle) {
+        setTotalActivosMoodle(response.data.filtro_moodle.total_activos_moodle);
+      }
     } catch (error: any) {
       console.error('Error fetching prospecto count:', error);
       toast({
@@ -157,11 +179,23 @@ export default function GeneracionEnvioMasivoPage() {
         params.append('programa_id', selectedPrograma);
       }
       
+      // 🆕 Agregar filtro Moodle si está activo
+      if (soloActivosMoodle) {
+        params.append('solo_activos_moodle', 'true');
+        params.append('mes_moodle', mesMoodle.toString());
+        params.append('anio_moodle', anioMoodle.toString());
+      }
+      
       const response = await api.get(`/massive-user-generation/prospectos/list?${params}`);
       console.log('Prospectos response:', response.data.data);
       setProspectos(response.data.data);
       setCurrentPage(response.data.meta.current_page);
       setTotalPages(response.data.meta.last_page);
+      
+      // 🆕 Mostrar info del filtro Moodle si está activo
+      if (response.data.filtro_moodle) {
+        setTotalActivosMoodle(response.data.filtro_moodle.total_activos_moodle);
+      }
     } catch (error: any) {
       console.error('Error fetching prospectos:', error);
       toast({
@@ -424,7 +458,7 @@ export default function GeneracionEnvioMasivoPage() {
 
         <TabsContent value="generation" className="space-y-6">
           {/* Card de Estadísticas */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription>Prospectos Sin Usuario</CardDescription>
@@ -438,6 +472,11 @@ export default function GeneracionEnvioMasivoPage() {
                     <div className="animate-pulse bg-gray-200 h-10 w-24 rounded"></div>
                   )}
                 </CardTitle>
+                {soloActivosMoodle && (
+                  <Badge variant="secondary" className="mt-2 bg-blue-100 text-blue-800">
+                    🎓 Filtro Moodle: {mesMoodle}/{anioMoodle}
+                  </Badge>
+                )}
               </CardHeader>
             </Card>
 
@@ -502,6 +541,79 @@ export default function GeneracionEnvioMasivoPage() {
                 />
               </div>
 
+              {/* 🆕 NUEVO: Filtro de estudiantes activos en Moodle */}
+              <div className="border-t pt-4 mt-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="solo-activos-moodle" className="text-base flex items-center gap-2">
+                      <Users className="h-4 w-4 text-blue-600" />
+                      Solo Estudiantes Activos en Moodle
+                    </Label>
+                    <p className="text-sm text-gray-600">
+                      Filtra solo estudiantes matriculados en Moodle en el mes/año seleccionado
+                    </p>
+                  </div>
+                  <Switch
+                    id="solo-activos-moodle"
+                    checked={soloActivosMoodle}
+                    onCheckedChange={setSoloActivosMoodle}
+                  />
+                </div>
+                
+                {soloActivosMoodle && (
+                  <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div>
+                      <Label htmlFor="mes-moodle" className="text-sm mb-2 block">Mes</Label>
+                      <Select value={mesMoodle.toString()} onValueChange={(val) => setMesMoodle(parseInt(val))}>
+                        <SelectTrigger id="mes-moodle">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">Enero</SelectItem>
+                          <SelectItem value="2">Febrero</SelectItem>
+                          <SelectItem value="3">Marzo</SelectItem>
+                          <SelectItem value="4">Abril</SelectItem>
+                          <SelectItem value="5">Mayo</SelectItem>
+                          <SelectItem value="6">Junio</SelectItem>
+                          <SelectItem value="7">Julio</SelectItem>
+                          <SelectItem value="8">Agosto</SelectItem>
+                          <SelectItem value="9">Septiembre</SelectItem>
+                          <SelectItem value="10">Octubre</SelectItem>
+                          <SelectItem value="11">Noviembre</SelectItem>
+                          <SelectItem value="12">Diciembre</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="anio-moodle" className="text-sm mb-2 block">Año</Label>
+                      <Select value={anioMoodle.toString()} onValueChange={(val) => setAnioMoodle(parseInt(val))}>
+                        <SelectTrigger id="anio-moodle">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="2024">2024</SelectItem>
+                          <SelectItem value="2025">2025</SelectItem>
+                          <SelectItem value="2026">2026</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {totalActivosMoodle !== null && (
+                      <div className="col-span-2">
+                        <Alert className="bg-blue-100 border-blue-300">
+                          <Users className="h-4 w-4 text-blue-600" />
+                          <AlertTitle className="text-blue-800">Estudiantes Activos en Moodle</AlertTitle>
+                          <AlertDescription className="text-blue-700">
+                            Se encontraron <strong>{totalActivosMoodle}</strong> estudiantes activos en Moodle para {mesMoodle}/{anioMoodle}.
+                            <br />
+                            Mostrando solo los que coinciden con prospectos sin usuario.
+                          </AlertDescription>
+                        </Alert>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Información de Seguridad</AlertTitle>
@@ -552,24 +664,31 @@ export default function GeneracionEnvioMasivoPage() {
                   <CardDescription>
                     {selectedIds.size} de {filteredProspectos.length} prospectos seleccionados
                   </CardDescription>
-                  {(selectedPrograma !== 'all' || searchTerm) && (
-                    <div className="mt-2">
-                      <Badge variant="outline" className="ml-1">
-                        {selectedPrograma !== 'all' && '📚 Programa'}
-                        {selectedPrograma !== 'all' && searchTerm && ' • '}
-                        {searchTerm && '🔍 Búsqueda'}
-                      </Badge>
+                  {(selectedPrograma !== 'all' || searchTerm || soloActivosMoodle) && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {selectedPrograma !== 'all' && (
+                        <Badge variant="outline">📚 Programa</Badge>
+                      )}
+                      {searchTerm && (
+                        <Badge variant="outline">🔍 Búsqueda</Badge>
+                      )}
+                      {soloActivosMoodle && (
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                          🎓 Moodle {mesMoodle}/{anioMoodle}
+                        </Badge>
+                      )}
                     </div>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  {(selectedPrograma !== 'all' || searchTerm) && (
+                  {(selectedPrograma !== 'all' || searchTerm || soloActivosMoodle) && (
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => {
                         setSearchTerm("");
                         setSelectedPrograma("all");
+                        setSoloActivosMoodle(false);
                         setSelectedIds(new Set());
                       }}
                     >

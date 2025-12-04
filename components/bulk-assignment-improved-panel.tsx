@@ -44,8 +44,20 @@ import {
   AlertCircle,
   Check,
   Download,
+  AlertTriangle,
+  GraduationCap,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+
+// Interfaz para el progreso de carrera desde Moodle
+interface CareerProgress {
+  cursos_aprobados: number;
+  total_cursos_carrera: number;
+  cursos_faltantes: number;
+  en_area_cierre: boolean;
+  porcentaje_avance: number;
+  programa?: string;
+}
 
 interface BulkAssignmentImprovedPanelProps {
   selectedStudents: Student[];
@@ -154,6 +166,9 @@ export function BulkAssignmentImprovedPanel({
     []
   );
 
+  // 🔹 Estado para progreso de carrera (área de cierre)
+  const [careerProgressMap, setCareerProgressMap] = useState<Record<string, CareerProgress>>({});
+
   // 🔹 Inicializar selecciones con datos reales del backend
   useEffect(() => {
     (async () => {
@@ -220,6 +235,49 @@ export function BulkAssignmentImprovedPanel({
       }
     })();
   }, [selectedStudents.map(s => s.id).join(',')]); // Solo re-ejecutar si cambian los estudiantes
+
+  // 🔹 Cargar progreso de carrera para detectar área de cierre
+  useEffect(() => {
+    (async () => {
+      if (selectedStudents.length === 0) return;
+      
+      try {
+        const carnets = selectedStudents.map(s => s.carnet);
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/completed-courses/career-progress-batch`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ carnets }),
+          }
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data) {
+            // data.data es un objeto con carnets como keys, ya es un map
+            const progressMap: Record<string, CareerProgress> = {};
+            // Si es objeto, usarlo directamente; si es array, convertir
+            if (Array.isArray(data.data)) {
+              data.data.forEach((item: any) => {
+                progressMap[item.carnet] = item;
+              });
+            } else {
+              // Es un objeto con carnets como keys
+              Object.assign(progressMap, data.data);
+            }
+            setCareerProgressMap(progressMap);
+          }
+        }
+      } catch (error) {
+        console.warn('[BulkAssignment] Could not fetch career progress:', error);
+      }
+    })();
+  }, [selectedStudents.map(s => s.carnet).join(',')]);
 
   // 🔹 Obtener cursos disponibles para un estudiante específico (SOLO DEL MES ACTUAL)
   const getAvailableCoursesForStudent = (studentId: string) => {
@@ -557,26 +615,53 @@ export function BulkAssignmentImprovedPanel({
             const selection = selections.find((s) => s.studentId === student.id);
             const selectedCount = selection?.selectedCourseIds.length || 0;
             const totalCompleted = (completedCourses?.length || 0) + (moodleCompletedCourses?.length || 0);
+            
+            // Obtener progreso de carrera para este estudiante
+            const careerProgress = careerProgressMap[student.carnet];
+            const isInClosingArea = careerProgress?.en_area_cierre === true;
 
             return (
               <AccordionItem
                 key={student.id}
                 value={student.id}
-                className="border rounded-lg bg-white shadow-sm"
+                className={`border rounded-lg shadow-sm ${
+                  isInClosingArea 
+                    ? 'bg-amber-50 border-2 border-amber-400 ring-2 ring-amber-200' 
+                    : 'bg-white'
+                }`}
               >
-                <AccordionTrigger className="px-4 hover:bg-gray-50">
+                <AccordionTrigger className={`px-4 ${isInClosingArea ? 'hover:bg-amber-100' : 'hover:bg-gray-50'}`}>
                   <div className="flex items-center justify-between w-full pr-4">
                     <div className="flex items-center space-x-3">
-                      <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                        <span className="text-blue-600 font-semibold text-sm">
+                      <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+                        isInClosingArea ? 'bg-amber-200' : 'bg-blue-100'
+                      }`}>
+                        <span className={`font-semibold text-sm ${
+                          isInClosingArea ? 'text-amber-700' : 'text-blue-600'
+                        }`}>
                           {student.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
                         </span>
                       </div>
                       <div className="text-left">
-                        <p className="font-semibold text-gray-900">{student.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-gray-900">{student.name}</p>
+                          {isInClosingArea && (
+                            <Badge variant="destructive" className="bg-amber-500 hover:bg-amber-600 animate-pulse text-xs">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Área de Cierre
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-500">
                           {student.carnet} • {student.program}
                         </p>
+                        {careerProgress && careerProgress.total_cursos_carrera > 0 && (
+                          <p className={`text-xs mt-0.5 ${isInClosingArea ? 'text-amber-700 font-medium' : 'text-green-600'}`}>
+                            <GraduationCap className="h-3 w-3 inline mr-1" />
+                            {careerProgress.cursos_aprobados}/{careerProgress.total_cursos_carrera} cursos aprobados ({careerProgress.porcentaje_avance}%)
+                            {isInClosingArea && ` - Faltan ${careerProgress.cursos_faltantes}`}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">

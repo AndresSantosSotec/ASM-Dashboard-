@@ -43,8 +43,20 @@ import {
   AlertCircle,
   Check,
   X,
+  AlertTriangle,
+  GraduationCap,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+
+// Interfaz para el progreso de carrera desde Moodle
+interface CareerProgress {
+  cursos_aprobados: number;
+  total_cursos_carrera: number;
+  cursos_faltantes: number;
+  en_area_cierre: boolean;
+  porcentaje_avance: number;
+  programa?: string;
+}
 
 // Caché global para datos de estudiantes
 const studentDataCache = new Map<string, {
@@ -162,6 +174,9 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
   // Ref para cancelar operaciones en curso
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Estado para progreso de carrera (área de cierre)
+  const [careerProgressMap, setCareerProgressMap] = useState<Record<string, CareerProgress>>({});
+
   // Cargar cursos del mes actual
   useEffect(() => {
     (async () => {
@@ -237,6 +252,47 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
 
     loadMoodleStudents();
   }, [selectedCourseIds, courses, filterByDay, toast]);
+
+  // Cargar progreso de carrera cuando hay estudiantes
+  useEffect(() => {
+    (async () => {
+      if (students.length === 0) return;
+      
+      try {
+        const carnets = students.map(s => s.carnet);
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/completed-courses/career-progress-batch`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ carnets }),
+          }
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data) {
+            const progressMap: Record<string, CareerProgress> = {};
+            // Si es objeto, usarlo directamente; si es array, convertir
+            if (Array.isArray(data.data)) {
+              data.data.forEach((item: any) => {
+                progressMap[item.carnet] = item;
+              });
+            } else {
+              Object.assign(progressMap, data.data);
+            }
+            setCareerProgressMap(progressMap);
+          }
+        }
+      } catch (error) {
+        console.warn('[CourseBasedAssignment] Could not fetch career progress:', error);
+      }
+    })();
+  }, [students.map(s => s.carnet).join(',')]);
 
   // Obtener programas únicos de los cursos
   const programOptions = useMemo(() => {
@@ -846,16 +902,42 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
                   const eligibility = studentEligibility.find(e => e.studentId === student.id);
                   const eligibleCount = eligibility?.eligibleCourseIds.length || 0;
                   
+                  // Progreso de carrera y área de cierre
+                  const careerProgress = careerProgressMap[student.carnet];
+                  const isInClosingArea = careerProgress?.en_area_cierre === true;
+                  
                   return (
-                    <div key={student.id} className="border rounded p-3 bg-white hover:bg-gray-50 transition-colors">
+                    <div 
+                      key={student.id} 
+                      className={`border rounded p-3 transition-colors ${
+                        isInClosingArea 
+                          ? 'bg-amber-50 border-2 border-amber-400 hover:bg-amber-100' 
+                          : 'bg-white hover:bg-gray-50'
+                      }`}
+                    >
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm text-gray-900 truncate">
-                            {student.name}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-sm text-gray-900 truncate">
+                              {student.name}
+                            </p>
+                            {isInClosingArea && (
+                              <Badge variant="destructive" className="bg-amber-500 hover:bg-amber-600 text-xs animate-pulse">
+                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                Área de Cierre
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-600">
                             {student.carnet} | {student.program}
                           </p>
+                          {careerProgress && careerProgress.total_cursos_carrera > 0 && (
+                            <p className={`text-xs mt-0.5 ${isInClosingArea ? 'text-amber-700 font-medium' : 'text-green-600'}`}>
+                              <GraduationCap className="h-3 w-3 inline mr-1" />
+                              {careerProgress.cursos_aprobados}/{careerProgress.total_cursos_carrera} ({careerProgress.porcentaje_avance}%)
+                              {isInClosingArea && ` - Faltan ${careerProgress.cursos_faltantes}`}
+                            </p>
+                          )}
                         </div>
                         <Badge className="bg-green-600 text-white ml-2 flex-shrink-0">
                           {eligibleCount} curso(s)
@@ -930,15 +1012,41 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
                 const eligibleCourses = courses.filter(c => 
                   eligibility?.eligibleCourseIds.includes(String(c.id))
                 );
+                
+                // Progreso de carrera y área de cierre
+                const careerProgress = careerProgressMap[student.carnet];
+                const isInClosingArea = careerProgress?.en_area_cierre === true;
 
                 return (
-                  <div key={student.id} className="border rounded-lg p-3 bg-gray-50 hover:bg-gray-100 transition-colors">
+                  <div 
+                    key={student.id} 
+                    className={`border rounded-lg p-3 transition-colors ${
+                      isInClosingArea 
+                        ? 'bg-amber-50 border-2 border-amber-400 hover:bg-amber-100' 
+                        : 'bg-gray-50 hover:bg-gray-100'
+                    }`}
+                  >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-gray-900 truncate">{student.name}</h4>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-gray-900 truncate">{student.name}</h4>
+                          {isInClosingArea && (
+                            <Badge variant="destructive" className="bg-amber-500 hover:bg-amber-600 text-xs">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Área de Cierre
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-600">
                           {student.carnet} | {student.program}
                         </p>
+                        {careerProgress && careerProgress.total_cursos_carrera > 0 && (
+                          <p className={`text-xs ${isInClosingArea ? 'text-amber-700 font-medium' : 'text-green-600'}`}>
+                            <GraduationCap className="h-3 w-3 inline mr-1" />
+                            {careerProgress.cursos_aprobados}/{careerProgress.total_cursos_carrera} cursos aprobados
+                            {isInClosingArea && ` - Faltan ${careerProgress.cursos_faltantes}`}
+                          </p>
+                        )}
                       </div>
                       <Badge className="bg-green-600 text-white ml-2 flex-shrink-0">
                         {eligibleCourses.length} curso(s)
