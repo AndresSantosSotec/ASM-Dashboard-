@@ -39,6 +39,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
     downloadConciliacionTemplate,
     exportConciliacionXlsx,
     exportConciliados,
+    exportPendientesParaImportacion,
     getFiltrosDisponibles,
   } from "@/services/finance"
 
@@ -529,10 +530,10 @@ export default function ConciliacionClient() {
           ))}
         </SelectContent>
       </Select>
-      <Button variant="outline" size="sm" onClick={handleExportXlsx} disabled={loading}>
+      {/* <Button variant="outline" size="sm" onClick={handleExportXlsx} disabled={loading}>
         <Download className="mr-2 h-4 w-4" />
         Exportar XLSX
-      </Button>
+      </Button> */}
       <Button variant="outline" size="sm" onClick={handleRefresh} disabled={loading}>
         <RefreshCw className={classNames("mr-2 h-4 w-4", loading && "animate-spin")} />
         Refrescar
@@ -690,7 +691,40 @@ export default function ConciliacionClient() {
                 <CardTitle>Registros por revisar</CardTitle>
                 <CardDescription>Pagos del Kardex que requieren acción.</CardDescription>
               </div>
-              <div className="flex flex-wrap items-center gap-2">{ToolbarFilters}</div>
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Botón exportar pendientes en formato importación */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      setLoading(true)
+                      const blob = await exportPendientesParaImportacion('excel', {
+                        from: fromDate || undefined,
+                        to: toDate || undefined,
+                        banco: bankFilter === "todos" ? undefined : bankFilter,
+                        programa_id: programaFilter === "todos" ? undefined : Number(programaFilter),
+                      })
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = `pendientes_para_importar_${new Date().toISOString().split('T')[0]}.xlsx`
+                      a.click()
+                      URL.revokeObjectURL(url)
+                    } catch (err: any) {
+                      setErrorMsg(err?.message || "Error al exportar pendientes")
+                    } finally {
+                      setLoading(false)
+                    }
+                  }}
+                  disabled={loading || !previewPendientes?.results?.length}
+                  title="Exportar en formato compatible con importación bancaria (Banco, Referencia, Monto, Fecha)"
+                >
+                  <FileSpreadsheet className="w-4 h-4 mr-1" />
+                  Exportar p/Importar
+                </Button>
+                {ToolbarFilters}
+              </div>
             </CardHeader>
             <CardContent className="pb-0">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">

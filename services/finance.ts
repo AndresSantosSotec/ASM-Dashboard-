@@ -670,6 +670,24 @@ export const exportConciliados = async (
   return res.data as Blob
 }
 
+// Exportar pendientes en formato compatible con importación bancaria
+// Columnas: Banco, Referencia, Monto, Fecha
+export const exportPendientesParaImportacion = async (
+  format: 'excel' | 'csv' = 'excel',
+  params: {
+    from?: string;
+    to?: string;
+    banco?: string;
+    programa_id?: number;
+  } = {}
+) => {
+  const res = await api.get("/conciliacion/export-pendientes-importacion", {
+    params: { ...params, format },
+    responseType: "blob"
+  })
+  return res.data as Blob
+}
+
 // Obtener filtros disponibles (bancos y programas)
 export const getFiltrosDisponibles = async () => {
   const res = await api.get("/conciliacion/filtros-disponibles")
