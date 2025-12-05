@@ -806,10 +806,35 @@ export const getUniversoEstudiantes = async (params?: {
   page?: number
   per_page?: number
   search?: string
-  programa_id?: number
-  estado_financiero?: 'moroso' | 'al_dia' | 'sin_programa'
+  programa_moodle?: string // 🆕 Filtro por programa de Moodle (city)
+  programa_crm_id?: number // 🆕 Filtro por programa del CRM
+  estado_financiero?: string // MOROSO, AL_DIA, SIN_PROGRAMA, NO_EN_CRM
+  suspended?: string // 0=Activo, 1=Suspendido
+  status_personalizado?: string // Activo, Graduado, Inactivo, Suspendido, SIN_ESTADO
+  mes?: number
+  anio?: number
 }) => {
   const res = await api.get("/dashboard-financiero/universo-estudiantes", { params })
+  return res.data
+}
+
+/**
+ * 🆕 NUEVO: Obtener programas disponibles para filtros del Universo
+ */
+export const getUniversoProgramas = async () => {
+  const res = await api.get("/dashboard-financiero/universo-programas")
+  return res.data
+}
+
+/**
+ * 🆕 NUEVO: Obtener estadísticas GLOBALES del universo de estudiantes
+ * Retorna: total, morosos, al_dia, estudiantes_por_programa
+ */
+export const getUniversoEstadisticas = async (params?: {
+  mes?: number
+  anio?: number
+}) => {
+  const res = await api.get("/dashboard-financiero/universo-estadisticas", { params })
   return res.data
 }
 

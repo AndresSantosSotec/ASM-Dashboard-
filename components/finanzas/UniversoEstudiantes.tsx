@@ -38,20 +38,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Globe,
-  Search,
-  Users,
-  BookOpen,
-  DollarSign,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
-  RefreshCw,
-  ChevronLeft,
-  ChevronRight
-} from "lucide-react"
-import { getUniversoEstudiantes } from "@/services/finance"
+import { Globe, Search, Users, BookOpen, DollarSign, AlertCircle, CheckCircle, XCircle, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react"
+import { getUniversoEstudiantes, getUniversoProgramas, getUniversoEstadisticas } from "@/services/finance"
 
 interface Estudiante {
   carnet: string
@@ -64,8 +52,7 @@ interface Estudiante {
     telefono: string
     plan_estudio: string
     total_cursos_activos: number
-    primera_matricula: string | null
-    ultima_matricula: string | null
+    primera_matricula: string | null // 🆕 Fecha cuando fue creado en Moodle
     ultimo_acceso: string | null
     estado_moodle: string
     suspended: number // 0=Activo, 1=Suspendido
@@ -104,21 +91,27 @@ interface Estudiante {
 
 interface Summary {
   total_estudiantes: number
-  con_programas: number
-  sin_programas: number
   morosos: number
   al_dia: number
+  activos_moodle?: number
+  suspendidos_moodle?: number
+  estudiantes_por_programa?: Record<string, number | {total: number, activos: number, suspendidos?: number, inactivos?: number}>
 }
 
 export function UniversoEstudiantes() {
   const [estudiantes, setEstudiantes] = useState<Estudiante[]>([])
   const [summary, setSummary] = useState<Summary>({
     total_estudiantes: 0,
-    con_programas: 0,
-    sin_programas: 0,
     morosos: 0,
     al_dia: 0,
+    activos_moodle: 0,
+    suspendidos_moodle: 0,
+    estudiantes_por_programa: {},
   })
+  
+  // 🆕 Estadísticas GLOBALES (no dependen de la página)
+  const [estadisticasGlobales, setEstadisticasGlobales] = useState<Summary | null>(null)
+  const [loadingEstadisticas, setLoadingEstadisticas] = useState(true)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -127,6 +120,38 @@ export function UniversoEstudiantes() {
   const [estadoFiltro, setEstadoFiltro] = useState<string>("todos")
   const [estadoReal, setEstadoReal] = useState<string>("todos") // Estado combinado: activo_normal, activo_pausado, graduado, suspendido, inactivo
   const [searchInput, setSearchInput] = useState("")
+  const [programaMoodle, setProgramaMoodle] = useState<string>("todos") // 🆕 Filtro programa Moodle
+  const [programaCRM, setProgramaCRM] = useState<string>("todos") // 🆕 Filtro programa CRM
+  
+  // 🆕 Listas de programas disponibles
+  const [programasMoodle, setProgramasMoodle] = useState<string[]>([])
+  const [programasCRM, setProgramasCRM] = useState<{id: number, nombre: string, abreviatura: string}[]>([])
+  
+  // 🆕 Cargar programas Y estadísticas globales al montar
+  useEffect(() => {
+    const cargarDatosIniciales = async () => {
+      try {
+        // Cargar programas
+        const responseProgs = await getUniversoProgramas()
+        if (responseProgs.success) {
+          setProgramasMoodle(responseProgs.programas_moodle || [])
+          setProgramasCRM(responseProgs.programas_crm || [])
+        }
+        
+        // 🆕 Cargar estadísticas GLOBALES (todos los estudiantes)
+        setLoadingEstadisticas(true)
+        const responseStats = await getUniversoEstadisticas()
+        if (responseStats.success !== false) {
+          setEstadisticasGlobales(responseStats)
+        }
+      } catch (err) {
+        console.error("Error cargando datos iniciales:", err)
+      } finally {
+        setLoadingEstadisticas(false)
+      }
+    }
+    cargarDatosIniciales()
+  }, [])
 
   // 🚀 Debounce para búsqueda (evita llamadas excesivas al backend)
   useEffect(() => {
@@ -193,6 +218,16 @@ export function UniversoEstudiantes() {
             break
         }
       }
+      
+      // 🆕 Filtro por programa de Moodle
+      if (programaMoodle !== "todos") {
+        params.programa_moodle = programaMoodle
+      }
+      
+      // 🆕 Filtro por programa del CRM
+      if (programaCRM !== "todos") {
+        params.programa_crm_id = programaCRM
+      }
 
       const response = await getUniversoEstudiantes(params)
 
@@ -221,10 +256,11 @@ export function UniversoEstudiantes() {
         // ✅ Asegurar que summary siempre tenga valores por defecto
         setSummary({
           total_estudiantes: response.summary?.total_estudiantes || 0,
-          con_programas: response.summary?.con_programas || 0,
-          sin_programas: response.summary?.sin_programas || 0,
           morosos: response.summary?.morosos || 0,
           al_dia: response.summary?.al_dia || 0,
+          activos_moodle: response.summary?.activos_moodle || 0,
+          suspendidos_moodle: response.summary?.suspendidos_moodle || 0,
+          estudiantes_por_programa: response.summary?.estudiantes_por_programa || {},
         })
         setTotal(response.pagination?.total || 0)
         setTotalPages(response.pagination?.last_page || 1)
@@ -245,7 +281,9 @@ export function UniversoEstudiantes() {
     perPage,
     search, 
     estadoFiltro, 
-    estadoReal
+    estadoReal,
+    programaMoodle, // 🆕
+    programaCRM // 🆕
   ])
 
   useEffect(() => {
@@ -304,89 +342,132 @@ export function UniversoEstudiantes() {
   }, [])
 
   // 🚀 Memoizar porcentajes para evitar cálculos repetidos
-  const porcentajeConProgramas = useMemo(() => {
-    return summary.total_estudiantes > 0
-      ? ((summary.con_programas / summary.total_estudiantes) * 100).toFixed(1)
-      : '0'
-  }, [summary.total_estudiantes, summary.con_programas])
-
-  const porcentajeSinProgramas = useMemo(() => {
-    return summary.total_estudiantes > 0
-      ? ((summary.sin_programas / summary.total_estudiantes) * 100).toFixed(1)
-      : '0'
-  }, [summary.total_estudiantes, summary.sin_programas])
-
   const porcentajeMorosos = useMemo(() => {
-    return summary.con_programas > 0
-      ? ((summary.morosos / summary.con_programas) * 100).toFixed(1)
+    const totalActivos = estadisticasGlobales?.activos_moodle || summary.activos_moodle || 0
+    const totalMorosos = estadisticasGlobales?.morosos || summary.morosos || 0
+    return totalActivos > 0
+      ? ((totalMorosos / totalActivos) * 100).toFixed(1)
       : '0'
-  }, [summary.con_programas, summary.morosos])
+  }, [estadisticasGlobales, summary])
 
   const porcentajeAlDia = useMemo(() => {
-    return summary.con_programas > 0
-      ? ((summary.al_dia / summary.con_programas) * 100).toFixed(1)
+    const totalActivos = estadisticasGlobales?.activos_moodle || summary.activos_moodle || 0
+    const totalAlDia = estadisticasGlobales?.al_dia || summary.al_dia || 0
+    return totalActivos > 0
+      ? ((totalAlDia / totalActivos) * 100).toFixed(1)
       : '0'
-  }, [summary.con_programas, summary.al_dia])
+  }, [estadisticasGlobales, summary])
 
   return (
     <div className="space-y-6">
-      {/* Resumen Estadístico */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      {/* Resumen Estadístico GLOBAL */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Estudiantes</CardTitle>
             <Globe className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{(summary?.total_estudiantes || 0).toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Universo completo</p>
+            <div className="text-2xl font-bold">
+              {loadingEstadisticas ? '...' : (estadisticasGlobales?.total_estudiantes || 0).toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">Universo completo (global)</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Con Programas</CardTitle>
-            <BookOpen className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
+
           <CardContent>
-            <div className="text-2xl font-bold">{(summary?.con_programas || 0).toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">{porcentajeConProgramas}%</p>
+            <div className="text-2xl font-bold text-green-600">
+              {loadingEstadisticas ? '...' : (estadisticasGlobales?.activos_moodle || 0).toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {estadisticasGlobales?.suspendidos_moodle || 0} suspendidos
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sin Programas</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{(summary?.sin_programas || 0).toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">{porcentajeSinProgramas}%</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Morosos</CardTitle>
+            <CardTitle className="text-sm font-medium">Morosos (mes actual)</CardTitle>
             <AlertCircle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">{(summary?.morosos || 0).toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">{porcentajeMorosos}% de programados</p>
+            <div className="text-2xl font-bold text-destructive">
+              {loadingEstadisticas ? '...' : (estadisticasGlobales?.morosos || 0).toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">{porcentajeMorosos}% de activos</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Al Día</CardTitle>
+            <CardTitle className="text-sm font-medium">Al Día (mes actual)</CardTitle>
             <CheckCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{(summary?.al_dia || 0).toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">{porcentajeAlDia}% de programados</p>
+            <div className="text-2xl font-bold text-green-600">
+              {loadingEstadisticas ? '...' : (estadisticasGlobales?.al_dia || 0).toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">{porcentajeAlDia}% de activos</p>
           </CardContent>
         </Card>
       </div>
+
+      {/* 🆕 Estadísticas por Programa/Carrera (datos del CRM) */}
+      {estadisticasGlobales?.estudiantes_por_programa && Object.keys(estadisticasGlobales.estudiantes_por_programa).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5" />
+              Estudiantes por Programa/Carrera (CRM)
+            </CardTitle>
+            <CardDescription>
+              Distribución de estudiantes registrados en el CRM por programa académico
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {Object.entries(estadisticasGlobales.estudiantes_por_programa)
+                .filter(([programa]) => programa !== 'TEMP') // Excluir TEMP
+                .sort(([,a], [,b]) => {
+                  const totalA = typeof a === 'number' ? a : a.total
+                  const totalB = typeof b === 'number' ? b : b.total
+                  return totalB - totalA
+                })
+                .map(([programa, datos]) => {
+                  const total = typeof datos === 'number' ? datos : datos.total
+                  const activos = typeof datos === 'number' ? datos : datos.activos
+                  const suspendidos = typeof datos === 'number' ? 0 : (datos.suspendidos || datos.inactivos || 0)
+                  // Calcular porcentaje sobre total de estudiantes en CRM (suma de todos los programas, excluyendo TEMP)
+                  const totalCRM = Object.entries(estadisticasGlobales.estudiantes_por_programa as Record<string, any>)
+                    .filter(([prog]) => prog !== 'TEMP')
+                    .reduce((sum: number, [, d]: [string, any]) => {
+                      return sum + (typeof d === 'number' ? d : d.total)
+                    }, 0 as number)
+                  const porcentaje = totalCRM > 0 ? ((total / totalCRM) * 100).toFixed(1) : '0'
+                  
+                  return (
+                    <div key={programa} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate" title={programa}>
+                          {programa === 'SIN_PROGRAMA' ? 'Sin programa asignado' : programa}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {activos} activos {suspendidos > 0 && `• ${suspendidos} susp.`}
+                        </p>
+                      </div>
+                      <div className="text-right ml-2">
+                        <p className="text-lg font-bold">{total.toLocaleString()}</p>
+                        <p className="text-xs text-muted-foreground">{porcentaje}%</p>
+                      </div>
+                    </div>
+                  )
+                })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filtros y Búsqueda */}
       <Card>
@@ -444,6 +525,40 @@ export function UniversoEstudiantes() {
                 <SelectItem value="sin_estado">❓ Sin estado definido</SelectItem>
               </SelectContent>
             </Select>
+            
+            {/* 🆕 Filtro Programa Moodle (campo city) */}
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-blue-600 font-medium px-1">📚 Moodle</span>
+              <Select value={programaMoodle} onValueChange={(v) => { setProgramaMoodle(v); setPage(1) }}>
+                <SelectTrigger className="w-[200px] border-blue-200">
+                  <SelectValue placeholder="Plan de estudio" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos los planes</SelectItem>
+                  {programasMoodle.map((prog) => (
+                    <SelectItem key={prog} value={prog}>{prog}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* 🆕 Filtro Programa CRM */}
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-green-600 font-medium px-1">🏢 CRM</span>
+              <Select value={programaCRM} onValueChange={(v) => { setProgramaCRM(v); setPage(1) }}>
+                <SelectTrigger className="w-[200px] border-green-200">
+                  <SelectValue placeholder="Programa académico" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos los programas</SelectItem>
+                  {programasCRM.map((prog) => (
+                    <SelectItem key={prog.id} value={prog.id.toString()}>
+                      {prog.abreviatura || prog.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             {/* Botón Refrescar */}
             <Button onClick={cargarDatos} variant="outline" disabled={loading}>
@@ -474,10 +589,8 @@ export function UniversoEstudiantes() {
                       <TableHead className="text-center">Status Moodle</TableHead>
                       <TableHead className="text-center">Cursos Moodle</TableHead>
                       <TableHead className="text-center">Programas CRM</TableHead>
-                      <TableHead className="text-right">Deuda</TableHead>
                       <TableHead className="text-right">Pagado</TableHead>
-                      <TableHead className="text-center">Estado</TableHead>
-                      <TableHead>Última Matrícula</TableHead>
+                      <TableHead>Primera Matrícula</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -494,12 +607,14 @@ export function UniversoEstudiantes() {
                         const cursosMoodle = est.moodle?.total_cursos_activos || 0
                         const suspended = est.moodle?.suspended ?? null
                         const statusPersonalizado = est.moodle?.status_personalizado || null
-                        const tienePrograma = est.crm?.programa_mas_reciente ? true : false
-                        const programaNombre = est.crm?.programa_mas_reciente?.abreviatura || '—'
-                        const deuda = est.financiero?.total_deuda || 0
+                        const planMoodle = est.moodle?.plan_estudio || ''
+                        const tienePrograma = !!(est.crm?.programa_mas_reciente || planMoodle) // ✅ CORREGIDO: Moodle O CRM
+                        const programaNombre = est.crm?.programa_mas_reciente?.abreviatura || planMoodle || '—'
+                        const deuda = est.financiero?.total_deuda || 0 // ✅ Solo cuotas VENCIDAS
                         const pagado = est.financiero?.total_pagado || 0
                         const estadoFinanciero = est.financiero?.estado_financiero || 'NO_EN_CRM'
-                        const ultimaMatricula = est.moodle?.ultima_matricula || null
+                        const primeraMatricula = est.moodle?.primera_matricula || null // 🆕 Primera matrícula (fecha creación en Moodle)
+                        const matriculadoMes = (est as any).matriculado_mes_actual || false // 🆕 Matriculado mes actual
                         
                         // Mapear estado financiero a formato esperado por getEstadoBadge
                         const estadoBadge = estadoFinanciero === 'MOROSO' ? 'moroso' 
@@ -545,15 +660,6 @@ export function UniversoEstudiantes() {
                               )}
                             </TableCell>
                             <TableCell className="text-right font-mono text-sm">
-                              {deuda > 0 ? (
-                                <span className="text-destructive font-medium">
-                                  {formatMonto(deuda)}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">Q0.00</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right font-mono text-sm">
                               {pagado > 0 ? (
                                 <span className="text-green-600 font-medium">
                                   {formatMonto(pagado)}
@@ -562,11 +668,8 @@ export function UniversoEstudiantes() {
                                 <span className="text-muted-foreground">Q0.00</span>
                               )}
                             </TableCell>
-                            <TableCell className="text-center">
-                              {getEstadoBadge(estadoBadge)}
-                            </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              {formatFecha(ultimaMatricula)}
+                              {formatFecha(primeraMatricula)}
                             </TableCell>
                           </TableRow>
                         )
