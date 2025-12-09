@@ -66,13 +66,35 @@ export function EstadoCuentaEstudiante() {
       const pendingPayments = pendingRes.data?.pagos || []
       const paymentHistory = historyRes.data?.historial_pagos || []
 
-      // Obtener información del estudiante desde la primera cuota (para evitar error de propiedad inexistente)
-      const prospecto = accountSummary.cuotas?.[0]?.estudiante_programa?.prospecto
+      // 🔥 CORRECCIÓN: El backend devuelve `prospecto` a nivel raíz de la respuesta
+      // También intentamos desde cuotas por compatibilidad
+      const prospectoRaiz = (accountSummary as any)?.prospecto
+      const prospectoCuota = accountSummary.cuotas?.[0]?.estudiante_programa?.prospecto
+      const prospecto = prospectoRaiz || prospectoCuota
 
       const studentName = prospecto?.nombre_completo || 'Estudiante'
       const studentCarnet = prospecto?.carnet || ''
+      
+      // 🔥 CORRECCIÓN: Buscar email en el prospecto correcto
+      const studentEmail = prospectoRaiz?.correo_electronico 
+        || prospectoCuota?.correo_electronico 
+        || prospecto?.correo 
+        || prospecto?.email 
+        || ''
 
-      const studentEmail = prospecto?.correo_electronico || ''
+      // 🔥 CORRECCIÓN: Ordenar historial por fecha descendente (más reciente primero)
+      const sortedHistory = [...paymentHistory].sort((a: any, b: any) => {
+        const dateA = new Date(a.fecha_pago || 0).getTime()
+        const dateB = new Date(b.fecha_pago || 0).getTime()
+        return dateB - dateA // Descendente: más reciente primero
+      })
+
+      // 🔥 CORRECCIÓN: Ordenar pagos pendientes por fecha de vencimiento ascendente (próximo a vencer primero)
+      const sortedPending = [...pendingPayments].sort((a: any, b: any) => {
+        const dateA = new Date(a.fecha_vencimiento || 0).getTime()
+        const dateB = new Date(b.fecha_vencimiento || 0).getTime()
+        return dateA - dateB // Ascendente: próximo a vencer primero
+      })
 
       // Convertir datos al formato AccountData
       const accountData = {
@@ -86,32 +108,51 @@ export function EstadoCuentaEstudiante() {
           isBlocked: (accountSummary.resumen?.monto_pendiente || 0) > 0,
           warningLevel: ((accountSummary.resumen?.monto_pendiente || 0) > 1000 ? 2 : 
                        (accountSummary.resumen?.monto_pendiente || 0) > 500 ? 1 : 0) as 0 | 1 | 2,
-          nextDueDate: pendingPayments.length > 0 ? pendingPayments[0]?.fecha_vencimiento : null,
-          daysUntilDue: pendingPayments.length > 0 && pendingPayments[0]?.fecha_vencimiento ? 
-            Math.ceil((new Date(pendingPayments[0].fecha_vencimiento).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null,
-          latePayments: pendingPayments.filter((p: any) => {
+          nextDueDate: sortedPending.length > 0 ? sortedPending[0]?.fecha_vencimiento : null,
+          daysUntilDue: sortedPending.length > 0 && sortedPending[0]?.fecha_vencimiento ? 
+            Math.ceil((new Date(sortedPending[0].fecha_vencimiento).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null,
+          latePayments: sortedPending.filter((p: any) => {
             const dueDate = new Date(p.fecha_vencimiento)
             return dueDate < new Date()
           }).length
         },
-        pendingPayments: pendingPayments.map((p: any) => ({
-          id: p.id,
-          concept: `Cuota ${p.numero_cuota} - ${p.estudiante_programa?.programa?.nombre_del_programa || ''}`,
-          amount: parseFloat(p.monto || 0),
-          lateFee: parseFloat(p.late_fee_total || 0),
-          dueDate: p.fecha_vencimiento,
-          status: new Date(p.fecha_vencimiento) < new Date() ? 'vencido' as const : 'pendiente' as const,
-          daysLate: new Date(p.fecha_vencimiento) < new Date() ? 
-            Math.ceil((new Date().getTime() - new Date(p.fecha_vencimiento).getTime()) / (1000 * 60 * 60 * 24)) : null
-        })),
-        paymentHistory: paymentHistory.map((h: any) => ({
-          id: h.id,
-          concept: `Cuota ${h.cuota?.numero_cuota || ''} - ${h.estudiante_programa?.programa?.nombre_del_programa || ''}`,
-          amount: parseFloat(h.monto_pagado || 0),
-          paymentDate: h.fecha_pago,
-          method: h.metodo_pago || 'Transferencia',
-          reference: h.numero_boleta || h.banco || 'N/A'
-        }))
+        // 🔥 MEJORADO: Incluir nombre del programa en concepto
+        pendingPayments: sortedPending.map((p: any) => {
+          const programName = p.estudiante_programa?.programa?.abreviatura 
+            || p.estudiante_programa?.programa?.nombre_del_programa 
+            || ''
+          return {
+            id: p.id,
+            concept: programName 
+              ? `Cuota ${p.numero_cuota} - ${programName}`
+              : `Cuota ${p.numero_cuota}`,
+            amount: parseFloat(p.monto || 0),
+            lateFee: parseFloat(p.late_fee_total || 0),
+            dueDate: p.fecha_vencimiento,
+            status: new Date(p.fecha_vencimiento) < new Date() ? 'vencido' as const : 'pendiente' as const,
+            daysLate: new Date(p.fecha_vencimiento) < new Date() ? 
+              Math.ceil((new Date().getTime() - new Date(p.fecha_vencimiento).getTime()) / (1000 * 60 * 60 * 24)) : null
+          }
+        }),
+        // 🔥 MEJORADO: Historial ordenado con nombre de programa
+        paymentHistory: sortedHistory.map((h: any) => {
+          const programName = h.estudiante_programa?.programa?.abreviatura 
+            || h.estudiante_programa?.programa?.nombre_del_programa 
+            || h.cuota?.estudiante_programa?.programa?.abreviatura
+            || h.cuota?.estudiante_programa?.programa?.nombre_del_programa
+            || ''
+          const cuotaNum = h.cuota?.numero_cuota || h.numero_cuota || ''
+          return {
+            id: h.id,
+            concept: programName 
+              ? `Pago de cuota${cuotaNum ? ` #${cuotaNum}` : ''} - ${programName}`
+              : `Pago de cuota${cuotaNum ? ` #${cuotaNum}` : ''}`,
+            amount: parseFloat(h.monto_pagado || 0),
+            paymentDate: h.fecha_pago,
+            method: h.metodo_pago || 'Transferencia',
+            reference: h.numero_boleta || h.banco || 'N/A'
+          }
+        })
       }
 
       // Pasar las rutas de los logos al generador de PDF

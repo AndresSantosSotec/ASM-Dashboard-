@@ -181,10 +181,13 @@ export const generateDetailedAccountStatePDF = async (
   doc.text('INFORMACIÓN DEL ESTUDIANTE', LEFT + 5, y + 8)
   y += 16
 
-  // Caja de info
-  y = ensureSpace(doc, y, 35)
+  // 🔥 MEJORA: Calcular altura dinámica según si hay programas
+  const programas = (data as any).programas ?? []
+  const boxHeight = programas.length > 0 ? 45 : 35
+  
+  y = ensureSpace(doc, y, boxHeight)
   doc.setFillColor(...COLORS.lightGray)
-  doc.rect(LEFT, y, CONTENT_WIDTH, 35, 'F')
+  doc.rect(LEFT, y, CONTENT_WIDTH, boxHeight, 'F')
 
   doc.setTextColor(...COLORS.secondary)
   doc.setFont('helvetica', 'normal')
@@ -192,13 +195,24 @@ export const generateDetailedAccountStatePDF = async (
   
   const name = data.student?.name ?? '—'
   const carnet = data.student?.carnet ?? 'No asignado'
-  const email = (data.student as any)?.email ?? (data.student as any)?.correo ?? 'No disponible'
+  // 🔥 CORRECCIÓN: Buscar email en el campo correcto
+  const email = data.student?.email ?? (data.student as any)?.correo ?? ''
 
   y += 8
   doc.text(`Nombre: ${name}`, LEFT + 5, y)
   y += 7
   doc.text(`Carnet: ${carnet}`, LEFT + 5, y)
-  doc.text(`Email: ${email}`, LEFT + 110, y)
+  // 🔥 Solo mostrar email si existe
+  if (email && email.trim() !== '') {
+    doc.text(`Email: ${email}`, LEFT + 90, y)
+  }
+  
+  // 🔥 NUEVO: Mostrar programas si existen
+  if (programas.length > 0) {
+    y += 7
+    const programasStr = programas.map((p: any) => p.abreviatura || p.nombre || '').filter(Boolean).join(', ')
+    doc.text(`Programa(s): ${programasStr || 'No asignado'}`, LEFT + 5, y)
+  }
   
   y += 7
   const statusText = data.balance?.isBlocked
@@ -297,13 +311,26 @@ export const generateDetailedAccountStatePDF = async (
     doc.text('PAGOS PENDIENTES', LEFT, y)
     y += 8
 
-    // 🔥 CORRECCIÓN: Mostrar solo monto base de cada cuota (sin mora individual)
-    const pendingRows = pending.map(p => [
-      p.concept,
-      fmtDate(p.dueDate),
-      fmtMoney(Number(p.amount || 0)), // Solo monto base
-      p.status === 'vencido' ? `Vencido${p.daysLate ? ` (${p.daysLate} días)` : ''}` : 'Pendiente',
-    ])
+    // 🔥 MEJORA: Agrupar por programa
+    const programasUnicos = [...new Set(pending.map(p => (p as any).programa_nombre || 'Sin programa'))].filter(Boolean)
+    const tieneMultiplesProgramas = programasUnicos.length > 1
+
+    // 🔥 MEJORA: Crear filas con marcador de pago especial y programa
+    const pendingRows = pending.map(p => {
+      const esEspecial = (p as any).es_especial === true
+      const programaNombre = tieneMultiplesProgramas ? ((p as any).programa_nombre || '') : ''
+      // Agregar [*] si es pago especial (inscripción, matrícula, etc.)
+      const concepto = esEspecial 
+        ? `[*] ${p.concept}` 
+        : p.concept
+      
+      return [
+        programaNombre ? `[${programaNombre}] ${concepto}` : concepto,
+        fmtDate(p.dueDate),
+        fmtMoney(Number(p.amount || 0)), // Solo monto base
+        p.status === 'vencido' ? `Vencido${p.daysLate ? ` (${p.daysLate}d)` : ''}` : 'Pendiente',
+      ]
+    })
 
     // 🔥 Agregar filas de totales si hay mora
     const totalMora = (data.balance?.totalMora ?? 0)
@@ -314,7 +341,12 @@ export const generateDetailedAccountStatePDF = async (
       pendingRows.push(
         ['', '', '', ''], // Fila vacía
         ['', 'Mora (recargo único):', fmtMoney(totalMora), ''], // Mora única Q50
-        ['', 'Total a pagar:', fmtMoney(totalConMora), ''] // Total con mora
+        ['', 'TOTAL A PAGAR:', fmtMoney(totalConMora), ''] // Total con mora
+      )
+    } else {
+      pendingRows.push(
+        ['', '', '', ''], // Fila vacía
+        ['', 'TOTAL PENDIENTE:', fmtMoney(totalPendiente), '']
       )
     }
 
@@ -331,25 +363,39 @@ export const generateDetailedAccountStatePDF = async (
       },
       bodyStyles: { fontSize: 9 },
       columnStyles: {
-        0: { cellWidth: 70 },
-        1: { cellWidth: 30 },
-        2: { cellWidth: 30, halign: 'right' },
-        3: { cellWidth: 30, halign: 'center' },
+        0: { cellWidth: 75 },
+        1: { cellWidth: 28 },
+        2: { cellWidth: 28, halign: 'right' },
+        3: { cellWidth: 29, halign: 'center' },
       },
       didParseCell: (data: any) => {
-        // 🔥 Resaltar las filas de totales (mora y total a pagar)
-        const lastIndex = pendingRows.length - 1
-        const secondLastIndex = pendingRows.length - 2
-        if (data.row.index === secondLastIndex || data.row.index === lastIndex) {
+        // 🔥 Resaltar las filas de totales
+        const rowCount = pendingRows.length
+        if (data.row.index >= rowCount - 2) {
           data.cell.styles.fontStyle = 'bold'
           data.cell.styles.fillColor = [240, 240, 240] as RGB
+        }
+        // 🔥 Resaltar pagos especiales con color amarillo claro
+        if (data.row.index < pending.length && (pending[data.row.index] as any)?.es_especial) {
+          data.cell.styles.fillColor = [255, 253, 231] as RGB // Amarillo claro
         }
       },
       pageBreak: 'auto',
     })
 
+    // 🔥 NUEVO: Agregar leyenda si hay pagos especiales
+    const tieneEspeciales = pending.some(p => (p as any).es_especial)
+    if (tieneEspeciales) {
+      lastY = (doc as any).lastAutoTable.finalY || y
+      y = lastY + 3
+      doc.setFontSize(8)
+      doc.setTextColor(100, 100, 100)
+      doc.text('[*] = Pago especial (inscripcion, matricula, u otro cargo extraordinario)', LEFT, y)
+      y += 5
+    }
+
     lastY = (doc as any).lastAutoTable.finalY || y
-    y = lastY + 16
+    y = lastY + 12
   }
 
   // ===== Sección: Historial de pagos =====
@@ -368,36 +414,188 @@ export const generateDetailedAccountStatePDF = async (
     doc.setFontSize(10)
     doc.text('Sin pagos registrados', LEFT, y + 4)
   } else {
-    const historyRows = history.map(h => [
-      fmtDate(h.paymentDate),
-      h.concept ?? '—',
-      h.method ?? '—',
-      h.reference ?? '—',
-      fmtMoney(h.amount),
-    ])
+    // 🔥 MEJORA: Agrupar por programa
+    const programasUnicos = [...new Set(history.map(h => (h as any).programa_nombre || 'Sin programa'))].filter(Boolean)
+    const tieneMultiplesProgramas = programasUnicos.length > 1
 
-    autoTable(doc, {
-      startY: y,
-      head: [['Fecha', 'Concepto', 'Método', 'Referencia', 'Monto']],
-      body: historyRows,
-      theme: 'striped',
-      headStyles: {
-        fillColor: COLORS.success as RGB,
-        textColor: [255, 255, 255] as RGB,
-        fontStyle: 'bold',
-        fontSize: 10,
-      },
-      bodyStyles: { fontSize: 9 },
-      columnStyles: {
-        0: { cellWidth: 30 },
-        1: { cellWidth: 70 },
-        2: { cellWidth: 25, halign: 'center' },
-        3: { cellWidth: 30, halign: 'center' },
-        4: { cellWidth: 25, halign: 'right' },
-      },
-      styles: { overflow: 'linebreak' },
-      pageBreak: 'auto',
-    })
+    // Total general de todos los programas
+    const totalPagadoGeneral = history.reduce((sum, h) => sum + Number(h.amount || 0), 0)
+
+    if (tieneMultiplesProgramas) {
+      // 🔥 AGRUPADO POR PROGRAMA
+      for (const programa of programasUnicos) {
+        // Filtrar historial de este programa
+        const historialProgramaRaw = history.filter(h => ((h as any).programa_nombre || 'Sin programa') === programa)
+        
+        if (historialProgramaRaw.length === 0) continue
+
+        // 🔥 ORDENAR: Pagos especiales primero, luego por fecha descendente
+        const historialPrograma = [...historialProgramaRaw].sort((a, b) => {
+          const aEspecial = (a as any).es_especial === true ? 1 : 0
+          const bEspecial = (b as any).es_especial === true ? 1 : 0
+          // Especiales primero (1 antes que 0)
+          if (bEspecial !== aEspecial) return bEspecial - aEspecial
+          // Luego por fecha más reciente
+          const fechaA = new Date(a.paymentDate || 0).getTime()
+          const fechaB = new Date(b.paymentDate || 0).getTime()
+          return fechaB - fechaA
+        })
+
+        // Subtítulo del programa
+        y = ensureSpace(doc, y, 20)
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(11)
+        doc.setTextColor(80, 80, 80)
+        doc.text(`>> ${programa}`, LEFT, y)
+        y += 6
+
+        // Crear filas de este programa
+        const historyRows = historialPrograma.map(h => {
+          const esEspecial = (h as any).es_especial === true
+          let concepto = h.concept ?? '—'
+          if (esEspecial) {
+            concepto = `[*] ${concepto}`
+          }
+          return [
+            fmtDate(h.paymentDate),
+            concepto,
+            h.method ?? '—',
+            h.reference ?? '—',
+            fmtMoney(h.amount),
+          ]
+        })
+
+        // Subtotal del programa
+        const subtotalPrograma = historialPrograma.reduce((sum, h) => sum + Number(h.amount || 0), 0)
+        historyRows.push(
+          ['', '', '', 'Subtotal:', fmtMoney(subtotalPrograma)]
+        )
+
+        autoTable(doc, {
+          startY: y,
+          head: [['Fecha', 'Concepto', 'Método', 'Referencia', 'Monto']],
+          body: historyRows,
+          theme: 'striped',
+          headStyles: {
+            fillColor: COLORS.success as RGB,
+            textColor: [255, 255, 255] as RGB,
+            fontStyle: 'bold',
+            fontSize: 10,
+          },
+          bodyStyles: { fontSize: 9 },
+          columnStyles: {
+            0: { cellWidth: 25 },
+            1: { cellWidth: 65 },
+            2: { cellWidth: 25, halign: 'center' },
+            3: { cellWidth: 30, halign: 'center' },
+            4: { cellWidth: 25, halign: 'right' },
+          },
+          styles: { overflow: 'linebreak' },
+          didParseCell: (data: any) => {
+            // Resaltar fila de subtotal
+            if (data.row.index === historyRows.length - 1) {
+              data.cell.styles.fontStyle = 'bold'
+              data.cell.styles.fillColor = [230, 255, 230] as RGB
+            }
+            // Resaltar pagos especiales
+            if (data.row.index < historialPrograma.length && (historialPrograma[data.row.index] as any)?.es_especial) {
+              data.cell.styles.fillColor = [255, 253, 231] as RGB
+            }
+          },
+          pageBreak: 'auto',
+        })
+
+        y = (doc as any).lastAutoTable.finalY + 8
+      }
+
+      // 🔥 Total general al final
+      y = ensureSpace(doc, y, 15)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(12)
+      doc.setTextColor(0, 100, 0)
+      doc.text(`TOTAL PAGADO (todos los programas): ${fmtMoney(totalPagadoGeneral)}`, LEFT, y)
+      y += 8
+
+    } else {
+      // 🔥 UN SOLO PROGRAMA - Sin agrupación pero ordenado
+      // Ordenar: Pagos especiales primero, luego por fecha descendente
+      const historyOrdenado = [...history].sort((a, b) => {
+        const aEspecial = (a as any).es_especial === true ? 1 : 0
+        const bEspecial = (b as any).es_especial === true ? 1 : 0
+        // Especiales primero (1 antes que 0)
+        if (bEspecial !== aEspecial) return bEspecial - aEspecial
+        // Luego por fecha más reciente
+        const fechaA = new Date(a.paymentDate || 0).getTime()
+        const fechaB = new Date(b.paymentDate || 0).getTime()
+        return fechaB - fechaA
+      })
+
+      const historyRows = historyOrdenado.map(h => {
+        const esEspecial = (h as any).es_especial === true
+        let concepto = h.concept ?? '—'
+        if (esEspecial) {
+          concepto = `[*] ${concepto}`
+        }
+        return [
+          fmtDate(h.paymentDate),
+          concepto,
+          h.method ?? '—',
+          h.reference ?? '—',
+          fmtMoney(h.amount),
+        ]
+      })
+
+      // Total pagado
+      historyRows.push(
+        ['', '', '', '', ''],
+        ['', '', '', 'TOTAL PAGADO:', fmtMoney(totalPagadoGeneral)]
+      )
+
+      autoTable(doc, {
+        startY: y,
+        head: [['Fecha', 'Concepto', 'Método', 'Referencia', 'Monto']],
+        body: historyRows,
+        theme: 'striped',
+        headStyles: {
+          fillColor: COLORS.success as RGB,
+          textColor: [255, 255, 255] as RGB,
+          fontStyle: 'bold',
+          fontSize: 10,
+        },
+        bodyStyles: { fontSize: 9 },
+        columnStyles: {
+          0: { cellWidth: 25 },
+          1: { cellWidth: 65 },
+          2: { cellWidth: 25, halign: 'center' },
+          3: { cellWidth: 30, halign: 'center' },
+          4: { cellWidth: 25, halign: 'right' },
+        },
+        styles: { overflow: 'linebreak' },
+        didParseCell: (data: any) => {
+          // Resaltar fila de total
+          const rowCount = historyRows.length
+          if (data.row.index >= rowCount - 2) {
+            data.cell.styles.fontStyle = 'bold'
+            data.cell.styles.fillColor = [230, 255, 230] as RGB
+          }
+          // Resaltar pagos especiales (usar historyOrdenado, no history)
+          if (data.row.index < historyOrdenado.length && (historyOrdenado[data.row.index] as any)?.es_especial) {
+            data.cell.styles.fillColor = [255, 253, 231] as RGB
+          }
+        },
+        pageBreak: 'auto',
+      })
+    }
+
+    // 🔥 Leyenda si hay pagos especiales
+    const tieneEspeciales = history.some(h => (h as any).es_especial)
+    if (tieneEspeciales) {
+      y = (doc as any).lastAutoTable?.finalY || y
+      y += 3
+      doc.setFontSize(8)
+      doc.setTextColor(100, 100, 100)
+      doc.text('[*] = Pago especial (inscripcion, matricula, u otro cargo extraordinario)', LEFT, y)
+    }
   }
 
   // === Guardar ===

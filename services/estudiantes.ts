@@ -44,7 +44,18 @@ export async function fetchProspectos(params: {
 }
 
 export type AccountData = {
-  student: { id: number; name: string; carnet?: string }
+  student: { 
+    id: number
+    name: string
+    carnet?: string
+    email?: string  // 🔥 NUEVO: Email del estudiante
+    telefono?: string | null  // 🔥 NUEVO: Teléfono
+  }
+  programas?: Array<{  // 🔥 NUEVO: Lista de programas
+    id: number
+    nombre?: string
+    abreviatura?: string
+  }>
   balance: {
     isBlocked: boolean
     warningLevel: 0|1|2
@@ -58,19 +69,32 @@ export type AccountData = {
   pendingPayments: Array<{
     id: number
     concept: string
+    numero_cuota?: number  // 🔥 NUEVO
     amount: number
     lateFee: number
     dueDate: string
     status: 'pendiente'|'vencido'
     daysLate?: number | null
+    mes_pago?: string  // 🔥 NUEVO
+    anio_pago?: string  // 🔥 NUEVO
+    es_especial?: boolean  // 🔥 NUEVO: Indica pago especial (inscripción, matrícula)
+    programa_id?: number  // 🔥 NUEVO
+    programa_nombre?: string  // 🔥 NUEVO
   }>
   paymentHistory: Array<{
     id: number
     concept: string
+    numero_cuota?: number  // 🔥 NUEVO
     amount: number
     paymentDate: string
     method: string
     reference: string
+    banco?: string  // 🔥 NUEVO
+    mes_pago?: string  // 🔥 NUEVO
+    anio_pago?: string  // 🔥 NUEVO
+    es_especial?: boolean  // 🔥 NUEVO: Indica pago especial
+    programa_id?: number  // 🔥 NUEVO
+    programa_nombre?: string  // 🔥 NUEVO
   }>
   excepciones?: {
     skip_late_fee: boolean
