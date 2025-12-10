@@ -217,11 +217,11 @@ export default function GestionProspectos() {
     const asesorTerm = asesorFilter.toLowerCase()
     return prospectos.filter(p => {
       const matchesText =
-        p.nombre.toLowerCase().includes(term) ||
-        p.email.toLowerCase().includes(term) ||
-        p.telefono.toLowerCase().includes(term)
+        (p.nombre || "").toLowerCase().includes(term) ||
+        (p.email || "").toLowerCase().includes(term) ||
+        (p.telefono || "").toLowerCase().includes(term)
       const matchesAsesor =
-        !asesorTerm || p.asesor?.nombre.toLowerCase().includes(asesorTerm)
+        !asesorTerm || (p.asesor?.nombre || "").toLowerCase().includes(asesorTerm)
       return matchesText && matchesAsesor
     })
   }, [prospectos, searchTerm, asesorFilter])
