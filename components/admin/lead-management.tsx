@@ -45,7 +45,7 @@ export default function GestionProspectos() {
   const [searchTerm, setSearchTerm] = useState("")
   const [estadoFilter, setEstadoFilter] = useState("todos")
   const [asesorFilter, setAsesorFilter] = useState("")
-  const [pageSize, setPageSize] = useState("5")
+  const [pageSize, setPageSize] = useState("50")
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
@@ -62,7 +62,14 @@ export default function GestionProspectos() {
   // carga de prospectos
   useEffect(() => {
     setLoading(true)
-    const qs = estadoFilter !== "todos" ? `?status=${estadoFilter}` : ""
+    // Construir query string - per_page=10000 para obtener todos los registros
+    const params = new URLSearchParams()
+    params.append('per_page', '10000') // Obtener todos los registros
+    if (estadoFilter !== "todos") {
+      params.append('status', estadoFilter)
+    }
+    const qs = `?${params.toString()}`
+    
     fetch(`${API_BASE_URL}/api/prospectos${qs}`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
@@ -404,10 +411,10 @@ export default function GestionProspectos() {
                       onCheckedChange={c => handleSelectOne(p.id, c as boolean)}
                     />
                   </TableCell>
-                  <TableCell>{p.nombre}</TableCell>
-                  <TableCell>{p.email}</TableCell>
-                  <TableCell>{p.telefono}</TableCell>
-                  <TableCell>{p.departamento}</TableCell>
+                  <TableCell>{p.nombre || <span className="text-gray-400">—</span>}</TableCell>
+                  <TableCell>{p.email || <span className="text-gray-400">—</span>}</TableCell>
+                  <TableCell>{p.telefono || <span className="text-gray-400">—</span>}</TableCell>
+                  <TableCell>{p.departamento || <span className="text-gray-400">—</span>}</TableCell>
                   <TableCell>
                     <div className="flex flex-col">
                       <Badge className={getEstadoColor(p.estado)}>
@@ -462,9 +469,10 @@ export default function GestionProspectos() {
             <SelectValue placeholder="Paginación" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="5">5</SelectItem>
             <SelectItem value="10">10</SelectItem>
-            <SelectItem value="20">20</SelectItem>
+            <SelectItem value="25">25</SelectItem>
+            <SelectItem value="50">50</SelectItem>
+            <SelectItem value="100">100</SelectItem>
             <SelectItem value="all">Todos</SelectItem>
           </SelectContent>
         </Select>
