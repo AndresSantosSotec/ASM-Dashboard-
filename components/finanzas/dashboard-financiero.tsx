@@ -1629,12 +1629,8 @@ export function DashboardFinanciero() {
                               )}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">{estudiante.correo || '—'}</TableCell>
-                            <TableCell>
-                              {estudiante.city ? (
-                                <Badge variant="outline">{estudiante.city}</Badge>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">—</span>
-                              )}
+                            <TableCell className="text-sm font-medium">
+                              {estudiante.city || <span className="text-xs text-muted-foreground">—</span>}
                             </TableCell>
                             <TableCell className="text-center">
                               <Badge>{cantidadCursos}</Badge>

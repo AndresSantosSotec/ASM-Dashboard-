@@ -135,9 +135,9 @@ export default function ProspectSearchModal({
     return prospectos
       .filter(p => filterDepto === 'todos' || p.departamento === filterDepto)
       .filter(p => {
-        const name = p.nombreCompleto.toLowerCase()
-        const email = p.emailPersonal.toLowerCase()
-        const phone = p.telefono
+        const name = p.nombreCompleto?.toLowerCase() || ''
+        const email = p.emailPersonal?.toLowerCase() || ''
+        const phone = p.telefono || ''
         return (
           name.includes(lower) ||
           email.includes(lower) ||

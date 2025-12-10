@@ -88,10 +88,17 @@ interface CommissionGoal {
 
 interface GlobalRule {
   id: number
-  level: 'superstar' | 'estrella' | 'punto_negro' | 'minimo' | 'cero'
+  level: string // Ahora puede ser cualquier string (personalizable)
   min_sales: number
   max_sales: number | null
   percentage: number
+  is_custom?: boolean // Para identificar niveles personalizados
+}
+
+interface AvailableMonth {
+  month: number
+  year: number
+  label: string
 }
 
 interface CommissionV2 {
@@ -195,6 +202,16 @@ export function Advisors() {
   const [globalSettings, setGlobalSettings] = useState<{global_default_goal: number}>({global_default_goal: 10})
   const [globalGoalInput, setGlobalGoalInput] = useState(10)
   const [globalSettingsModalOpen, setGlobalSettingsModalOpen] = useState(false)
+  
+  // Estados para meses disponibles
+  const [availableMonths, setAvailableMonths] = useState<AvailableMonth[]>([])
+  
+  // Estados para agregar nuevo nivel
+  const [addLevelModalOpen, setAddLevelModalOpen] = useState(false)
+  const [newLevelName, setNewLevelName] = useState("")
+  const [newLevelMinSales, setNewLevelMinSales] = useState(0)
+  const [newLevelMaxSales, setNewLevelMaxSales] = useState<number | null>(null)
+  const [newLevelPercentage, setNewLevelPercentage] = useState(0)
 
   // 1) Función de carga de asesores (rol=7)
   const loadAdvisors = async () => {
@@ -651,6 +668,115 @@ export function Advisors() {
     loadGlobalSettings()
   }, [])
 
+  // Función para cargar meses disponibles
+  const loadAvailableMonths = async () => {
+    try {
+      const r = await safeFetch(`${API_COMM_V2}/available-months`)
+      const json = await r.json()
+      if (json.success) {
+        setAvailableMonths(json.data || [])
+      }
+    } catch (err: any) {
+      console.error("Error cargando meses disponibles:", err)
+    }
+  }
+
+  useEffect(() => {
+    loadAvailableMonths()
+  }, [])
+
+  // Función para agregar nuevo nivel de comisión
+  const addNewLevel = async () => {
+    if (!newLevelName.trim()) {
+      Swal.fire("Error", "El nombre del nivel es requerido", "error")
+      return
+    }
+    if (newLevelPercentage < 0 || newLevelPercentage > 100) {
+      Swal.fire("Error", "El porcentaje debe estar entre 0 y 100", "error")
+      return
+    }
+    try {
+      const r = await safeFetch(`${API_COMM_V2}/global-rules/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          level: newLevelName.trim(),
+          min_sales: newLevelMinSales,
+          max_sales: newLevelMaxSales,
+          percentage: newLevelPercentage,
+        }),
+      })
+      const json = await r.json()
+      if (json.success) {
+        setAddLevelModalOpen(false)
+        setNewLevelName("")
+        setNewLevelMinSales(0)
+        setNewLevelMaxSales(null)
+        setNewLevelPercentage(0)
+        Swal.fire("Nivel creado", "El nuevo nivel se ha creado exitosamente", "success")
+        await loadGlobalRules()
+      } else {
+        throw new Error(json.message || "Error al crear nivel")
+      }
+    } catch (err: any) {
+      Swal.fire("Error", err.message, "error")
+    }
+  }
+
+  // Función para eliminar nivel personalizado
+  const deleteLevel = async (ruleId: number, levelName: string) => {
+    const defaultLevels = ['superstar', 'estrella', 'punto_negro', 'minimo', 'cero']
+    if (defaultLevels.includes(levelName)) {
+      Swal.fire("Error", "No se pueden eliminar los niveles por defecto", "error")
+      return
+    }
+    
+    const result = await Swal.fire({
+      title: "¿Eliminar nivel?",
+      text: `¿Estás seguro de eliminar el nivel "${levelName}"?`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#d33",
+    })
+    
+    if (!result.isConfirmed) return
+    
+    try {
+      const r = await safeFetch(`${API_COMM_V2}/global-rules/${ruleId}`, {
+        method: "DELETE",
+      })
+      const json = await r.json()
+      if (json.success) {
+        Swal.fire("Eliminado", "El nivel se ha eliminado correctamente", "success")
+        await loadGlobalRules()
+      } else {
+        throw new Error(json.message || "Error al eliminar nivel")
+      }
+    } catch (err: any) {
+      Swal.fire("Error", err.message, "error")
+    }
+  }
+
+  // Helper para obtener el icono/emoji de un nivel
+  const getLevelIcon = (level: string) => {
+    const icons: Record<string, string> = {
+      superstar: '⭐',
+      estrella: '✨',
+      punto_negro: '⚫',
+      minimo: '📊',
+      cero: '❌',
+    }
+    return icons[level] || '🏷️'
+  }
+
+  // Helper para determinar si un nivel es personalizado
+  const isCustomLevel = (level: string) => {
+    const defaultLevels = ['superstar', 'estrella', 'punto_negro', 'minimo', 'cero']
+    return !defaultLevels.includes(level)
+  }
+
   // Render
   return (
     <>
@@ -782,175 +908,12 @@ export function Advisors() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Tabs defaultValue="table" className="w-full">
+          <Tabs defaultValue="commissions-v2" className="w-full">
             <TabsList className="mb-4">
-              <TabsTrigger value="table">Tabla General</TabsTrigger>
-              <TabsTrigger value="commission">Comisiones</TabsTrigger>
-              <TabsTrigger value="goals">Metas por Asesor</TabsTrigger>
-              <TabsTrigger value="global-rules">Reglas Globales</TabsTrigger>
-              <TabsTrigger value="commissions-v2">Comisiones V2</TabsTrigger>
-              <TabsTrigger value="historical">Rendimiento Histórico</TabsTrigger>
+              <TabsTrigger value="commissions-v2">📊 Comisiones del Mes</TabsTrigger>
+              <TabsTrigger value="goals">🎯 Metas por Asesor</TabsTrigger>
+              <TabsTrigger value="global-rules">⚙️ Reglas Globales</TabsTrigger>
             </TabsList>
-            <TabsContent value="table">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Leads</TableHead>
-                    <TableHead>Conversiones</TableHead>
-                    <TableHead>Ingresos</TableHead>
-                    <TableHead>Rendimiento</TableHead>
-                    <TableHead>Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {advisorData.map(a => (
-                    <TableRow key={a.id}>
-                      <TableCell>{a.name}</TableCell>
-                      <TableCell>{a.leads}</TableCell>
-                      <TableCell>{a.conversions}</TableCell>
-                      <TableCell>Q{a.revenue.toLocaleString()}</TableCell>
-                      <TableCell>{renderPerformanceBadge(a.performance)}</TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                const rec = records.find(r => r.user_id.toString() === a.id)
-                                if (rec) {
-                                  setSelectedAdvisor(rec)
-                                  setNewCommissionRate(rec.rate_applied)
-                                  setCommissionPreview(rec.commission_amount)
-                                  setAdjustCommissionOpen(true)
-                                }
-                              }}
-                            >
-                              Ajustar comisión
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => openEditModal({ id: a.id, name: a.name })}>
-                              Editar asesor
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => openDeleteModal({ id: a.id, name: a.name })}>
-                              Eliminar asesor
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
-
-            <TabsContent value="commission">
-              <div className="flex justify-end mb-4 gap-4 items-center">
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="show-trends"
-                    checked={showTrends}
-                    onCheckedChange={setShowTrends}
-                  />
-                  <Label htmlFor="show-trends">Mostrar tendencias</Label>
-                </div>
-                <Select
-                  value={commissionPeriod}
-                  onValueChange={v => setCommissionPeriod(v as any)}
-                >
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Periodo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="monthly">Este mes</SelectItem>
-                    <SelectItem value="quarterly">Este trimestre</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Conversiones</TableHead>
-                    <TableHead>Ingresos</TableHead>
-                    <TableHead>Comisión</TableHead>
-                    <TableHead>Tasa</TableHead>
-                    <TableHead>Progreso</TableHead>
-                    <TableHead>Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {advisorData.map(a => (
-                    <TableRow
-                      key={a.id}
-                      className={a.hasCustomRate ? "bg-blue-50/30 dark:bg-blue-900/10" : ""}
-                    >
-                      <TableCell className="font-medium">
-                        {a.name}
-                        {a.hasCustomRate && (
-                          <Badge variant="outline" className="ml-2">
-                            Personalizada
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>{a.conversions}</TableCell>
-                      <TableCell>Q{a.revenue.toLocaleString()}</TableCell>
-                      <TableCell className="font-medium text-green-600">
-                        Q{a.commission.toLocaleString()}
-                        {renderTrend(a)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{a.commissionRate}%</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Progress
-                          value={Math.min(a.conversions * 10, 100)}
-                          className="h-2"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                const rec = records.find(r => r.user_id.toString() === a.id)
-                                if (rec) {
-                                  setSelectedAdvisor(rec)
-                                  setNewCommissionRate(rec.rate_applied)
-                                  setCommissionPreview(rec.commission_amount)
-                                  setAdjustCommissionOpen(true)
-                                }
-                              }}
-                            >
-                              Ajustar comisión
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => openEditModal({ id: a.id, name: a.name })}>
-                              Editar asesor
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => openDeleteModal({ id: a.id, name: a.name })}>
-                              Eliminar asesor
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
 
             {/* Tab: Metas por Asesor */}
             <TabsContent value="goals">
@@ -1074,17 +1037,17 @@ export function Advisors() {
             <TabsContent value="global-rules">
               <div className="flex justify-between items-center mb-4">
                 <p className="text-sm text-muted-foreground">
-                  Configura los porcentajes de comisión según el nivel de rendimiento y la meta global por defecto. Estos porcentajes se aplican globalmente a todos los asesores.
+                  Configura los porcentajes de comisión según el nivel de rendimiento. Puedes agregar niveles personalizados.
                 </p>
                 <div className="flex gap-2">
-                  <Button onClick={() => { loadGlobalRules(); loadGlobalSettings(); }} variant="outline">
-                    Actualizar
+                  <Button onClick={() => setAddLevelModalOpen(true)} variant="outline">
+                    + Agregar Nivel
                   </Button>
                   <Button onClick={saveGlobalRules}>
-                    Guardar Reglas
+                    Guardar Cambios
                   </Button>
-                  <Button onClick={() => setGlobalSettingsModalOpen(true)} variant="outline">
-                    Configurar Meta Global
+                  <Button onClick={() => setGlobalSettingsModalOpen(true)} variant="secondary">
+                    Meta Global
                   </Button>
                 </div>
               </div>
@@ -1093,9 +1056,9 @@ export function Advisors() {
               <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-semibold text-lg mb-1">Meta Global por Defecto</h3>
+                    <h3 className="font-semibold text-lg mb-1">🎯 Meta Global por Defecto</h3>
                     <p className="text-sm text-muted-foreground">
-                      Esta meta se aplica a todos los asesores que no tengan una meta personalizada configurada.
+                      Meta mensual para asesores sin meta personalizada. El porcentaje de comisión se calcula según el % de meta alcanzado.
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
@@ -1109,64 +1072,82 @@ export function Advisors() {
                   </div>
                 </div>
               </div>
+              
+              {/* Explicación de clasificación */}
+              <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                <p className="text-sm">
+                  <strong>💡 Cómo funciona:</strong> El nivel se determina por el % de meta alcanzado. Por ejemplo, si la meta es 10 y vendes 8, alcanzas el 80% = Estrella.
+                  Los niveles con el icono 🏷️ son personalizados y pueden eliminarse.
+                </p>
+              </div>
+
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nivel</TableHead>
-                    <TableHead>Ventas Mínimas</TableHead>
-                    <TableHead>Ventas Máximas</TableHead>
-                    <TableHead>Porcentaje de Comisión</TableHead>
+                    <TableHead>% Meta Mín.</TableHead>
+                    <TableHead>% Meta Máx.</TableHead>
+                    <TableHead>Porcentaje Comisión</TableHead>
+                    <TableHead>Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {globalRules.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center text-muted-foreground">
                         No hay reglas configuradas. Cargando...
                       </TableCell>
                     </TableRow>
                   ) : (
                     globalRules.map((rule: GlobalRule) => (
-                      <TableRow key={rule.id}>
-                        <TableCell className="font-medium capitalize">
-                          <Badge variant="outline" className="capitalize">
-                            {rule.level === 'superstar' ? '⭐ Superstar' :
-                             rule.level === 'estrella' ? '✨ Estrella' :
-                             rule.level === 'punto_negro' ? '⚫ Punto Negro' :
-                             rule.level === 'minimo' ? '📊 Mínimo' :
-                             '❌ Cero'}
-                          </Badge>
+                      <TableRow key={rule.id} className={isCustomLevel(rule.level) ? "bg-purple-50/50 dark:bg-purple-900/10" : ""}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={isCustomLevel(rule.level) ? "default" : "outline"} className="capitalize">
+                              {getLevelIcon(rule.level)} {rule.level.replace(/_/g, ' ')}
+                            </Badge>
+                            {isCustomLevel(rule.level) && (
+                              <Badge variant="secondary" className="text-xs">Personalizado</Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
-                          <Input
-                            type="number"
-                            min="0"
-                            value={rule.min_sales}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value) || 0
-                              const updated = globalRules.map((r: GlobalRule) =>
-                                r.id === rule.id ? { ...r, min_sales: val } : r
-                              )
-                              setGlobalRules(updated)
-                            }}
-                            className="w-24"
-                          />
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={rule.min_sales}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value) || 0
+                                const updated = globalRules.map((r: GlobalRule) =>
+                                  r.id === rule.id ? { ...r, min_sales: val } : r
+                                )
+                                setGlobalRules(updated)
+                              }}
+                              className="w-20"
+                            />
+                            <span className="text-muted-foreground">%</span>
+                          </div>
                         </TableCell>
                         <TableCell>
-                          <Input
-                            type="number"
-                            min="0"
-                            value={rule.max_sales || ""}
-                            onChange={(e) => {
-                              const val = e.target.value ? parseInt(e.target.value) : null
-                              const updated = globalRules.map((r: GlobalRule) =>
-                                r.id === rule.id ? { ...r, max_sales: val } : r
-                              )
-                              setGlobalRules(updated)
-                            }}
-                            className="w-24"
-                            placeholder="Sin límite"
-                          />
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              min="0"
+                              value={rule.max_sales || ""}
+                              onChange={(e) => {
+                                const val = e.target.value ? parseInt(e.target.value) : null
+                                const updated = globalRules.map((r: GlobalRule) =>
+                                  r.id === rule.id ? { ...r, max_sales: val } : r
+                                )
+                                setGlobalRules(updated)
+                              }}
+                              className="w-20"
+                              placeholder="∞"
+                            />
+                            <span className="text-muted-foreground">%</span>
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -1181,10 +1162,23 @@ export function Advisors() {
                                 )
                                 setGlobalRules(updated)
                               }}
-                              className="flex-1"
+                              className="flex-1 min-w-[100px]"
                             />
-                            <span className="w-16 text-right font-medium">{rule.percentage}%</span>
+                            <Badge variant="secondary" className="w-16 justify-center">{rule.percentage}%</Badge>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {isCustomLevel(rule.level) ? (
+                            <Button 
+                              variant="destructive" 
+                              size="sm" 
+                              onClick={() => deleteLevel(rule.id, rule.level)}
+                            >
+                              Eliminar
+                            </Button>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">Por defecto</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))
@@ -1198,31 +1192,42 @@ export function Advisors() {
               <div className="flex justify-between items-center mb-4 gap-4">
                 <div className="flex items-center gap-2">
                   <Label>Período:</Label>
-                  <Select value={selectedMonth.toString()} onValueChange={(v) => {
-                    setSelectedMonth(parseInt(v))
-                  }}>
-                    <SelectTrigger className="w-40">
+                  <Select 
+                    value={`${selectedMonth}-${selectedYear}`} 
+                    onValueChange={(v) => {
+                      const [m, y] = v.split('-').map(Number)
+                      setSelectedMonth(m)
+                      setSelectedYear(y)
+                    }}
+                  >
+                    <SelectTrigger className="w-56">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                        <SelectItem key={m} value={m.toString()}>
-                          {new Date(2000, m - 1).toLocaleString('es', { month: 'long' })}
-                        </SelectItem>
-                      ))}
+                      {availableMonths.length > 0 ? (
+                        availableMonths.map((m) => (
+                          <SelectItem key={`${m.month}-${m.year}`} value={`${m.month}-${m.year}`}>
+                            {m.label}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        // Fallback: mostrar últimos 12 meses
+                        Array.from({ length: 12 }, (_, i) => {
+                          const date = new Date()
+                          date.setMonth(date.getMonth() - i)
+                          return {
+                            month: date.getMonth() + 1,
+                            year: date.getFullYear(),
+                            label: `${date.toLocaleString('es', { month: 'long' })} ${date.getFullYear()}`,
+                          }
+                        }).map((m) => (
+                          <SelectItem key={`${m.month}-${m.year}`} value={`${m.month}-${m.year}`}>
+                            {m.label}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
-                  <Input
-                    type="number"
-                    min="2020"
-                    max="2100"
-                    value={selectedYear}
-                    onChange={(e) => {
-                      const year = parseInt(e.target.value) || new Date().getFullYear()
-                      setSelectedYear(year)
-                    }}
-                    className="w-24"
-                  />
                 </div>
                 <Button 
                   onClick={calculateCommissions} 
@@ -1295,13 +1300,10 @@ export function Advisors() {
                               comm.performance_level === 'estrella' ? 'default' :
                               comm.performance_level === 'punto_negro' ? 'secondary' :
                               comm.performance_level === 'minimo' ? 'outline' :
-                              'destructive'
+                              comm.performance_level === 'cero' ? 'destructive' :
+                              'default' // Para niveles personalizados
                             }>
-                              {comm.performance_level === 'superstar' ? '⭐ Superstar' :
-                               comm.performance_level === 'estrella' ? '✨ Estrella' :
-                               comm.performance_level === 'punto_negro' ? '⚫ Punto Negro' :
-                               comm.performance_level === 'minimo' ? '📊 Mínimo' :
-                               '❌ Cero'}
+                              {getLevelIcon(comm.performance_level)} {comm.performance_level.replace(/_/g, ' ')}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -1323,160 +1325,42 @@ export function Advisors() {
                 </>
               )}
             </TabsContent>
-
-            {/* Tab: Rendimiento Histórico (comisiones_asesores) */}
-            <TabsContent value="historical">
-              <div className="flex justify-between items-center mb-4 gap-4">
-                <div className="flex items-center gap-2">
-                  <Label>Período:</Label>
-                  <Select value={historicalMonth.toString()} onValueChange={(v) => {
-                    setHistoricalMonth(parseInt(v))
-                  }}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                        <SelectItem key={m} value={m.toString()}>
-                          {new Date(2000, m - 1).toLocaleString('es', { month: 'long' })}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="number"
-                    min="2020"
-                    max="2100"
-                    value={historicalYear}
-                    onChange={(e) => {
-                      const year = parseInt(e.target.value) || new Date().getFullYear()
-                      setHistoricalYear(year)
-                    }}
-                    className="w-24"
-                  />
-                </div>
-                <Button onClick={loadHistoricalCommissions} variant="outline" disabled={loadingHistorical}>
-                  {loadingHistorical ? "Cargando..." : "Actualizar"}
-                </Button>
-              </div>
-              {loadingHistorical ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Cargando rendimiento histórico...
-                </div>
-              ) : historicalCommissions.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground mb-4">
-                    No hay registros de rendimiento para este período.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                    <div className="grid grid-cols-4 gap-4">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total Inscritos</p>
-                        <p className="text-2xl font-bold">
-                          {historicalCommissions.reduce((sum, c) => sum + (c.cantidad_inscritos || 0), 0)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total Inscripciones</p>
-                        <p className="text-2xl font-bold">
-                          Q{historicalCommissions.reduce((sum, c) => sum + parseFloat(String(c.monto_total_inscripciones || 0)), 0).toLocaleString()}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total Comisiones</p>
-                        <p className="text-2xl font-bold text-green-600">
-                          Q{historicalCommissions.reduce((sum, c) => sum + parseFloat(String(c.monto_comision || 0)), 0).toLocaleString()}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Promedio por Asesor</p>
-                        <p className="text-2xl font-bold">
-                          Q{historicalCommissions.length > 0 
-                            ? (historicalCommissions.reduce((sum, c) => sum + parseFloat(String(c.monto_comision || 0)), 0) / historicalCommissions.length).toLocaleString(undefined, { maximumFractionDigits: 2 })
-                            : '0.00'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Asesor</TableHead>
-                        <TableHead>Inscritos</TableHead>
-                        <TableHead>Total Inscripciones</TableHead>
-                        <TableHead>Comisión</TableHead>
-                        <TableHead>Promedio por Inscrito</TableHead>
-                        <TableHead>Observaciones</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {historicalCommissions.map((comm: HistoricalCommission) => {
-                        const promedioPorInscrito = comm.cantidad_inscritos > 0 
-                          ? parseFloat(String(comm.monto_comision || 0)) / comm.cantidad_inscritos 
-                          : 0
-                        return (
-                          <TableRow key={comm.id}>
-                            <TableCell className="font-medium">
-                              {comm.asesor?.full_name || comm.asesor?.email || `ID: ${comm.asesor_id}`}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{comm.cantidad_inscritos}</Badge>
-                            </TableCell>
-                            <TableCell>
-                              Q{parseFloat(String(comm.monto_total_inscripciones || 0)).toLocaleString()}
-                            </TableCell>
-                            <TableCell className="font-medium text-green-600">
-                              Q{parseFloat(String(comm.monto_comision || 0)).toLocaleString()}
-                            </TableCell>
-                            <TableCell>
-                              Q{promedioPorInscrito.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                            </TableCell>
-                            <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
-                              {comm.observaciones || '-'}
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                </>
-              )}
-            </TabsContent>
           </Tabs>
         </CardContent>
         <CardFooter className="flex flex-col sm:flex-row justify-between border-t p-4 gap-4">
-          <div className="flex gap-4">
+          <div className="flex gap-4 flex-wrap">
             <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
-              <PieChart className="h-5 w-5 text-green-600" />
+              <DollarSign className="h-5 w-5 text-green-600" />
               <div>
                 <span className="text-sm font-medium block">Total comisiones</span>
                 <span className="text-lg font-bold text-green-600">
-                  Q{totalCommissions.toLocaleString()}
+                  Q{commissionsV2.reduce((sum, c: CommissionV2) => sum + parseFloat(String(c.commission_amount || 0)), 0).toLocaleString()}
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
-              <Percent className="h-5 w-5 text-blue-600" />
+              <Award className="h-5 w-5 text-blue-600" />
               <div>
-                <span className="text-sm font-medium block">Tasa promedio</span>
+                <span className="text-sm font-medium block">Total ventas</span>
                 <span className="text-lg font-bold text-blue-600">
-                  {(advisorData.reduce((s, a) => s + a.commissionRate, 0) /
-                    (advisorData.length || 1)
-                  ).toFixed(1)}
-                  %
+                  {commissionsV2.reduce((sum, c: CommissionV2) => sum + (c.sales_count || 0), 0)} inscripciones
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg">
+              <PieChart className="h-5 w-5 text-purple-600" />
+              <div>
+                <span className="text-sm font-medium block">Meta global</span>
+                <span className="text-lg font-bold text-purple-600">
+                  {globalSettings.global_default_goal} ventas
                 </span>
               </div>
             </div>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
-            <Button variant="outline" className="flex-1 sm:flex-auto">
-              <BarChart3 className="h-4 w-4 mr-2" />
-              Ver análisis
+            <Button onClick={calculateCommissions} disabled={calculating} className="flex-1 sm:flex-auto">
+              {calculating ? "Calculando..." : "Calcular Comisiones"}
             </Button>
-            <Button className="flex-1 sm:flex-auto">Exportar reporte</Button>
           </div>
         </CardFooter>
       </Card>
@@ -1613,7 +1497,7 @@ export function Advisors() {
 
       {/* Modal Detalle de Comisión */}
       <Dialog open={commissionDetailModalOpen} onOpenChange={setCommissionDetailModalOpen}>
-        <DialogContent className="sm:max-w-[700px]">
+        <DialogContent className="max-w-[95vw] sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalle de Comisión</DialogTitle>
             <DialogDescription>
@@ -1622,67 +1506,122 @@ export function Advisors() {
           </DialogHeader>
           {selectedCommission && (
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              {/* Resumen Principal */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
-                  <Label>Asesor</Label>
+                  <Label className="text-xs text-muted-foreground">Asesor</Label>
                   <p className="font-medium">
                     {selectedCommission.asesor?.full_name || selectedCommission.asesor?.email || "N/A"}
                   </p>
                 </div>
                 <div>
-                  <Label>Período</Label>
+                  <Label className="text-xs text-muted-foreground">Período</Label>
                   <p className="font-medium">
                     {new Date(2000, selectedCommission.month - 1).toLocaleString('es', { month: 'long' })} {selectedCommission.year}
                   </p>
                 </div>
                 <div>
-                  <Label>Ventas</Label>
+                  <Label className="text-xs text-muted-foreground">Ventas</Label>
                   <p className="font-medium">{selectedCommission.sales_count}</p>
                 </div>
                 <div>
-                  <Label>Nivel</Label>
-                  <Badge className="capitalize">{selectedCommission.performance_level}</Badge>
-                </div>
-                <div>
-                  <Label>Porcentaje Aplicado</Label>
-                  <p className="font-medium">{selectedCommission.percentage_applied}%</p>
-                </div>
-                <div>
-                  <Label>Total Inscripciones</Label>
-                  <p className="font-medium">Q{parseFloat(String(selectedCommission.sales_total_amount || 0)).toLocaleString()}</p>
-                </div>
-                <div>
-                  <Label>Comisión</Label>
-                  <p className="font-medium text-green-600">
-                    Q{parseFloat(String(selectedCommission.commission_amount || 0)).toLocaleString()}
-                  </p>
-                </div>
-                <div>
-                  <Label>Meta Usada</Label>
+                  <Label className="text-xs text-muted-foreground">Meta Usada</Label>
                   <p className="font-medium">{selectedCommission.goal_used}</p>
                 </div>
               </div>
-              {selectedCommission.sales_source && selectedCommission.sales_source.length > 0 ? (
+
+              {/* Métricas de Comisión */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 rounded-lg">
                 <div>
-                  <Label className="mb-2 block">Ventas del Mes ({selectedCommission.sales_source.length})</Label>
-                  <div className="max-h-64 overflow-y-auto">
+                  <Label className="text-xs text-muted-foreground">Nivel Alcanzado</Label>
+                  <Badge className="capitalize mt-1" variant="default">
+                    {getLevelIcon(selectedCommission.performance_level)} {selectedCommission.performance_level.replace(/_/g, ' ')}
+                  </Badge>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Porcentaje Aplicado</Label>
+                  <p className="font-bold text-blue-600">{selectedCommission.percentage_applied}%</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Total Inscripciones</Label>
+                  <p className="font-medium">Q{parseFloat(String(selectedCommission.sales_total_amount || 0)).toLocaleString()}</p>
+                </div>
+              </div>
+
+              {/* Comisión Total */}
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border-2 border-green-200 dark:border-green-800">
+                <Label className="text-xs text-muted-foreground">Comisión Total</Label>
+                <p className="text-2xl font-bold text-green-600">
+                  Q{parseFloat(String(selectedCommission.commission_amount || 0)).toLocaleString()}
+                </p>
+              </div>
+
+              {/* Configuración Aplicada */}
+              {selectedCommission.config_snapshot && selectedCommission.config_snapshot.global_thresholds && (
+                <div>
+                  <Label className="mb-2 block font-semibold">Configuración de Niveles Aplicada</Label>
+                  <div className="border rounded-lg overflow-hidden">
                     <Table>
                       <TableHeader>
-                        <TableRow>
-                          <TableHead>Prospecto</TableHead>
-                          <TableHead>Monto</TableHead>
-                          <TableHead>Estado Pago</TableHead>
+                        <TableRow className="bg-gray-50 dark:bg-gray-800">
+                          <TableHead>Nivel</TableHead>
+                          <TableHead>Ventas Mínimas</TableHead>
+                          <TableHead>Ventas Máximas</TableHead>
+                          <TableHead>% Comisión</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {selectedCommission.sales_source.map((sale: any) => (
-                          <TableRow key={sale.id}>
-                            <TableCell>
+                        {Object.entries(selectedCommission.config_snapshot.global_thresholds as Record<string, any>)
+                          .sort((a, b) => (b[1].min_sales || 0) - (a[1].min_sales || 0))
+                          .map(([level, config]: [string, any]) => (
+                            <TableRow 
+                              key={level}
+                              className={level === selectedCommission.performance_level ? 'bg-green-50 dark:bg-green-900/20 font-semibold' : ''}
+                            >
+                              <TableCell>
+                                <Badge variant={level === selectedCommission.performance_level ? 'default' : 'outline'} className="capitalize">
+                                  {getLevelIcon(level)} {level.replace(/_/g, ' ')}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>{config.min_sales}</TableCell>
+                              <TableCell>{config.max_sales ?? '∞'}</TableCell>
+                              <TableCell className="font-semibold">{config.percentage}%</TableCell>
+                            </TableRow>
+                          ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Meta mensual usada: <strong>{selectedCommission.goal_used} ventas</strong> • 
+                    Calculado: {selectedCommission.config_snapshot.calculated_at ? new Date(selectedCommission.config_snapshot.calculated_at).toLocaleString('es') : 'N/A'}
+                  </p>
+                </div>
+              )}
+
+              {/* Ventas del Mes */}
+              {selectedCommission.sales_source && selectedCommission.sales_source.length > 0 ? (
+                <div>
+                  <Label className="mb-2 block font-semibold">
+                    Ventas del Mes ({selectedCommission.sales_source.length})
+                  </Label>
+                  <div className="max-h-[400px] overflow-y-auto border rounded-lg">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-white dark:bg-gray-900 z-10">
+                        <TableRow>
+                          <TableHead className="w-[50%]">Prospecto</TableHead>
+                          <TableHead className="text-right">Monto</TableHead>
+                          <TableHead className="text-center">Estado</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedCommission.sales_source.map((sale: any, idx: number) => (
+                          <TableRow key={sale.id || idx}>
+                            <TableCell className="font-medium">
                               {sale.prospecto?.nombre_completo || `ID: ${sale.prospecto_id}`}
                             </TableCell>
-                            <TableCell>Q{parseFloat(String(sale.amount || 0)).toLocaleString()}</TableCell>
-                            <TableCell>
-                              <Badge variant={sale.paid_status ? "default" : "secondary"}>
+                            <TableCell className="text-right">Q{parseFloat(String(sale.amount || 0)).toLocaleString()}</TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant={sale.paid_status ? "default" : "secondary"} className="text-xs">
                                 {sale.paid_status ? "Pagado" : "Pendiente"}
                               </Badge>
                             </TableCell>
@@ -1693,16 +1632,8 @@ export function Advisors() {
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-4 text-muted-foreground">
+                <div className="text-center py-8 text-muted-foreground">
                   No hay ventas registradas para esta comisión
-                </div>
-              )}
-              {selectedCommission.config_snapshot && (
-                <div>
-                  <Label>Configuración Aplicada</Label>
-                  <pre className="bg-gray-50 dark:bg-gray-800 p-4 rounded text-xs overflow-auto">
-                    {JSON.stringify(selectedCommission.config_snapshot, null, 2)}
-                  </pre>
                 </div>
               )}
             </div>
@@ -1819,6 +1750,87 @@ export function Advisors() {
             </Button>
             <Button onClick={saveGlobalSettings}>
               Guardar Configuración
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Agregar Nuevo Nivel */}
+      <Dialog open={addLevelModalOpen} onOpenChange={setAddLevelModalOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Agregar Nuevo Nivel de Comisión</DialogTitle>
+            <DialogDescription>
+              Crea un nivel personalizado para clasificar el rendimiento de los asesores.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="level-name">Nombre del Nivel</Label>
+              <Input
+                id="level-name"
+                placeholder="Ej: bronce, plata, oro..."
+                value={newLevelName}
+                onChange={(e) => setNewLevelName(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Se convertirá a minúsculas y los espacios serán reemplazados por guiones bajos.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="level-min">% Meta Mínimo</Label>
+                <Input
+                  id="level-min"
+                  type="number"
+                  min={0}
+                  max={200}
+                  value={newLevelMinSales}
+                  onChange={(e) => setNewLevelMinSales(parseInt(e.target.value) || 0)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="level-max">% Meta Máximo</Label>
+                <Input
+                  id="level-max"
+                  type="number"
+                  min={0}
+                  max={200}
+                  placeholder="∞"
+                  value={newLevelMaxSales || ""}
+                  onChange={(e) => setNewLevelMaxSales(e.target.value ? parseInt(e.target.value) : null)}
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Porcentaje de Comisión: {newLevelPercentage}%</Label>
+              <Slider
+                min={0}
+                max={100}
+                step={0.5}
+                value={[newLevelPercentage]}
+                onValueChange={(v) => setNewLevelPercentage(v[0])}
+              />
+            </div>
+            <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg">
+              <p className="text-sm">
+                <strong>Ejemplo:</strong> Si configuras Min: 70%, Max: 79% y Comisión: 45%, 
+                los asesores que alcancen entre 70% y 79% de su meta recibirán 45% de comisión.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setAddLevelModalOpen(false)
+              setNewLevelName("")
+              setNewLevelMinSales(0)
+              setNewLevelMaxSales(null)
+              setNewLevelPercentage(0)
+            }}>
+              Cancelar
+            </Button>
+            <Button onClick={addNewLevel}>
+              Crear Nivel
             </Button>
           </DialogFooter>
         </DialogContent>
