@@ -82,6 +82,16 @@ interface StudentEligibility {
   completedCourseIds: string[];
 }
 
+// 🧹 Limpiar nombre de curso eliminando prefijos
+const cleanCourseName = (name: string): string => {
+  const month = '(?:Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Octubre|Noviembre|Diciembre)';
+  const day = '(?:Lunes|Martes|Mi(?:é|e)rcoles|Jueves|Viernes|S(?:á|a)bado|Domingo)';
+  const year = '\\d{4}';
+  const program = '[A-Z]{2,5}';
+  const regex = new RegExp(`^(?:${month}\\s+)?(?:${day}\\s+)?(?:${year}\\s+)?(?:${program}\\s+)?`, 'i');
+  return name.replace(regex, '').trim();
+};
+
 // Función auxiliar para comparar nombres (de bulk-assignment)
 const normalizeName = (str: string) =>
   str
@@ -89,15 +99,6 @@ const normalizeName = (str: string) =>
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .replace(/[^a-z0-9]/g, "");
-
-const areNamesSimilar = (a: string, b: string) => {
-  const na = normalizeName(a);
-  const nb = normalizeName(b);
-  if (na.includes(nb) || nb.includes(na)) return true;
-  const distance = levenshtein(na, nb);
-  const ratio = distance / Math.max(na.length, nb.length);
-  return ratio <= 0.3;
-};
 
 const levenshtein = (a: string, b: string) => {
   const matrix: number[][] = Array.from({ length: b.length + 1 }, () => []);
@@ -114,6 +115,18 @@ const levenshtein = (a: string, b: string) => {
     }
   }
   return matrix[b.length][a.length];
+};
+
+// ✅ Comparar nombres limpiando prefijos PRIMERO
+const areNamesSimilar = (a: string, b: string) => {
+  const cleanA = cleanCourseName(a);
+  const cleanB = cleanCourseName(b);
+  const na = normalizeName(cleanA);
+  const nb = normalizeName(cleanB);
+  if (na === nb || na.includes(nb) || nb.includes(na)) return true;
+  const distance = levenshtein(na, nb);
+  const ratio = distance / Math.max(na.length, nb.length);
+  return ratio <= 0.3;
 };
 
 // Función para extraer día de la semana del nombre del curso

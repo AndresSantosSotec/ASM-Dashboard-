@@ -56,6 +56,34 @@ interface StudentWithInternalData {
 }
 
 // Función auxiliar para comparar nombres (igual que en bulk-assignment-improved-panel)
+// 🧹 Limpiar nombre de curso eliminando prefijos (replica lógica del backend)
+const cleanCourseName = (name: string): string => {
+  // Regex que coincide con el backend PHP:
+  // - Mes opcional: Enero, Febrero, Marzo, etc.
+  // - Día opcional: Lunes, Martes, Miércoles, etc.
+  // - Año opcional: 2024, 2025, 2026
+  // - Programa opcional: BBA, MBA, DBA, etc. (2-5 letras mayúsculas)
+  const month = '(?:Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Octubre|Noviembre|Diciembre)';
+  const day = '(?:Lunes|Martes|Mi(?:é|e)rcoles|Jueves|Viernes|S(?:á|a)bado|Domingo)';
+  const year = '\\d{4}';
+  const program = '[A-Z]{2,5}';
+  
+  // Patrón completo: ^(Mes )?(Día )?(Año )?(PROGRAMA )?
+  const regex = new RegExp(
+    `^(?:${month}\\s+)?(?:${day}\\s+)?(?:${year}\\s+)?(?:${program}\\s+)?`,
+    'i'
+  );
+  
+  const cleaned = name.replace(regex, '').trim();
+  
+  // Log para debugging
+  if (cleaned !== name) {
+    console.log(`🧹 Limpieza: "${name}" → "${cleaned}"`);
+  }
+  
+  return cleaned;
+};
+
 const normalizeName = (str: string) =>
   str
     .toLowerCase()
@@ -80,13 +108,38 @@ const levenshtein = (a: string, b: string) => {
   return matrix[b.length][a.length];
 };
 
+// ✅ Comparar nombres de cursos limpiando prefijos PRIMERO
 const areNamesSimilar = (a: string, b: string) => {
-  const na = normalizeName(a);
-  const nb = normalizeName(b);
-  if (na.includes(nb) || nb.includes(na)) return true;
+  // 1️⃣ Limpiar ambos nombres primero
+  const cleanA = cleanCourseName(a);
+  const cleanB = cleanCourseName(b);
+  
+  // 2️⃣ Normalizar (minúsculas, sin acentos, solo alfanuméricos)
+  const na = normalizeName(cleanA);
+  const nb = normalizeName(cleanB);
+  
+  // 3️⃣ Comparación exacta (después de normalizar)
+  if (na === nb) {
+    console.log(`✅ MATCH EXACTO: "${a}" ≈ "${b}" (limpio: "${cleanA}" = "${cleanB}")`);
+    return true;
+  }
+  
+  // 4️⃣ Coincidencia parcial (uno contiene al otro)
+  if (na.includes(nb) || nb.includes(na)) {
+    console.log(`✅ MATCH PARCIAL: "${a}" ≈ "${b}" (limpio: "${cleanA}" ~ "${cleanB}")`);
+    return true;
+  }
+  
+  // 5️⃣ Levenshtein distance (similitud >= 70%)
   const distance = levenshtein(na, nb);
   const ratio = distance / Math.max(na.length, nb.length);
-  return ratio <= 0.3;
+  
+  if (ratio <= 0.3) {
+    console.log(`✅ MATCH LEVENSHTEIN: "${a}" ≈ "${b}" (similitud: ${Math.round((1 - ratio) * 100)}%)`);
+    return true;
+  }
+  
+  return false;
 };
 
 // 🚀 Componente memoizado para cada estudiante (evita re-renders)
@@ -119,16 +172,23 @@ const StudentAccordionItem = memo(({
   const availableCourses = useMemo(() => {
     if (!student.internalStudent) return [];
     
-    return currentMonthCourses.filter((course) => {
+    const filtered = currentMonthCourses.filter((course) => {
       // 🚫 Excluir cursos ya completados del sistema (por ID exacto)
       if (student.completedCourseIds.includes(String(course.id))) {
+        console.log(`🚫 [${student.carnet}] EXCLUIDO por ID del sistema: ${course.name} (ID: ${course.id})`);
         return false;
       }
       
       // 🚫 Excluir cursos ya aprobados en Moodle (por nombre similar)
       // Esto detecta si el estudiante ya llevó este curso en meses anteriores
       const alreadyApprovedInMoodle = student.moodleCompletedCourses?.some(
-        (moodleCourse) => areNamesSimilar(moodleCourse.coursename, course.name)
+        (moodleCourse) => {
+          const similar = areNamesSimilar(moodleCourse.coursename, course.name);
+          if (similar) {
+            console.log(`🚫 [${student.carnet}] EXCLUIDO por Moodle (similar): "${course.name}" ≈ "${moodleCourse.coursename}"`);
+          }
+          return similar;
+        }
       );
       if (alreadyApprovedInMoodle) {
         return false;
@@ -136,6 +196,7 @@ const StudentAccordionItem = memo(({
       
       // 🚫 Excluir cursos ya asignados actualmente
       if (student.assignedCourseIds.includes(String(course.id))) {
+        console.log(`🚫 [${student.carnet}] EXCLUIDO por asignación actual: ${course.name} (ID: ${course.id})`);
         return false;
       }
       
@@ -149,8 +210,18 @@ const StudentAccordionItem = memo(({
       }
       // Verificar coincidencia de programas
       const studentProgramIds = student.internalStudent.programas.map(p => p.id);
-      return course.programas.some(p => studentProgramIds.includes(p.id));
+      const matchesProgram = course.programas.some(p => studentProgramIds.includes(p.id));
+      if (!matchesProgram) {
+        console.log(`🚫 [${student.carnet}] EXCLUIDO por programa: ${course.name}`);
+      }
+      return matchesProgram;
     });
+    
+    if (filtered.length > 0 && student.coursesLoaded) {
+      console.log(`✅ [${student.carnet}] Cursos disponibles: ${filtered.length}/${currentMonthCourses.length}`);
+    }
+    
+    return filtered;
   }, [student, currentMonthCourses]);
 
   return (
@@ -778,8 +849,11 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
     const student = studentsData.find(s => s.carnet === studentCarnet);
     
     if (!student || student.coursesLoaded || !student.internalStudent) {
+      console.log(`⏭️ [${studentCarnet}] Skip: ${!student ? 'No encontrado' : student.coursesLoaded ? 'Ya cargado' : 'Sin interno'}`);
       return; // Ya cargado o sin equivalente interno
     }
+
+    console.log(`🔄 [${studentCarnet}] Iniciando carga de cursos...`);
 
     try {
       // Cargar cursos del sistema en paralelo con cursos de Moodle
@@ -787,6 +861,12 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
         fetchStudentCourseLists(String(student.internalStudent.id)),
         fetchApprovedMoodleCourses(student.carnet),
       ]);
+
+      console.log(`📥 [${studentCarnet}] Respuestas recibidas:`, {
+        completedFromSystem: lists?.completed?.length || 0,
+        assignedFromSystem: lists?.assigned?.length || 0,
+        approvedFromMoodle: Array.isArray(moodle) ? moodle.length : 0
+      });
 
       // Cursos completados del sistema
       const completedCourses = Array.isArray(lists?.completed) ? lists.completed : [];
@@ -799,10 +879,22 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
       // Cursos aprobados de Moodle
       const moodleCourses = Array.isArray(moodle) ? moodle : [];
 
+      console.log(`📋 [${studentCarnet}] Cursos de Moodle RAW:`, moodleCourses.map(m => ({
+        id: m.courseid,
+        name: m.coursename,
+        grade: m.finalgrade
+      })));
+
       // Filtrar Moodle para evitar duplicados con cursos del sistema
       const moodleCompletedCourses = moodleCourses.filter(
         (m) => !completedCourses.some((c: any) => areNamesSimilar(m.coursename, c.name))
       );
+
+      console.log(`✅ [${studentCarnet}] Cursos finales:`, {
+        completedIds: completedCourseIds,
+        assignedIds: assignedCourseIds,
+        moodleCompleted: moodleCompletedCourses.map(m => m.coursename)
+      });
 
       // Actualizar solo este estudiante
       setStudentsData(prev => prev.map(s => 
@@ -811,9 +903,9 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
           : s
       ));
 
-      console.log(`📚 Cursos cargados para ${studentCarnet}: ${completedCourseIds.length} completados, ${assignedCourseIds.length} asignados, ${moodleCompletedCourses.length} Moodle`);
+      console.log(`📚 [${studentCarnet}] ✅ Carga completa: ${completedCourseIds.length} completados, ${assignedCourseIds.length} asignados, ${moodleCompletedCourses.length} Moodle`);
     } catch (err) {
-      console.error(`Error cargando cursos para ${studentCarnet}:`, err);
+      console.error(`❌ [${studentCarnet}] Error cargando cursos:`, err);
     }
   }, [studentsData]);
 
