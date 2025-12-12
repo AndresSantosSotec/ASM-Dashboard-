@@ -13,9 +13,12 @@
 import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { 
   BookOpen,
-  Globe
+  Globe,
+  Download,
+  AlertTriangle
 } from "lucide-react"
 
 // Componentes existentes
@@ -24,6 +27,36 @@ import { UniversoEstudiantes } from "./UniversoEstudiantes"
 
 export function DashboardFinancieroHibrido() {
   const [tabActiva, setTabActiva] = useState<"activos" | "universo">("activos")
+  const [downloading, setDownloading] = useState(false)
+
+  const downloadMoodleOnlyReport = async () => {
+    try {
+      setDownloading(true)
+      const now = new Date()
+      const mes = now.getMonth() + 1
+      const anio = now.getFullYear()
+      
+      const response = await fetch(
+        `/api/financial-metrics/download-moodle-only?mes=${mes}&anio=${anio}`,
+        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
+      )
+
+      if (!response.ok) throw new Error("Error al descargar reporte")
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `estudiantes_moodle_no_crm_${anio}_${mes}.xlsx`
+      a.click()
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Error descargando reporte:", error)
+      alert("Error al descargar el reporte")
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -35,6 +68,27 @@ export function DashboardFinancieroHibrido() {
             Análisis completo con dos perspectivas: activos del mes y universo completo de estudiantes
           </p>
         </div>
+        
+        {/* Botón para descargar reporte de estudiantes Moodle que NO están en CRM */}
+        <Button 
+          onClick={downloadMoodleOnlyReport}
+          disabled={downloading}
+          variant="outline"
+          className="flex items-center gap-2"
+        >
+          {downloading ? (
+            <>
+              <Download className="h-4 w-4 animate-pulse" />
+              Descargando...
+            </>
+          ) : (
+            <>
+              <AlertTriangle className="h-4 w-4" />
+              <Download className="h-4 w-4" />
+              Estudiantes Moodle NO en CRM
+            </>
+          )}
+        </Button>
       </div>
 
       {/* Tabs para alternar vistas */}
