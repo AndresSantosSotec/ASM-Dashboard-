@@ -120,8 +120,17 @@ const StudentAccordionItem = memo(({
     if (!student.internalStudent) return [];
     
     return currentMonthCourses.filter((course) => {
-      // 🚫 Excluir cursos ya completados
+      // 🚫 Excluir cursos ya completados del sistema (por ID exacto)
       if (student.completedCourseIds.includes(String(course.id))) {
+        return false;
+      }
+      
+      // 🚫 Excluir cursos ya aprobados en Moodle (por nombre similar)
+      // Esto detecta si el estudiante ya llevó este curso en meses anteriores
+      const alreadyApprovedInMoodle = student.moodleCompletedCourses?.some(
+        (moodleCourse) => areNamesSimilar(moodleCourse.coursename, course.name)
+      );
+      if (alreadyApprovedInMoodle) {
         return false;
       }
       
@@ -685,8 +694,16 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
       
       // Calcular cursos disponibles para este estudiante
       const availableCoursesCount = currentMonthCourses.filter((course) => {
-        // Excluir completados y asignados
+        // Excluir completados del sistema
         if (student.completedCourseIds.includes(String(course.id))) return false;
+        
+        // Excluir cursos ya aprobados en Moodle (por nombre similar)
+        const alreadyApprovedInMoodle = student.moodleCompletedCourses?.some(
+          (moodleCourse) => areNamesSimilar(moodleCourse.coursename, course.name)
+        );
+        if (alreadyApprovedInMoodle) return false;
+        
+        // Excluir asignados
         if (student.assignedCourseIds.includes(String(course.id))) return false;
         
         // Verificar programa
@@ -822,9 +839,24 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
     const student = studentsData.find((s) => s.carnet === studentCarnet);
     if (!student) return [];
 
-    return currentMonthCourses.filter((course) =>
-      courseMatchesStudentProgram(course, student)
-    );
+    return currentMonthCourses.filter((course) => {
+      // Verificar programa
+      if (!courseMatchesStudentProgram(course, student)) return false;
+      
+      // Excluir completados del sistema
+      if (student.completedCourseIds.includes(String(course.id))) return false;
+      
+      // Excluir cursos ya aprobados en Moodle (por nombre similar)
+      const alreadyApprovedInMoodle = student.moodleCompletedCourses?.some(
+        (moodleCourse) => areNamesSimilar(moodleCourse.coursename, course.name)
+      );
+      if (alreadyApprovedInMoodle) return false;
+      
+      // Excluir asignados
+      if (student.assignedCourseIds.includes(String(course.id))) return false;
+      
+      return true;
+    });
   }, [studentsData, currentMonthCourses]);
 
   // Toggle selección de curso actual para un estudiante (optimizado)
