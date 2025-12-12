@@ -792,10 +792,10 @@ export function Advisors() {
             {/* Modal de Configuración de Comisiones */}
             <Dialog open={commissionSettingsOpen} onOpenChange={setCommissionSettingsOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline">
+                {/* <Button variant="outline">
                   <Settings2 className="h-4 w-4 mr-2" />
                   Configurar Comisiones
-                </Button>
+                </Button> */}
               </DialogTrigger>
               <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
