@@ -255,7 +255,7 @@ export default function FichaInscripcion() {
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span>Programa de 21 Cursos:</span>
-                        <span>Q1,074.00</span>
+                        <span>Q1,470.00</span>
                       </div>
                     </div>
                   </div>

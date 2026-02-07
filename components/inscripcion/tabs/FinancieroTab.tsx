@@ -164,13 +164,13 @@ export default function FinancieroTab({
     { concepto: "Certificación Internacional", transfer: "Q2,000.00", otro: "Q2,200.00" },
   ]
   const serviciosElectronicos = [
-    { curso: "8", transfer: "Q362.00", otro: "Q398.20" },
-    { curso: "9", transfer: "Q421.00", otro: "Q463.10" },
-    { curso: "12", transfer: "Q598.00", otro: "Q657.80" },
-    { curso: "18", transfer: "Q897.00", otro: "Q986.70" },
-    { curso: "21", transfer: "Q1,074.00", otro: "Q1,181.40" },
-    { curso: "24", transfer: "Q1,251.00", otro: "Q1,376.10" },
-    { curso: "32", transfer: "Q1,650.00", otro: "Q1,815.00" },
+    { curso: "8", transfer: "Q560.00", otro: "Q616.00" },
+    { curso: "9", transfer: "Q630.00", otro: "Q693.00" },
+    { curso: "12", transfer: "Q840.00", otro: "Q924.00" },
+    { curso: "18", transfer: "Q1,260.00", otro: "Q1,386.00" },
+    { curso: "21", transfer: "Q1,470.00", otro: "Q1,617.00" },
+    { curso: "24", transfer: "Q1,680.00", otro: "Q1,848.00" },
+    { curso: "32", transfer: "Q2,240.00", otro: "Q2,464.00" },
   ]
 
   return (
