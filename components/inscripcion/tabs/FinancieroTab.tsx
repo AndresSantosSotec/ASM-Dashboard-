@@ -41,6 +41,7 @@ export default function FinancieroTab({
   const formas = ["deposito", "debito", "transferencia", "tarjeta"]
   const [convenios, setConvenios] = useState<Convenio[]>([])
   const [sugeridos, setSugeridos] = useState({ inscripcion: "", cuota: "" })
+  const [serviciosElectronicos, setServiciosElectronicos] = useState<Array<{curso: string, transfer: string, otro: string}>>([])
 
   // ——— Validación de campos obligatorios ———
   const isFormValid = useMemo(() => {
@@ -53,7 +54,7 @@ export default function FinancieroTab({
     )
   }, [datos.tieneConvenio, datos.convenioId, datos.formaPago])
 
-  /* ——— Cargar convenios ——— */
+  /* ——— Cargar convenios y precios de servicios electrónicos ——— */
   useEffect(() => {
     axios
       .get<Convenio[]>(`${API_BASE_URL}/api/convenios`)
@@ -61,6 +62,24 @@ export default function FinancieroTab({
       .catch(err => {
         console.error("Error cargando convenios:", err)
         setError("No se pudieron cargar los convenios.")
+      })
+
+    // Cargar precios de servicios electrónicos desde BD
+    axios
+      .get(`${API_BASE_URL}/api/precios-servicios-electronicos/frontend`)
+      .then(resp => setServiciosElectronicos(resp.data))
+      .catch(err => {
+        console.error("Error cargando precios de servicios electrónicos:", err)
+        // Valores por defecto en caso de error
+        setServiciosElectronicos([
+          { curso: "8", transfer: "Q560.00", otro: "Q616.00" },
+          { curso: "9", transfer: "Q630.00", otro: "Q693.00" },
+          { curso: "12", transfer: "Q840.00", otro: "Q924.00" },
+          { curso: "18", transfer: "Q1,260.00", otro: "Q1,386.00" },
+          { curso: "21", transfer: "Q1,470.00", otro: "Q1,617.00" },
+          { curso: "24", transfer: "Q1,680.00", otro: "Q1,848.00" },
+          { curso: "32", transfer: "Q2,240.00", otro: "Q2,464.00" },
+        ])
       })
   }, [])
 
@@ -162,15 +181,6 @@ export default function FinancieroTab({
     { concepto: "Graduación", transfer: "Q2,845.00", otro: "Q3,129.50" },
     { concepto: "Gastos de Título (1)", transfer: "Q3,999.00", otro: "Q4,398.90" },
     { concepto: "Certificación Internacional", transfer: "Q2,000.00", otro: "Q2,200.00" },
-  ]
-  const serviciosElectronicos = [
-    { curso: "8", transfer: "Q560.00", otro: "Q616.00" },
-    { curso: "9", transfer: "Q630.00", otro: "Q693.00" },
-    { curso: "12", transfer: "Q840.00", otro: "Q924.00" },
-    { curso: "18", transfer: "Q1,260.00", otro: "Q1,386.00" },
-    { curso: "21", transfer: "Q1,470.00", otro: "Q1,617.00" },
-    { curso: "24", transfer: "Q1,680.00", otro: "Q1,848.00" },
-    { curso: "32", transfer: "Q2,240.00", otro: "Q2,464.00" },
   ]
 
   return (

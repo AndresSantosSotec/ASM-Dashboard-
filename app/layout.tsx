@@ -5,6 +5,7 @@ import MainLayout from "@/components/layout/main-layout"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Suspense } from "react"
 import { AuthProvider } from "@/contexts/AuthContext"
+import { Toaster } from "@/components/ui/toaster"
 
 
 export const metadata: Metadata = {
@@ -40,6 +41,7 @@ export default function RootLayout({
             </AuthProvider>
           </ThemeProvider>
         </Suspense>
+        <Toaster />
       </body>
     </html>
   )
