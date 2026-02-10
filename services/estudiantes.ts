@@ -62,9 +62,9 @@ export type AccountData = {
     nextDueDate?: string | null
     daysUntilDue?: number | null
     latePayments: number
-    totalMora?: number
-    totalPendiente?: number
-    totalConMora?: number
+    totalMora?: number  // 🔥 Mora única Q50
+    totalPendiente?: number  // 🔥 Total sin mora
+    totalConMora?: number  // 🔥 Total con mora única
   }
   pendingPayments: Array<{
     id: number

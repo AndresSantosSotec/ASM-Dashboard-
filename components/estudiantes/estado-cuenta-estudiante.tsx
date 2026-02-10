@@ -96,6 +96,7 @@ export function EstadoCuentaEstudiante() {
         return dateA - dateB // Ascendente: próximo a vencer primero
       })
 
+      // ✅ CORRECCIÓN: Usar isBlocked y warningLevel del backend (ya calculados correctamente)
       // Convertir datos al formato AccountData
       const accountData = {
         student: {
@@ -105,22 +106,31 @@ export function EstadoCuentaEstudiante() {
           email: studentEmail
         },
         balance: {
-          isBlocked: (accountSummary.resumen?.monto_pendiente || 0) > 0,
-          warningLevel: ((accountSummary.resumen?.monto_pendiente || 0) > 1000 ? 2 : 
-                       (accountSummary.resumen?.monto_pendiente || 0) > 500 ? 1 : 0) as 0 | 1 | 2,
+          isBlocked: accountSummary.resumen?.is_blocked ?? false, // ✅ Del backend
+          warningLevel: (accountSummary.resumen?.warning_level ?? 0) as 0 | 1 | 2, // ✅ Del backend
           nextDueDate: sortedPending.length > 0 ? sortedPending[0]?.fecha_vencimiento : null,
           daysUntilDue: sortedPending.length > 0 && sortedPending[0]?.fecha_vencimiento ? 
             Math.ceil((new Date(sortedPending[0].fecha_vencimiento).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null,
           latePayments: sortedPending.filter((p: any) => {
             const dueDate = new Date(p.fecha_vencimiento)
-            return dueDate < new Date()
-          }).length
+            // ✅ Considerar vencido solo si tiene 4+ días de atraso
+            const diasAtraso = Math.ceil((new Date().getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
+            return diasAtraso >= 4
+          }).length,
+          totalMora: accountSummary.resumen?.total_mora ?? 0, // ✅ Incluir mora
+          totalPendiente: accountSummary.resumen?.monto_pendiente ?? 0, // ✅ Total sin mora
+          totalConMora: accountSummary.resumen?.total_con_mora ?? 0 // ✅ Total con mora
         },
         // 🔥 MEJORADO: Incluir nombre del programa en concepto
         pendingPayments: sortedPending.map((p: any) => {
           const programName = p.estudiante_programa?.programa?.abreviatura 
             || p.estudiante_programa?.programa?.nombre_del_programa 
             || ''
+          const dueDate = new Date(p.fecha_vencimiento)
+          const diasAtraso = Math.ceil((new Date().getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
+          // ✅ CORRECCIÓN: Solo marcar como vencido si tiene 4+ días de atraso
+          const isOverdue = diasAtraso >= 4
+          
           return {
             id: p.id,
             concept: programName 
@@ -129,9 +139,8 @@ export function EstadoCuentaEstudiante() {
             amount: parseFloat(p.monto || 0),
             lateFee: parseFloat(p.late_fee_total || 0),
             dueDate: p.fecha_vencimiento,
-            status: new Date(p.fecha_vencimiento) < new Date() ? 'vencido' as const : 'pendiente' as const,
-            daysLate: new Date(p.fecha_vencimiento) < new Date() ? 
-              Math.ceil((new Date().getTime() - new Date(p.fecha_vencimiento).getTime()) / (1000 * 60 * 60 * 24)) : null
+            status: isOverdue ? 'vencido' as const : 'pendiente' as const,
+            daysLate: diasAtraso > 0 ? diasAtraso : null
           }
         }),
         // 🔥 MEJORADO: Historial ordenado con nombre de programa

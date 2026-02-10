@@ -52,6 +52,17 @@ export interface AccountSummary {
     monto_total: number
     monto_pagado: number
     monto_pendiente: number
+    total_mora?: number  // ✅ NUEVO: Mora única Q50
+    total_con_mora?: number  // ✅ NUEVO: Total con mora
+    is_blocked?: boolean  // ✅ NUEVO: Estado de bloqueo
+    warning_level?: 0 | 1 | 2  // ✅ NUEVO: Nivel de advertencia
+    max_dias_atraso?: number  // ✅ NUEVO: Días máximos de atraso
+  }
+  prospecto?: {  // ✅ Información del prospecto (estudiante)
+    id: number
+    nombre_completo: string
+    carnet: string
+    correo_electronico?: string
   }
 }
 
