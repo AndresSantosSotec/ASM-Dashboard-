@@ -890,7 +890,7 @@ export default function GestionProspectos() {
       {/* Modales */}
       {selectedProspecto && modalType === "detalles" && (
         <DetallesProspecto
-          prospecto={selectedProspecto}
+          prospectoId={selectedProspecto.id}
           onClose={() => {
             setSelectedProspecto(null)
             setModalType(null)
