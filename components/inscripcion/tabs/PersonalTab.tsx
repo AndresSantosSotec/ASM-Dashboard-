@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useEffect } from "react"
-import { Search, ArrowRight, CheckCircle, Info as InfoIcon } from "lucide-react"
+import { Search, ArrowRight, CheckCircle, Info as InfoIcon, Loader2, ShieldCheck } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,12 +22,16 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 
 import { DatosPersonales } from "../types"
 import { useCountries } from "@/hooks/useCountries"
+import { useDuplicateProspectCheck, DuplicateProspect } from "@/hooks/useDuplicateProspectCheck"
+import DuplicateProspectAlert from "../DuplicateProspectAlert"
 
 interface Props {
   datos: DatosPersonales
   setDatos: React.Dispatch<React.SetStateAction<DatosPersonales>>
   openModal: () => void
   goNext: () => void
+  prospectoId: number | null
+  onDuplicateSelect: (dup: DuplicateProspect) => void
 }
 
 export default function PersonalTab({
@@ -35,8 +39,26 @@ export default function PersonalTab({
   setDatos,
   openModal,
   goNext,
+  prospectoId,
+  onDuplicateSelect,
 }: Props) {
   const { countries } = useCountries()
+
+  // 🔍 Detección de prospectos duplicados
+  const {
+    duplicates,
+    loading: duplicateLoading,
+    dismissed: duplicateDismissed,
+    dismiss: dismissDuplicates,
+    hasDuplicates,
+    hasChecked: duplicateChecked,
+    clearDuplicates,
+  } = useDuplicateProspectCheck({
+    nombre: datos.nombre,
+    telefono: datos.telefono,
+    dpi: datos.dpi,
+    skipIfProspectoSelected: !!prospectoId,
+  })
 
   // Set default countries when data is empty
   useEffect(() => {
@@ -90,6 +112,36 @@ export default function PersonalTab({
           Buscar prospecto
         </Button>
       </div>
+
+      {/* 🔍 Alerta de prospectos duplicados */}
+      {hasDuplicates && (
+        <DuplicateProspectAlert
+          duplicates={duplicates}
+          onSelect={(dup) => {
+            onDuplicateSelect(dup)
+            clearDuplicates()
+          }}
+          onDismiss={dismissDuplicates}
+          loading={duplicateLoading}
+        />
+      )}
+
+      {/* Indicador de búsqueda de duplicados en progreso */}
+      {duplicateLoading && !hasDuplicates && (
+        <div className="mb-4 flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-600 animate-pulse">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Verificando si existe un prospecto registrado anteriormente...
+        </div>
+      )}
+
+      {/* Indicador de que no se encontraron duplicados (solo si ya verificó) */}
+      {!duplicateLoading && !hasDuplicates && !prospectoId && duplicateChecked &&
+        duplicates.length === 0 && (
+        <div className="mb-4 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+          <ShieldCheck className="h-4 w-4" />
+          No se encontraron prospectos similares registrados anteriormente.
+        </div>
+      )}
 
       {/* Mensaje de éxito cuando el formulario está completo */}
       {isFormValid && (

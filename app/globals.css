@@ -49,38 +49,38 @@ body {
     --sidebar-ring: 43 36% 52%; /* #B7A053 - medium gold */
   }
   .dark {
-    --background: 244 76% 12%; /* #10072F - very dark navy */
-    --foreground: 45 50% 82%; /* #EBDDB7 - light gold */
-    --card: 244 76% 12%; /* #10072F - very dark navy */
-    --card-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
-    --popover: 244 76% 12%; /* #10072F - very dark navy */
-    --popover-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
-    --primary: 43 36% 52%; /* #B7A053 - medium gold */
-    --primary-foreground: 232 65% 26%; /* #213362 - navy blue */
-    --secondary: 232 65% 26%; /* #213362 - navy blue */
-    --secondary-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
-    --muted: 232 65% 26%; /* #213362 - navy blue */
-    --muted-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
-    --accent: 41 41% 45%; /* #A48644 - darker gold */
-    --accent-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
-    --border: 43 36% 52%; /* #B7A053 - medium gold */
-    --input: 43 36% 52%; /* #B7A053 - medium gold */
-    --ring: 45 50% 82%; /* #EBDDB7 - light gold */
-    --chart-1: 43 36% 52%; /* #B7A053 - medium gold */
-    --chart-2: 41 41% 45%; /* #A48644 - darker gold */
-    --chart-3: 45 50% 82%; /* #EBDDB7 - light gold */
-    --chart-4: 232 65% 26%; /* #213362 - navy blue */
-    --chart-5: 244 76% 12%; /* #10072F - very dark navy */
-    --sidebar-background: 244 76% 12%; /* #10072F - very dark navy */
-    --sidebar-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
-    --sidebar-primary: 43 36% 52%; /* #B7A053 - medium gold */
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 43 36% 52%; /* #B7A053 - medium gold */
-    --sidebar-accent-foreground: 45 50% 82%; /* #EBDDB7 - light gold */
-    --sidebar-border: 43 36% 52%; /* #B7A053 - medium gold */
-    --sidebar-ring: 43 36% 52%; /* #B7A053 - medium gold */
+    --background: 220 40% 13%; /* #141e2e - dark blue comfortable */
+    --foreground: 210 20% 90%; /* #e1e6ed - soft white-blue */
+    --card: 220 38% 16%; /* #1a2744 - card dark blue */
+    --card-foreground: 210 20% 90%; /* #e1e6ed - soft white-blue */
+    --popover: 220 38% 16%; /* #1a2744 - popover dark blue */
+    --popover-foreground: 210 20% 90%; /* #e1e6ed - soft white-blue */
+    --primary: 43 50% 55%; /* #c9a94d - warm gold */
+    --primary-foreground: 220 40% 13%; /* dark background */
+    --secondary: 220 35% 22%; /* #253552 - medium dark blue */
+    --secondary-foreground: 210 20% 90%; /* #e1e6ed - soft white-blue */
+    --muted: 220 35% 20%; /* #1f2f48 - muted dark blue */
+    --muted-foreground: 210 15% 70%; /* #a8b3c0 - muted text */
+    --accent: 43 45% 50%; /* #b99a3d - golden accent */
+    --accent-foreground: 210 20% 95%; /* light text */
+    --destructive: 0 65% 45%; /* softer red */
+    --destructive-foreground: 210 20% 95%;
+    --border: 220 30% 28%; /* #3a4a66 - subtle border */
+    --input: 220 30% 25%; /* #2f3f5a - input bg */
+    --ring: 43 50% 55%; /* gold ring */
+    --chart-1: 43 50% 55%; /* gold */
+    --chart-2: 200 60% 50%; /* blue accent */
+    --chart-3: 160 50% 45%; /* teal */
+    --chart-4: 280 40% 50%; /* purple */
+    --chart-5: 30 60% 50%; /* orange */
+    --sidebar-background: 220 42% 11%; /* #0f1825 - darker sidebar */
+    --sidebar-foreground: 210 20% 88%; /* soft white-blue */
+    --sidebar-primary: 43 50% 55%; /* gold */
+    --sidebar-primary-foreground: 220 40% 13%;
+    --sidebar-accent: 220 35% 20%; /* accent blue */
+    --sidebar-accent-foreground: 210 20% 90%;
+    --sidebar-border: 220 30% 25%; /* subtle border */
+    --sidebar-ring: 43 50% 55%; /* gold */
   }
 }
 
@@ -240,3 +240,280 @@ body {
 .swal2-popup {
   z-index: 99999 !important;
 }
+
+/* ============================================
+   DARK MODE - React Data Table Component
+   ============================================ */
+.dark .rdt_Table,
+.dark .rdt_TableHead,
+.dark .rdt_TableHeadRow,
+.dark .rdt_TableRow,
+.dark .rdt_TableCol,
+.dark .rdt_TableCell,
+.dark .rdt_TableBody {
+  background-color: hsl(220, 38%, 16%) !important;
+  color: hsl(210, 20%, 90%) !important;
+}
+
+.dark .rdt_TableHeadRow {
+  background-color: hsl(220, 35%, 22%) !important;
+  border-bottom-color: hsl(220, 30%, 28%) !important;
+}
+
+.dark .rdt_TableRow {
+  border-bottom-color: hsl(220, 30%, 28%) !important;
+}
+
+.dark .rdt_TableRow:hover {
+  background-color: hsl(220, 35%, 25%) !important;
+}
+
+.dark .rdt_Pagination {
+  background-color: hsl(220, 38%, 16%) !important;
+  color: hsl(210, 20%, 90%) !important;
+  border-top-color: hsl(220, 30%, 28%) !important;
+}
+
+.dark .rdt_Pagination button {
+  color: hsl(210, 20%, 90%) !important;
+  fill: hsl(210, 20%, 90%) !important;
+}
+
+.dark .rdt_Pagination button:disabled {
+  color: hsl(210, 15%, 70%, 0.4) !important;
+  fill: hsl(210, 15%, 70%, 0.4) !important;
+}
+
+.dark .rdt_Pagination select {
+  background-color: hsl(220, 35%, 22%) !important;
+  color: hsl(210, 20%, 90%) !important;
+  border-color: hsl(220, 30%, 28%) !important;
+}
+
+/* DataTable wrapper and container */
+.dark .rdt_TableWrapper,
+.dark .sc-dmyDGi,
+.dark .sc-eDPEul,
+.dark [class*="sc-"] {
+  background-color: transparent !important;
+}
+
+.dark .rdt_TableCol_Sortable,
+.dark .rdt_TableCol_Sortable span {
+  color: hsl(210, 20%, 90%) !important;
+}
+
+/* No data component */
+.dark .rdt_Table > div:not(.rdt_TableHead):not(.rdt_TableBody) {
+  background-color: hsl(220, 38%, 16%) !important;
+  color: hsl(210, 20%, 90%) !important;
+}
+
+/* ============================================
+   DARK MODE - General table elements
+   ============================================ */
+.dark table {
+  background-color: hsl(220, 38%, 16%);
+  color: hsl(210, 20%, 90%);
+}
+
+.dark thead {
+  background-color: hsl(220, 35%, 22%);
+}
+
+.dark th {
+  color: hsl(210, 20%, 90%);
+  border-color: hsl(220, 30%, 28%);
+}
+
+.dark td {
+  border-color: hsl(220, 30%, 28%);
+}
+
+.dark tbody tr:hover {
+  background-color: hsl(220, 35%, 25%);
+}
+
+/* ============================================
+   DARK MODE - Cards and containers
+   ============================================ */
+.dark .bg-white {
+  background-color: hsl(220, 38%, 16%) !important;
+}
+
+.dark .bg-gray-50,
+.dark .bg-gray-100 {
+  background-color: hsl(220, 35%, 20%) !important;
+}
+
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700 {
+  color: hsl(210, 20%, 90%) !important;
+}
+
+.dark .text-gray-600,
+.dark .text-gray-500 {
+  color: hsl(210, 15%, 70%) !important;
+}
+
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: hsl(220, 30%, 28%) !important;
+}
+
+/* ============================================
+   DARK MODE - Form inputs (more specific)
+   ============================================ */
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark textarea,
+.dark select {
+  background-color: hsl(220, 35%, 20%) !important;
+  color: hsl(210, 20%, 90%) !important;
+  border-color: hsl(220, 30%, 28%) !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: hsl(210, 15%, 60%) !important;
+}
+
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-color: hsl(43, 50%, 55%) !important;
+  outline-color: hsl(43, 50%, 55%) !important;
+  box-shadow: 0 0 0 2px hsl(43, 50%, 55%, 0.2) !important;
+}
+
+/* Dark mode labels */
+.dark label {
+  color: hsl(210, 20%, 90%) !important;
+}
+
+/* ============================================
+   DARK MODE - Dialogs and modals
+   ============================================ */
+.dark [role="dialog"],
+.dark [data-radix-popper-content-wrapper] {
+  background-color: hsl(220, 38%, 16%);
+  color: hsl(210, 20%, 90%);
+}
+
+.dark .DialogContent,
+.dark [class*="DialogContent"] {
+  background-color: hsl(220, 38%, 16%) !important;
+}
+
+/* ============================================
+   DARK MODE - Dropdowns and popovers
+   ============================================ */
+.dark [role="listbox"],
+.dark [role="menu"],
+.dark [data-radix-menu-content] {
+  background-color: hsl(220, 35%, 22%) !important;
+  border-color: hsl(220, 30%, 28%) !important;
+}
+
+.dark [role="option"],
+.dark [role="menuitem"] {
+  color: hsl(210, 20%, 90%) !important;
+}
+
+.dark [role="option"]:hover,
+.dark [role="menuitem"]:hover,
+.dark [data-highlighted] {
+  background-color: hsl(220, 35%, 28%) !important;
+}
+
+/* ============================================
+   DARK MODE - Badges
+   ============================================ */
+.dark .badge,
+.dark [class*="Badge"] {
+  border-color: hsl(220, 30%, 35%) !important;
+}
+
+/* ============================================
+   DARK MODE - Scrollbars
+   ============================================ */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: hsl(220, 40%, 13%);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: hsl(220, 30%, 35%);
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: hsl(220, 30%, 45%);
+}
+
+/* ============================================
+   DARK MODE - Override Tailwind bg-white
+   ============================================ */
+/* Override bg-white in dark mode for general containers */
+.dark .bg-white:not([class*="data-[state=checked]"]) {
+  background-color: hsl(220, 38%, 16%) !important;
+}
+
+.dark .bg-white\/80 {
+  background-color: hsla(220, 38%, 16%, 0.9) !important;
+}
+
+/* Override text colors in dark containers */
+.dark .bg-white .text-gray-900,
+.dark .bg-white .text-gray-800,
+.dark .bg-white .text-gray-700 {
+  color: hsl(210, 20%, 90%) !important;
+}
+
+.dark .bg-white .text-gray-600,
+.dark .bg-white .text-gray-500 {
+  color: hsl(210, 15%, 70%) !important;
+}
+
+/* Border colors in dark mode */
+.dark .border-gray-200,
+.dark .border-gray-100 {
+  border-color: hsl(220, 30%, 28%) !important;
+}
+
+.dark .border-indigo-100,
+.dark .border-blue-200,
+.dark .border-blue-100 {
+  border-color: hsl(220, 35%, 32%) !important;
+}
+
+.dark .border-green-200,
+.dark .border-green-100 {
+  border-color: hsl(140, 35%, 28%) !important;
+}
+
+.dark .border-yellow-200,
+.dark .border-orange-200 {
+  border-color: hsl(43, 40%, 35%) !important;
+}
+
+/* Hover states in dark mode */
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-blue-50:hover {
+  background-color: hsl(220, 35%, 22%) !important;
+}
+
+/* Sticky headers in dark mode */
+.dark .sticky.bg-white {
+  background-color: hsl(220, 38%, 16%) !important;
+}
+
+/* Loading skeletons / animate-pulse in dark mode */
+.dark .animate-pulse.bg-white {
+  background-color: hsl(220, 40%, 12%) !important;
+}
+

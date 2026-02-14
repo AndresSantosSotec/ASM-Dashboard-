@@ -3,6 +3,8 @@
 import { useState, useMemo, useEffect } from "react"
 import { Search } from "lucide-react"
 import DataTable, { TableColumn } from 'react-data-table-component'
+import { useTheme } from "next-themes"
+import { getDataTableTheme, getDataTableStyles } from "@/utils/dataTableTheme"
 
 import {
   Dialog,
@@ -44,6 +46,7 @@ export default function ProspectSearchModal({
   onOpenChange,
   onSelect,
 }: Props) {
+  const { resolvedTheme } = useTheme()
   const [prospectos, setProspectos] = useState<Prospecto[]>([])
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string>("")
@@ -200,7 +203,7 @@ export default function ProspectSearchModal({
         </div>
 
         {loading ? (
-          <p className="p-4">Cargando prospectos...</p>
+          <p className="p-4 text-foreground">Cargando prospectos...</p>
         ) : error ? (
           <p className="p-4 text-red-500">{error}</p>
         ) : (
@@ -210,7 +213,9 @@ export default function ProspectSearchModal({
             pagination
             highlightOnHover
             responsive
-            noDataComponent="No se encontraron prospectos."
+            theme={getDataTableTheme(resolvedTheme)}
+            customStyles={getDataTableStyles(resolvedTheme)}
+            noDataComponent={<span className="p-4 text-foreground">No se encontraron prospectos.</span>}
             className="overflow-hidden"
           />
         )}

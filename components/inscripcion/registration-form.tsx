@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
@@ -25,6 +25,7 @@ import FinancieroTab from "./tabs/FinancieroTab"
 import DocumentosTab, { DOCUMENTOS_DEFAULT } from "./tabs/DocumentosTab"
 import ProspectSearchModal from "./tabs/ProspectSearchModal"
 import type { ProgramaConDuracion } from "./types"
+import type { DuplicateProspect } from "@/hooks/useDuplicateProspectCheck"
 
 import axios from "axios"
 import { api } from "@/services/api"
@@ -76,6 +77,90 @@ export default function RegistrationForm() {
     setActiveTab(tab)
     setProgress(tab === "personal" ? 20 : tab === "laboral" ? 40 : tab === "academico" ? 60 : tab === "financiero" ? 80 : 100)
   }
+
+  // 🔍 Handler para seleccionar un prospecto duplicado detectado automáticamente
+  const handleDuplicateSelect = useCallback((dup: DuplicateProspect) => {
+    setProspectoId(dup.id)
+
+    // Cargar datos personales
+    setDatosPersonales(prev => ({
+      ...prev,
+      nombre: dup.nombre_completo || "",
+      paisOrigen: dup.pais_origen || "",
+      paisResidencia: dup.pais_residencia || "",
+      telefono: dup.telefono || "",
+      dpi: dup.numero_identificacion || "",
+      emailPersonal: dup.correo_electronico || "",
+      emailCorporativo: dup.correo_corporativo || "",
+      fechaNacimiento: dup.fecha_nacimiento
+        ? new Date(dup.fecha_nacimiento).toISOString().split("T")[0]
+        : "",
+      direccion: dup.direccion_residencia || "",
+    }))
+
+    // Cargar datos laborales
+    setDatosLaborales(prev => ({
+      ...prev,
+      empresa: dup.empresa_donde_labora_actualmente || "",
+      puesto: dup.puesto || "",
+      telefonoCorporativo: dup.telefono_corporativo || "",
+      departamento: dup.departamento || "",
+      direccionEmpresa: dup.direccion_empresa || "",
+      sectorEmpresa: "",
+    }))
+
+    // Cargar datos académicos
+    setDatosAcademicos(prev => ({
+      ...prev,
+      programa: dup.interes || "",
+      ultimoTitulo: (dup.ultimo_titulo_obtenido as DatosAcademicos["ultimoTitulo"]) || "licenciatura",
+      institucionAnterior: dup.institucion_titulo || "",
+      añoGraduacion: dup.anio_graduacion?.toString() || "",
+      modalidad: (dup.modalidad as "sincronica") || "sincronica",
+      fechaInicioEspecifica: dup.fecha_inicio_especifica
+        ? dup.fecha_inicio_especifica.split("T")[0] || dup.fecha_inicio_especifica.split(" ")[0]
+        : "",
+      fechaTallerInduccion: dup.fecha_taller_reduccion
+        ? dup.fecha_taller_reduccion.split("T")[0] || dup.fecha_taller_reduccion.split(" ")[0]
+        : "",
+      fechaTallerIntegracion: dup.fecha_taller_integracion
+        ? dup.fecha_taller_integracion.split("T")[0] || dup.fecha_taller_integracion.split(" ")[0]
+        : "",
+      medioConocio: (dup.medio_conocimiento_institucion as DatosAcademicos["medioConocio"]) || "redes",
+      cursosAprobados: dup.cantidad_cursos_aprobados?.toString() || "",
+      diaEstudio: (dup.dia_estudio as DatosAcademicos["diaEstudio"]) || "jueves",
+      observaciones: dup.observaciones || "",
+      titulo1: dup.interes || "",
+      titulo1_duracion: "",
+    }))
+
+    // Cargar datos financieros si existen
+    if (dup.monto_inscripcion || dup.metodo_pago || dup.convenio_pago_id) {
+      setDatosFinancieros(prev => ({
+        ...prev,
+        inscripcion: dup.monto_inscripcion || prev.inscripcion,
+        formaPago: (dup.metodo_pago as DatosFinancieros["formaPago"]) || prev.formaPago,
+        convenioId: dup.convenio_pago_id || undefined,
+        tieneConvenio: !!dup.convenio_pago_id,
+      }))
+    }
+
+    // Notificar al usuario
+    Swal.fire({
+      icon: "success",
+      title: "Prospecto reutilizado",
+      html: `
+        <p>Se cargaron los datos del prospecto existente:</p>
+        <p class="mt-2 font-semibold">${dup.nombre_completo}</p>
+        <p class="text-sm text-gray-600 mt-1">Coincidencia: ${dup.coincidencia}%</p>
+        <p class="text-sm text-gray-500 mt-2">Todos los campos se han actualizado con la información registrada anteriormente.</p>
+      `,
+      confirmButtonText: "Continuar",
+      confirmButtonColor: "#16a34a",
+      timer: 4000,
+      timerProgressBar: true,
+    })
+  }, [])
 
   const handleFinalizarInscripcion = async () => {
     if (isSubmitting) return
@@ -222,6 +307,8 @@ export default function RegistrationForm() {
                 setDatos={setDatosPersonales}
                 openModal={() => setShowModal(true)}
                 goNext={() => changeTab("laboral")}
+                prospectoId={prospectoId}
+                onDuplicateSelect={handleDuplicateSelect}
               />
             </TabsContent>
 

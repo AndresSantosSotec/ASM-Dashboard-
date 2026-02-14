@@ -8,6 +8,7 @@ import ProtectedRoute from "@/components/ProtectedRoute"
 import { cn } from "@/lib/utils"
 import { Toaster } from "@/components/ui/toaster"
 import NotificationBell from "@/components/layout/NotificationBell"
+import { ThemeToggle } from "@/components/layout/ThemeToggle"
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -59,7 +60,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           <Toaster />
         </main>
       ) : (
-        <div className="flex h-screen overflow-hidden bg-gray-50">
+        <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-asm-dark-navy">
           {isMobile && sidebarOpen && (
             <div
               className="fixed inset-0 bg-black/50 z-20 animate-fadeIn lg:hidden"
@@ -94,6 +95,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 </h1>
 
                 <div className="flex items-center space-x-2">
+                  <ThemeToggle />
                   <NotificationBell />
                 </div>
               </div>
