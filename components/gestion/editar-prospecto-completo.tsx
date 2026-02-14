@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from "react"
-import { X, CheckCircle, Upload, FileText, Eye, XCircle, Loader2 } from "lucide-react"
+import { X, CheckCircle, Upload, FileText, Eye, XCircle, Loader2, Trash2, GraduationCap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -55,6 +55,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
   const [tieneFicha, setTieneFicha] = useState(false)
   const [estudiantePrograma, setEstudiantePrograma] = useState<any>(null)
   const [cuotasEstudiante, setCuotasEstudiante] = useState<any[]>([])
+  const [programasInscritos, setProgramasInscritos] = useState<any[]>([])
   const [calculandoPrecios, setCalculandoPrecios] = useState(false)
   
   // Cache para precios
@@ -227,6 +228,9 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
             if (resEP.ok) {
               const epData = await resEP.json()
               if (epData && epData.length > 0) {
+                // Guardar TODOS los programas inscritos
+                setProgramasInscritos(epData)
+
                 const epMasReciente = epData.sort((a: any, b: any) => 
                   new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
                 )[0]
@@ -270,6 +274,64 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
       ...prev,
       [field]: value
     }))
+  }
+
+  // Eliminar programa inscrito con cascada
+  const handleEliminarProgramaInscrito = async (ep: any, nombreProg: string) => {
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "¿Eliminar programa?",
+      html: `
+        <p>Estás a punto de eliminar:</p>
+        <p class="font-bold text-lg mt-2">${nombreProg}</p>
+        <p class="text-sm text-gray-500 mt-2">Se eliminarán también todas las cuotas y pagos asociados a este programa.</p>
+        <p class="text-sm text-red-600 mt-1 font-semibold">Esta acción no se puede deshacer.</p>
+      `,
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
+    })
+
+    if (!result.isConfirmed) return
+
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_URL}/estudiante-programa/${ep.id}/cascade`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.message || `Error HTTP ${res.status}`)
+      }
+
+      const data = await res.json()
+
+      // Actualizar lista local
+      setProgramasInscritos(prev => prev.filter((p: any) => p.id !== ep.id))
+
+      Swal.fire({
+        icon: "success",
+        title: "Programa eliminado",
+        html: `<p>${nombreProg} fue eliminado.</p>
+               <p class="text-xs text-gray-500 mt-1">${data.cuotas_eliminadas || 0} cuotas y ${data.pagos_eliminados || 0} pagos eliminados.</p>`,
+        timer: 3000,
+        showConfirmButton: false,
+      })
+    } catch (err: any) {
+      console.error("Error al eliminar programa:", err)
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: err.message || "No se pudo eliminar el programa",
+      })
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -906,9 +968,44 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                     />
                   </div>
                 </div>
-              </TabsContent>
 
-              {/* Tab 4: Financiero */}
+                {/* Programas Inscritos - con opción de eliminar */}
+                {programasInscritos.length > 0 && (
+                  <div className="mt-6 space-y-3">
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200">
+                      <GraduationCap className="h-4 w-4 text-blue-600" />
+                      <h4 className="text-sm font-semibold text-gray-800">Programas Inscritos ({programasInscritos.length})</h4>
+                    </div>
+                    {programasInscritos.map((ep: any) => {
+                      const nombreProg = ep.programa?.abreviatura
+                        ? `${ep.programa.abreviatura} ${ep.programa.nombre_del_programa}`
+                        : programas.find((p: any) => p.id === ep.programa_id)?.nombre_del_programa || `Programa ${ep.programa_id}`
+                      return (
+                        <div key={ep.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-800">{nombreProg}</p>
+                            <div className="flex gap-4 mt-1 text-xs text-gray-500">
+                              {ep.fecha_inicio && <span>Inicio: {new Date(ep.fecha_inicio).toLocaleDateString("es-GT")}</span>}
+                              {ep.fecha_fin && <span>Fin: {new Date(ep.fecha_fin).toLocaleDateString("es-GT")}</span>}
+                              {ep.duracion_meses && <span>Duración: {ep.duracion_meses} meses</span>}
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            title="Eliminar programa y datos asociados"
+                            onClick={() => handleEliminarProgramaInscrito(ep, nombreProg)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </TabsContent>
               <TabsContent value="financiero" className="space-y-4 mt-4">
                 {tieneFicha && (
                   <Alert className="bg-green-50 border-green-200">

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import {
   X, Calendar, MapPin, Globe, BookOpen, User, Briefcase, Building2,
   Download, Loader2, Phone, Mail, CreditCard, GraduationCap, FileText,
-  Hash, Clock, Shield, IdCard
+  Hash, Clock, Shield, IdCard, Trash2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -147,6 +147,71 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
       })
     } finally {
       setDescargando(false)
+    }
+  }
+
+  // Eliminar programa con cascada (cuotas + pagos)
+  const handleEliminarPrograma = async (ep: any) => {
+    const nombrePrograma = ep.programa?.abreviatura
+      ? `${ep.programa.abreviatura} ${ep.programa.nombre_del_programa}`
+      : `Programa ${ep.programa_id}`
+
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "¿Eliminar programa?",
+      html: `
+        <p>Estás a punto de eliminar:</p>
+        <p class="font-bold text-lg mt-2">${nombrePrograma}</p>
+        <p class="text-sm text-gray-500 mt-2">Se eliminarán también todas las cuotas y pagos asociados a este programa.</p>
+        <p class="text-sm text-red-600 mt-1 font-semibold">Esta acción no se puede deshacer.</p>
+      `,
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
+    })
+
+    if (!result.isConfirmed) return
+
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_URL}/estudiante-programa/${ep.id}/cascade`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.message || `Error HTTP ${res.status}`)
+      }
+
+      const data = await res.json()
+
+      // Actualizar lista local de programas
+      setProspecto((prev: any) => ({
+        ...prev,
+        programas: prev.programas.filter((p: any) => p.id !== ep.id),
+      }))
+
+      Swal.fire({
+        icon: "success",
+        title: "Programa eliminado",
+        html: `<p>${nombrePrograma} fue eliminado.</p>
+               <p class="text-xs text-gray-500 mt-1">${data.cuotas_eliminadas || 0} cuotas y ${data.pagos_eliminados || 0} pagos eliminados.</p>`,
+        timer: 3000,
+        showConfirmButton: false,
+      })
+    } catch (err: any) {
+      console.error("Error al eliminar programa:", err)
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: err.message || "No se pudo eliminar el programa",
+      })
     }
   }
 
@@ -315,14 +380,25 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
                   <>
                     <SectionTitle icon={Shield} title="Programas Inscritos" />
                     {prospecto.programas.map((ep: any, idx: number) => (
-                      <Card key={idx} className="p-4 bg-gray-50 border-gray-200">
+                      <Card key={ep.id || idx} className="p-4 bg-gray-50 border-gray-200">
                         <div className="flex items-center justify-between mb-2">
                           <h5 className="text-sm font-semibold text-gray-800">
                             {ep.programa?.abreviatura || ""} {ep.programa?.nombre_del_programa || `Programa ${ep.programa_id}`}
                           </h5>
-                          <Badge variant="outline" className="text-xs">
-                            {ep.estado || "Activo"}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              {ep.estado || "Activo"}
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              title="Eliminar programa"
+                              onClick={() => handleEliminarPrograma(ep)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
                           <div><span className="text-gray-500">Inicio:</span> {formatDate(ep.fecha_inicio)}</div>
