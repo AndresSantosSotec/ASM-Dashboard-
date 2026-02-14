@@ -122,15 +122,12 @@ export default function Sidebar({ open, className }: SidebarProps) {
       className={`${open ? "w-64" : "w-0 -translate-x-full"} transition-all duration-300 asm-gradient border-r border-asm-medium-gold/30 flex flex-col h-full overflow-y-auto ${cn("pb-12", className)}`}
     >
       <div className="p-4 border-b border-asm-medium-gold/30 flex justify-center">
-        <Link href="/" className="flex flex-col items-center">
+        <Link href="/" className="flex justify-center">
           <img 
             src="/recursos/Logos-02.png" 
             alt="ASM Logo" 
-            className="h-12 w-auto object-contain mb-2"
+            className="h-28 w-auto object-contain cursor-pointer hover:opacity-90 transition-opacity"
           />
-          <span className="text-asm-light-gold font-semibold text-sm text-center">
-            American School of Management
-          </span>
         </Link>
       </div>
 
