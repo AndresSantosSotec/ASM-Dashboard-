@@ -144,6 +144,8 @@ body {
 @layer base {
   * {
     @apply border-border;
+    /* Safari/Firefox compatibility */
+    -webkit-tap-highlight-color: transparent;
   }
 
   html,
@@ -151,6 +153,36 @@ body {
     @apply bg-background text-foreground;
     height: 100%;
     overflow: hidden;
+    /* Safari text rendering */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Safari/Firefox input focus styles */
+  input, textarea, select, button {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+  }
+
+  /* Fix Safari date input */
+  input[type="date"] {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    position: relative;
+    min-height: 2.5rem;
+  }
+
+  /* Ensure consistent button styles across browsers */
+  button {
+    cursor: pointer;
+  }
+
+  /* Firefox focus outline */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 
@@ -569,6 +601,13 @@ body {
    GLOBAL SCROLLBAR — Light mode
    ============================================ */
 
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(183, 160, 83, 0.25) transparent;
+}
+
+/* Webkit scrollbar (Chrome, Safari, Edge) */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -796,6 +835,13 @@ body {
 /* ============================================
    DARK MODE - Scrollbars
    ============================================ */
+/* Firefox scrollbar for dark mode */
+.dark * {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(220, 30%, 30%) transparent;
+}
+
+/* Webkit scrollbar for dark mode */
 .dark ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
