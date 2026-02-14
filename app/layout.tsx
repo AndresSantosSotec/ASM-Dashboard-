@@ -26,8 +26,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className="font-sans">
-        <Suspense fallback={<div>Cargando...</div>}>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="font-sans antialiased">
+        <Suspense fallback={
+          <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-[#0c1220]">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-10 h-10 border-3 border-asm-medium-gold/30 border-t-asm-medium-gold rounded-full animate-spin" />
+              <p className="text-sm text-asm-navy/60 dark:text-asm-light-gold/50 font-medium">Cargando...</p>
+            </div>
+          </div>
+        }>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
             <AuthProvider>
               <MainLayout>{children}</MainLayout>

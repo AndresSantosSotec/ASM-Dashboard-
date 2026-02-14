@@ -3,7 +3,6 @@
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import type { AllowedView } from "@/contexts/AuthContext";
@@ -11,50 +10,45 @@ import { cn } from "@/lib/utils";
 import * as Icons from "lucide-react";
 import { api } from "@/services/api";
 
-/** --- Tipos locales para metadatos del módulo --- */
 type LucideIconName = keyof typeof Icons;
 
 type ModuleMeta = {
-  /** Nombre exacto como viene en allowedViews.module.name */
   name: string;
-  /** Orden fijo global */
   order: number;
-  /** Icono de módulo (lucide) si no hay logo */
   icon?: LucideIconName;
-  /** Logo estático del módulo (si tienes assets para cada módulo) */
   logoSrc?: string;
 };
 
-/** --- Orden fijo de módulos y metadatos (fallbacks) --- */
 const MODULES_META: ModuleMeta[] = [
-  // Orden definido por producto: Prospectos y Asesores primero
   { name: "Prospectos y Asesores", order: 1, icon: "Users" },
-  { name: "Inscripción",           order: 2, icon: "FileText" },
-  { name: "Académico",             order: 3, icon: "BookOpen" },
-  { name: "Finanzas y Pagos",      order: 4, icon: "DollarSign" },
-  { name: "Docentes",              order: 5, icon: "GraduationCap" as LucideIconName },
-  { name: "Estudiantes",           order: 6, icon: "Users" },
-  { name: "Seguridad",             order: 7, icon: "Shield" },
-  { name: "Administración",        order: 8, icon: "Settings" },
+  { name: "Inscripción", order: 2, icon: "FileText" },
+  { name: "Académico", order: 3, icon: "BookOpen" },
+  { name: "Finanzas y Pagos", order: 4, icon: "DollarSign" },
+  { name: "Docentes", order: 5, icon: "GraduationCap" as LucideIconName },
+  { name: "Estudiantes", order: 6, icon: "Users" },
+  { name: "Seguridad", order: 7, icon: "Shield" },
+  { name: "Administración", order: 8, icon: "Settings" },
 ];
 
-/** Mapa rápido: nombre → meta */
 const MODULE_META_MAP: Record<string, ModuleMeta> = Object.fromEntries(
   MODULES_META.map((m) => [m.name, m])
 );
 
-/** Ícono por defecto para módulos/vistas cuando no existe el solicitado */
 const DEFAULT_MODULE_ICON: LucideIconName = "Folder";
 const DEFAULT_VIEW_ICON: LucideIconName = "File";
 
-/** Si el backend empieza a mandar logos, puedes leer view.module.logo o view.module.icon */
-export default function Sidebar({ open, className }: { open?: boolean; className?: string }) {
+export default function Sidebar({ open, isMobile, className }: { open?: boolean; isMobile?: boolean; className?: string }) {
   const { allowedViews, setToken, setAllowedViews } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  /** 1) Unificar por view_path para evitar duplicados */
+  // Obtener versión desde variable de entorno
+  const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || "3.0.0";
+
+  // En desktop, si open trasmitido es false, estamos en modo "miniatura" (collapsed).
+  const isCollapsed = !isMobile && !open;
+
   const uniqueViews = useMemo(() => {
     const map = new Map<string, AllowedView>();
     for (const v of allowedViews) {
@@ -63,7 +57,6 @@ export default function Sidebar({ open, className }: { open?: boolean; className
     return Array.from(map.values());
   }, [allowedViews]);
 
-  /** 2) Agrupar por módulo */
   const modules = useMemo(() => {
     const grouped: Record<string, AllowedView[]> = {};
     for (const view of uniqueViews) {
@@ -74,20 +67,18 @@ export default function Sidebar({ open, className }: { open?: boolean; className
     return grouped;
   }, [uniqueViews]);
 
-  /** 3) Ordenar módulos: fijo primero por MODULES_META, desconocidos al final alfabéticos */
   const sortedModuleNames = useMemo(() => {
     const names = Object.keys(modules);
     return names.sort((a, b) => {
       const ma = MODULE_META_MAP[a];
       const mb = MODULE_META_MAP[b];
-      if (ma && mb) return ma.order - mb.order;        // ambos conocidos
-      if (ma && !mb) return -1;                        // a conocido, b desconocido
-      if (!ma && mb) return 1;                         // b conocido, a desconocido
-      return a.localeCompare(b);                       // ambos desconocidos → ABC
+      if (ma && mb) return ma.order - mb.order;
+      if (ma && !mb) return -1;
+      if (!ma && mb) return 1;
+      return a.localeCompare(b);
     });
   }, [modules]);
 
-  /** 4) Ordenar vistas dentro del módulo por order_index si existe, si no por nombre */
   function sortViews(views: AllowedView[]) {
     return [...views].sort((a, b) => {
       const ao = (a as any).order_index ?? 9999;
@@ -97,8 +88,15 @@ export default function Sidebar({ open, className }: { open?: boolean; className
     });
   }
 
-  const toggleModule = (module: string) =>
+  const toggleModule = (module: string) => {
+    if (isCollapsed) return;
     setExpanded((prev) => ({ ...prev, [module]: !prev[module] }));
+  };
+
+  const isModuleActive = (moduleName: string) => {
+    const views = modules[moduleName] || [];
+    return views.some((v) => pathname === v.view_path || pathname?.startsWith(v.view_path + "/"));
+  };
 
   const handleLogout = async () => {
     try {
@@ -113,33 +111,29 @@ export default function Sidebar({ open, className }: { open?: boolean; className
     }
   };
 
-  /** Helper para resolver íconos de VISTA con fallback */
   const getViewIcon = (name?: string) => {
     const key = (name || "").trim() as LucideIconName;
     return (Icons as any)[key] || Icons[DEFAULT_VIEW_ICON];
   };
 
-  /** Helper para renderizar el encabezado del MÓDULO (logo o ícono) */
   const ModuleHeader: React.FC<{ moduleName: string }> = ({ moduleName }) => {
     const meta = MODULE_META_MAP[moduleName];
-    // Si el backend te da logo por view.module.logo, úsalo aquí como primer intento:
-    // const backendLogo = modules[moduleName]?.[0]?.module?.logo; // si existiera
-    // Prioridad: backendLogo → meta.logoSrc → meta.icon → DEFAULT_MODULE_ICON
-    const Icon =
-      (meta?.icon && (Icons as any)[meta.icon]) ||
-      Icons[DEFAULT_MODULE_ICON];
+    const Icon = (meta?.icon && (Icons as any)[meta.icon]) || Icons[DEFAULT_MODULE_ICON];
 
     return (
-      <div className="flex items-center gap-2">
-        {/* Si usas logo por imagen: 
-        {backendLogo ? (
-          <Image src={backendLogo} alt={moduleName} width={18} height={18} />
-        ) : meta?.logoSrc ? (
-          <Image src={meta.logoSrc} alt={moduleName} width={18} height={18} />
-        ) : ( */}
-          <Icon size={18} />
-        {/* )} */}
-        <span>{moduleName}</span>
+      <div className={cn("flex items-center", isCollapsed ? "justify-center w-full" : "gap-2.5")}>
+        <div className={cn(
+          "flex items-center justify-center rounded-lg transition-all duration-200",
+          !isCollapsed ? "w-7 h-7 bg-white/[0.07] group-hover:bg-white/[0.12]" : "w-8 h-8 group-hover:bg-white/[0.1] text-asm-light-gold"
+        )}>
+          <Icon size={isCollapsed ? 18 : 15} className="text-asm-light-gold/80" />
+        </div>
+        <span className={cn(
+          "font-medium text-[13px] tracking-wide transition-all duration-300 overflow-hidden whitespace-nowrap",
+          isCollapsed ? "w-0 opacity-0 ml-0" : "w-auto opacity-100"
+        )}>
+          {moduleName}
+        </span>
       </div>
     );
   };
@@ -147,62 +141,112 @@ export default function Sidebar({ open, className }: { open?: boolean; className
   return (
     <div
       className={cn(
-        `${open ? "w-64" : "w-0 -translate-x-full"} transition-all duration-300 asm-gradient border-r border-asm-medium-gold/30 flex flex-col h-full overflow-y-auto`,
-        "pb-12",
+        "transition-all duration-300 asm-gradient border-r border-asm-medium-gold/[0.15] flex flex-col h-full overflow-y-auto overflow-x-hidden",
+        "pb-6", // Increased padding bottom for better mobile touch area/version visibility
+        isCollapsed ? "w-[80px]" : "w-64",
         className
       )}
     >
-      {/* Header */}
-      <div className="p-4 border-b border-asm-medium-gold/30">
-        <Link href="/" className="flex justify-center">
-          <img 
-            src="/webpanel/recursos/Logos-02.png" 
-            alt="ASM Logo" 
-            className="h-28 w-auto object-contain cursor-pointer hover:opacity-90 transition-opacity"
-          />
+      {/* ─── Logo Area ─── */}
+      <div className={cn("flex flex-col transition-all duration-300", isCollapsed ? "p-3 items-center" : "p-5")}>
+        <Link href="/" className="flex justify-center group w-full">
+          <div className="relative flex items-center justify-center h-16">
+            {isCollapsed ? (
+              // Icono/Logo mini
+              <div className="w-10 h-10 bg-asm-medium-gold/20 rounded-full flex items-center justify-center border border-asm-medium-gold/30 shadow-gold">
+                <Icons.Shield size={20} className="text-asm-light-gold" />
+              </div>
+            ) : (
+              <img
+                src="/recursos/Logos-02.png"
+                alt="ASM Logo"
+                className="h-16 w-auto object-contain cursor-pointer transition-all duration-500 group-hover:scale-[1.03] group-hover:brightness-110"
+              />
+            )}
+          </div>
         </Link>
+        <div className={cn("sidebar-separator mt-4 transition-opacity duration-300", isCollapsed ? "opacity-30 w-10 mx-auto" : "opacity-100 w-auto")} />
       </div>
 
-      {/* Body */}
-      <div className="flex-1 py-4 overflow-y-auto px-3">
+      {/* ─── Navigation Body ─── */}
+      <div className={cn("flex-1 overflow-y-auto overflow-x-hidden space-y-1 transition-all", isCollapsed ? "px-2" : "px-3")}>
         {/* Inicio */}
         <Link
           href="/"
+          title={isCollapsed ? "Inicio" : ""}
           className={cn(
-            "flex items-center px-4 py-2 mb-2 rounded-md transition-colors duration-200",
+            "flex items-center mb-1 rounded-xl transition-all duration-200 group relative",
+            isCollapsed ? "justify-center py-3" : "gap-2.5 px-3 py-2.5",
             pathname === "/"
-              ? "bg-asm-medium-gold text-white"
-              : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+              ? "bg-gradient-to-r from-asm-medium-gold/90 to-asm-dark-gold/90 text-white shadow-lg shadow-asm-medium-gold/20"
+              : "text-asm-light-gold/90 hover:bg-white/[0.08] hover:text-white"
           )}
         >
-          <Icons.Home size={18} className="mr-2" />
-          <span>Inicio</span>
+          <div className={cn(
+            "flex items-center justify-center rounded-lg transition-all duration-200",
+            !isCollapsed ? "w-8 h-8 bg-white/[0.05] group-hover:bg-white/[0.1]" : ""
+          )}>
+            <Icons.Home size={isCollapsed ? 20 : 16} />
+          </div>
+          <span className={cn(
+            "font-medium text-[13px] transition-all duration-300 overflow-hidden whitespace-nowrap",
+            isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+          )}>
+            Inicio
+          </span>
+          {!isCollapsed && pathname === "/" && <div className="absolute left-0 top-1/2 -translate-y-1/2 h-[60%] w-[3px] bg-white/50 rounded-r-md" />}
         </Link>
 
-        {/* Título sección */}
-        <div className="px-4 py-2 text-xs font-medium text-asm-light-gold/70 uppercase tracking-wider">
-          Módulos
+        {/* Section title */}
+        <div className={cn("transition-all duration-300", isCollapsed ? "py-2 text-center" : "px-3 pt-4 pb-2")}>
+          <p className="text-[10px] font-semibold text-asm-light-gold/40 uppercase tracking-[0.15em] whitespace-nowrap overflow-hidden">
+            {isCollapsed ? "..." : "Módulos"}
+          </p>
         </div>
 
-        {/* Módulos */}
+        {/* ─── Módulos ─── */}
         {sortedModuleNames.map((moduleName) => {
           const views = sortViews(modules[moduleName]);
           const isOpen = !!expanded[moduleName];
+          const moduleActive = isModuleActive(moduleName);
 
           return (
-            <div key={moduleName} className="mb-1">
+            <div key={moduleName} className="mb-0.5 relative group/module">
+              {/* Tooltip on hover (collapsed) */}
+              {isCollapsed && (
+                <div className="absolute left-full top-2 ml-3 z-50 px-3 py-1.5 bg-asm-navy text-asm-light-gold text-xs font-medium rounded-md opacity-0 group-hover/module:opacity-100 pointer-events-none whitespace-nowrap border border-asm-medium-gold/20 shadow-xl transition-opacity duration-200 translate-x-1 group-hover/module:translate-x-0">
+                  {moduleName}
+                </div>
+              )}
+
               <button
-                onClick={() => toggleModule(moduleName)}
-                className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md transition-colors duration-200"
+                onClick={() => !isCollapsed && toggleModule(moduleName)}
+                className={cn(
+                  "w-full flex items-center cursor-pointer rounded-xl transition-all duration-200",
+                  isCollapsed ? "justify-center py-3 px-0" : "justify-between px-3 py-2.5",
+                  moduleActive && !isOpen
+                    ? "bg-white/[0.08] text-white"
+                    : "text-asm-light-gold/85 hover:bg-white/[0.06] hover:text-white"
+                )}
                 aria-expanded={isOpen}
-                aria-controls={`module-${moduleName}`}
               >
                 <ModuleHeader moduleName={moduleName} />
-                {isOpen ? <Icons.ChevronDown size={16} /> : <Icons.ChevronRight size={16} />}
+                {!isCollapsed && (
+                  <Icons.ChevronRight
+                    size={14}
+                    className={cn(
+                      "text-asm-light-gold/40 transition-transform duration-300",
+                      isOpen && "rotate-90"
+                    )}
+                  />
+                )}
               </button>
 
-              {isOpen && (
-                <div id={`module-${moduleName}`} className="pl-6 text-sm space-y-1 mt-1 mb-2">
+              {/* Submenú: solo expandir si NO colapsado */}
+              {!isCollapsed && isOpen && (
+                <div
+                  className="pl-5 pr-1 mt-1 mb-2 ml-3 border-l border-asm-medium-gold/[0.12] space-y-0.5 animate-in slide-in-from-top-2 duration-200"
+                >
                   {views.map((view) => {
                     const Icon = getViewIcon(view.icon);
                     const active = pathname === view.view_path;
@@ -211,14 +255,20 @@ export default function Sidebar({ open, className }: { open?: boolean; className
                         key={view.view_path}
                         href={view.view_path}
                         className={cn(
-                          "flex items-center px-4 py-1.5 rounded-md transition-colors duration-200",
+                          "flex items-center gap-2 px-3 py-2 rounded-lg text-[12.5px] transition-all duration-200 group/link",
                           active
-                            ? "bg-asm-medium-gold text-white"
-                            : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                            ? "bg-gradient-to-r from-asm-medium-gold/80 to-asm-dark-gold/80 text-white shadow-md shadow-asm-medium-gold/15 font-medium"
+                            : "text-asm-light-gold/70 hover:bg-white/[0.06] hover:text-asm-light-gold"
                         )}
                       >
-                        <Icon size={16} className="mr-2" />
-                        <span>{view.menu}</span>
+                        <Icon
+                          size={14}
+                          className={cn(
+                            "flex-shrink-0 transition-colors duration-200",
+                            active ? "text-white" : "text-asm-light-gold/50 group-hover/link:text-asm-light-gold/80"
+                          )}
+                        />
+                        <span className="truncate">{view.menu}</span>
                       </Link>
                     );
                   })}
@@ -227,18 +277,42 @@ export default function Sidebar({ open, className }: { open?: boolean; className
             </div>
           );
         })}
-
       </div>
 
-      {/* Footer */}
-      <div className="mt-auto p-4 border-t border-asm-medium-gold/30">
+      {/* ─── Footer ─── */}
+      <div className={cn("mt-auto transition-all", isCollapsed ? "px-2 pb-2 pt-2" : "px-3 pb-2 pt-2")}>
+        <div className="sidebar-separator mb-3" />
         <button
           onClick={handleLogout}
-          className="w-full flex items-center px-4 py-2 rounded-md text-red-400 hover:bg-red-500/10 transition-colors duration-200"
+          title={isCollapsed ? "Cerrar Sesión" : ""}
+          className={cn(
+            "group w-full flex items-center rounded-xl text-red-400/80 hover:bg-red-500/[0.08] hover:text-red-400 transition-all duration-200",
+            isCollapsed ? "justify-center py-3" : "gap-2.5 px-3 py-2.5"
+          )}
         >
-          <Icons.LogOut size={18} className="mr-2" />
-          <span>Cerrar Sesión</span>
+          <div className={cn(
+            "flex items-center justify-center rounded-lg bg-red-500/[0.06] group-hover:bg-red-500/[0.12] transition-colors duration-200",
+            isCollapsed ? "w-8 h-8" : "w-8 h-8"
+          )}>
+            <Icons.LogOut size={16} />
+          </div>
+          <span className={cn(
+            "text-[13px] font-medium transition-all duration-300 overflow-hidden whitespace-nowrap",
+            isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+          )}>
+            Cerrar Sesión
+          </span>
         </button>
+
+        {/* ─── Version Info ─── */}
+        <div className={cn(
+          "mt-2 text-center transition-all duration-500 overflow-hidden",
+          isCollapsed ? "h-0 opacity-0" : "h-auto opacity-100" // Ocultar versión en colapsado para limpieza
+        )}>
+          <p className="text-[10px] text-asm-light-gold/30 font-mono select-none">
+            v{appVersion}
+          </p>
+        </div>
       </div>
     </div>
   );
