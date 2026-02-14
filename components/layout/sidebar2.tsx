@@ -1,7 +1,6 @@
 "use client"
 
 import React, { useEffect, useState, type ReactNode } from "react"
-import Image from "next/image"
 import {
   BarChart2, Calendar, ChevronDown, ChevronRight, FileText, Home, Mail, Settings, Shield, Users, DollarSign,
   BookOpen, ClipboardList, Activity, Copy, UserCheck, Plus, FileSignature, BarChart, LayoutDashboard, GraduationCapIcon,
@@ -124,14 +123,13 @@ export default function Sidebar({ open, className }: SidebarProps) {
     >
       <div className="p-4 border-b border-asm-medium-gold/30 flex justify-center">
         <Link href="/" className="flex justify-center">
-          <Image 
-            src="/recursos/Logos-02.png" 
+          {/* Ruta con /webpanel/ para producción - descomentar la línea correcta según ambiente */}
+          <img 
+            src="/webpanel/recursos/Logos-02.png" 
             alt="ASM Logo"
-            width={200}
-            height={112}
             className="h-28 w-auto object-contain cursor-pointer hover:opacity-90 transition-opacity"
-            priority
           />
+          {/* Local: src="/recursos/Logos-02.png" */}
         </Link>
       </div>
 
