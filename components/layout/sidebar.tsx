@@ -1,8 +1,8 @@
-
 "use client";
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import type { AllowedView } from "@/contexts/AuthContext";
@@ -157,10 +157,13 @@ export default function Sidebar({ open, isMobile, className }: { open?: boolean;
                 <Icons.Shield size={20} className="text-asm-light-gold" />
               </div>
             ) : (
-              <img
+              <Image
                 src="/recursos/Logos-02.png"
                 alt="ASM Logo"
+                width={200}
+                height={64}
                 className="h-16 w-auto object-contain cursor-pointer transition-all duration-500 group-hover:scale-[1.03] group-hover:brightness-110"
+                priority
               />
             )}
           </div>

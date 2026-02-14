@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, type ReactNode } from "react"
+import Image from "next/image"
 import {
   BarChart2,
   Calendar,
@@ -86,10 +87,13 @@ export default function Sidebar({ open, className }: SidebarProps) {
       {/* Logo */}
       <div className="p-4 border-b border-asm-medium-gold/30">
         <Link href="/" className="flex justify-center">
-          <img 
-            src="/webpanel/recursos/Logos-02.png" 
-            alt="ASM Logo" 
+          <Image 
+            src="/recursos/Logos-02.png" 
+            alt="ASM Logo"
+            width={200}
+            height={112}
             className="h-28 w-auto object-contain cursor-pointer hover:opacity-90 transition-opacity"
+            priority
           />
         </Link>
       </div>
