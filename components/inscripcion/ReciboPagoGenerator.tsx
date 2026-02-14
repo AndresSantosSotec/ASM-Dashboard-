@@ -242,45 +242,104 @@ export default function ReciboPagoGenerator({
     })
   }
 
+  // Convertir imagen a base64 para usar en la ventana de impresión
+  const toBase64 = (url: string): Promise<string> => {
+    return new Promise((resolve) => {
+      // Método 1: Usar Image + Canvas (más compatible)
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas')
+          canvas.width = img.naturalWidth
+          canvas.height = img.naturalHeight
+          const ctx = canvas.getContext('2d')
+          if (ctx) {
+            ctx.drawImage(img, 0, 0)
+            resolve(canvas.toDataURL('image/png'))
+          } else {
+            resolve('')
+          }
+        } catch {
+          resolve('')
+        }
+      }
+      img.onerror = () => {
+        // Método 2: Intentar con fetch como fallback
+        fetch(url)
+          .then(r => r.blob())
+          .then(blob => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result as string)
+            reader.onerror = () => resolve('')
+            reader.readAsDataURL(blob)
+          })
+          .catch(() => resolve(''))
+      }
+      img.src = url
+    })
+  }
+
   const handlePrint = async () => {
     if (!printRef.current) return
     // Registrar recibo antes de imprimir
     await registrarRecibo()
+
+    // Pre-cargar logos como base64 para que estén disponibles inmediatamente en la ventana de impresión
+    const [headerLogoB64, footerLogoB64] = await Promise.all([
+      toBase64('/recursos/Logos-02.png'),
+      toBase64('/recursos/Logos_Mesa.png')
+    ])
+
     const printWindow = window.open("", "_blank")
     if (!printWindow) return
+
+    // URL absoluta como fallback si base64 falla
+    const origin = window.location.origin
+    const headerSrc = headerLogoB64 || `${origin}/recursos/Logos-02.png`
+    const footerSrc = footerLogoB64 || `${origin}/recursos/Logos_Mesa.png`
+    
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
         <title>Recibo de Pago - ${recibo.reciboNo}</title>
         <style>
-          @page { size: letter; margin: 1.5cm; }
-          body { font-family: 'Times New Roman', serif; font-size: 12pt; color: #000; margin: 0; padding: 20px; }
-          .header { text-align: center; margin-bottom: 20px; }
-          .header h1 { font-size: 16pt; margin: 0; font-weight: bold; }
-          .header p { margin: 2px 0; font-size: 10pt; }
-          .info-row { display: flex; justify-content: space-between; margin: 8px 0; }
-          .info-row span { font-size: 11pt; }
-          .concepto-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
-          .concepto-table th { text-align: center; font-weight: bold; border: 1px solid #000; padding: 6px; font-size: 11pt; }
-          .concepto-table td { border: 1px solid #000; padding: 5px 10px; font-size: 11pt; }
-          .concepto-table td:last-child { text-align: right; width: 120px; }
-          .pago-section { margin-top: 15px; }
-          .pago-row { display: flex; gap: 15px; margin: 5px 0; font-size: 11pt; }
-          .forma-pago { display: flex; gap: 20px; margin: 8px 0; }
-          .forma-pago span { border: 1px solid #000; padding: 3px 12px; font-size: 10pt; }
+          @page { size: letter; margin: 1cm 1.5cm; }
+          body { font-family: 'Times New Roman', serif; font-size: 10pt; color: #000; margin: 0; padding: 15px; }
+          .logo-bar { background: linear-gradient(90deg, #1e264d 0%, #26335b 100%); padding: 8px 15px; margin: -15px -15px 0 -15px; text-align: left; display: flex; align-items: center; }
+          .logo-bar img { height: 38px; width: auto; display: block; }
+          .gold-line { height: 2px; background: #b08b4f; margin: 0 -15px 8px -15px; }
+          .header { text-align: center; margin-bottom: 10px; }
+          .header h1 { font-size: 13pt; margin: 0; font-weight: bold; }
+          .header p { margin: 1px 0; font-size: 9pt; }
+          .footer-logos { margin-top: 15px; text-align: center; border-top: 1px solid #1e264d; padding-top: 5px; }
+          .footer-logos img { height: 28px; width: auto; }
+          .info-row { display: flex; justify-content: space-between; margin: 3px 0; }
+          .info-row span { font-size: 10pt; }
+          .concepto-table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+          .concepto-table th { text-align: center; font-weight: bold; border: 1px solid #000; padding: 3px; font-size: 10pt; }
+          .concepto-table td { border: 1px solid #000; padding: 2px 8px; font-size: 10pt; }
+          .concepto-table td:last-child { text-align: right; width: 100px; }
+          .pago-section { margin-top: 8px; }
+          .pago-row { display: flex; gap: 10px; margin: 2px 0; font-size: 10pt; }
+          .forma-pago { display: flex; gap: 15px; margin: 4px 0; }
+          .forma-pago span { border: 1px solid #000; padding: 2px 10px; font-size: 9pt; }
           .forma-pago span.selected { background: #ddd; font-weight: bold; }
-          .total-row { font-weight: bold; font-size: 13pt; margin-top: 10px; }
-          .firma { margin-top: 40px; text-align: right; }
-          .firma-line { border-top: 1px solid #000; width: 200px; margin-left: auto; margin-top: 40px; padding-top: 5px; text-align: center; font-size: 10pt; }
-          .no-devolucion { font-size: 9pt; font-weight: bold; margin-top: 15px; }
+          .total-row { font-weight: bold; font-size: 12pt; margin-top: 6px; }
+          .firma { margin-top: 25px; text-align: right; }
+          .firma-line { border-top: 1px solid #000; width: 180px; margin-left: auto; margin-top: 25px; padding-top: 3px; text-align: center; font-size: 9pt; }
+          .no-devolucion { font-size: 8pt; font-weight: bold; margin-top: 8px; }
         </style>
       </head>
       <body>
+        <div class="logo-bar">
+          <img src="${headerSrc}" alt="American School of Management" />
+        </div>
+        <div class="gold-line"></div>
         <div class="header">
           <h1>AMERICAN</h1>
-          <p style="font-size: 9pt; letter-spacing: 2px;">SCHOOL OF MANAGEMENT</p>
-          <br/>
+          <p style="font-size: 8pt; letter-spacing: 2px;">SCHOOL OF MANAGEMENT</p>
           <p><strong>American School of Management</strong></p>
           <p>Torre Tigo, Km. 9.5 Carretera al Salvador, Oficina 6C</p>
           <p>Cel. 5486-2301</p>
@@ -290,7 +349,7 @@ export default function ReciboPagoGenerator({
           <span><strong>Nit:</strong> ${recibo.nit}</span>
         </div>
         <div class="info-row">
-          <span><strong>Recibo Serie "A"</strong> Nº <strong style="color: red; font-size: 14pt;">${recibo.reciboNo}</strong></span>
+          <span><strong>Recibo Serie "A"</strong> Nº <strong style="color: red; font-size: 12pt;">${recibo.reciboNo}</strong></span>
         </div>
         <div class="info-row">
           <span><strong>Fecha</strong> ${new Date(recibo.fecha + "T12:00:00").toLocaleDateString("es-GT", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
@@ -318,7 +377,7 @@ export default function ReciboPagoGenerator({
 
         <div class="pago-section">
           <div class="pago-row"><strong>Mes que cancela:</strong> ${recibo.mesQueCancela}</div>
-          <p><strong>Forma de pago:</strong></p>
+          <p style="margin:2px 0;"><strong>Forma de pago:</strong></p>
           <div class="forma-pago">
             <span class="${recibo.formaPago === "Efectivo" ? "selected" : ""}">Efectivo</span>
             <span class="${recibo.formaPago === "Tarjeta" ? "selected" : ""}">Tarjeta</span>
@@ -335,10 +394,25 @@ export default function ReciboPagoGenerator({
         <div class="firma">
           <div class="firma-line">Firma y nombre de quien recibe</div>
         </div>
+        <div class="footer-logos">
+          <img src="${footerSrc}" alt="Logos institucionales" />
+        </div>
       </body>
       </html>
     `)
     printWindow.document.close()
+    // Esperar a que las imágenes carguen antes de imprimir
+    const images = printWindow.document.querySelectorAll('img')
+    const loadPromises = Array.from(images).map(img => {
+      if (img.complete) return Promise.resolve()
+      return new Promise<void>((resolve) => {
+        img.onload = () => resolve()
+        img.onerror = () => resolve() // Continuar aunque falle una imagen
+      })
+    })
+    await Promise.all(loadPromises)
+    // Pequeño delay para asegurar renderizado
+    await new Promise(r => setTimeout(r, 300))
     printWindow.onafterprint = () => printWindow.close()
     printWindow.print()
     // Cerrar el diálogo después de imprimir

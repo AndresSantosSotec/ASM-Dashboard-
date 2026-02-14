@@ -20,8 +20,8 @@ const fmtDate = (d?: string | number | Date | null) =>
   d ? new Date(d).toLocaleDateString('es-GT') : '—'
 
 // === Layout con imagen ===
-const HEADER_HEIGHT = 50 // Aumentado para la imagen
-const FOOTER_HEIGHT = 30 // Aumentado para el footer con logos
+const HEADER_HEIGHT = 30
+const FOOTER_HEIGHT = 18
 const LEFT = 15
 const RIGHT = 15
 const CONTENT_TOP = HEADER_HEIGHT + 10 // 60
@@ -78,64 +78,67 @@ function drawHeaderFooter(doc: jsPDF, headerImage?: string | null, footerImage?:
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
 
-  // Header con imagen
+  // Header: fondo azul institucional + logo superpuesto
+  doc.setFillColor(30, 38, 77) // #1e264d - Azul institucional ASM
+  doc.rect(0, 0, pageWidth, HEADER_HEIGHT, 'F')
+  // Línea dorada decorativa
+  doc.setFillColor(176, 139, 79) // #b08b4f
+  doc.rect(0, HEADER_HEIGHT - 3, pageWidth, 3, 'F')
+
   if (headerImage && headerImage.length > 0) {
     try {
-      // Verificar que la imagen sea válida antes de agregarla
       if (headerImage.startsWith('data:image/')) {
-        // Agregar la imagen de header (ajusta las dimensiones según tu imagen)
-        doc.addImage(headerImage, 'PNG', 0, 0, pageWidth, HEADER_HEIGHT)
-      } else {
-        throw new Error('Formato de imagen inválido')
+        // Logo proporcionado dentro del header azul
+        const logoHeight = 12
+        const logoWidth = logoHeight * 3.2
+        const logoY = (HEADER_HEIGHT - 3 - logoHeight) / 2
+        doc.addImage(headerImage, 'PNG', 12, logoY, logoWidth, logoHeight)
       }
     } catch (error) {
-      // Fallback: header con color sólido
-      doc.setFillColor(30, 41, 59) // Color similar al de tu imagen
-      doc.rect(0, 0, pageWidth, HEADER_HEIGHT, 'F')
-      
-      // Agregar texto en el header
+      // Si falla el logo, mostrar texto
       doc.setTextColor(255, 255, 255)
-      doc.setFontSize(16)
+      doc.setFontSize(11)
       doc.setFont('helvetica', 'bold')
-      doc.text('ESTADO DE CUENTA', pageWidth / 2, HEADER_HEIGHT / 2, { align: 'center' })
+      doc.text('AMERICAN SCHOOL OF MANAGEMENT', 15, HEADER_HEIGHT / 2 + 1)
     }
   } else {
-    // Fallback si no hay imagen
-    doc.setFillColor(30, 41, 59)
-    doc.rect(0, 0, pageWidth, HEADER_HEIGHT, 'F')
-    
-    // Agregar texto en el header
     doc.setTextColor(255, 255, 255)
-    doc.setFontSize(16)
+    doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
-    doc.text('ESTADO DE CUENTA', pageWidth / 2, HEADER_HEIGHT / 2, { align: 'center' })
+    doc.text('AMERICAN SCHOOL OF MANAGEMENT', 15, HEADER_HEIGHT / 2 + 1)
   }
 
   // Footer con logos
-  doc.setFillColor(30, 41, 59)
+  doc.setFillColor(30, 38, 77)
   doc.rect(0, pageHeight - FOOTER_HEIGHT, pageWidth, FOOTER_HEIGHT, 'F')
+  // Línea dorada arriba del footer
+  doc.setFillColor(176, 139, 79)
+  doc.rect(0, pageHeight - FOOTER_HEIGHT, pageWidth, 2, 'F')
   
   if (footerImage && footerImage.length > 0) {
     try {
       if (footerImage.startsWith('data:image/')) {
-        // Agregar imagen del footer con los logos
-        doc.addImage(footerImage, 'PNG', 0, pageHeight - FOOTER_HEIGHT, pageWidth, FOOTER_HEIGHT)
+        // Footer con logos centrados - tamaño proporcional
+        const fLogoHeight = 7
+        const fLogoWidth = fLogoHeight * 3.5
+        const fLogoX = (pageWidth - fLogoWidth) / 2
+        const fLogoY = pageHeight - FOOTER_HEIGHT + 3
+        doc.addImage(footerImage, 'PNG', fLogoX, fLogoY, fLogoWidth, fLogoHeight)
       }
     } catch (error) {
-      // Silenciar error del footer, ya tenemos el color de fondo
+      // Silenciar error del footer
     }
   }
 
   // Información adicional en el footer
   doc.setTextColor(255, 255, 255)
-  doc.setFontSize(8)
+  doc.setFontSize(7)
   doc.setFont('helvetica', 'normal')
-  doc.text('Este documento es generado automáticamente por el sistema.', 20, pageHeight - 12)
+  doc.text('American School of Management - Documento generado automáticamente', 10, pageHeight - 4)
 
   const totalPages = (doc as any).internal.pages?.length ?? 1
   const current = (doc as any).internal.getCurrentPageInfo().pageNumber
-  doc.text(`Página ${current} de ${totalPages}`, pageWidth - 50, pageHeight - 12)
-  doc.text(`Generado: ${new Date().toLocaleDateString('es-GT')}`, pageWidth - 50, pageHeight - 8)
+  doc.text(`Página ${current} de ${totalPages}`, pageWidth - 50, pageHeight - 4)
 }
 
 // Helper: salto de página para bloques NO-tabla
@@ -152,14 +155,14 @@ function ensureSpace(doc: jsPDF, cursorY: number, needed: number): number {
 // === Generador principal con imágenes ===
 export const generateDetailedAccountStatePDF = async (
   data: AccountData,
-  headerImagePath?: string, // Opcional: ruta a tu imagen de header
-  footerImagePath?: string // Opcional: imagen para footer
+  headerImagePath: string = '/recursos/Logos-02.png',
+  footerImagePath: string = '/recursos/Logos_Mesa.png'
 ) => {
   const doc = new jsPDF()
 
-  // Cargar imágenes (solo si se proporcionan rutas)
-  const headerImage = headerImagePath ? await loadImageAsBase64(headerImagePath) : null
-  const footerImage = footerImagePath ? await loadImageAsBase64(footerImagePath) : null
+  // Cargar imágenes con rutas por defecto
+  const headerImage = await loadImageAsBase64(headerImagePath)
+  const footerImage = await loadImageAsBase64(footerImagePath)
 
   // Defaults para TODAS las tablas
   ;(doc as any).autoTableSetDefaults({
@@ -646,14 +649,14 @@ interface StudentReportData {
 
 export async function generateStudentReport(
   data: StudentReportData,
-  headerImagePath: string = '/image.png',
-  footerImagePath?: string
+  headerImagePath: string = '/recursos/Logos-02.png',
+  footerImagePath: string = '/recursos/Logos_Mesa.png'
 ) {
   const doc = new jsPDF()
   
-  // Cargar imágenes
+  // Cargar imágenes con logos institucionales
   const headerImage = await loadImageAsBase64(headerImagePath)
-  const footerImage = footerImagePath ? await loadImageAsBase64(footerImagePath) : undefined
+  const footerImage = await loadImageAsBase64(footerImagePath)
   
   const primaryColor: RGB = [37, 99, 235]
   const secondaryColor: RGB = [139, 92, 246]
@@ -664,9 +667,28 @@ export async function generateStudentReport(
   
   let yPosition = CONTENT_TOP
 
-  // HEADER con imagen
+  // HEADER: fondo azul institucional + logo
+  doc.setFillColor(30, 38, 77)
+  doc.rect(0, 0, 210, HEADER_HEIGHT, 'F')
+  doc.setFillColor(176, 139, 79)
+  doc.rect(0, HEADER_HEIGHT - 3, 210, 3, 'F')
   if (headerImage) {
-    doc.addImage(headerImage, 'PNG', 0, 0, 210, HEADER_HEIGHT)
+    try {
+      const logoHeight = 12
+      const logoWidth = logoHeight * 3.2
+      const logoY = (HEADER_HEIGHT - 3 - logoHeight) / 2
+      doc.addImage(headerImage, 'PNG', 12, logoY, logoWidth, logoHeight)
+    } catch (e) {
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.text('AMERICAN SCHOOL OF MANAGEMENT', 15, HEADER_HEIGHT / 2 + 1)
+    }
+  } else {
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.text('AMERICAN SCHOOL OF MANAGEMENT', 15, HEADER_HEIGHT / 2 + 1)
   }
 
   // INFORMACIÓN DEL ESTUDIANTE
@@ -786,6 +808,23 @@ export async function generateStudentReport(
       head: [['Curso', 'Período', 'Créd.', 'Nota', 'Estado']],
       body: coursesTableData,
       theme: 'grid',
+      margin: { top: CONTENT_TOP, bottom: FOOTER_HEIGHT + 10, left: 10, right: 10 },
+      pageBreak: 'auto',
+      didDrawPage: function(hookData) {
+        // Redibujar header en páginas nuevas
+        if (hookData.pageNumber > 1) {
+          doc.setFillColor(30, 38, 77)
+          doc.rect(0, 0, 210, HEADER_HEIGHT, 'F')
+          doc.setFillColor(176, 139, 79)
+          doc.rect(0, HEADER_HEIGHT - 3, 210, 3, 'F')
+          if (headerImage) {
+            try {
+              const lh = 12, lw = lh * 3.2
+              doc.addImage(headerImage, 'PNG', 12, (HEADER_HEIGHT - 3 - lh) / 2, lw, lh)
+            } catch(e) {}
+          }
+        }
+      },
       headStyles: {
         fillColor: secondaryColor,
         textColor: [255, 255, 255] as RGB,
@@ -825,25 +864,37 @@ export async function generateStudentReport(
     yPosition += 20
   }
 
-  // FOOTER
+  // FOOTER con logos institucionales
   const pageCount = doc.getNumberOfPages()
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i)
+    // Fondo azul del footer
+    doc.setFillColor(30, 38, 77)
+    doc.rect(0, 297 - FOOTER_HEIGHT, 210, FOOTER_HEIGHT, 'F')
+    // Línea dorada
+    doc.setFillColor(176, 139, 79)
+    doc.rect(0, 297 - FOOTER_HEIGHT, 210, 2, 'F')
+    
     if (footerImage) {
-      doc.addImage(footerImage, 'PNG', 0, 297 - FOOTER_HEIGHT, 210, FOOTER_HEIGHT)
-    } else {
-      doc.setFillColor(...grayColor)
-      doc.rect(0, 287, 210, 10, 'F')
+      try {
+        const fLogoHeight = 7
+        const fLogoWidth = fLogoHeight * 3.5
+        const fLogoX = (210 - fLogoWidth) / 2
+        const fLogoY = 297 - FOOTER_HEIGHT + 3
+        doc.addImage(footerImage, 'PNG', fLogoX, fLogoY, fLogoWidth, fLogoHeight)
+      } catch (e) {
+        // Silenciar
+      }
     }
     doc.setTextColor(255, 255, 255)
-    doc.setFontSize(8)
+    doc.setFontSize(7)
     doc.text(
-      `Generado: ${new Date().toLocaleDateString('es-GT', { 
-        year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+      `American School of Management - Generado: ${new Date().toLocaleDateString('es-GT', { 
+        year: 'numeric', month: 'long', day: 'numeric'
       })}`,
-      15, 293
+      10, 297 - 4
     )
-    doc.text(`Página ${i} de ${pageCount}`, 195, 293, { align: 'right' })
+    doc.text(`Página ${i} de ${pageCount}`, 200, 297 - 4, { align: 'right' })
   }
 
   const fileName = `Reporte_${data.studentInfo.carnet}_${new Date().toISOString().split('T')[0]}.pdf`

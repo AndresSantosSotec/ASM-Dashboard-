@@ -167,8 +167,8 @@ export function EstadoCuentaEstudiante() {
       // Pasar las rutas de los logos al generador de PDF
       await generateDetailedAccountStatePDF(
         accountData,
-        '/recursos/Logos-02.png',  // Header image
-        // Footer image (opcional)
+        '/recursos/Logos-02.png',
+        '/recursos/Logos_Mesa.png'
       )
       toast({
         title: "PDF Generado",

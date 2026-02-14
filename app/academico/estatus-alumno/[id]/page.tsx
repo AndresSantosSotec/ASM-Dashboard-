@@ -182,7 +182,7 @@ export default function EstudianteDetalleEstatus() {
           email: studentInfo.email,
           program: studentInfo.program,
           programCode: studentInfo.programCode,
-          status: studentInfo.status
+          status: studentInfo.status,
         },
         academicInfo: {
           coursesApproved: academicInfo.coursesApproved,
@@ -208,7 +208,10 @@ export default function EstudianteDetalleEstatus() {
           status: c.status,
           grade: c.grade
         }))
-      })
+      },
+        '/recursos/Logos-02.png',
+        '/recursos/Logos_Mesa.png'
+      )
 
       toast({
         title: "Reporte generado",

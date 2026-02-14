@@ -26,12 +26,59 @@ interface Contrato {
   firma_asesor: string // Base64 de la imagen
 }
 
+interface FichaInscripcion {
+  datos_personales: {
+    nombre_completo: string
+    dpi: string
+    pais_origen: string
+    pais_residencia: string
+    telefono: string
+    fecha_nacimiento: string
+    email_personal: string
+    email_corporativo: string
+    direccion: string
+  }
+  datos_laborales: {
+    empresa: string
+    puesto: string
+    telefono_corporativo: string
+    departamento: string
+    direccion_empresa: string
+  }
+  datos_academicos: {
+    programa: string
+    duracion_meses: string | number
+    ultimo_titulo: string
+    institucion: string
+    carrera: string
+    anio_graduacion: string
+    modalidad: string
+    dia_estudio: string
+    fecha_inicio: string
+    medio_conocio: string
+  }
+  datos_financieros: {
+    tiene_convenio: boolean
+    forma_pago: string
+    inscripcion: number
+    cuota_mensual: number
+    duracion_meses: number
+    inversion_total: number
+  }
+  servicios_electronicos: {
+    cantidad_cursos: number
+    precio_transferencia: number
+    precio_otro_metodo: number
+  }[]
+}
+
 export default function FirmarContratoPage() {
   const { token } = useParams()
   const router = useRouter()
 
   const [contrato, setContrato] = useState<Contrato | null>(null)
   const [prospecto, setProspecto] = useState<any>(null)
+  const [fichaInscripcion, setFichaInscripcion] = useState<FichaInscripcion | null>(null)
   const [signature, setSignature] = useState<string | null>(null)
   const [dpi, setDpi] = useState("")
   const [loading, setLoading] = useState(true)
@@ -65,6 +112,7 @@ export default function FirmarContratoPage() {
 
         setContrato(data.contrato)
         setProspecto(data.prospecto)
+        setFichaInscripcion(data.ficha_inscripcion || null)
         setLoading(false)
       } catch (err) {
         setError("Error al cargar el contrato")
@@ -291,6 +339,298 @@ export default function FirmarContratoPage() {
             </div>
           </div>
         </div>
+
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* FICHA DE INSCRIPCIÓN                                   */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        {fichaInscripcion && (
+          <div className="bg-white rounded-lg shadow-md p-8 mb-6">
+            <h2 className="text-2xl font-bold text-slate-900 mb-2 pb-3 border-b-4 border-[#1e264d] text-center uppercase tracking-wide">
+              Ficha de Inscripción
+            </h2>
+            <p className="text-center text-sm text-slate-500 mb-6">Información del Estudiante y Programa Académico</p>
+
+            {/* 1. DATOS PERSONALES */}
+            <div className="bg-[#1e264d] text-white px-4 py-2 rounded-t-md font-bold text-sm uppercase mb-0">
+              📋 Datos Personales
+            </div>
+            <div className="border border-slate-300 rounded-b-md mb-5 overflow-hidden">
+              <div className="grid grid-cols-1 md:grid-cols-2">
+                <div className="p-3 border-b border-r border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Nombre completo</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.nombre_completo}</p>
+                </div>
+                <div className="p-3 border-b border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">DPI/Identificación</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.dpi}</p>
+                </div>
+                <div className="p-3 border-b border-r border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">País de origen</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.pais_origen}</p>
+                </div>
+                <div className="p-3 border-b border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">País de residencia</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.pais_residencia}</p>
+                </div>
+                <div className="p-3 border-b border-r border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Teléfono móvil</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.telefono}</p>
+                </div>
+                <div className="p-3 border-b border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Fecha de nacimiento</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.fecha_nacimiento}</p>
+                </div>
+                <div className="p-3 border-b border-r border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Email personal</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.email_personal}</p>
+                </div>
+                <div className="p-3 border-b border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Email corporativo</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.email_corporativo}</p>
+                </div>
+                <div className="p-3 col-span-1 md:col-span-2">
+                  <p className="text-xs font-bold text-[#1e264d]">Dirección de residencia</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.direccion}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. DATOS LABORALES */}
+            <div className="bg-[#1e264d] text-white px-4 py-2 rounded-t-md font-bold text-sm uppercase mb-0">
+              💼 Datos Laborales
+            </div>
+            <div className="border border-slate-300 rounded-b-md mb-5 overflow-hidden">
+              <div className="grid grid-cols-1 md:grid-cols-2">
+                <div className="p-3 border-b border-r border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Empresa donde labora</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_laborales.empresa}</p>
+                </div>
+                <div className="p-3 border-b border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Puesto de trabajo</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_laborales.puesto}</p>
+                </div>
+                <div className="p-3 border-b border-r border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Teléfono corporativo</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_laborales.telefono_corporativo}</p>
+                </div>
+                <div className="p-3 border-b border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Departamento</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_laborales.departamento}</p>
+                </div>
+                <div className="p-3 col-span-1 md:col-span-2">
+                  <p className="text-xs font-bold text-[#1e264d]">Dirección de la empresa</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_laborales.direccion_empresa}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. INFORMACIÓN ACADÉMICA */}
+            <div className="bg-[#1e264d] text-white px-4 py-2 rounded-t-md font-bold text-sm uppercase mb-0">
+              🎓 Información Académica
+            </div>
+            <div className="border border-slate-300 rounded-b-md mb-5 overflow-hidden">
+              <div className="grid grid-cols-1 md:grid-cols-2">
+                <div className="p-3 border-b border-r border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Programa</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.programa}</p>
+                </div>
+                <div className="p-3 border-b border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Duración</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.duracion_meses} meses</p>
+                </div>
+                <div className="p-3 border-b border-r border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Último título obtenido</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.ultimo_titulo}</p>
+                </div>
+                <div className="p-3 border-b border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Institución</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.institucion}</p>
+                </div>
+                <div className="p-3 border-b border-r border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Carrera del último título</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.carrera}</p>
+                </div>
+                <div className="p-3 border-b border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Año de graduación</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.anio_graduacion}</p>
+                </div>
+                <div className="p-3 border-b border-r border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Modalidad</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.modalidad}</p>
+                </div>
+                <div className="p-3 border-b border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Día de estudio</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.dia_estudio}</p>
+                </div>
+                <div className="p-3 border-b border-r border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">Fecha de inicio</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.fecha_inicio}</p>
+                </div>
+                <div className="p-3 border-b border-slate-200">
+                  <p className="text-xs font-bold text-[#1e264d]">¿Cómo conoció ASM?</p>
+                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.medio_conocio}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. DATOS FINANCIEROS */}
+            <div className="bg-[#1e264d] text-white px-4 py-2 rounded-t-md font-bold text-sm uppercase mb-0">
+              💰 Datos Financieros
+            </div>
+            <div className="border border-slate-300 rounded-b-md mb-5 overflow-hidden">
+              <table className="w-full text-sm">
+                <tbody>
+                  <tr className="border-b border-slate-200">
+                    <td className="p-3 bg-slate-50 font-bold text-[#1e264d] w-2/5">¿Posee convenio corporativo?</td>
+                    <td className="p-3">{fichaInscripcion.datos_financieros.tiene_convenio ? 'Sí' : 'No'}</td>
+                  </tr>
+                  <tr className="border-b border-slate-200">
+                    <td className="p-3 bg-slate-50 font-bold text-[#1e264d]">Modalidad de pago</td>
+                    <td className="p-3">{fichaInscripcion.datos_financieros.forma_pago}</td>
+                  </tr>
+                  <tr className="border-b border-slate-200">
+                    <td className="p-3 bg-slate-50 font-bold text-[#1e264d]">Inscripción (Q)</td>
+                    <td className="p-3 bg-amber-50 font-bold">Q{Number(fichaInscripcion.datos_financieros.inscripcion).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
+                  </tr>
+                  <tr className="border-b border-slate-200">
+                    <td className="p-3 bg-slate-50 font-bold text-[#1e264d]">Cuota mensual (Q)</td>
+                    <td className="p-3 bg-amber-50 font-bold">Q{Number(fichaInscripcion.datos_financieros.cuota_mensual).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
+                  </tr>
+                  <tr className="border-b border-slate-200">
+                    <td className="p-3 bg-slate-50 font-bold text-[#1e264d]">Cantidad en meses</td>
+                    <td className="p-3">{fichaInscripcion.datos_financieros.duracion_meses} meses</td>
+                  </tr>
+                  <tr>
+                    <td className="p-3 bg-slate-50 font-bold text-[#1e264d]">Inversión total (Q)</td>
+                    <td className="p-3 bg-amber-50 font-bold">Q{Number(fichaInscripcion.datos_financieros.inversion_total).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* 5. INVERSIÓN ADICIONAL OBLIGATORIA */}
+            <div className="bg-[#1e264d] text-white px-4 py-2 rounded-t-md font-bold text-sm uppercase mb-0">
+              📊 Inversión Adicional Obligatoria
+            </div>
+            <div className="border border-slate-300 rounded-b-md mb-5 overflow-hidden">
+              <p className="px-4 py-2 font-bold text-[#1e264d] text-xs">Gastos Finales</p>
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-[#1e264d] text-white">
+                    <th className="p-2 text-left">Concepto</th>
+                    <th className="p-2 text-center">Transferencia/Depósito</th>
+                    <th className="p-2 text-center">Otro método</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-slate-200">
+                    <td className="p-2 bg-slate-50 font-semibold">Proyecto Final</td>
+                    <td className="p-2 text-center">Q1,600.00</td>
+                    <td className="p-2 text-center">Q1,760.00</td>
+                  </tr>
+                  <tr className="border-b border-slate-200">
+                    <td className="p-2 bg-slate-50 font-semibold">Graduación</td>
+                    <td className="p-2 text-center">Q2,845.00</td>
+                    <td className="p-2 text-center">Q3,129.50</td>
+                  </tr>
+                  <tr className="border-b border-slate-200">
+                    <td className="p-2 bg-slate-50 font-semibold">Gastos de Título</td>
+                    <td className="p-2 text-center">Q3,999.00</td>
+                    <td className="p-2 text-center">Q4,398.90</td>
+                  </tr>
+                  <tr className="border-b border-slate-200">
+                    <td className="p-2 bg-slate-50 font-semibold">Certificación Internacional</td>
+                    <td className="p-2 text-center">Q2,000.00</td>
+                    <td className="p-2 text-center">Q2,200.00</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <p className="px-4 py-2 font-bold text-[#1e264d] text-xs mt-2">Servicios Electrónicos</p>
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-[#1e264d] text-white">
+                    <th className="p-2 text-left">Programa</th>
+                    <th className="p-2 text-center">Transferencia/Depósito</th>
+                    <th className="p-2 text-center">Otro método</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fichaInscripcion.servicios_electronicos.length > 0 ? (
+                    fichaInscripcion.servicios_electronicos.map((servicio, idx) => (
+                      <tr key={idx} className="border-b border-slate-200">
+                        <td className="p-2 bg-slate-50 font-semibold">Programa de {servicio.cantidad_cursos} cursos</td>
+                        <td className="p-2 text-center">Q{Number(servicio.precio_transferencia).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-2 text-center">Q{Number(servicio.precio_otro_metodo).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={3} className="p-2 text-center text-slate-400">Sin precios configurados</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              <div className="bg-slate-50 border-l-4 border-[#1e264d] p-3 m-3 text-xs text-slate-500">
+                <ul className="list-disc ml-4 space-y-1">
+                  <li>La cuota de casos puede pagarse 50% al inicio y 50% a mitad de carrera.</li>
+                  <li>El título se emite al completar los cursos y cancelar la totalidad de pagos.</li>
+                  <li>Los pagos de cuotas se realizan del 1 al 5 de cada mes; a partir del 6 se genera mora (Q50.00).</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* 6. DOCUMENTOS ADICIONALES REQUERIDOS */}
+            <div className="bg-[#1e264d] text-white px-4 py-2 rounded-t-md font-bold text-sm uppercase mb-0">
+              📄 Documentos Adicionales Requeridos
+            </div>
+            <div className="border border-slate-300 rounded-b-md overflow-hidden">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-[#1e264d] text-white">
+                    <th className="p-2 text-center">Programa</th>
+                    <th className="p-2 text-center">Título de diversificado</th>
+                    <th className="p-2 text-center">Cierre de pensum</th>
+                    <th className="p-2 text-center">Certificación de cursos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-slate-200">
+                    <td className="p-2 text-center">BBA 8</td>
+                    <td className="p-2 text-center">Sí</td>
+                    <td className="p-2 text-center">-</td>
+                    <td className="p-2 text-center">40</td>
+                  </tr>
+                  <tr className="border-b border-slate-200">
+                    <td className="p-2 text-center">BBA 12</td>
+                    <td className="p-2 text-center">Sí</td>
+                    <td className="p-2 text-center">-</td>
+                    <td className="p-2 text-center">30</td>
+                  </tr>
+                  <tr className="border-b border-slate-200">
+                    <td className="p-2 text-center">BBA 18</td>
+                    <td className="p-2 text-center">Sí</td>
+                    <td className="p-2 text-center">-</td>
+                    <td className="p-2 text-center">25</td>
+                  </tr>
+                  <tr className="border-b border-slate-200">
+                    <td className="p-2 text-center">BBA 24</td>
+                    <td className="p-2 text-center">Sí</td>
+                    <td className="p-2 text-center">-</td>
+                    <td className="p-2 text-center">20</td>
+                  </tr>
+                  <tr>
+                    <td className="p-2 text-center">BBA 32</td>
+                    <td className="p-2 text-center">Sí</td>
+                    <td className="p-2 text-center">-</td>
+                    <td className="p-2 text-center">Menos de 20</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Contenido del Contrato */}
         <div className="bg-white rounded-lg shadow-md p-8 mb-6">

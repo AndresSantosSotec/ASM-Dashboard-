@@ -39,7 +39,11 @@ export default function StudentAccountModal({ open, onOpenChange, prospectoId }:
   const handleGeneratePDF = async () => {
     if (!data) return
     try {
-      await generateDetailedAccountStatePDF(data)
+      await generateDetailedAccountStatePDF(
+        data,
+        '/recursos/Logos-02.png',
+        '/recursos/Logos_Mesa.png'
+      )
     } catch (error) {
       console.error('Error generando PDF:', error)
     }
