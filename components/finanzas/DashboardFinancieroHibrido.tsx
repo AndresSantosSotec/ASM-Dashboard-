@@ -20,6 +20,7 @@ import {
   Download,
   AlertTriangle
 } from "lucide-react"
+import { API_BASE_URL } from "@/utils/apiConfig"
 
 // Componentes existentes
 import { DashboardFinanciero as DashboardClasico } from "./dashboard-financiero"
@@ -37,7 +38,7 @@ export function DashboardFinancieroHibrido() {
       const anio = now.getFullYear()
       
       const response = await fetch(
-        `/api/financial-metrics/download-moodle-only?mes=${mes}&anio=${anio}`,
+        `${API_BASE_URL}/api/financial-metrics/download-moodle-only?mes=${mes}&anio=${anio}`,
         { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
       )
 
