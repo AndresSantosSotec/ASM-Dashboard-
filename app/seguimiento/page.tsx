@@ -531,16 +531,25 @@ export default function SeguimientoPage() {
       ? appointmentDate + (appointmentDate.includes(":00", appointmentDate.length - 3) ? "" : ":00")
       : appointmentDate + "T09:00:00";
     
-    // Auto-incluir datos del prospecto en la descripción si está vacía
+    // Auto-incluir datos del prospecto en la descripción SIEMPRE
     let descripcionFinal = appointmentDescription.trim();
-    if (selectedProspecto && !descripcionFinal) {
-      descripcionFinal = `${selectedProspecto.nombre}${selectedProspecto.email ? ` ${selectedProspecto.email}` : ""}${selectedProspecto.telefono ? ` ${selectedProspecto.telefono}` : ""}`;
+    if (selectedProspecto) {
+      const partes = [selectedProspecto.nombre];
+      if (selectedProspecto.email) partes.push(selectedProspecto.email);
+      if (selectedProspecto.telefono) partes.push(selectedProspecto.telefono);
+      const datosProspecto = partes.join(" • ");
+      descripcionFinal = descripcionFinal
+        ? `${descripcionFinal} | ${datosProspecto}`
+        : datosProspecto;
     }
     
     const newCita = {
       datecita: formattedDate,
       descricita: descripcionFinal || "Cita agendada",
       prospecto_id: selectedProspecto ? parseInt(selectedProspecto.id, 10) : null,
+      nombre_prospecto: selectedProspecto?.nombre || null,
+      email_prospecto: selectedProspecto?.email || null,
+      telefono_prospecto: selectedProspecto?.telefono || null,
     };
 
     console.log("Enviando cita (hora local):", JSON.stringify(newCita, null, 2));
@@ -879,10 +888,19 @@ export default function SeguimientoPage() {
                         citas.map((cita, index) => (
                           <div
                             key={cita.id ?? `${cita.datecita}-${index}`}
-                            className="flex justify-between items-center text-sm border-b py-2"
+                            className="border rounded-lg p-3 space-y-1"
                           >
-                            <span>{formatDate(cita.datecita)}</span>
-                            <span>{cita.descricita}</span>
+                            {cita.nombre_prospecto && (
+                              <p className="text-xs text-blue-700 bg-blue-50 rounded px-2 py-1">
+                                📋 {cita.nombre_prospecto}
+                                {cita.email_prospecto && ` • ${cita.email_prospecto}`}
+                                {cita.telefono_prospecto && ` • ${cita.telefono_prospecto}`}
+                              </p>
+                            )}
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="font-medium">{formatDate(cita.datecita)}</span>
+                              <span className="text-gray-600">{cita.descricita}</span>
+                            </div>
                           </div>
                         ))
                       ) : (

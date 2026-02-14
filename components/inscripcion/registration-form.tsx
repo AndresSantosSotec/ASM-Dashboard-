@@ -100,20 +100,26 @@ export default function RegistrationForm() {
       setProspectoId(nuevoId);
       setEstudianteProgramaIds(estudianteProgramas.map((p: any) => p.id));
   
-      // 2. Subida de documentos (excepto boleta de inscripción)
-      const docsToUpload = documentos.filter(
-        (d) => d.archivos && d.archivos.length > 0 && d.id !== 'inscripcion'
-      );
-      for (const doc of docsToUpload) {
-        for (const file of doc.archivos) {
-          const formData = new FormData();
-          formData.append("prospecto_id", nuevoId.toString());
-          formData.append("tipo_documento", String(doc.id));
-          formData.append("file", file);
+      // 2. Subida de documentos que NO se hayan subido ya durante la sesión
+      // Los documentos se suben en tiempo real desde DocumentosTab.handleFileChange,
+      // así que aquí solo subimos los que no se subieron aún (archivos sin prospectoId previo).
+      // Si prospectoId existía antes (retroceso/reinscripción) los docs ya se subieron en real-time.
+      if (!prospectoId) {
+        // Solo si es prospecto NUEVO (sin ID previo) necesitamos subir los archivos aquí
+        const docsToUpload = documentos.filter(
+          (d) => d.archivos && d.archivos.length > 0 && d.id !== 'inscripcion'
+        );
+        for (const doc of docsToUpload) {
+          for (const file of doc.archivos) {
+            const formData = new FormData();
+            formData.append("prospecto_id", nuevoId.toString());
+            formData.append("tipo_documento", String(doc.id));
+            formData.append("file", file);
 
-          await axios.post(`${API_BASE_URL}/api/documentos`, formData, {
-            headers: { "Content-Type": "multipart/form-data" },
-          });
+            await axios.post(`${API_BASE_URL}/api/documentos`, formData, {
+              headers: { "Content-Type": "multipart/form-data" },
+            });
+          }
         }
       }
 

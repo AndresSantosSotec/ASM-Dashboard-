@@ -3,12 +3,15 @@ import type { Documento } from '@/components/inscripcion/types'
 
 /**
  * Obtiene documentos del prospecto que están en estado de revisión.
+ * Con latestIteration=true solo trae los de la iteración actual (después de retrocesos).
  */
 export async function fetchDocumentosRevision(
   prospectoId: number,
+  latestIteration: boolean = true,
 ): Promise<Documento[]> {
   try {
-    const { data } = await api.get(`/documentos/prospecto/${prospectoId}`)
+    const params = latestIteration ? '?latest_iteration=1' : ''
+    const { data } = await api.get(`/documentos/prospecto/${prospectoId}${params}`)
     if (!Array.isArray(data)) return []
     return data
       .filter((d: any) => d.estado === 'revision')

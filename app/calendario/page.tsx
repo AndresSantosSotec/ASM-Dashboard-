@@ -32,6 +32,9 @@ interface Cita {
   id: string;
   datecita: string;
   descricita: string;
+  nombre_prospecto?: string;
+  email_prospecto?: string;
+  telefono_prospecto?: string;
 }
 
 export default function CalendarioPage() {
@@ -762,7 +765,20 @@ export default function CalendarioPage() {
                 {format(parseISO(selectedCita.datecita), "EEEE, dd MMMM yyyy HH:mm", { locale: es })}
               </DialogDescription>
             </DialogHeader>
-            <div className="py-4">
+            <div className="py-4 space-y-3">
+              {selectedCita.nombre_prospecto && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm font-medium text-blue-800">
+                    📋 {selectedCita.nombre_prospecto}
+                  </p>
+                  {selectedCita.email_prospecto && (
+                    <p className="text-xs text-blue-600 mt-1">✉️ {selectedCita.email_prospecto}</p>
+                  )}
+                  {selectedCita.telefono_prospecto && (
+                    <p className="text-xs text-blue-600 mt-1">📞 {selectedCita.telefono_prospecto}</p>
+                  )}
+                </div>
+              )}
               <p className="text-gray-700">{selectedCita.descricita}</p>
             </div>
             <DialogFooter className="justify-end space-x-2">
@@ -862,6 +878,13 @@ export default function CalendarioPage() {
                             <h4 className="font-semibold text-green-900">
                               {cita.descricita}
                             </h4>
+                            {cita.nombre_prospecto && (
+                              <p className="text-xs text-blue-700 mt-1">
+                                📋 {cita.nombre_prospecto}
+                                {cita.email_prospecto && ` • ${cita.email_prospecto}`}
+                                {cita.telefono_prospecto && ` • ${cita.telefono_prospecto}`}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center text-sm gap-2 mt-2 text-green-800">

@@ -102,7 +102,7 @@ export function GestionFichas() {
     const token = localStorage.getItem("token")
     try {
       const res = await fetch(
-        `${API_URL}/documentos/prospecto/${f.id}`,
+        `${API_URL}/documentos/prospecto/${f.id}?latest_iteration=1`,
         {
           headers: {
             Authorization: token ? `Bearer ${token}` : "",

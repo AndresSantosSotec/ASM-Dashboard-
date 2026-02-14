@@ -78,12 +78,12 @@ async function buildFromProspecto(
     }
   }
 
-  // Documentos
+  // Documentos — solo la iteración actual (para no mezclar con retrocesos previos)
   const documentos: Documento[] = []
   const prospectoId = prospecto.id ?? fallbackId
   if (prospectoId) {
     try {
-      const { data } = await api.get(`/documentos/prospecto/${prospectoId}`)
+      const { data } = await api.get(`/documentos/prospecto/${prospectoId}?latest_iteration=1`)
       if (Array.isArray(data)) {
         documentos.push(
           ...data.map((d: any) => ({
@@ -196,7 +196,7 @@ export async function fetchFicha(id: number): Promise<FichaDetalle> {
       }))
     } else {
       try {
-        const { data: docs } = await api.get(`/documentos/prospecto/${id}`)
+        const { data: docs } = await api.get(`/documentos/prospecto/${id}?latest_iteration=1`)
         if (Array.isArray(docs)) {
           documentos = docs.map((d: any) => ({
             ...d,
