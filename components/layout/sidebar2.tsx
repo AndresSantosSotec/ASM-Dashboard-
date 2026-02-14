@@ -123,9 +123,11 @@ export default function Sidebar({ open, className }: SidebarProps) {
     >
       <div className="p-4 border-b border-asm-medium-gold/30 flex justify-center">
         <Link href="/" className="flex flex-col items-center">
-          <div className="w-12 h-12 bg-asm-light-gold rounded-full mb-2 flex items-center justify-center">
-            <span className="text-asm-navy font-bold text-xl">ASM</span>
-          </div>
+          <img 
+            src="/recursos/Logos-02.png" 
+            alt="ASM Logo" 
+            className="h-12 w-auto object-contain mb-2"
+          />
           <span className="text-asm-light-gold font-semibold text-sm text-center">
             American School of Management
           </span>

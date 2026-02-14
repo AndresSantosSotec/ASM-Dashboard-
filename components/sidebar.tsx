@@ -85,8 +85,13 @@ export default function Sidebar({ open, className }: SidebarProps) {
     >
       {/* Logo */}
       <div className="p-4 border-b border-asm-medium-gold/30">
-        <Link href="/" className="flex items-center text-asm-light-gold font-semibold text-lg">
-          <span>American School of Management</span>
+        <Link href="/" className="flex flex-col items-center text-asm-light-gold font-semibold text-lg gap-2">
+          <img 
+            src="/recursos/Logos-02.png" 
+            alt="ASM Logo" 
+            className="h-12 w-auto object-contain"
+          />
+          <span className="text-center text-sm">American School of Management</span>
         </Link>
       </div>
 
