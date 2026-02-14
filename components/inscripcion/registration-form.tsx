@@ -27,6 +27,7 @@ import ProspectSearchModal from "./tabs/ProspectSearchModal"
 import type { ProgramaConDuracion } from "./types"
 
 import axios from "axios"
+import { api } from "@/services/api"
 import { API_BASE_URL } from "@/utils/apiConfig"
 export default function RegistrationForm() {
   const [activeTab, setActiveTab] = useState<TabId>("personal")
@@ -81,8 +82,8 @@ export default function RegistrationForm() {
     setIsSubmitting(true)
     try {
       // 1. Finalizar inscripción (crear prospecto y estudiante_programa)
-      const response = await axios.post(
-        `${API_BASE_URL}/api/inscripciones/finalizar`,
+      const response = await api.post(
+        `/inscripciones/finalizar`,
         {
           personales: { ...datosPersonales, id: prospectoId },
           laborales: datosLaborales,
@@ -243,6 +244,10 @@ export default function RegistrationForm() {
                 goPrev={() => changeTab("academico")}
                 goNext={() => changeTab("documentos")}
                 programas={programasParaFinanciero}
+                studentName={datosPersonales.nombre}
+                telefono={datosPersonales.telefono}
+                email={datosPersonales.emailPersonal}
+                programa={datosAcademicos.programa}
               />
             </TabsContent>
 
@@ -254,6 +259,21 @@ export default function RegistrationForm() {
                 onFinalizar={handleFinalizarInscripcion}
                 isFinalizing={isSubmitting}
                 prospectoId={prospectoId as number}
+                studentName={datosPersonales.nombre}
+                studentPhone={datosPersonales.telefono}
+                studentEmail={datosPersonales.emailPersonal}
+                programa={datosAcademicos.programa}
+                inscripcion={datosFinancieros.inscripcion}
+                cuotaMensual={datosFinancieros.cuotaMensual}
+                cantidadMeses={datosFinancieros.cantidadMeses}
+                inversionTotal={datosFinancieros.inversionTotal}
+                formaPago={datosFinancieros.formaPago}
+                fechaInicioEspecifica={datosAcademicos.fechaInicioEspecifica}
+                diaEstudio={datosAcademicos.diaEstudio}
+                duracionCarrera={datosAcademicos.duracion}
+                titulo1={datosAcademicos.titulo1}
+                titulo2={datosAcademicos.titulo2}
+                titulo3={datosAcademicos.titulo3}
               />
             </TabsContent>
           </Tabs>

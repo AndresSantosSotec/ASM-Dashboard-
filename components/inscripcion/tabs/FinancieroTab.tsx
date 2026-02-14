@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef, useMemo } from "react"
 import axios, { AxiosError } from "axios"
 import { API_BASE_URL } from "@/utils/apiConfig"
-import { ArrowLeft, ArrowRight, CheckCircle } from "lucide-react"
+import { ArrowLeft, ArrowRight, CheckCircle, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { DatosFinancieros } from "../types"
+import ReciboPagoGenerator from "../ReciboPagoGenerator"
 
 interface Convenio { id: number; nombre: string }
 interface ProgramaConDuracion { programaId: number; duracion: number }
@@ -25,6 +26,11 @@ interface Props {
   goPrev: () => void
   goNext: () => void
   programas: ProgramaConDuracion[]
+  studentName?: string
+  nit?: string
+  telefono?: string
+  email?: string
+  programa?: string
 }
 
 export default function FinancieroTab({
@@ -33,6 +39,11 @@ export default function FinancieroTab({
   goPrev,
   goNext,
   programas,
+  studentName,
+  nit,
+  telefono,
+  email,
+  programa,
 }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -42,6 +53,7 @@ export default function FinancieroTab({
   const [convenios, setConvenios] = useState<Convenio[]>([])
   const [sugeridos, setSugeridos] = useState({ inscripcion: "", cuota: "" })
   const [serviciosElectronicos, setServiciosElectronicos] = useState<Array<{curso: string, transfer: string, otro: string}>>([])
+  const [showRecibo, setShowRecibo] = useState(false)
 
   // ——— Validación de campos obligatorios ———
   const isFormValid = useMemo(() => {
@@ -295,6 +307,40 @@ export default function FinancieroTab({
       </div>
 
       {error && <p className="text-red-600 mt-2">{error}</p>}
+
+      {/* — Generar Recibo de Pago — */}
+      <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-amber-900 flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Recibo de Pago
+            </h3>
+            <p className="text-sm text-amber-700">Generar e imprimir recibo con los datos financieros actuales</p>
+          </div>
+          <Button variant="outline" onClick={() => setShowRecibo(true)} className="border-amber-400 text-amber-800 hover:bg-amber-100">
+            <FileText className="h-4 w-4 mr-2" />
+            Generar Recibo
+          </Button>
+        </div>
+      </div>
+
+      <ReciboPagoGenerator
+        open={showRecibo}
+        onOpenChange={setShowRecibo}
+        monto={datos.inscripcion?.replace(/,/g, "")}
+        concepto="matricula"
+        studentName={studentName}
+        nit={nit}
+        formaPago={datos.formaPago}
+        cuotaMensual={datos.cuotaMensual}
+        cantidadMeses={datos.cantidadMeses}
+        inversionTotal={datos.inversionTotal}
+        convenioNombre={datos.convenioNombre}
+        programa={programa}
+        telefono={telefono}
+        email={email}
+      />
 
       {/* — Tablas fijas — */}
       <div className="mt-8 rounded-lg bg-blue-50 p-4">

@@ -324,14 +324,13 @@ export default function AprobacionAcademicaModal({
           byId.set(d.id, existing ? pickMostRecent(existing, d) : d)
         }
         const merged = Array.from(byId.values())
-        const latestByType = dedupeLatestByType(merged)
 
         setPersonales(data.personales || {})
         setLaborales(data.laborales || {})
         setAcademicos(data.academicos || {})
         setFinancieros(data.financieros || {})
         setProgramasInscritos(data.programas || [])
-        setDocumentos(latestByType)
+        setDocumentos(merged)
         setAsesoria(data.asesoria || null)
 
         // Cargar información de contratos

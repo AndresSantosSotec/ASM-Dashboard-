@@ -2,9 +2,10 @@
 import React, { useEffect, useState, useRef, useMemo, Dispatch, SetStateAction } from "react"
 import axios, { AxiosError } from "axios"
 import { API_BASE_URL } from "@/utils/apiConfig"
-import { ArrowLeft, ArrowRight, FileText, Info, Upload, X, CheckCircle, Loader2, Eye } from "lucide-react"
+import { ArrowLeft, ArrowRight, FileText, Info, Upload, X, CheckCircle, Loader2, Eye, MessageSquare } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import WhatsAppMensajeGenerator from "../WhatsAppMensajeGenerator"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -30,6 +31,12 @@ export const DOCUMENTOS_DEFAULT: Documento[] = [
   { id: "cierrePensum", nombre: "Cierre de pensum", descripcion: "Copia del cierre de pensum emitido por la universidad.", estado: "pendiente", archivos: [], optional: true },
   { id: "certificacionCursos", nombre: "Certificación de cursos aprobados", descripcion: "Certificación oficial con la cantidad de cursos aprobados.", estado: "pendiente", archivos: [], optional: true },
   { id: "otros", nombre: "Otros documentos (PDF)", descripcion: "Documento PDF con información adicional.", estado: "pendiente", archivos: [], optional: true },
+  { id: "carnetColaborador", nombre: "Carnet de Colaborador", descripcion: "Carnet de identificación de colaborador institucional.", estado: "pendiente", archivos: [], optional: true },
+  { id: "autorizacionAcademica", nombre: "Autorización Académica", descripcion: "Autorización firmada por la dirección académica.", estado: "pendiente", archivos: [], optional: true },
+  { id: "autorizacionFinanciera", nombre: "Autorización Financiera", descripcion: "Autorización firmada por el área financiera.", estado: "pendiente", archivos: [], optional: true },
+  { id: "autorizacionAsociaciones", nombre: "Autorización Asociaciones", descripcion: "Autorización de asociaciones o convenios institucionales.", estado: "pendiente", archivos: [], optional: true },
+  { id: "valeDescuento", nombre: "Vale de Descuento", descripcion: "Comprobante de vale de descuento autorizado.", estado: "pendiente", archivos: [], optional: true },
+  { id: "mensajeFinal", nombre: "Mensaje Final", descripcion: "Documento con el mensaje final enviado al estudiante.", estado: "pendiente", archivos: [], optional: true },
 ]
 
 type Props = {
@@ -41,6 +48,25 @@ type Props = {
   isFinalizing?: boolean
   montoInscripcion?: number
   estudianteProgramaId?: number
+  studentName?: string
+  studentPhone?: string
+  studentEmail?: string
+  programa?: string
+  asesor?: string
+  // Datos financieros para mensaje
+  inscripcion?: string
+  cuotaMensual?: string
+  cantidadMeses?: string
+  inversionTotal?: string
+  serviciosElectronicos?: string
+  formaPago?: string
+  // Datos académicos para mensaje
+  fechaInicioEspecifica?: string
+  diaEstudio?: string
+  duracionCarrera?: string
+  titulo1?: string
+  titulo2?: string
+  titulo3?: string
 }
 
 export default function DocumentosTab({
@@ -52,12 +78,30 @@ export default function DocumentosTab({
   isFinalizing,
   montoInscripcion = 1000,
   estudianteProgramaId,
+  studentName = "",
+  studentPhone = "",
+  studentEmail = "",
+  programa = "",
+  asesor = "",
+  inscripcion = "",
+  cuotaMensual = "",
+  cantidadMeses = "",
+  inversionTotal = "",
+  serviciosElectronicos = "",
+  formaPago = "",
+  fechaInicioEspecifica = "",
+  diaEstudio = "",
+  duracionCarrera = "",
+  titulo1 = "",
+  titulo2 = "",
+  titulo3 = "",
 }: Props) {
   const hiddenInput = useRef<HTMLInputElement>(null)
   const uploadTarget = useRef<string | null>(null)
   const [previewFile, setPreviewFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
+  const [showWhatsApp, setShowWhatsApp] = useState(false)
 
   const triggerUpload = (id: string) => {
     if (!hiddenInput.current) return
@@ -276,6 +320,49 @@ export default function DocumentosTab({
       />
 
       <ExtraRequirements />
+
+      {/* Enviar Mensaje WhatsApp */}
+      <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-green-900 flex items-center gap-2">
+              <MessageSquare className="h-5 w-5" />
+              Mensaje Final al Estudiante
+            </h3>
+            <p className="text-sm text-green-700">Generar y enviar mensaje de bienvenida o confirmación por WhatsApp</p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setShowWhatsApp(true)}
+            className="border-green-400 text-green-800 hover:bg-green-100"
+          >
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Generar Mensaje
+          </Button>
+        </div>
+      </div>
+
+      <WhatsAppMensajeGenerator
+        open={showWhatsApp}
+        onOpenChange={setShowWhatsApp}
+        studentName={studentName}
+        studentPhone={studentPhone}
+        studentEmail={studentEmail}
+        programa={programa}
+        asesor={asesor}
+        inscripcion={inscripcion}
+        cuotaMensual={cuotaMensual}
+        cantidadMeses={cantidadMeses}
+        inversionTotal={inversionTotal}
+        serviciosElectronicos={serviciosElectronicos}
+        formaPago={formaPago}
+        fechaInicioEspecifica={fechaInicioEspecifica}
+        diaEstudio={diaEstudio}
+        duracionCarrera={duracionCarrera}
+        titulo1={titulo1}
+        titulo2={titulo2}
+        titulo3={titulo3}
+      />
 
       <div className="mt-6 flex flex-col-reverse space-y-4 space-y-reverse sm:flex-row sm:space-y-0 sm:space-x-4">
         <Button

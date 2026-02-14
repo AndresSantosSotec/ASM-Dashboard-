@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useRef } from "react"
 import { ArrowLeft, ArrowRight, CheckCircle, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -56,6 +56,10 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
 
   const [error, setError] = useState<string | null>(null)
 
+  // 🔧 Ref para rastrear si el usuario editó manualmente la duración
+  const userEditedDuration = useRef(false)
+  const lastProgramaId = useRef(datos.programa)
+
   // Cargar programas
   useEffect(() => {
     axios
@@ -64,11 +68,17 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
       .catch((err) => console.error("❌ Error al obtener programas:", err))
   }, [])
 
-  // Actualizar duración del programa principal
+  // Actualizar duración del programa principal — solo cuando CAMBIA el programa seleccionado
   useEffect(() => {
+    // Solo auto-llenar si el programa realmente cambió (no por re-render)
+    if (datos.programa === lastProgramaId.current && userEditedDuration.current) {
+      return // El usuario editó la duración manualmente, no sobrescribir
+    }
+    lastProgramaId.current = datos.programa
     const prog = programasUnicos.find((p) => p.id.toString() === datos.programa)
     const nuevaDur = prog?.meses.toString() ?? ""
     if (nuevaDur) {
+      userEditedDuration.current = false // Reset: la duración viene del programa
       setDatos((prev) => ({ ...prev, duracion: nuevaDur }))
     }
   }, [datos.programa, programasUnicos, setDatos])
@@ -195,7 +205,10 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
             <Input
               type="number"
               value={datos.duracion}
-              onChange={(e) => setDatos({ ...datos, duracion: e.target.value })}
+              onChange={(e) => {
+                userEditedDuration.current = true
+                setDatos({ ...datos, duracion: e.target.value })
+              }}
               placeholder="Meses"
             />
           </div>

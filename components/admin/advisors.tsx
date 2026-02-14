@@ -108,7 +108,7 @@ interface CommissionV2 {
   year: number
   sales_count: number
   sales_total_amount: number
-  performance_level: 'superstar' | 'estrella' | 'punto_negro' | 'minimo' | 'cero'
+  performance_level: 'superstar' | 'estrella' | 'punto_negro' | 'punto_rojo' | 'cero'
   percentage_applied: number
   commission_amount: number
   goal_used: number
@@ -725,7 +725,7 @@ export function Advisors() {
 
   // Función para eliminar nivel personalizado
   const deleteLevel = async (ruleId: number, levelName: string) => {
-    const defaultLevels = ['superstar', 'estrella', 'punto_negro', 'minimo', 'cero']
+    const defaultLevels = ['superstar', 'estrella', 'punto_negro', 'punto_rojo', 'cero']
     if (defaultLevels.includes(levelName)) {
       Swal.fire("Error", "No se pueden eliminar los niveles por defecto", "error")
       return
@@ -765,7 +765,7 @@ export function Advisors() {
       superstar: '⭐',
       estrella: '✨',
       punto_negro: '⚫',
-      minimo: '📊',
+      punto_rojo: '🔴',
       cero: '❌',
     }
     return icons[level] || '🏷️'
@@ -773,7 +773,7 @@ export function Advisors() {
 
   // Helper para determinar si un nivel es personalizado
   const isCustomLevel = (level: string) => {
-    const defaultLevels = ['superstar', 'estrella', 'punto_negro', 'minimo', 'cero']
+    const defaultLevels = ['superstar', 'estrella', 'punto_negro', 'punto_rojo', 'cero']
     return !defaultLevels.includes(level)
   }
 
@@ -1299,7 +1299,7 @@ export function Advisors() {
                               comm.performance_level === 'superstar' ? 'default' :
                               comm.performance_level === 'estrella' ? 'default' :
                               comm.performance_level === 'punto_negro' ? 'secondary' :
-                              comm.performance_level === 'minimo' ? 'outline' :
+                              comm.performance_level === 'punto_rojo' ? 'outline' :
                               comm.performance_level === 'cero' ? 'destructive' :
                               'default' // Para niveles personalizados
                             }>

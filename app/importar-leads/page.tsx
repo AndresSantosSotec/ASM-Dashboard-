@@ -18,12 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ArrowLeft, Plus, Info } from "lucide-react"
+import { ArrowLeft, Plus, Info, Download } from "lucide-react"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
 import Swal from "sweetalert2"
 import { Badge } from "@/components/ui/badge"
+import { downloadExcelTemplate } from "@/lib/excel-template-generator"
 
 interface Column {
   id: number
@@ -676,6 +677,16 @@ export default function CargaMasivaProspectos() {
     xhr.send(formData);
   };
 
+  // Función para descargar plantilla Excel adaptativa
+  const handleDownloadTemplate = async () => {
+    const mappedColumns = columns.map(c => ({
+      name: c.name,
+      excelName: c.excelName,
+      columnNumber: c.columnNumber,
+    }))
+    await downloadExcelTemplate(mappedColumns, "plantilla_importar_leads")
+  }
+
   // Función para "guardar" la configuración de columnas (opcional)
   const handleSaveConfiguration = () => {
     Swal.fire({
@@ -719,6 +730,10 @@ export default function CargaMasivaProspectos() {
               <Button variant="outline" onClick={() => setShowAvailableColumns(!showAvailableColumns)}>
                 <Info className="h-4 w-4 mr-2" />
                 {showAvailableColumns ? "Ocultar Campos DB" : "Gestionar Campos DB"}
+              </Button>
+              <Button variant="outline" onClick={handleDownloadTemplate}>
+                <Download className="h-4 w-4 mr-2" />
+                Descargar Plantilla
               </Button>
               <Button onClick={() => handleImport()}>Importar Leads</Button>
               {progress > 0 && (

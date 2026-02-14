@@ -383,10 +383,10 @@ export default function SeguimientoPage() {
       setLoadingInteracciones(true);
       setLoadingCitas(true);
       try {
-        // ⚡ Cargar interacciones y citas en paralelo
+        // ⚡ Cargar interacciones y citas en paralelo (filtradas por prospecto)
         const [interaccionesRes, citasRes] = await Promise.all([
           api.get(`/interacciones?id_lead=${selectedProspecto.id}`),
-          api.get("/citas")
+          api.get(`/citas?prospecto_id=${selectedProspecto.id}`)
         ]);
         
         console.log("✅ Interacciones y citas cargadas en paralelo");
@@ -526,14 +526,21 @@ export default function SeguimientoPage() {
       return;
     }
     
-    // 🕒 CORRECCIÓN: Mantener la hora local sin conversión a UTC
-    // El input datetime-local ya viene en formato "YYYY-MM-DDTHH:mm"
-    // Solo necesitamos agregar segundos para formato ISO completo
-    const formattedDate = appointmentDate + ":00"; // Agregar segundos
+    // 🕒 Construir fecha con la hora seleccionada
+    const formattedDate = appointmentDate.includes("T") 
+      ? appointmentDate + (appointmentDate.includes(":00", appointmentDate.length - 3) ? "" : ":00")
+      : appointmentDate + "T09:00:00";
+    
+    // Auto-incluir datos del prospecto en la descripción si está vacía
+    let descripcionFinal = appointmentDescription.trim();
+    if (selectedProspecto && !descripcionFinal) {
+      descripcionFinal = `${selectedProspecto.nombre}${selectedProspecto.email ? ` ${selectedProspecto.email}` : ""}${selectedProspecto.telefono ? ` ${selectedProspecto.telefono}` : ""}`;
+    }
     
     const newCita = {
       datecita: formattedDate,
-      descricita: appointmentDescription.trim(),
+      descricita: descripcionFinal || "Cita agendada",
+      prospecto_id: selectedProspecto ? parseInt(selectedProspecto.id, 10) : null,
     };
 
     console.log("Enviando cita (hora local):", JSON.stringify(newCita, null, 2));
@@ -820,12 +827,36 @@ export default function SeguimientoPage() {
                 </div>
                 <div>
                   <h3 className="text-md font-semibold mb-4">Fecha y Cita</h3>
+                  {/* Info del prospecto asociado */}
+                  {selectedProspecto && (
+                    <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg mb-3">
+                      <p className="text-xs text-blue-700">
+                        📋 Cita para: <strong>{selectedProspecto.nombre}</strong>
+                        {selectedProspecto.email && ` • ${selectedProspecto.email}`}
+                        {selectedProspecto.telefono && ` • ${selectedProspecto.telefono}`}
+                      </p>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Fecha de la cita</label>
                     <SimpleDatePicker
                       value={appointmentDate.split("T")[0]}
-                      onChange={(v) => setAppointmentDate(v + "T09:00")}
+                      onChange={(v) => {
+                        const currentTime = appointmentDate.includes("T") ? appointmentDate.split("T")[1] : "09:00";
+                        setAppointmentDate(v + "T" + currentTime);
+                      }}
                       placeholder="Seleccionar fecha de la cita"
+                    />
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    <label className="text-sm font-medium">Hora de la cita</label>
+                    <Input
+                      type="time"
+                      value={appointmentDate.includes("T") ? appointmentDate.split("T")[1].substring(0, 5) : "09:00"}
+                      onChange={(e) => {
+                        const currentDate = appointmentDate.split("T")[0];
+                        setAppointmentDate(currentDate + "T" + e.target.value);
+                      }}
                     />
                   </div>
                   <div className="mt-4 space-y-4">

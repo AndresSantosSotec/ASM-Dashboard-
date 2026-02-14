@@ -334,9 +334,24 @@ export default function CapturaProspectos() {
       // Preparar fecha en formato ISO
       const fechaISO = new Date(tareaData.fecha + "T00:00:00").toISOString()
       
+      // Incluir datos del prospecto en la descripción
+      const nombre = form.getValues("nombreCompleto") || ""
+      const correo = form.getValues("correoElectronico") || ""
+      const telefono = form.getValues("telefono") || ""
+      
+      let descripcionCompleta = tareaData.descripcion || ""
+      if (nombre || correo || telefono) {
+        const prospectInfo = [
+          nombre ? `Prospecto: ${nombre}` : "",
+          correo ? `Correo: ${correo}` : "",
+          telefono ? `Teléfono: ${telefono}` : "",
+        ].filter(Boolean).join(" | ")
+        descripcionCompleta = prospectInfo + (descripcionCompleta ? `\n${descripcionCompleta}` : "")
+      }
+      
       const payload = {
         titulo: tareaData.titulo,
-        descripcion: tareaData.descripcion,
+        descripcion: descripcionCompleta,
         fecha: fechaISO,
         hora_inicio: tareaData.horaInicio,
         hora_fin: tareaData.horaFin,
@@ -382,6 +397,16 @@ export default function CapturaProspectos() {
   // Manejo de envío del formulario
   const onSubmit = async (data: FormData) => {
     try {
+      // ⚠️ Validación: Si seleccionó "Otros" en empresa, debe especificar la empresa
+      if (showOtherCompany && (!data.empresaDondeLaboraActualmente || !data.empresaDondeLaboraActualmente.trim())) {
+        Swal.fire({
+          icon: "warning",
+          title: "Campo requerido",
+          text: "Debe especificar el nombre de la empresa cuando selecciona 'Otros'.",
+        });
+        return;
+      }
+
       // ⚠️ Validación adicional: Advertir si falta correo O teléfono
       const tieneCorreo = data.correoElectronico && data.correoElectronico.trim().length > 0;
       const tieneTelefono = data.telefono && data.telefono.trim().length >= 8;
@@ -713,11 +738,12 @@ export default function CapturaProspectos() {
                       name="empresaDondeLaboraActualmente"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Especifique la empresa</FormLabel>
+                          <FormLabel>Especifique la empresa <span className="text-red-500">*</span></FormLabel>
                           <FormControl>
                             <Input
                               placeholder="Ingrese el nombre de la empresa"
                               {...field}
+                              required
                             />
                           </FormControl>
                           <FormMessage />
@@ -864,6 +890,23 @@ export default function CapturaProspectos() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      {/* Info del prospecto asociado */}
+                      {(form.getValues("nombreCompleto") || form.getValues("telefono") || form.getValues("correoElectronico")) && (
+                        <div className="p-3 bg-blue-100 border border-blue-300 rounded-lg">
+                          <p className="text-xs font-semibold text-blue-700 mb-1">📋 Prospecto asociado:</p>
+                          <div className="flex flex-wrap gap-4 text-sm text-blue-900">
+                            {form.getValues("nombreCompleto") && (
+                              <span className="font-medium">{form.getValues("nombreCompleto")}</span>
+                            )}
+                            {form.getValues("correoElectronico") && (
+                              <span>📧 {form.getValues("correoElectronico")}</span>
+                            )}
+                            {form.getValues("telefono") && (
+                              <span>📞 {form.getValues("telefono")}</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Título de la tarea */}
                         <div className="space-y-2">

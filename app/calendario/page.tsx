@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, parseISO, isToday,} from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, parseISO, isToday, setYear, setMonth as setMonthFn,} from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle,} from "@/components/ui/card";
@@ -12,9 +12,10 @@ import { Textarea } from "@/components/ui/textarea";
 import {  Select,  SelectContent,  SelectItem,  SelectTrigger,  SelectValue,} from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Clock, Plus, Trash2, Edit, CalendarIcon,} from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Plus, Trash2, Edit, CalendarIcon, Bell,} from "lucide-react";
 
 import {api} from "@/services/api"; 
+import Swal from "sweetalert2";
 
 interface Tarea {
   id: string;
@@ -63,6 +64,8 @@ export default function CalendarioPage() {
   const [token, setToken] = useState<string | null>(null);
   const [loadingTareas, setLoadingTareas] = useState(true);
   const [loadingCitas, setLoadingCitas] = useState(true);
+  const [upcomingAlerts, setUpcomingAlerts] = useState<Array<{id: string; titulo: string; fecha: string; horaInicio: string; tipo: string}>>([]);
+  const [showAlerts, setShowAlerts] = useState(false);
 
   const colorTipoTarea = {
     reunion: "bg-blue-100 text-blue-800 border-blue-200",
@@ -78,6 +81,18 @@ export default function CalendarioPage() {
     }
   }, []);
 
+  // Helper: normalizar datos de tarea del backend (snake_case) al frontend (camelCase)
+  const normalizeTarea = (t: any): Tarea => ({
+    id: t.id?.toString() || "",
+    titulo: t.titulo || "",
+    descripcion: t.descripcion || "",
+    fecha: t.fecha || "",
+    horaInicio: (t.horaInicio || t.hora_inicio || "09:00").substring(0, 5),
+    horaFin: (t.horaFin || t.hora_fin || "10:00").substring(0, 5),
+    tipo: t.tipo || "tarea",
+    completada: !!t.completada,
+  });
+
   // --- Fetch tareas ---
   useEffect(() => {
     if (!token) return;
@@ -86,7 +101,10 @@ export default function CalendarioPage() {
       .get("/tareas", {
         withCredentials: true,
       })
-      .then((res) => setTareas(res.data.data))
+      .then((res) => {
+        const rawTareas = Array.isArray(res.data.data) ? res.data.data : [];
+        setTareas(rawTareas.map(normalizeTarea));
+      })
       .catch(console.error)
       .finally(() => setLoadingTareas(false));
   }, [token]);
@@ -104,6 +122,60 @@ export default function CalendarioPage() {
       .catch(console.error)
       .finally(() => setLoadingCitas(false));
   }, [token]);
+
+  // --- Alerta de eventos próximos (próximas 24 horas) ---
+  useEffect(() => {
+    if (tareas.length === 0 && citas.length === 0) return;
+    const now = new Date();
+    const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+    const upcoming: typeof upcomingAlerts = [];
+
+    tareas.forEach((t) => {
+      if (t.completada) return;
+      const tareaDate = parseISO(t.fecha);
+      // Componer la fecha+hora completa
+      const [hh, mm] = (t.horaInicio || "09:00").split(":").map(Number);
+      const tareaDateTime = new Date(tareaDate.getFullYear(), tareaDate.getMonth(), tareaDate.getDate(), hh, mm);
+      if (tareaDateTime >= now && tareaDateTime <= in24h) {
+        upcoming.push({ id: t.id, titulo: t.titulo, fecha: t.fecha, horaInicio: t.horaInicio || "09:00", tipo: t.tipo });
+      }
+    });
+
+    citas.forEach((c) => {
+      const citaDate = parseISO(c.datecita);
+      if (citaDate >= now && citaDate <= in24h) {
+        upcoming.push({ id: c.id, titulo: c.descricita, fecha: c.datecita, horaInicio: format(citaDate, "HH:mm"), tipo: "cita" });
+      }
+    });
+
+    setUpcomingAlerts(upcoming);
+
+    // Mostrar notificación si hay eventos próximos (solo la primera vez)
+    if (upcoming.length > 0) {
+      const eventList = upcoming.slice(0, 5).map(e => 
+        `• ${e.horaInicio} - ${e.titulo}`
+      ).join("\n");
+      
+      Swal.fire({
+        icon: "info",
+        title: `🔔 ${upcoming.length} evento(s) próximo(s)`,
+        html: `<div class="text-left"><p class="mb-2">Tienes eventos en las próximas 24 horas:</p><pre class="text-sm bg-gray-50 p-2 rounded">${eventList}</pre></div>`,
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 6000,
+        timerProgressBar: true,
+      });
+    }
+  }, [tareas, citas]);
+
+  // --- Calendar helpers ---
+  const calendarYears = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i); // 2 años atrás, 2 adelante
+  const calendarMonths = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  ];
 
   // --- Calendar days ---
   const monthStart = startOfMonth(currentDate);
@@ -180,7 +252,7 @@ export default function CalendarioPage() {
         );
         setTareas((prev) =>
           prev.map((t) =>
-            t.id === selectedTarea.id ? res.data.data : t
+            t.id === selectedTarea.id ? normalizeTarea(res.data.data) : t
           )
         );
       } else {
@@ -194,7 +266,7 @@ export default function CalendarioPage() {
             withCredentials: true,
           }
         );
-        setTareas((prev) => [...prev, res.data.data]);
+        setTareas((prev) => [...prev, normalizeTarea(res.data.data)]);
       }
       setModalOpen(false);
     } catch (err) {
@@ -230,7 +302,7 @@ export default function CalendarioPage() {
         }
       );
       setTareas((prev) =>
-        prev.map((x) => (x.id === id ? res.data.data : x))
+        prev.map((x) => (x.id === id ? normalizeTarea(res.data.data) : x))
       );
     } catch (err) {
       console.error(err);
@@ -262,6 +334,36 @@ export default function CalendarioPage() {
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
+              {/* Alerta de eventos próximos */}
+              {upcomingAlerts.length > 0 && (
+                <Popover open={showAlerts} onOpenChange={setShowAlerts}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="bg-yellow-500/20 text-white border-yellow-300/40 hover:bg-yellow-500/30 relative"
+                    >
+                      <Bell className="h-4 w-4" />
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                        {upcomingAlerts.length}
+                      </span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-0" align="end">
+                    <div className="p-3 border-b bg-yellow-50">
+                      <h4 className="font-semibold text-sm">🔔 Eventos próximos (24h)</h4>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                      {upcomingAlerts.map((alert) => (
+                        <div key={alert.id} className="p-3 border-b last:border-b-0 hover:bg-gray-50">
+                          <p className="font-medium text-sm">{alert.titulo}</p>
+                          <p className="text-xs text-gray-500">{alert.horaInicio} • {alert.tipo}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -288,10 +390,34 @@ export default function CalendarioPage() {
               </Button>
             </div>
           </div>
-          <div className="mt-4">
-            <h2 className="text-xl font-medium">
-              {format(currentDate, "MMMM yyyy", { locale: es })}
-            </h2>
+          {/* Selectores de mes y año */}
+          <div className="mt-4 flex items-center gap-3">
+            <Select 
+              value={currentDate.getMonth().toString()} 
+              onValueChange={(v) => setCurrentDate(setMonthFn(currentDate, parseInt(v)))}
+            >
+              <SelectTrigger className="w-[140px] bg-white/10 text-white border-white/20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {calendarMonths.map((month, idx) => (
+                  <SelectItem key={idx} value={idx.toString()}>{month}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select 
+              value={currentDate.getFullYear().toString()} 
+              onValueChange={(v) => setCurrentDate(setYear(currentDate, parseInt(v)))}
+            >
+              <SelectTrigger className="w-[100px] bg-white/10 text-white border-white/20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {calendarYears.map((year) => (
+                  <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
 

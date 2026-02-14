@@ -53,9 +53,10 @@ export function SimpleDatePicker({ value, onChange, placeholder = "Seleccionar f
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1))
   const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1))
 
-  // Lista de años desde 1920 hasta hoy
+  // Lista de años desde 1920 hasta el año siguiente (permite agendar a futuro)
   const currentYear = new Date().getFullYear()
-  const years = Array.from({ length: currentYear - 1920 + 1 }, (_, i) => currentYear - i)
+  const maxYear = currentYear + 2 // Permitir hasta 2 años en el futuro
+  const years = Array.from({ length: maxYear - 1920 + 1 }, (_, i) => maxYear - i)
 
   // Lista de meses
   const months = [
