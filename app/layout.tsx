@@ -13,15 +13,10 @@ export const metadata: Metadata = {
   description: "Sistema de Gestión Académica",
   icons: {
     icon: [
-      { url: "/icons/ASM.ico" },
-      { url: "/icons/American.ico" },
+      { url: "/webpanel/icons/ASM.ico" },
     ],
-    apple: [
-      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
-    ],
-    shortcut: "/icons/ASM.ico",
+    shortcut: "/webpanel/icons/ASM.ico",
   },
-  manifest: "/site.webmanifest",
 }
 
 export default function RootLayout({

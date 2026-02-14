@@ -156,7 +156,7 @@ export default function Sidebar({ open, className }: { open?: boolean; className
       <div className="p-4 border-b border-asm-medium-gold/30">
         <Link href="/" className="flex justify-center">
           <img 
-            src="/recursos/Logos-02.png" 
+            src="/webpanel/recursos/Logos-02.png" 
             alt="ASM Logo" 
             className="h-28 w-auto object-contain cursor-pointer hover:opacity-90 transition-opacity"
           />
