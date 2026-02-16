@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import type { AllowedView } from "@/contexts/AuthContext";
+import { useSystemColors } from "@/hooks/useCustomization";
 import { cn } from "@/lib/utils";
 import * as Icons from "lucide-react";
 import { api } from "@/services/api";
@@ -38,6 +39,7 @@ const DEFAULT_VIEW_ICON: LucideIconName = "File";
 
 export default function Sidebar({ open, isMobile, className }: { open?: boolean; isMobile?: boolean; className?: string }) {
   const { allowedViews, setToken, setAllowedViews } = useAuth();
+  const { sidebarImage, primary, secondary } = useSystemColors();
   const pathname = usePathname();
   const router = useRouter();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -140,11 +142,23 @@ export default function Sidebar({ open, isMobile, className }: { open?: boolean;
   return (
     <div
       className={cn(
-        "transition-all duration-300 asm-gradient border-r border-asm-medium-gold/[0.15] flex flex-col h-full overflow-y-auto overflow-x-hidden",
+        "transition-all duration-300 border-r border-asm-medium-gold/[0.15] flex flex-col h-full overflow-y-auto overflow-x-hidden",
         "pb-6", // Increased padding bottom for better mobile touch area/version visibility
         isCollapsed ? "w-[80px]" : "w-64",
         className
       )}
+      style={
+        sidebarImage
+          ? {
+              backgroundImage: `url(${sidebarImage})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              backgroundAttachment: "fixed",
+            }
+          : {
+              background: `linear-gradient(135deg, ${primary}99 0%, ${secondary}99 100%)`,
+            }
+      }
     >
       {/* ─── Logo Area ─── */}
       <div className={cn("flex flex-col transition-all duration-300", isCollapsed ? "p-3 items-center" : "p-5")}>

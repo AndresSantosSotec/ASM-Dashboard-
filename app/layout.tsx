@@ -5,6 +5,7 @@ import MainLayout from "@/components/layout/main-layout"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Suspense } from "react"
 import { AuthProvider } from "@/contexts/AuthContext"
+import { CustomizationProvider } from "@/contexts/CustomizationContext"
 import { Toaster } from "@/components/ui/toaster"
 
 
@@ -45,7 +46,9 @@ export default function RootLayout({
         }>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
             <AuthProvider>
-              <MainLayout>{children}</MainLayout>
+              <CustomizationProvider>
+                <MainLayout>{children}</MainLayout>
+              </CustomizationProvider>
             </AuthProvider>
           </ThemeProvider>
         </Suspense>
