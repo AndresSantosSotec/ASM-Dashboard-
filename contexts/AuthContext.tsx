@@ -12,21 +12,37 @@ export interface AllowedView {
   };
 }
 
+export interface UserInfo {
+  id: number;
+  name: string;
+  email: string;
+  role?: {
+    id: number;
+    name: string;
+  };
+  role_id?: number;
+}
+
 interface AuthContextType {
   token: string | null;
   allowedViews: AllowedView[];
+  user: UserInfo | null;
   setToken: (token: string | null) => void;
   setAllowedViews: (views: AllowedView[]) => void;
+  setUser: (user: UserInfo | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   token: null,
   allowedViews: [],
+  user: null,
   setToken: () => {},
   setAllowedViews: () => {},
+  setUser: () => {},
 });
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
+  const [user, setUserState] = useState<UserInfo | null>(null);ldren }) => {
   const [token, setTokenState] = useState<string | null>(null);
   const [allowedViews, setAllowedViewsState] = useState<AllowedView[]>([]);
 
@@ -56,8 +72,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setAllowedViewsState(views);
   };
+const setUser = (userData: UserInfo | null) => {
+    if (typeof window !== "undefined") {
+      if (userData) {
+        localStorage.setItem("user", JSON.stringify(userData));
+      } else {
+        localStorage.removeItem("user");
+      }
+    }
+    setUserState(userData);
+  };
 
   return (
+    <AuthContext.Provider value={{ token, allowedViews, user, setToken, setAllowedViews, setUser
     <AuthContext.Provider value={{ token, allowedViews, setToken, setAllowedViews }}>
       {children}
     </AuthContext.Provider>

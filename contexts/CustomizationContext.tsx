@@ -43,9 +43,9 @@ export function CustomizationProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
       setError(null);
-      const response = await api.get<{ data: CustomizationData }>("/customization/current");
-      setCustomization(response.data);
-      applyCustomizationStyles(response.data);
+      const response = await api.get<{ success: boolean; data: CustomizationData }>("/customization/current");
+      setCustomization(response.data.data);
+      applyCustomizationStyles(response.data.data);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Error al cargar personalización";
       setError(message);
@@ -117,10 +117,10 @@ export function CustomizationProvider({ children }: { children: ReactNode }) {
   const updateCustomization = async (data: Partial<CustomizationData>) => {
     try {
       setLoading(true);
-      const response = await api.post<{ data: CustomizationData }>("/customization/update", data);
-      setCustomization(response.data);
-      applyCustomizationStyles(response.data);
-      return response.data;
+      const response = await api.post<{ success: boolean; data: CustomizationData }>("/customization/update", data);
+      setCustomization(response.data.data);
+      applyCustomizationStyles(response.data.data);
+      return response.data.data;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Error al actualizar personalización";
       setError(message);
@@ -134,7 +134,7 @@ export function CustomizationProvider({ children }: { children: ReactNode }) {
     const formData = new FormData();
     formData.append("image", file);
 
-    const response = await api.post<{ data: { sidebar_image_url: string; customization: CustomizationData } }>(
+    const response = await api.post<{ success: boolean; data: { sidebar_image_url: string; customization: CustomizationData } }>(
       "/customization/sidebar-image",
       formData,
       {
@@ -144,18 +144,18 @@ export function CustomizationProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    const updatedCustomization = response.data.customization;
+    const updatedCustomization = response.data.data.customization;
     setCustomization(updatedCustomization);
     applyCustomizationStyles(updatedCustomization);
 
-    return response.data.sidebar_image_url;
+    return response.data.data.sidebar_image_url;
   };
 
   const uploadFavicon = async (file: File): Promise<string> => {
     const formData = new FormData();
     formData.append("favicon", file);
 
-    const response = await api.post<{ data: { favicon_url: string; customization: CustomizationData } }>(
+    const response = await api.post<{ success: boolean; data: { favicon_url: string; customization: CustomizationData } }>(
       "/customization/favicon",
       formData,
       {
@@ -165,18 +165,18 @@ export function CustomizationProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    const updatedCustomization = response.data.customization;
+    const updatedCustomization = response.data.data.customization;
     setCustomization(updatedCustomization);
     applyCustomizationStyles(updatedCustomization);
 
-    return response.data.favicon_url;
+    return response.data.data.favicon_url;
   };
 
   const uploadLogo = async (file: File): Promise<string> => {
     const formData = new FormData();
     formData.append("logo", file);
 
-    const response = await api.post<{ data: { logo_url: string; customization: CustomizationData } }>(
+    const response = await api.post<{ success: boolean; data: { logo_url: string; customization: CustomizationData } }>(
       "/customization/logo",
       formData,
       {
@@ -186,11 +186,11 @@ export function CustomizationProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    const updatedCustomization = response.data.customization;
+    const updatedCustomization = response.data.data.customization;
     setCustomization(updatedCustomization);
     applyCustomizationStyles(updatedCustomization);
 
-    return response.data.logo_url;
+    return response.data.data.logo_url;
   };
 
   const resetCustomization = async () => {
