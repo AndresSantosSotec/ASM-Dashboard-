@@ -41,8 +41,8 @@ const AuthContext = createContext<AuthContextType>({
   setUser: () => {},
 });
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
-  const [user, setUserState] = useState<UserInfo | null>(null);ldren }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUserState] = useState<UserInfo | null>(null);
   const [token, setTokenState] = useState<string | null>(null);
   const [allowedViews, setAllowedViewsState] = useState<AllowedView[]>([]);
 
@@ -72,7 +72,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     setAllowedViewsState(views);
   };
-const setUser = (userData: UserInfo | null) => {
+
+  const setUser = (userData: UserInfo | null) => {
     if (typeof window !== "undefined") {
       if (userData) {
         localStorage.setItem("user", JSON.stringify(userData));
@@ -84,8 +85,7 @@ const setUser = (userData: UserInfo | null) => {
   };
 
   return (
-    <AuthContext.Provider value={{ token, allowedViews, user, setToken, setAllowedViews, setUser
-    <AuthContext.Provider value={{ token, allowedViews, setToken, setAllowedViews }}>
+    <AuthContext.Provider value={{ token, allowedViews, user, setToken, setAllowedViews, setUser }}>
       {children}
     </AuthContext.Provider>
   );
