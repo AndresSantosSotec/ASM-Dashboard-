@@ -145,6 +145,21 @@ export default function CargaMasivaProspectos() {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0]
     if (selectedFile) {
+      const allowedExtensions = ['.csv', '.xlsx', '.xls']
+      const fileExtension = selectedFile.name.substring(selectedFile.name.lastIndexOf('.')).toLowerCase()
+      if (!allowedExtensions.includes(fileExtension)) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Formato no permitido',
+          html: `El archivo <strong>${selectedFile.name}</strong> no es un formato válido.<br/>Solo se permiten archivos <strong>CSV (.csv)</strong> y <strong>Excel (.xls, .xlsx)</strong>.`,
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#d33',
+        })
+        // Limpiar el input
+        event.target.value = ''
+        setFile(null)
+        return
+      }
       setFile(selectedFile)
     }
   }

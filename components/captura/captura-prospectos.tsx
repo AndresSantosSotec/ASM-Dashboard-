@@ -151,7 +151,7 @@ export default function CapturaProspectos() {
       nombreCompleto: "",
       telefono: "",
       correoElectronico: "",
-      genero: "",
+      genero: "masculino",
       empresaDondeLaboraActualmente: "",
       puesto: "",
       Origen: "",
