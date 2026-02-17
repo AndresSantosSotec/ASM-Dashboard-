@@ -27,46 +27,62 @@ const RIGHT = 15
 const CONTENT_TOP = HEADER_HEIGHT + 10 // 60
 const CONTENT_WIDTH = 210 - LEFT - RIGHT // A4: 210mm
 
-// === Función para cargar imagen ===
+// === Función auxiliar para intentar fetch de una sola ruta ===
+async function tryFetchImage(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url)
+    if (!response.ok) return null
+
+    const blob = await response.blob()
+    if (!blob.type.startsWith('image/')) return null
+
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const result = reader.result as string
+        resolve(result && result.length > 0 ? result : null)
+      }
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return null
+  }
+}
+
+// === Función para cargar imagen (compatible con producción y local) ===
 async function loadImageAsBase64(imagePath: string): Promise<string | null> {
   try {
     // Si la imagen ya está en base64, retornarla
     if (imagePath.startsWith('data:')) {
       return imagePath
     }
-    
-    // Cargar imagen desde la ruta
-    const response = await fetch(imagePath)
-    if (!response.ok) {
-      console.warn(`Imagen no encontrada: ${imagePath}`)
-      return null
+
+    // Construir lista de rutas candidatas para probar
+    // En producción el sitio está bajo /webpanel/, en local bajo /
+    const candidates: string[] = []
+
+    if (imagePath.startsWith('/webpanel/')) {
+      // Ya viene con prefijo de producción: probar primero así, luego sin prefijo
+      candidates.push(imagePath)
+      candidates.push(imagePath.replace('/webpanel/', '/'))
+    } else {
+      // Ruta sin prefijo: probar primero con /webpanel/ (producción), luego sin él (local)
+      const cleanPath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`
+      candidates.push(`/webpanel${cleanPath}`)
+      candidates.push(cleanPath)
     }
-    
-    const blob = await response.blob()
-    
-    // Verificar que sea una imagen válida
-    if (!blob.type.startsWith('image/')) {
-      console.warn(`El archivo no es una imagen: ${imagePath}`)
-      return null
+
+    // Intentar cada ruta hasta encontrar una que funcione
+    for (const candidate of candidates) {
+      const result = await tryFetchImage(candidate)
+      if (result) {
+        return result
+      }
     }
-    
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        const result = reader.result as string
-        // Verificar que el resultado sea válido
-        if (result && result.length > 0) {
-          resolve(result)
-        } else {
-          resolve(null)
-        }
-      }
-      reader.onerror = () => {
-        console.warn(`Error leyendo imagen: ${imagePath}`)
-        resolve(null)
-      }
-      reader.readAsDataURL(blob)
-    })
+
+    console.warn(`Logo no encontrado en ninguna ruta: ${candidates.join(', ')}`)
+    return null
   } catch (error) {
     console.warn('Error cargando imagen:', error)
     return null
