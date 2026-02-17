@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import {
   X, Calendar, MapPin, Globe, BookOpen, User, Briefcase, Building2,
   Download, Loader2, Phone, Mail, CreditCard, GraduationCap, FileText,
-  Hash, Clock, Shield, IdCard, Trash2
+  Hash, Clock, Shield, IdCard, Trash2, FolderDown
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import Swal from "sweetalert2"
+import JSZip from "jszip"
 
 const API_URL = `${API_BASE_URL}/api`
 
@@ -58,6 +59,9 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
   const [prospecto, setProspecto] = useState<any>(null)
   const [programas, setProgramas] = useState<Record<string, string>>({})
   const [error, setError] = useState("")
+  const [documentos, setDocumentos] = useState<any[]>([])
+  const [descargandoDoc, setDescargandoDoc] = useState<number | null>(null)
+  const [descargandoTodo, setDescargandoTodo] = useState(false)
 
   // Cargar datos completos del prospecto
   useEffect(() => {
@@ -71,10 +75,11 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
           "Content-Type": "application/json",
         }
 
-        // Cargar prospecto y programas en paralelo
-        const [resProspecto, resProgramas] = await Promise.all([
+        // Cargar prospecto, programas y documentos en paralelo
+        const [resProspecto, resProgramas, resDocs] = await Promise.all([
           fetch(`${API_URL}/prospectos/${prospectoId}`, { headers }),
           fetch(`${API_URL}/programas`, { headers }),
+          fetch(`${API_URL}/documentos/prospecto/${prospectoId}`, { headers }).catch(() => null),
         ])
 
         if (!resProspecto.ok) throw new Error("Error al cargar datos del prospecto")
@@ -89,6 +94,12 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
             map[p.id] = p.nombre_del_programa || p.nombre
           })
           setProgramas(map)
+        }
+
+        // Cargar documentos asociados
+        if (resDocs && resDocs.ok) {
+          const docsData = await resDocs.json()
+          setDocumentos(Array.isArray(docsData) ? docsData : docsData.data ? (Array.isArray(docsData.data) ? docsData.data : []) : [])
         }
       } catch (err: any) {
         setError(err.message || "Error inesperado")
@@ -147,6 +158,108 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
       })
     } finally {
       setDescargando(false)
+    }
+  }
+
+  // Descargar reporte PDF + todos los documentos asociados en un ZIP
+  const handleDescargarTodo = async () => {
+    setDescargandoTodo(true)
+    try {
+      const token = localStorage.getItem("token")
+      const headers = { Authorization: token ? `Bearer ${token}` : "" }
+      const zip = new JSZip()
+      const nombreProspecto = (prospecto?.nombre_completo || "prospecto").replace(/\s+/g, "_")
+
+      // 1. Descargar el reporte consolidado PDF
+      const resPDF = await fetch(`${API_URL}/prospectos/${prospectoId}/reporte-consolidado-pdf`, { headers })
+      if (resPDF.ok) {
+        const pdfBlob = await resPDF.blob()
+        zip.file(`Reporte_Consolidado_${nombreProspecto}.pdf`, pdfBlob)
+      }
+
+      // 2. Descargar todos los documentos asociados
+      if (documentos.length > 0) {
+        const carpetaDocs = zip.folder("Documentos")
+        const descargas = documentos.map(async (doc: any, idx: number) => {
+          try {
+            const resDoc = await fetch(`${API_URL}/documentos/documentos/${doc.id}/file`, { headers })
+            if (resDoc.ok) {
+              const blob = await resDoc.blob()
+              const nombreArchivo = doc.ruta_archivo
+                ? doc.ruta_archivo.split("/").pop()
+                : `documento-${doc.id}`
+              // Agregar prefijo numérico para evitar colisiones de nombre
+              carpetaDocs?.file(`${idx + 1}_${nombreArchivo}`, blob)
+            }
+          } catch (e) {
+            console.warn(`No se pudo descargar documento ${doc.id}:`, e)
+          }
+        })
+        await Promise.all(descargas)
+      }
+
+      // 3. Generar y descargar el ZIP
+      const zipBlob = await zip.generateAsync({ type: "blob" })
+      const url = window.URL.createObjectURL(zipBlob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `Expediente_${nombreProspecto}_${prospectoId}.zip`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      Swal.fire({
+        icon: "success",
+        title: "Descarga exitosa",
+        text: `Se descargó el expediente completo (reporte + ${documentos.length} documento${documentos.length !== 1 ? "s" : ""})`,
+        timer: 3000,
+        showConfirmButton: false,
+      })
+    } catch (err) {
+      console.error("Error al descargar expediente completo:", err)
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se pudo descargar el expediente completo",
+      })
+    } finally {
+      setDescargandoTodo(false)
+    }
+  }
+
+  // Descargar un documento asociado al prospecto
+  const handleDescargarDocumento = async (doc: any) => {
+    setDescargandoDoc(doc.id)
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_URL}/documentos/documentos/${doc.id}/file`, {
+        headers: { Authorization: token ? `Bearer ${token}` : "" },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      // Extraer nombre del archivo de la ruta o usar nombre genérico
+      const nombreArchivo = doc.ruta_archivo
+        ? doc.ruta_archivo.split("/").pop()
+        : `documento-${doc.id}.pdf`
+      a.download = nombreArchivo
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (err) {
+      console.error("Error al descargar documento:", err)
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se pudo descargar el documento",
+      })
+    } finally {
+      setDescargandoDoc(null)
     }
   }
 
@@ -280,7 +393,7 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
                     variant="outline"
                     size="sm"
                     onClick={handleDescargarReporteConsolidado}
-                    disabled={descargando}
+                    disabled={descargando || descargandoTodo}
                     className="gap-1.5 text-blue-700 border-blue-300 hover:bg-blue-100"
                   >
                     {descargando ? (
@@ -290,17 +403,38 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
                     )}
                     {descargando ? "Descargando..." : "Reporte PDF"}
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDescargarTodo}
+                    disabled={descargandoTodo || descargando}
+                    className="gap-1.5 text-green-700 border-green-300 hover:bg-green-100"
+                    title={documentos.length > 0 ? `Descargar reporte PDF + ${documentos.length} documento${documentos.length !== 1 ? 's' : ''} en un ZIP` : 'Descargar reporte PDF en ZIP'}
+                  >
+                    {descargandoTodo ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FolderDown className="h-4 w-4" />
+                    )}
+                    {descargandoTodo ? "Empaquetando..." : documentos.length > 0 ? `Todo (${documentos.length + 1})` : "Expediente ZIP"}
+                  </Button>
                 </div>
               </div>
             </Card>
 
             {/* Tabs con toda la info */}
             <Tabs defaultValue="personal" className="w-full">
-              <TabsList className="grid w-full grid-cols-5 h-auto">
+              <TabsList className="grid w-full grid-cols-6 h-auto">
                 <TabsTrigger value="personal" className="text-xs py-2">Personal</TabsTrigger>
                 <TabsTrigger value="laboral" className="text-xs py-2">Laboral</TabsTrigger>
                 <TabsTrigger value="academico" className="text-xs py-2">Académico</TabsTrigger>
                 <TabsTrigger value="financiero" className="text-xs py-2">Financiero</TabsTrigger>
+                <TabsTrigger value="documentos" className="text-xs py-2">
+                  Documentos
+                  {documentos.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 text-[9px] px-1.5 py-0">{documentos.length}</Badge>
+                  )}
+                </TabsTrigger>
                 <TabsTrigger value="notas" className="text-xs py-2">Notas</TabsTrigger>
               </TabsList>
 
@@ -499,6 +633,88 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
                       )
                     })}
                   </>
+                )}
+              </TabsContent>
+
+              {/* ══════ TAB: DOCUMENTOS ══════ */}
+              <TabsContent value="documentos" className="space-y-4 mt-4">
+                <SectionTitle icon={FileText} title="Documentos Asociados" />
+
+                {documentos.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400">
+                    <FileText className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                    <p className="text-sm">No hay documentos asociados a este prospecto.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {documentos.map((doc: any) => {
+                      const nombreArchivo = doc.ruta_archivo
+                        ? doc.ruta_archivo.split("/").pop()
+                        : `documento-${doc.id}`
+                      const extension = nombreArchivo?.split(".").pop()?.toLowerCase() || ""
+                      const esImagen = ["jpg", "jpeg", "png", "gif", "webp"].includes(extension)
+                      const esPDF = extension === "pdf"
+
+                      const estadoColor =
+                        doc.estado === "aprobado"
+                          ? "bg-green-50 text-green-700 border-green-200"
+                          : doc.estado === "rechazado"
+                            ? "bg-red-50 text-red-700 border-red-200"
+                            : "bg-yellow-50 text-yellow-700 border-yellow-200"
+
+                      return (
+                        <Card key={doc.id} className="p-4 border-gray-200">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className={`p-2 rounded-lg ${
+                                esImagen ? "bg-purple-100" : esPDF ? "bg-red-100" : "bg-blue-100"
+                              }`}>
+                                <FileText className={`h-5 w-5 ${
+                                  esImagen ? "text-purple-600" : esPDF ? "text-red-600" : "text-blue-600"
+                                }`} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {nombreArchivo}
+                                </p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-xs text-gray-500">
+                                    {doc.tipo_documento || "Documento"}
+                                  </span>
+                                  <span className="text-xs text-gray-400">•</span>
+                                  <Badge variant="outline" className={`text-[10px] ${estadoColor}`}>
+                                    {doc.estado || "pendiente"}
+                                  </Badge>
+                                  {doc.subida_at && (
+                                    <>
+                                      <span className="text-xs text-gray-400">•</span>
+                                      <span className="text-xs text-gray-500">
+                                        {formatDate(doc.subida_at)}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDescargarDocumento(doc)}
+                              disabled={descargandoDoc === doc.id}
+                              className="gap-1.5 text-blue-700 border-blue-300 hover:bg-blue-100 flex-shrink-0 ml-3"
+                            >
+                              {descargandoDoc === doc.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Download className="h-3.5 w-3.5" />
+                              )}
+                              Descargar
+                            </Button>
+                          </div>
+                        </Card>
+                      )
+                    })}
+                  </div>
                 )}
               </TabsContent>
 

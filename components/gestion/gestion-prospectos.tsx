@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Swal from "sweetalert2"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle, RefreshCw } from "lucide-react"
+import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle, RefreshCw, Download } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -65,6 +65,46 @@ export default function GestionProspectos() {
   const [modalType, setModalType] = useState<"detalles" | "editar" | "alerta" | null>(null)
   const [showEstadoMenu, setShowEstadoMenu] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [descargandoReporte, setDescargandoReporte] = useState<string | null>(null)
+
+  // Descargar reporte consolidado PDF de un prospecto
+  const handleDescargarReporte = async (prospectoId: string) => {
+    setDescargandoReporte(prospectoId)
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_URL}/prospectos/${prospectoId}/reporte-consolidado-pdf`, {
+        headers: { Authorization: token ? `Bearer ${token}` : "" },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `reporte-consolidado-prospecto-${prospectoId}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      Swal.fire({
+        icon: "success",
+        title: "Descarga exitosa",
+        text: "El reporte consolidado se descargó correctamente",
+        timer: 2000,
+        showConfirmButton: false,
+      })
+    } catch (err) {
+      console.error("Error al descargar reporte:", err)
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se pudo descargar el reporte consolidado",
+      })
+    } finally {
+      setDescargandoReporte(null)
+    }
+  }
 
   // Filtros y paginación
   const [searchTerm, setSearchTerm] = useState<string>("")
@@ -833,6 +873,13 @@ export default function GestionProspectos() {
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleInscribir(p.id)}>
                               Inscribir
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDescargarReporte(p.id)}
+                              disabled={descargandoReporte === p.id}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              {descargandoReporte === p.id ? "Descargando..." : "Descargar Reporte PDF"}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
