@@ -38,10 +38,10 @@ export default function ResponsiveSidebar() {
         <Button
           variant="ghost"
           size="icon"
-          className="fixed top-4 left-4 z-50 bg-white dark:bg-asm-navy shadow-md"
+          className="fixed top-4 left-4 z-50 bg-white dark:bg-gaia-navy shadow-md"
           onClick={() => setIsOpen(!isOpen)}
         >
-          <Menu className="h-5 w-5 text-asm-navy dark:text-asm-light-gold" />
+          <Menu className="h-5 w-5 text-gaia-navy dark:text-gaia-light" />
         </Button>
       )}
 

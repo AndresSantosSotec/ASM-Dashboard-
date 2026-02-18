@@ -26,13 +26,13 @@ const config: Config = {
           800: "#1E40AF",
           900: "#1E3A8A",
         },
-        // ASM color palette
-        asm: {
-          "light-gold": "#EBDDB7",
-          "medium-gold": "#B7A053",
-          "dark-gold": "#A48644",
-          navy: "#213362",
-          "dark-navy": "#10072F",
+        // Gaia Business School color palette
+        gaia: {
+          light: "#F2F2F2",
+          wine: "#7E162B",
+          "wine-dark": "#5C1020",
+          navy: "#0E2B49",
+          "navy-dark": "#091C31",
         },
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
@@ -93,9 +93,7 @@ const config: Config = {
       boxShadow: {
         "glass": "0 4px 30px rgba(0, 0, 0, 0.06)",
         "glass-lg": "0 8px 40px rgba(0, 0, 0, 0.1)",
-        "gold": "0 4px 20px rgba(183, 160, 83, 0.15)",
-        "gold-lg": "0 8px 30px rgba(183, 160, 83, 0.25)",
-        "navy": "0 4px 20px rgba(33, 51, 98, 0.2)",
+        "navy": "0 4px 20px rgba(14, 43, 73, 0.2)",
       },
       keyframes: {
         "accordion-down": {
@@ -136,10 +134,10 @@ const config: Config = {
         },
         "glow-pulse": {
           "0%, 100%": {
-            boxShadow: "0 0 0 0 rgba(183, 160, 83, 0)",
+            boxShadow: "0 0 0 0 rgba(14, 43, 73, 0)",
           },
           "50%": {
-            boxShadow: "0 0 12px 2px rgba(183, 160, 83, 0.15)",
+            boxShadow: "0 0 12px 2px rgba(14, 43, 73, 0.15)",
           },
         },
       },

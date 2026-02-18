@@ -91,8 +91,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                   onClick={() => setSidebarOpen(!sidebarOpen)}
                   className={cn(
                     "p-2 rounded-xl transition-all duration-200 group",
-                    "text-asm-navy dark:text-asm-light-gold",
-                    "hover:bg-asm-navy/[0.06] dark:hover:bg-white/[0.06]",
+                    "text-gaia-navy dark:text-gaia-light",
+                    "hover:bg-gaia-navy/[0.06] dark:hover:bg-white/[0.06]",
                     "active:scale-95"
                   )}
                   aria-label={sidebarOpen ? "Cerrar menú" : "Abrir menú"}
@@ -108,10 +108,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
                 {!isMobile && (
                   <div className="flex flex-col animate-in fade-in slide-in-from-left-2 duration-300">
-                    <h1 className="text-sm font-semibold text-asm-navy dark:text-asm-light-gold leading-tight">
-                      {userName ? `Bienvenido, ${userName}` : "American School of Management"}
+                    <h1 className="text-sm font-semibold text-gaia-navy dark:text-gaia-light leading-tight">
+                      {userName ? `Bienvenido, ${userName}` : "Gaia Business School"}
                     </h1>
-                    <p className="text-[11px] text-asm-navy/50 dark:text-asm-light-gold/40 leading-tight">
+                    <p className="text-[11px] text-gaia-navy/50 dark:text-gaia-light/40 leading-tight">
                       Panel de Gestión
                     </p>
                   </div>

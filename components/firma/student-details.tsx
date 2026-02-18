@@ -446,7 +446,7 @@ export function StudentDetails() {
             </p>
             <p>
               Me comprometo a mantener de manera estrictamente confidencial los
-              precios corporativos otorgados por American School of Management para
+              precios corporativos otorgados por Gaia Business School para
               cursar mi programa de:
             </p>
             <p>
@@ -509,7 +509,7 @@ export function StudentDetails() {
               adecuado, y con la cámara encendida en todo momento.
             </p>
             <p>
-              Finalmente, autorizo a American School of Management a utilizar mis
+              Finalmente, autorizo a Gaia Business School a utilizar mis
               fotografías para fines de colaboración institucional en materiales
               impresos o digitales.
             </p>
@@ -529,7 +529,7 @@ export function StudentDetails() {
               las consecuencias correspondientes.
             </p>
             <p>
-              En American School of Management, los estudiantes se comprometen a la
+              En Gaia Business School, los estudiantes se comprometen a la
               excelencia académica desde el inicio de su programa. Se fomenta la
               búsqueda de altos promedios para obtener menciones honoríficas:<br />
               • Cum Laude: promedio de 96 puntos.<br />
@@ -543,7 +543,7 @@ export function StudentDetails() {
             <p>
               Asimismo, acepto que al realizar los pagos correspondientes a las
               mensualidades y gastos adicionales, me comprometo a enviar las boletas
-              únicamente a las siguientes direcciones: contabilidad@american-edu.com
+              únicamente a las siguientes direcciones: contabilidad@gaia-edu.com
               o a los números de WhatsApp +502 4169-8467 o +502 4138-1907. Se
               exceptúa el pago de inscripción, el cual deberá ser remitido
               directamente al asesor educativo. Está prohibido enviar boletas a

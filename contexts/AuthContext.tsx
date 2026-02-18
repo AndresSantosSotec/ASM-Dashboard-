@@ -16,11 +16,17 @@ export interface UserInfo {
   id: number;
   name: string;
   email: string;
+  rol?: string;
   role?: {
     id: number;
     name: string;
   };
   role_id?: number;
+  permissions?: Array<{
+    moduleview_id?: number;
+    view_path?: string;
+    [key: string]: any;
+  }>;
 }
 
 interface AuthContextType {
@@ -50,8 +56,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("token");
       const views = localStorage.getItem("allowedViews");
+      const storedUser = localStorage.getItem("user");
       setTokenState(stored);
       setAllowedViewsState(views ? JSON.parse(views) : []);
+      if (storedUser) {
+        try {
+          setUserState(JSON.parse(storedUser));
+        } catch (e) {
+          console.error("Error parsing stored user:", e);
+        }
+      }
     }
   }, []);
 

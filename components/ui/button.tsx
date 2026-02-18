@@ -9,13 +9,13 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-asm-navy text-asm-light-gold hover:bg-asm-navy/90",
+        default: "bg-gaia-navy text-gaia-light hover:bg-gaia-navy/90",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "border border-asm-medium-gold bg-background hover:bg-asm-light-gold/10 hover:text-asm-navy",
-        secondary: "bg-asm-medium-gold text-white hover:bg-asm-dark-gold",
-        ghost: "hover:bg-asm-light-gold/10 hover:text-asm-medium-gold",
-        link: "text-asm-medium-gold underline-offset-4 hover:underline",
-        gold: "bg-asm-medium-gold text-white hover:bg-asm-dark-gold",
+        outline: "border border-gaia-wine bg-background hover:bg-gaia-light/10 hover:text-gaia-navy",
+        secondary: "bg-gaia-wine text-white hover:bg-gaia-wine-dark",
+        ghost: "hover:bg-gaia-light/10 hover:text-gaia-wine",
+        link: "text-gaia-wine underline-offset-4 hover:underline",
+        gold: "bg-gaia-wine text-white hover:bg-gaia-wine-dark",
       },
       size: {
         default: "h-10 px-4 py-2",

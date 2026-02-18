@@ -314,12 +314,12 @@ export default function FichaInscripcion() {
                     </Button>
                   </div>
 
-                  {/* Recibo de American */}
+                  {/* Recibo de Gaia */}
                   <div className="border rounded-lg p-4">
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <h4 className="font-medium">Recibo de American</h4>
-                        <p className="text-sm text-muted-foreground">Comprobante de pago emitido por American SM.</p>
+                        <h4 className="font-medium">Recibo de Gaia</h4>
+                        <p className="text-sm text-muted-foreground">Comprobante de pago emitido por Gaia BS.</p>
                       </div>
                       <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Cargado</span>
                     </div>

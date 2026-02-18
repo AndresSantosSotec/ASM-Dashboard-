@@ -111,22 +111,22 @@ export default function Sidebar({ open, className }: SidebarProps) {
   //div mientras se obtiene le ususario 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-800 to-gray-700">
-        <Loader className="animate-spin h-12 w-12 text-asm-light-gold" />
-        <span className="mt-4 text-2xl text-asm-light-gold font-semibold">Cargando...</span>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0E2B49]">
+        <Loader className="animate-spin h-12 w-12 text-white" />
+        <span className="mt-4 text-2xl text-white font-semibold">Cargando...</span>
       </div>
     )
   }
   return (
     <div
-      className={`${open ? "w-64" : "w-0 -translate-x-full"} transition-all duration-300 asm-gradient border-r border-asm-medium-gold/30 flex flex-col h-full overflow-y-auto ${cn("pb-12", className)}`}
+      className={`${open ? "w-64" : "w-0 -translate-x-full"} transition-all duration-300 gaia-sidebar-bg border-r border-gaia-wine/30 flex flex-col h-full overflow-y-auto ${cn("pb-12", className)}`}
     >
-      <div className="p-4 border-b border-asm-medium-gold/30 flex justify-center">
+      <div className="p-4 border-b border-gaia-wine/30 flex justify-center">
         <Link href="/" className="flex justify-center">
           {/* Ruta con /webpanel/ para producción - descomentar la línea correcta según ambiente */}
           <img 
             src="/webpanel/recursos/Logos-02.png" 
-            alt="ASM Logo"
+            alt="Gaia Logo"
             className="h-28 w-auto object-contain cursor-pointer hover:opacity-90 transition-opacity"
           />
           {/* Local: src="/recursos/Logos-02.png" */}
@@ -136,14 +136,14 @@ export default function Sidebar({ open, className }: SidebarProps) {
       <div className="flex-1 py-4 overflow-y-auto px-3">
         <Link
           href="/"
-          className={`flex items-center px-4 py-2 mb-2 rounded-md ${pathname === "/" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+          className={`flex items-center px-4 py-2 mb-2 rounded-md ${pathname === "/" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
             } transition-colors duration-200`}
         >
           <Home size={18} className="mr-2" />
           <span>Inicio</span>
         </Link>
 
-        <div className="px-4 py-2 text-xs font-medium text-asm-light-gold/70 uppercase tracking-wider">
+        <div className="px-4 py-2 text-xs font-medium text-gaia-light/70 uppercase tracking-wider">
           Módulos
         </div>
 
@@ -152,7 +152,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
         <div className="mb-1">
           <button
             onClick={() => toggleSection("prospectos")}
-            className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md transition-colors duration-200"
+            className="w-full flex items-center justify-between px-4 py-2 text-gaia-light hover:bg-gaia-wine/20 cursor-pointer rounded-md transition-colors duration-200"
           >
             <div className="flex items-center">
               <Users size={18} className="mr-2" />
@@ -166,7 +166,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
               {/* Links visibles para Administradores y Asesores */}
               <Link
                 href="/captura"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/captura" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/captura" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                   } transition-colors duration-200`}
               >
                 <Plus size={16} className="mr-2" />
@@ -174,7 +174,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
               </Link>
               <Link
                 href="/gestion"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/gestion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/gestion" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                   } transition-colors duration-200`}
               >
                 <Users size={16} className="mr-2" />
@@ -182,7 +182,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
               </Link>
               <Link
                 href="/leads-asignados"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/leads-asignados" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/leads-asignados" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                   } transition-colors duration-200`}
               >
                 <FileText size={16} className="mr-2" />
@@ -190,7 +190,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
               </Link>
               <Link
                 href="/seguimiento"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguimiento" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguimiento" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                   } transition-colors duration-200`}
               >
                 <ClipboardList size={16} className="mr-2" />
@@ -198,7 +198,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
               </Link>
               <Link
                 href="/importar-leads"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/importar-leads" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/importar-leads" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                   } transition-colors duration-200`}
               >
                 <FileText size={16} className="mr-2" />
@@ -206,12 +206,12 @@ export default function Sidebar({ open, className }: SidebarProps) {
               </Link>
 
               {/* Activities ahora dentro de Prospectos y Asesores */}
-              <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
+              <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-gaia-light/70">
                 Activities
               </div>
               <Link
                 href="/correos"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/correos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/correos" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                   } transition-colors duration-200`}
               >
                 <Mail size={16} className="mr-2" />
@@ -219,7 +219,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
               </Link>
               <Link
                 href="/calendario"
-                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/calendario" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/calendario" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                   } transition-colors duration-200`}
               >
                 <Calendar size={16} className="mr-2" />
@@ -228,7 +228,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
 
               {/* Aquí agregamos una condición para mostrar el Admin Panel solo para los administradores */}
               {userRole === "Administrador" && (
-                <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
+                <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-gaia-light/70">
                   Admin Panel
                 </div>
               )}
@@ -236,7 +236,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
               {userRole === "Administrador" && (
                 <Link
                   href="/admin"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Users size={16} className="mr-2" />
@@ -252,7 +252,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
           <div className="mb-1">
             <button
               onClick={() => toggleSection("inscripcion")}
-              className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md transition-colors duration-200"
+              className="w-full flex items-center justify-between px-4 py-2 text-gaia-light hover:bg-gaia-wine/20 cursor-pointer rounded-md transition-colors duration-200"
             >
               <div className="flex items-center">
                 <FileText size={18} className="mr-2" />
@@ -266,8 +266,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/inscripcion/ficha"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/ficha"
-                      ? "bg-asm-medium-gold text-white"
-                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                      ? "bg-gaia-wine text-white"
+                      : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <FileText size={16} className="mr-2" />
@@ -276,8 +276,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/inscripcion/revision"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/revision"
-                      ? "bg-asm-medium-gold text-white"
-                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                      ? "bg-gaia-wine text-white"
+                      : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <FileText size={16} className="mr-2" />
@@ -286,22 +286,22 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/firma"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/firma" || pathname.startsWith("/firma/")
-                      ? "bg-asm-medium-gold text-white"
-                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                      ? "bg-gaia-wine text-white"
+                      : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <FileSignature size={16} className="mr-2" />
                   <span>Firma Digital</span>
                 </Link>
 
-                <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
+                <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-gaia-light/70">
                   Aprobaciones
                 </div>
                 <Link
                   href="/inscripcion/aprobacion-academica"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/aprobacion-academica"
-                      ? "bg-asm-medium-gold text-white"
-                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                      ? "bg-gaia-wine text-white"
+                      : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <CheckCircle size={16} className="mr-2" />
@@ -310,8 +310,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/inscripcion/aprobacion-financiera"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/aprobacion-financiera"
-                      ? "bg-asm-medium-gold text-white"
-                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                      ? "bg-gaia-wine text-white"
+                      : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <DollarSign size={16} className="mr-2" />
@@ -320,36 +320,36 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/inscripcion/gen-credenciales"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/gen-credenciales"
-                      ? "bg-asm-medium-gold text-white"
-                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                      ? "bg-gaia-wine text-white"
+                      : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <IdCard size={16} className="mr-2" />
                   <span>Generación de Credenciales</span>
                 </Link>
 
-                <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
+                <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-gaia-light/70">
                   Documentos
                 </div>
                 <Link
                   href="/documentos"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/documentos"
-                      ? "bg-asm-medium-gold text-white"
-                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                      ? "bg-gaia-wine text-white"
+                      : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <FileText size={16} className="mr-2" />
                   <span>Validación de Documentos</span>
                 </Link>
 
-                <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
+                <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-gaia-light/70">
                   Administración
                 </div>
                 <Link
                   href="/inscripcion/admin/periodos"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/admin/periodos"
-                      ? "bg-asm-medium-gold text-white"
-                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                      ? "bg-gaia-wine text-white"
+                      : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Calendar size={16} className="mr-2" />
@@ -358,8 +358,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/inscripcion/admin/flujos"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/admin/flujos"
-                      ? "bg-asm-medium-gold text-white"
-                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                      ? "bg-gaia-wine text-white"
+                      : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Activity size={16} className="mr-2" />
@@ -375,7 +375,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
           <div className="mb-1">
             <button
               onClick={() => toggleSection("academico")}
-              className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md transition-colors duration-200"
+              className="w-full flex items-center justify-between px-4 py-2 text-gaia-light hover:bg-gaia-wine/20 cursor-pointer rounded-md transition-colors duration-200"
             >
               <div className="flex items-center">
                 <BookOpen size={18} className="mr-2" />
@@ -388,7 +388,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
               <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
                 <Link
                   href="/academico/programas"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/programas" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/programas" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <BookOpen size={16} className="mr-2" />
@@ -396,7 +396,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/academico/usuarios"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/usuarios" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/usuarios" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Users size={16} className="mr-2" />
@@ -404,7 +404,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/academico/programacion"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/programacion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/programacion" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Calendar size={16} className="mr-2" />
@@ -412,7 +412,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/academico/asignacion"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/asignacion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/asignacion" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <ClipboardList size={16} className="mr-2" />
@@ -420,7 +420,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/academico/estatus-alumno"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/estatus-alumno" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/estatus-alumno" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <UserCheck size={16} className="mr-2" />
@@ -428,7 +428,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 {/* <Link
                   href="/academico/estado-sistema"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/estado-sistema" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/estado-sistema" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Activity size={16} className="mr-2" />
@@ -436,7 +436,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link> */}
                 <Link
                   href="/academico/ranking"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/ranking" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/academico/ranking" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <BarChart2 size={16} className="mr-2" />
@@ -452,7 +452,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
           <div className="mb-1">
             <button
               onClick={() => toggleSection("docentes")}
-              className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md transition-colors duration-200"
+              className="w-full flex items-center justify-between px-4 py-2 text-gaia-light hover:bg-gaia-wine/20 cursor-pointer rounded-md transition-colors duration-200"
             >
               <div className="flex items-center">
                 <GraduationCapIcon size={18} className="mr-2" />
@@ -465,7 +465,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
               <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
                 <Link
                   href="/docente"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <LayoutDashboard size={16} className="mr-2" />
@@ -473,7 +473,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/docente/cursos"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/cursos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/cursos" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <BookOpen size={16} className="mr-2" />
@@ -481,7 +481,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/docente/alumnos"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/alumnos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/alumnos" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Users size={16} className="mr-2" />
@@ -490,8 +490,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/docente/material"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/material" || pathname === "/docente/material/nuevo"
-                    ? "bg-asm-medium-gold text-white"
-                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    ? "bg-gaia-wine text-white"
+                    : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <FileText size={16} className="mr-2" />
@@ -501,8 +501,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/docente/mensajes"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/mensajes" || pathname === "/docente/invitaciones"
-                    ? "bg-asm-medium-gold text-white"
-                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    ? "bg-gaia-wine text-white"
+                    : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Mail size={16} className="mr-2" />
@@ -511,8 +511,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/docente/medallero"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/medallero" || pathname === "/docente/insignias"
-                    ? "bg-asm-medium-gold text-white"
-                    : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                    ? "bg-gaia-wine text-white"
+                    : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Medal size={16} className="mr-2" />
@@ -520,7 +520,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/docente/mi-aprendizaje"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/mi-aprendizaje" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/mi-aprendizaje" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <BookOpen size={16} className="mr-2" />
@@ -528,7 +528,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/docente/calendario"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/calendario" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/calendario" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Calendar size={16} className="mr-2" />
@@ -536,7 +536,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/docente/notificaciones"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/notificaciones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/notificaciones" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Bell size={16} className="mr-2" />
@@ -544,7 +544,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/docente/certificaciones"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/certificaciones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/docente/certificaciones" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Award size={16} className="mr-2" />
@@ -560,7 +560,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
           <div className="mb-1">
             <button
               onClick={() => toggleSection("estudiantes")}
-              className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md transition-colors duration-200"
+              className="w-full flex items-center justify-between px-4 py-2 text-gaia-light hover:bg-gaia-wine/20 cursor-pointer rounded-md transition-colors duration-200"
             >
               <div className="flex items-center">
                 <Users size={18} className="mr-2" />
@@ -573,7 +573,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
               <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
                 <Link
                   href="/estudiantes"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <LayoutDashboard size={16} className="mr-2" />
@@ -581,7 +581,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/estudiantes/documentos"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/documentos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/documentos" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <FileText size={16} className="mr-2" />
@@ -589,7 +589,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/estudiantes/pagos"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/pagos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/pagos" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <DollarSign size={16} className="mr-2" />
@@ -597,7 +597,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/estudiantes/ranking"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/ranking" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/ranking" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Award size={16} className="mr-2" />
@@ -605,7 +605,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/estudiantes/calendario"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/calendario" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/calendario" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Calendar size={16} className="mr-2" />
@@ -613,7 +613,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/estudiantes/notificaciones"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/notificaciones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/notificaciones" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Bell size={16} className="mr-2" />
@@ -621,7 +621,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/estudiantes/perfil"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/perfil" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/perfil" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <UserCheck size={16} className="mr-2" />
@@ -629,7 +629,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/estudiantes/estado-cuenta"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/estado-cuenta" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/estudiantes/estado-cuenta" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <CreditCard size={16} className="mr-2" />
@@ -645,7 +645,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
           <div className="mb-1">
             <button
               onClick={() => toggleSection("finanzas")}
-              className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md transition-colors duration-200"
+              className="w-full flex items-center justify-between px-4 py-2 text-gaia-light hover:bg-gaia-wine/20 cursor-pointer rounded-md transition-colors duration-200"
             >
               <div className="flex items-center">
                 <DollarSign size={18} className="mr-2" />
@@ -658,7 +658,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
               <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
                 <Link
                   href="/finanzas/dashboard"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/dashboard" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/dashboard" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <PieChart size={16} className="mr-2" />
@@ -666,7 +666,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/finanzas/estado-cuenta"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/estado-cuenta" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/estado-cuenta" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <FileText size={16} className="mr-2" />
@@ -674,7 +674,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/finanzas/gestion-pagos"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/gestion-pagos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/gestion-pagos" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <CreditCard size={16} className="mr-2" />
@@ -682,7 +682,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/finanzas/conciliacion"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/conciliacion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/conciliacion" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <RefreshCw size={16} className="mr-2" />
@@ -690,7 +690,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/finanzas/seguimiento-cobros"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/seguimiento-cobros" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/seguimiento-cobros" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Phone size={16} className="mr-2" />
@@ -698,7 +698,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/finanzas/reportes"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/reportes" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/reportes" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <BarChart size={16} className="mr-2" />
@@ -706,7 +706,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/finanzas/configuracion"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/configuracion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/finanzas/configuracion" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Settings size={16} className="mr-2" />
@@ -722,7 +722,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
           <div className="mb-1">
             <button
               onClick={() => toggleSection("administracion")}
-              className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md transition-colors duration-200"
+              className="w-full flex items-center justify-between px-4 py-2 text-gaia-light hover:bg-gaia-wine/20 cursor-pointer rounded-md transition-colors duration-200"
             >
               <div className="flex items-center">
                 <Settings size={18} className="mr-2" />
@@ -735,7 +735,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
               <div className="pl-6 text-sm space-y-1 mt-1 mb-2">
                 <Link
                   href="/admin/dashboard"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/dashboard" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/dashboard" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <LayoutDashboard size={16} className="mr-2" />
@@ -743,7 +743,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/admin/programacion-cursos"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/programacion-cursos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/programacion-cursos" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Calendar size={16} className="mr-2" />
@@ -751,7 +751,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/admin/reportes-matricula"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/reportes-matricula" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/reportes-matricula" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <FileCheck size={16} className="mr-2" />
@@ -759,7 +759,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/admin/reporte-graduaciones"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/reporte-graduaciones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/reporte-graduaciones" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <GraduationCapIcon size={16} className="mr-2" />
@@ -767,7 +767,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/admin/plantillas-mailing"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/plantillas-mailing" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/plantillas-mailing" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Send size={16} className="mr-2" />
@@ -775,7 +775,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 </Link>
                 <Link
                   href="/admin/configuracion"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/configuracion" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/admin/configuracion" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Settings size={16} className="mr-2" />
@@ -791,7 +791,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
           <div className="mb-1">
             <button
               onClick={() => toggleSection("seguridad")}
-              className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md transition-colors duration-200"
+              className="w-full flex items-center justify-between px-4 py-2 text-gaia-light hover:bg-gaia-wine/20 cursor-pointer rounded-md transition-colors duration-200"
             >
               <div className="flex items-center">
                 <Shield size={18} className="mr-2" />
@@ -805,7 +805,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 {/* Dashboard Seguridad */}
                 <Link
                   href="/seguridad/dashboard"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/dashboard" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/dashboard" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <LayoutDashboard size={16} className="mr-2" />
@@ -815,7 +815,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 {/* 2FA */}
                 <Link
                   href="/seguridad/2fa"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/2fa" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/2fa" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Key size={16} className="mr-2" />
@@ -825,7 +825,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 {/* Accesos */}
                 <Link
                   href="/seguridad/accesos"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/accesos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/accesos" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <LogIn size={16} className="mr-2" />
@@ -835,7 +835,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 {/* Auditoría */}
                 <Link
                   href="/seguridad/auditoria"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/auditoria" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/auditoria" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Activity size={16} className="mr-2" />
@@ -845,7 +845,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 {/* Políticas */}
                 <Link
                   href="/seguridad/politicas"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/politicas" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/politicas" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <FileText size={16} className="mr-2" />
@@ -856,7 +856,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 {/* <Link
                         href="/seguridad/respaldos"
                         className={`flex items-center px-4 py-1.5 rounded-md ${
-                          pathname === "/seguridad/respaldo" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                          pathname === "/seguridad/respaldo" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                         } transition-colors duration-200`}
                       >
                         <Database size={16} className="mr-2" />
@@ -866,7 +866,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 {/* Roles */}
                 <Link
                   href="/seguridad/roles"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/roles" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/roles" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Users size={16} className="mr-2" />
@@ -876,7 +876,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 {/* Sesiones */}
                 <Link
                   href="/seguridad/sesiones"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/sesiones" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/sesiones" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Clock size={16} className="mr-2" />
@@ -886,7 +886,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 {/* Usuarios */}
                 <Link
                   href="/seguridad/usuarios"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/usuarios" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/usuarios" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <UserCheck size={16} className="mr-2" />
@@ -895,7 +895,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 {/* Permisos */}
                 <Link
                   href="/seguridad/permisos"
-                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/permisos" ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+                  className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/seguridad/permisos" ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
                     } transition-colors duration-200`}
                 >
                   <Shield size={16} className="mr-2" />
@@ -909,7 +909,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
 
       </div>
 
-      <div className="mt-auto p-4 border-t border-asm-medium-gold/30">
+      <div className="mt-auto p-4 border-t border-gaia-wine/30">
         {/* Botón de Cerrar Sesión */}
         <button
           onClick={handleLogout}
@@ -918,9 +918,9 @@ export default function Sidebar({ open, className }: SidebarProps) {
           <LogOut size={18} className="mr-2" />
           <span>Cerrar Sesión</span>
         </button>
-        <div className="flex items-center text-asm-light-gold text-xs mt-4">
+        <div className="flex items-center text-gaia-light text-xs mt-4">
           <Settings size={14} className="mr-2" />
-          <span>American School of Management © 2025</span>
+          <span>Gaia Business School © 2025</span>
         </div>
       </div>
     </div>

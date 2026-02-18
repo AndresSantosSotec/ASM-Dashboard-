@@ -217,7 +217,7 @@ export default function ContratoPreviewPage() {
 
               <p>
                 Me comprometo a mantener de manera estrictamente confidencial los
-                precios corporativos otorgados por American School of Management para
+                precios corporativos otorgados por Gaia Business School para
                 cursar mi programa de:
               </p>
 

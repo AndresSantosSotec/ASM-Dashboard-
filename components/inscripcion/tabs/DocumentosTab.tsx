@@ -35,7 +35,7 @@ interface ServerDoc {
 export const DOCUMENTOS_DEFAULT: Documento[] = [
   { id: "dpi", nombre: "DPI (ambos lados)", descripcion: "Documento de identificación personal, ambos lados en un solo archivo.", estado: "pendiente", archivos: [] },
   { id: "recibo", nombre: "Recibo de luz o teléfono", descripcion: "Comprobante de domicilio reciente (no mayor a 3 meses).", estado: "pendiente", archivos: [] },
-  { id: "american", nombre: "Recibo de American", descripcion: "Comprobante de pago emitido por American SM.", estado: "pendiente", archivos: [] },
+  { id: "american", nombre: "Recibo de Gaia", descripcion: "Comprobante de pago emitido por Gaia BS.", estado: "pendiente", archivos: [] },
   { id: "inscripcion", nombre: "Boleta de inscripción", descripcion: "Comprobante de pago de la cuota de inscripción. DEBE SUBIRSE ANTES DE FINALIZAR.", estado: "pendiente", archivos: [] }, // 🔥 OBLIGATORIA
   { id: "titulo", nombre: "Título o diploma", descripcion: "Copia de su último título académico obtenido.", estado: "pendiente", archivos: [], optional: true },
   { id: "foto", nombre: "Fotografía reciente", descripcion: "Fotografía tamaño carné con fondo blanco.", estado: "pendiente", archivos: [], optional: true },

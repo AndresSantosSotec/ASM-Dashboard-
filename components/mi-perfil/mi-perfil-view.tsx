@@ -175,7 +175,7 @@ export default function MiPerfilView() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-asm-medium-gold" />
+          <Loader2 className="h-8 w-8 animate-spin text-gaia-wine" />
           <p className="text-sm text-muted-foreground">Cargando perfil...</p>
         </div>
       </div>
@@ -222,13 +222,13 @@ export default function MiPerfilView() {
       <Card>
         <CardHeader className="pb-4">
           <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-full bg-asm-navy flex items-center justify-center">
-              <User className="h-8 w-8 text-asm-light-gold" />
+            <div className="h-16 w-16 rounded-full bg-gaia-navy flex items-center justify-center">
+              <User className="h-8 w-8 text-gaia-light" />
             </div>
             <div className="flex-1">
               <CardTitle className="text-xl">{profile.full_name || profile.username}</CardTitle>
               <div className="flex items-center gap-2 mt-1">
-                <Badge variant="secondary" className="bg-asm-navy/10 text-asm-navy">
+                <Badge variant="secondary" className="bg-gaia-navy/10 text-gaia-navy">
                   {profile.rol || "Sin rol"}
                 </Badge>
                 <Badge
@@ -364,7 +364,7 @@ export default function MiPerfilView() {
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Key className="h-5 w-5 text-asm-medium-gold" />
+                  <Key className="h-5 w-5 text-gaia-wine" />
                   <div>
                     <CardTitle className="text-base">Cambiar Contraseña</CardTitle>
                     <CardDescription>
@@ -539,7 +539,7 @@ export default function MiPerfilView() {
                 <Button
                   onClick={handlePasswordChange}
                   disabled={changingPassword}
-                  className="bg-asm-navy hover:bg-asm-navy/90"
+                  className="bg-gaia-navy hover:bg-gaia-navy/90"
                 >
                   {changingPassword ? (
                     <>

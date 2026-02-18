@@ -13,7 +13,7 @@ import { recoverPassword } from "@/services/password-recovery"
 
 export default function LoginPage() {
   const router = useRouter()
-  const { setToken, setAllowedViews } = useAuth()
+  const { setToken, setAllowedViews, setUser } = useAuth()
   
   // Estados del Login
   const [email, setEmail] = useState("")
@@ -54,6 +54,7 @@ export default function LoginPage() {
       // Almacena el token y demás datos en localStorage mediante el contexto
       setToken(token)
       setAllowedViews(allowedViews || [])
+      setUser(user)
       localStorage.setItem("userId", id)
       localStorage.setItem("user", JSON.stringify(user))
 
@@ -104,16 +105,16 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-asm-navy to-blue-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#0E2B49] p-4">
       <Card className="w-full max-w-md shadow-xl">
         {!showRecovery ? (
           // ========== VISTA DE LOGIN ==========
           <>
             <CardHeader className="space-y-1 text-center">
-              <div className="w-16 h-16 bg-asm-light-gold rounded-full mx-auto mb-4 flex items-center justify-center">
-                <span className="text-asm-navy font-bold text-2xl">ASM</span>
+              <div className="w-16 h-16 bg-gaia-light rounded-full mx-auto mb-4 flex items-center justify-center">
+                <span className="text-gaia-navy font-bold text-2xl">GBS</span>
               </div>
-              <CardTitle className="text-2xl font-bold text-asm-navy">Bienvenido</CardTitle>
+              <CardTitle className="text-2xl font-bold text-gaia-navy">Bienvenido</CardTitle>
               <CardDescription>Ingrese sus credenciales para acceder al sistema</CardDescription>
             </CardHeader>
             <form onSubmit={handleLogin}>
@@ -184,7 +185,7 @@ export default function LoginPage() {
               <CardFooter>
                 <Button
                   type="submit"
-                  className="w-full bg-asm-medium-gold hover:bg-asm-light-gold text-white"
+                  className="w-full bg-gaia-wine hover:bg-gaia-light text-white"
                   disabled={isLoading}
                 >
                   {isLoading ? (
@@ -230,17 +231,17 @@ export default function LoginPage() {
                   variant="ghost"
                   size="sm"
                   onClick={toggleRecoveryView}
-                  className="text-asm-navy hover:text-asm-medium-gold"
+                  className="text-gaia-navy hover:text-gaia-wine"
                   type="button"
                 >
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Volver al login
                 </Button>
               </div>
-              <div className="w-16 h-16 bg-asm-light-gold rounded-full mx-auto mb-4 flex items-center justify-center">
-                <Mail className="text-asm-navy h-8 w-8" />
+              <div className="w-16 h-16 bg-gaia-light rounded-full mx-auto mb-4 flex items-center justify-center">
+                <Mail className="text-gaia-navy h-8 w-8" />
               </div>
-              <CardTitle className="text-2xl font-bold text-asm-navy text-center">
+              <CardTitle className="text-2xl font-bold text-gaia-navy text-center">
                 Recuperar Contraseña
               </CardTitle>
               <CardDescription className="text-center">
@@ -281,7 +282,7 @@ export default function LoginPage() {
                 <CardFooter>
                   <Button
                     onClick={toggleRecoveryView}
-                    className="w-full bg-asm-navy hover:bg-asm-navy/90 text-white"
+                    className="w-full bg-gaia-navy hover:bg-gaia-navy/90 text-white"
                     type="button"
                   >
                     <ArrowLeft className="mr-2 h-4 w-4" />
@@ -355,7 +356,7 @@ export default function LoginPage() {
                 <CardFooter className="flex flex-col space-y-3">
                   <Button
                     type="submit"
-                    className="w-full bg-asm-medium-gold hover:bg-asm-light-gold text-white"
+                    className="w-full bg-gaia-wine hover:bg-gaia-light text-white"
                     disabled={recoveryLoading}
                   >
                     {recoveryLoading ? (

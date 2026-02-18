@@ -73,23 +73,23 @@ export default function Sidebar({ open, className }: SidebarProps) {
 
   const linkClass = (href: string) =>
     `flex items-center px-4 py-1.5 rounded-md ${
-      pathname === href ? "bg-asm-medium-gold text-white" : "text-asm-light-gold hover:bg-asm-medium-gold/20"
+      pathname === href ? "bg-gaia-wine text-white" : "text-gaia-light hover:bg-gaia-wine/20"
     }`
 
   return (
     <div
-      className={`${open ? "w-64" : "w-0 -translate-x-full"} transition-all duration-300 asm-gradient border-r border-asm-medium-gold/30 flex flex-col h-full overflow-y-auto ${cn(
+      className={`${open ? "w-64" : "w-0 -translate-x-full"} transition-all duration-300 gaia-sidebar-bg border-r border-gaia-wine/30 flex flex-col h-full overflow-y-auto ${cn(
         "pb-12",
         className
       )}`}
     >
       {/* Logo */}
-      <div className="p-4 border-b border-asm-medium-gold/30">
+      <div className="p-4 border-b border-gaia-wine/30">
         <Link href="/" className="flex justify-center">
           {/* Ruta con /webpanel/ para producción - descomentar la línea correcta según ambiente */}
           <img 
             src="/webpanel/recursos/Logos-02.png" 
-            alt="ASM Logo"
+            alt="Gaia Logo"
             className="h-28 w-auto object-contain cursor-pointer hover:opacity-90 transition-opacity"
           />
           {/* Local: src="/recursos/Logos-02.png" */}
@@ -106,11 +106,11 @@ export default function Sidebar({ open, className }: SidebarProps) {
         {/* Prospectos y Asesores: para Administrador y Asesor */}
         {(userRole === "Administrador" || userRole === "Asesor") && (
           <>
-            <div className="px-4 py-2 text-sm font-medium text-asm-light-gold/70">Módulos</div>
+            <div className="px-4 py-2 text-sm font-medium text-gaia-light/70">Módulos</div>
             <div className="mb-1">
               <button
                 onClick={() => toggleSection("prospectos")}
-                className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md"
+                className="w-full flex items-center justify-between px-4 py-2 text-gaia-light hover:bg-gaia-wine/20 cursor-pointer rounded-md"
               >
                 <div className="flex items-center">
                   <Users size={18} className="mr-2" />
@@ -141,7 +141,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                     Importar Leads
                   </Link>
 
-                  <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
+                  <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-gaia-light/70">
                     Activities
                   </div>
                   <Link href="/correos" className={linkClass("/correos")}>
@@ -153,7 +153,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
                     Calendario
                   </Link>
 
-                  <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-asm-light-gold/70">
+                  <div className="mt-2 mb-1 px-4 py-1 text-xs font-medium text-gaia-light/70">
                     Integraciones
                   </div>
                   <Link href="/envio-correos" className={linkClass("/envio-correos")}>
@@ -177,7 +177,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
             <div className="mb-1">
               <button
                 onClick={() => toggleSection("inscripcion")}
-                className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md"
+                className="w-full flex items-center justify-between px-4 py-2 text-gaia-light hover:bg-gaia-wine/20 cursor-pointer rounded-md"
               >
                 <FileText size={18} className="mr-2" />
                 <span>Inscripción</span>
@@ -205,7 +205,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
             <div className="mb-1">
               <button
                 onClick={() => toggleSection("academico")}
-                className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md"
+                className="w-full flex items-center justify-between px-4 py-2 text-gaia-light hover:bg-gaia-wine/20 cursor-pointer rounded-md"
               >
                 <BookOpen size={18} className="mr-2" />
                 <span>Académico</span>
@@ -231,7 +231,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
             <div className="mb-1">
               <button
                 onClick={() => toggleSection("docentes")}
-                className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md"
+                className="w-full flex items-center justify-between px-4 py-2 text-gaia-light hover:bg-gaia-wine/20 cursor-pointer rounded-md"
               >
                 <GraduationCapIcon size={18} className="mr-2" />
                 <span>Docentes</span>
@@ -251,7 +251,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
             <div className="mb-1">
               <button
                 onClick={() => toggleSection("estudiantes")}
-                className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md"
+                className="w-full flex items-center justify-between px-4 py-2 text-gaia-light hover:bg-gaia-wine/20 cursor-pointer rounded-md"
               >
                 <Users size={18} className="mr-2" />
                 <span>Estudiantes</span>
@@ -271,7 +271,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
             <div className="mb-1">
               <button
                 onClick={() => toggleSection("administracion")}
-                className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md"
+                className="w-full flex items-center justify-between px-4 py-2 text-gaia-light hover:bg-gaia-wine/20 cursor-pointer rounded-md"
               >
                 <Building size={18} className="mr-2" />
                 <span>Administración</span>
@@ -291,7 +291,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
             <div className="mb-1">
               <button
                 onClick={() => toggleSection("seguridad")}
-                className="w-full flex items-center justify-between px-4 py-2 text-asm-light-gold hover:bg-asm-medium-gold/20 cursor-pointer rounded-md"
+                className="w-full flex items-center justify-between px-4 py-2 text-gaia-light hover:bg-gaia-wine/20 cursor-pointer rounded-md"
               >
                 <Shield size={18} className="mr-2" />
                 <span>Seguridad</span>

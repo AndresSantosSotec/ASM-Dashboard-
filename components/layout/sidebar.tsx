@@ -125,9 +125,9 @@ export default function Sidebar({ open, isMobile, className }: { open?: boolean;
       <div className={cn("flex items-center", isCollapsed ? "justify-center w-full" : "gap-2.5")}>
         <div className={cn(
           "flex items-center justify-center rounded-lg transition-all duration-200",
-          !isCollapsed ? "w-7 h-7 bg-white/[0.07] group-hover:bg-white/[0.12]" : "w-8 h-8 group-hover:bg-white/[0.1] text-asm-light-gold"
+          !isCollapsed ? "w-7 h-7 bg-white/[0.07] group-hover:bg-white/[0.12]" : "w-8 h-8 group-hover:bg-white/[0.1] text-gaia-light"
         )}>
-          <Icon size={isCollapsed ? 18 : 15} className="text-asm-light-gold/80" />
+          <Icon size={isCollapsed ? 18 : 15} className="text-gaia-light/80" />
         </div>
         <span className={cn(
           "font-medium text-[13px] tracking-wide transition-all duration-300 overflow-hidden whitespace-nowrap",
@@ -142,7 +142,7 @@ export default function Sidebar({ open, isMobile, className }: { open?: boolean;
   return (
     <div
       className={cn(
-        "transition-all duration-300 border-r border-asm-medium-gold/[0.15] flex flex-col h-full overflow-y-auto overflow-x-hidden",
+        "transition-all duration-300 border-r border-gaia-wine/[0.15] flex flex-col h-full overflow-y-auto overflow-x-hidden",
         "pb-6", // Increased padding bottom for better mobile touch area/version visibility
         isCollapsed ? "w-[80px]" : "w-64",
         className
@@ -166,14 +166,14 @@ export default function Sidebar({ open, isMobile, className }: { open?: boolean;
           <div className="relative flex items-center justify-center h-16">
             {isCollapsed ? (
               // Icono/Logo mini
-              <div className="w-10 h-10 bg-asm-medium-gold/20 rounded-full flex items-center justify-center border border-asm-medium-gold/30 shadow-gold">
-                <Icons.Shield size={20} className="text-asm-light-gold" />
+              <div className="w-10 h-10 bg-gaia-wine/20 rounded-full flex items-center justify-center border border-gaia-wine/30 shadow-navy">
+                <Icons.Shield size={20} className="text-gaia-light" />
               </div>
             ) : (
               // Ruta con /webpanel/ para producción - cambiar según ambiente
               <img
                 src="/webpanel/recursos/Logos-02.png"
-                alt="ASM Logo"
+                alt="Gaia Logo"
                 className="h-16 w-auto object-contain cursor-pointer transition-all duration-500 group-hover:scale-[1.03] group-hover:brightness-110"
               />
               // Local: src="/recursos/Logos-02.png"
@@ -193,8 +193,8 @@ export default function Sidebar({ open, isMobile, className }: { open?: boolean;
             "flex items-center mb-1 rounded-xl transition-all duration-200 group relative",
             isCollapsed ? "justify-center py-3" : "gap-2.5 px-3 py-2.5",
             pathname === "/"
-              ? "bg-gradient-to-r from-asm-medium-gold/90 to-asm-dark-gold/90 text-white shadow-lg shadow-asm-medium-gold/20"
-              : "text-asm-light-gold/90 hover:bg-white/[0.08] hover:text-white"
+              ? "bg-gaia-wine text-white shadow-sm"
+              : "text-gaia-light/90 hover:bg-white/[0.08] hover:text-white"
           )}
         >
           <div className={cn(
@@ -214,7 +214,7 @@ export default function Sidebar({ open, isMobile, className }: { open?: boolean;
 
         {/* Section title */}
         <div className={cn("transition-all duration-300", isCollapsed ? "py-2 text-center" : "px-3 pt-4 pb-2")}>
-          <p className="text-[10px] font-semibold text-asm-light-gold/40 uppercase tracking-[0.15em] whitespace-nowrap overflow-hidden">
+          <p className="text-[10px] font-semibold text-gaia-light/40 uppercase tracking-[0.15em] whitespace-nowrap overflow-hidden">
             {isCollapsed ? "..." : "Módulos"}
           </p>
         </div>
@@ -229,7 +229,7 @@ export default function Sidebar({ open, isMobile, className }: { open?: boolean;
             <div key={moduleName} className="mb-0.5 relative group/module">
               {/* Tooltip on hover (collapsed) */}
               {isCollapsed && (
-                <div className="absolute left-full top-2 ml-3 z-50 px-3 py-1.5 bg-asm-navy text-asm-light-gold text-xs font-medium rounded-md opacity-0 group-hover/module:opacity-100 pointer-events-none whitespace-nowrap border border-asm-medium-gold/20 shadow-xl transition-opacity duration-200 translate-x-1 group-hover/module:translate-x-0">
+                <div className="absolute left-full top-2 ml-3 z-50 px-3 py-1.5 bg-gaia-navy text-gaia-light text-xs font-medium rounded-md opacity-0 group-hover/module:opacity-100 pointer-events-none whitespace-nowrap border border-gaia-wine/20 shadow-xl transition-opacity duration-200 translate-x-1 group-hover/module:translate-x-0">
                   {moduleName}
                 </div>
               )}
@@ -241,7 +241,7 @@ export default function Sidebar({ open, isMobile, className }: { open?: boolean;
                   isCollapsed ? "justify-center py-3 px-0" : "justify-between px-3 py-2.5",
                   moduleActive && !isOpen
                     ? "bg-white/[0.08] text-white"
-                    : "text-asm-light-gold/85 hover:bg-white/[0.06] hover:text-white"
+                    : "text-gaia-light/85 hover:bg-white/[0.06] hover:text-white"
                 )}
                 aria-expanded={isOpen}
               >
@@ -250,7 +250,7 @@ export default function Sidebar({ open, isMobile, className }: { open?: boolean;
                   <Icons.ChevronRight
                     size={14}
                     className={cn(
-                      "text-asm-light-gold/40 transition-transform duration-300",
+                      "text-gaia-light/40 transition-transform duration-300",
                       isOpen && "rotate-90"
                     )}
                   />
@@ -260,7 +260,7 @@ export default function Sidebar({ open, isMobile, className }: { open?: boolean;
               {/* Submenú: solo expandir si NO colapsado */}
               {!isCollapsed && isOpen && (
                 <div
-                  className="pl-5 pr-1 mt-1 mb-2 ml-3 border-l border-asm-medium-gold/[0.12] space-y-0.5 animate-in slide-in-from-top-2 duration-200"
+                  className="pl-5 pr-1 mt-1 mb-2 ml-3 border-l border-gaia-wine/[0.12] space-y-0.5 animate-in slide-in-from-top-2 duration-200"
                 >
                   {views.map((view) => {
                     const Icon = getViewIcon(view.icon);
@@ -272,15 +272,15 @@ export default function Sidebar({ open, isMobile, className }: { open?: boolean;
                         className={cn(
                           "flex items-center gap-2 px-3 py-2 rounded-lg text-[12.5px] transition-all duration-200 group/link",
                           active
-                            ? "bg-gradient-to-r from-asm-medium-gold/80 to-asm-dark-gold/80 text-white shadow-md shadow-asm-medium-gold/15 font-medium"
-                            : "text-asm-light-gold/70 hover:bg-white/[0.06] hover:text-asm-light-gold"
+                            ? "bg-gaia-wine text-white font-medium"
+                            : "text-gaia-light/70 hover:bg-white/[0.06] hover:text-gaia-light"
                         )}
                       >
                         <Icon
                           size={14}
                           className={cn(
                             "flex-shrink-0 transition-colors duration-200",
-                            active ? "text-white" : "text-asm-light-gold/50 group-hover/link:text-asm-light-gold/80"
+                            active ? "text-white" : "text-gaia-light/50 group-hover/link:text-gaia-light/80"
                           )}
                         />
                         <span className="truncate">{view.menu}</span>
@@ -324,7 +324,7 @@ export default function Sidebar({ open, isMobile, className }: { open?: boolean;
           "mt-2 text-center transition-all duration-500 overflow-hidden",
           isCollapsed ? "h-0 opacity-0" : "h-auto opacity-100" // Ocultar versión en colapsado para limpieza
         )}>
-          <p className="text-[10px] text-asm-light-gold/30 font-mono select-none">
+          <p className="text-[10px] text-gaia-light/30 font-mono select-none">
             v{appVersion}
           </p>
         </div>

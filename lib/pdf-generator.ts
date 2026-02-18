@@ -99,13 +99,13 @@ function drawHeaderFooter(doc: jsPDF, headerImage?: string | null, footerImage?:
       doc.setTextColor(255, 255, 255)
       doc.setFontSize(11)
       doc.setFont('helvetica', 'bold')
-      doc.text('AMERICAN SCHOOL OF MANAGEMENT', 15, HEADER_HEIGHT / 2 + 1)
+      doc.text('GAIA BUSINESS SCHOOL', 15, HEADER_HEIGHT / 2 + 1)
     }
   } else {
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
-    doc.text('AMERICAN SCHOOL OF MANAGEMENT', 15, HEADER_HEIGHT / 2 + 1)
+    doc.text('GAIA BUSINESS SCHOOL', 15, HEADER_HEIGHT / 2 + 1)
   }
 
   // Footer con logos
@@ -134,7 +134,7 @@ function drawHeaderFooter(doc: jsPDF, headerImage?: string | null, footerImage?:
   doc.setTextColor(255, 255, 255)
   doc.setFontSize(7)
   doc.setFont('helvetica', 'normal')
-  doc.text('American School of Management - Documento generado automáticamente', 10, pageHeight - 4)
+  doc.text('Gaia Business School - Documento generado automáticamente', 10, pageHeight - 4)
 
   const totalPages = (doc as any).internal.pages?.length ?? 1
   const current = (doc as any).internal.getCurrentPageInfo().pageNumber
@@ -682,13 +682,13 @@ export async function generateStudentReport(
       doc.setTextColor(255, 255, 255)
       doc.setFontSize(11)
       doc.setFont('helvetica', 'bold')
-      doc.text('AMERICAN SCHOOL OF MANAGEMENT', 15, HEADER_HEIGHT / 2 + 1)
+      doc.text('GAIA BUSINESS SCHOOL', 15, HEADER_HEIGHT / 2 + 1)
     }
   } else {
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
-    doc.text('AMERICAN SCHOOL OF MANAGEMENT', 15, HEADER_HEIGHT / 2 + 1)
+    doc.text('GAIA BUSINESS SCHOOL', 15, HEADER_HEIGHT / 2 + 1)
   }
 
   // INFORMACIÓN DEL ESTUDIANTE
@@ -889,7 +889,7 @@ export async function generateStudentReport(
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(7)
     doc.text(
-      `American School of Management - Generado: ${new Date().toLocaleDateString('es-GT', { 
+      `Gaia Business School - Generado: ${new Date().toLocaleDateString('es-GT', { 
         year: 'numeric', month: 'long', day: 'numeric'
       })}`,
       10, 297 - 4

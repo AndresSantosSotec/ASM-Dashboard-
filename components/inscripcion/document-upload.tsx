@@ -32,8 +32,8 @@ export function DocumentUpload() {
     },
     {
       id: "american",
-      name: "Recibo de American",
-      description: "Comprobante de pago emitido por American SM.",
+      name: "Recibo de Gaia",
+      description: "Comprobante de pago emitido por Gaia BS.",
       status: "pending",
       file: null,
     },

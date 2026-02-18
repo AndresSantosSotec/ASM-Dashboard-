@@ -62,13 +62,13 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }: NavbarProps) {
   const profileRoute = isEstudiante ? "/estudiantes/perfil" : "/mi-perfil"
 
   return (
-    <div className="h-16 border-b border-asm-medium-gold/20 bg-white dark:bg-asm-dark-navy flex items-center px-4 sticky top-0 z-30">
+    <div className="h-16 border-b border-gaia-wine/20 bg-white dark:bg-gaia-navy-dark flex items-center px-4 sticky top-0 z-30">
       <div className="flex items-center gap-4 w-full">
         <Button
           variant="ghost"
           size="icon"
           onClick={onToggleSidebar}
-          className="text-asm-navy dark:text-asm-light-gold hover:bg-asm-light-gold/10 hover:text-asm-navy dark:hover:bg-asm-medium-gold/20 dark:hover:text-asm-light-gold"
+          className="text-gaia-navy dark:text-gaia-light hover:bg-gaia-light/10 hover:text-gaia-navy dark:hover:bg-gaia-wine/20 dark:hover:text-gaia-light"
           aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
         >
           <Menu className="h-5 w-5" />
@@ -76,11 +76,11 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }: NavbarProps) {
 
         {!isMobile && (
           <div className="relative w-full max-w-md">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-asm-navy/50 dark:text-asm-light-gold/50" />
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gaia-navy/50 dark:text-gaia-light/50" />
             <Input
               type="search"
               placeholder="Buscar..."
-              className="w-full pl-9 bg-gray-50 border-asm-medium-gold/20 focus-visible:ring-asm-medium-gold dark:bg-asm-navy/20 dark:border-asm-medium-gold/30 dark:placeholder:text-asm-light-gold/50"
+              className="w-full pl-9 bg-gray-50 border-gaia-wine/20 focus-visible:ring-gaia-wine dark:bg-gaia-navy/20 dark:border-gaia-wine/30 dark:placeholder:text-gaia-light/50"
             />
           </div>
         )}
@@ -94,12 +94,12 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }: NavbarProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="rounded-full h-8 w-8 border border-asm-medium-gold/30"
+                className="rounded-full h-8 w-8 border border-gaia-wine/30"
                 aria-label="User menu"
               >
                 <Avatar className="h-8 w-8">
                   <AvatarImage src="/placeholder.svg?height=32&width=32" alt="User" />
-                  <AvatarFallback className="bg-asm-navy text-asm-light-gold text-xs">{userName}</AvatarFallback>
+                  <AvatarFallback className="bg-gaia-navy text-gaia-light text-xs">{userName}</AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>

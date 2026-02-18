@@ -146,7 +146,7 @@ function buildTemplate(
 
       return (
         `Buen día estimado estudiante: *${nombre}*\n\n` +
-        `Le damos una cordial bienvenida a la familia *American School of Management*, le envío el siguiente mensaje para dejar constancia de su registro como alumno y confirmar datos:\n\n` +
+        `Le damos una cordial bienvenida a la familia *Gaia Business School*, le envío el siguiente mensaje para dejar constancia de su registro como alumno y confirmar datos:\n\n` +
         `📱 *Teléfono móvil:* ${tel}\n` +
         `📧 *Correo electrónico personal:* ${correo}\n` +
         `📋 *Programa:* ${programa}\n` +
@@ -171,30 +171,30 @@ function buildTemplate(
         `Así mismo es importante que tome en cuenta que su fecha para taller de integración es (participación indispensable):\n` +
         `📅 *Fecha de sesión de inducción (obligatoria):*\n\n` +
         `Si aún no nos sigues en nuestras redes sociales te invitamos a hacerlo, no olvides interactuar en nuestras publicaciones.\n` +
-        `🔗 https://linktr.ee/american_school_of_management`
+        `🔗 https://linktr.ee/gaia_business_school`
       )
     }
 
     case "bienvenida":
-      return `¡Hola ${nombre}! 🎓\n\nLe damos la más cordial bienvenida a *American School of Management*.\n\nHa sido inscrito/a en el programa: *${programa}*.\n\nSoy ${asesor}, su asesor/a académico/a y estaré a su disposición para cualquier consulta o apoyo que necesite durante su proceso.\n\n📞 No dude en contactarme.\n📧 contabilidad@american-edu.com\n\n¡Le deseamos mucho éxito! 🌟`
+      return `¡Hola ${nombre}! 🎓\n\nLe damos la más cordial bienvenida a *Gaia Business School*.\n\nHa sido inscrito/a en el programa: *${programa}*.\n\nSoy ${asesor}, su asesor/a académico/a y estaré a su disposición para cualquier consulta o apoyo que necesite durante su proceso.\n\n📞 No dude en contactarme.\n📧 contabilidad@gaia-edu.com\n\n¡Le deseamos mucho éxito! 🌟`
 
     case "inscripcion_completa":
-      return `¡Hola ${nombre}! ✅\n\nLe informamos que su proceso de inscripción en *American School of Management* ha sido completado exitosamente.\n\n📋 *Programa:* ${programa}\n👤 *Asesor:* ${asesor}\n\n*Próximos pasos:*\n1. Recibirá sus credenciales de acceso a la plataforma virtual.\n2. Se le compartirá el calendario académico.\n3. Le notificaremos la fecha de inicio de clases.\n\nPara cualquier consulta, no dude en contactarnos.\n📧 contabilidad@american-edu.com\n📱 WhatsApp: +502 4169-8467\n\n¡Bienvenido/a! 🎉`
+      return `¡Hola ${nombre}! ✅\n\nLe informamos que su proceso de inscripción en *Gaia Business School* ha sido completado exitosamente.\n\n📋 *Programa:* ${programa}\n👤 *Asesor:* ${asesor}\n\n*Próximos pasos:*\n1. Recibirá sus credenciales de acceso a la plataforma virtual.\n2. Se le compartirá el calendario académico.\n3. Le notificaremos la fecha de inicio de clases.\n\nPara cualquier consulta, no dude en contactarnos.\n📧 contabilidad@gaia-edu.com\n📱 WhatsApp: +502 4169-8467\n\n¡Bienvenido/a! 🎉`
 
     case "recordatorio_documentos":
-      return `Hola ${nombre}, buenos días. 📄\n\nLe escribimos de *American School of Management* para recordarle que tiene documentos pendientes de entrega para completar su expediente.\n\n📋 *Programa:* ${programa}\n\n*Documentos que puede tener pendientes:*\n• DPI (ambos lados)\n• Recibo de servicios\n• Título o diploma\n• Fotografía reciente\n• Cierre de pensum\n\nPuede enviarlos por este medio o entregarlos en nuestras oficinas.\n\n📍 3ra calle 9-39, zona 1, Torre Tigo, 6to nivel, oficina 610.\n\nQuedo atento/a. Saludos,\n${asesor}`
+      return `Hola ${nombre}, buenos días. 📄\n\nLe escribimos de *Gaia Business School* para recordarle que tiene documentos pendientes de entrega para completar su expediente.\n\n📋 *Programa:* ${programa}\n\n*Documentos que puede tener pendientes:*\n• DPI (ambos lados)\n• Recibo de servicios\n• Título o diploma\n• Fotografía reciente\n• Cierre de pensum\n\nPuede enviarlos por este medio o entregarlos en nuestras oficinas.\n\n📍 3ra calle 9-39, zona 1, Torre Tigo, 6to nivel, oficina 610.\n\nQuedo atento/a. Saludos,\n${asesor}`
 
     case "credenciales":
-      return `¡Hola ${nombre}! 🔑\n\nLe compartimos sus credenciales de acceso a la plataforma de *American School of Management*:\n\n🌐 *Plataforma:* ${plataforma || "campus.american-edu.com"}\n📧 *Usuario:* [Se enviará por correo]\n🔒 *Contraseña:* [Se enviará por correo]\n\n*Instrucciones:*\n1. Ingrese a la plataforma con las credenciales proporcionadas.\n2. Cambie su contraseña en el primer inicio de sesión.\n3. Complete su perfil con sus datos actualizados.\n\nSi tiene algún problema de acceso, contácteme directamente.\n\nSaludos,\n${asesor}\n📱 WhatsApp: +502 4169-8467`
+      return `¡Hola ${nombre}! 🔑\n\nLe compartimos sus credenciales de acceso a la plataforma de *Gaia Business School*:\n\n🌐 *Plataforma:* ${plataforma || "campus.gaia-edu.com"}\n📧 *Usuario:* [Se enviará por correo]\n🔒 *Contraseña:* [Se enviará por correo]\n\n*Instrucciones:*\n1. Ingrese a la plataforma con las credenciales proporcionadas.\n2. Cambie su contraseña en el primer inicio de sesión.\n3. Complete su perfil con sus datos actualizados.\n\nSi tiene algún problema de acceso, contácteme directamente.\n\nSaludos,\n${asesor}\n📱 WhatsApp: +502 4169-8467`
 
     case "inicio_clases":
-      return `¡Hola ${nombre}! 📚\n\nLe informamos sobre el inicio de clases en *American School of Management*.\n\n📋 *Programa:* ${programa}\n📅 *Fecha de inicio:* ${fechaInicio || "[Por confirmar]"}\n🕐 *Horario:* [Por confirmar]\n📍 *Modalidad:* Virtual / Presencial\n\n*Recomendaciones:*\n• Tener acceso a internet estable.\n• Revisar la plataforma antes del primer día.\n• Tener a mano sus credenciales de acceso.\n\nPara cualquier consulta, estoy a sus órdenes.\n\nSaludos,\n${asesor}`
+      return `¡Hola ${nombre}! 📚\n\nLe informamos sobre el inicio de clases en *Gaia Business School*.\n\n📋 *Programa:* ${programa}\n📅 *Fecha de inicio:* ${fechaInicio || "[Por confirmar]"}\n🕐 *Horario:* [Por confirmar]\n📍 *Modalidad:* Virtual / Presencial\n\n*Recomendaciones:*\n• Tener acceso a internet estable.\n• Revisar la plataforma antes del primer día.\n• Tener a mano sus credenciales de acceso.\n\nPara cualquier consulta, estoy a sus órdenes.\n\nSaludos,\n${asesor}`
 
     case "personalizado":
       return ""
 
     default:
-      return `Hola ${nombre}, le escribimos de American School of Management. Saludos, ${asesor}.`
+      return `Hola ${nombre}, le escribimos de Gaia Business School. Saludos, ${asesor}.`
   }
 }
 

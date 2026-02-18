@@ -75,7 +75,7 @@ export async function downloadExcelTemplate(
 
   // ── Crear workbook y worksheet ───────────────────────────────
   const workbook = new ExcelJS.Workbook()
-  workbook.creator = "American School of Management"
+  workbook.creator = "Gaia Business School"
   workbook.created = new Date()
 
   const ws = workbook.addWorksheet("Datos", {
@@ -87,7 +87,7 @@ export async function downloadExcelTemplate(
   const titleRow = ws.getRow(1)
   ws.mergeCells(1, 1, 1, cols.length)
   const titleCell = ws.getCell(1, 1)
-  titleCell.value = `Plantilla de Importación — American School of Management  |  ⚠️ IMPORTANTE: BORRE LA FILA 3 (ejemplo), LA FILA 1 Y LA HOJA "Instrucciones" ANTES DE IMPORTAR  |  Columnas: ${cols.length}  |  ${new Date().toLocaleDateString("es-GT")}`
+  titleCell.value = `Plantilla de Importación — Gaia Business School  |  ⚠️ IMPORTANTE: BORRE LA FILA 3 (ejemplo), LA FILA 1 Y LA HOJA "Instrucciones" ANTES DE IMPORTAR  |  Columnas: ${cols.length}  |  ${new Date().toLocaleDateString("es-GT")}`
   titleCell.font = { size: 10, bold: true, italic: true, color: { argb: "FFCC0000" } }
   titleCell.fill = {
     type: "pattern",

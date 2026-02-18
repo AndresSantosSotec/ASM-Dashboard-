@@ -22,7 +22,7 @@ export function buildEmailTemplate(type: ContactTemplateType, context: TemplateC
             <p>Para evitar inconvenientes con su acceso a la plataforma, le solicitamos ponerse al día con sus pagos a la brevedad posible.</p>
             <p>Si ya realizó el pago, por favor ignore este mensaje.</p>
             <br>
-            <p>Saludos cordiales,<br>Equipo Financiero ASM</p>
+            <p>Saludos cordiales,<br>Equipo Financiero GBS</p>
           </div>
         `
       }
@@ -37,7 +37,7 @@ export function buildEmailTemplate(type: ContactTemplateType, context: TemplateC
             <p>Programa: ${programa || 'No especificado'}</p>
             <p>Para evitar recargos por mora, le recomendamos realizar el pago antes de la fecha de vencimiento.</p>
             <br>
-            <p>Saludos cordiales,<br>Equipo Financiero ASM</p>
+            <p>Saludos cordiales,<br>Equipo Financiero GBS</p>
           </div>
         `
       }
@@ -52,7 +52,7 @@ export function buildEmailTemplate(type: ContactTemplateType, context: TemplateC
             ${monto ? `<p>Monto pendiente: <strong>Q${monto.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</strong></p>` : ''}
             <p>Si tiene alguna consulta sobre su estado de cuenta, no dude en contactarnos.</p>
             <br>
-            <p>Saludos cordiales,<br>Equipo Financiero ASM</p>
+            <p>Saludos cordiales,<br>Equipo Financiero GBS</p>
           </div>
         `
       }
@@ -69,15 +69,15 @@ export function buildWhatsAppText(type: ContactTemplateType, context: TemplateCo
 
   switch (type) {
     case 'overdue':
-      return `Hola ${nombre}, le recordamos que tiene un pago atrasado de Q${monto?.toLocaleString('es-GT', { minimumFractionDigits: 2 }) || '0.00'} del programa ${programa || 'académico'}. Por favor póngase al día para evitar inconvenientes. Si ya pagó, ignore este mensaje. Saludos, ASM.`
+      return `Hola ${nombre}, le recordamos que tiene un pago atrasado de Q${monto?.toLocaleString('es-GT', { minimumFractionDigits: 2 }) || '0.00'} del programa ${programa || 'académico'}. Por favor póngase al día para evitar inconvenientes. Si ya pagó, ignore este mensaje. Saludos, Gaia Business School.`
     
     case 'due_soon':
-      return `Hola ${nombre}, su pago de Q${monto?.toLocaleString('es-GT', { minimumFractionDigits: 2 }) || '0.00'} del programa ${programa || 'académico'} vence el ${fecha || 'próximamente'}. Le recomendamos pagar antes del vencimiento para evitar recargos. Saludos, ASM.`
+      return `Hola ${nombre}, su pago de Q${monto?.toLocaleString('es-GT', { minimumFractionDigits: 2 }) || '0.00'} del programa ${programa || 'académico'} vence el ${fecha || 'próximamente'}. Le recomendamos pagar antes del vencimiento para evitar recargos. Saludos, Gaia Business School.`
     
     case 'reminder':
-      return `Hola ${nombre}, recordatorio para mantener al día sus pagos del programa ${programa || 'académico'}. ${monto ? `Monto pendiente: Q${monto.toLocaleString('es-GT', { minimumFractionDigits: 2 })}. ` : ''}Para consultas, contáctenos. Saludos, ASM.`
+      return `Hola ${nombre}, recordatorio para mantener al día sus pagos del programa ${programa || 'académico'}. ${monto ? `Monto pendiente: Q${monto.toLocaleString('es-GT', { minimumFractionDigits: 2 })}. ` : ''}Para consultas, contáctenos. Saludos, Gaia Business School.`
     
     default:
-      return `Hola ${nombre}, le recordamos sobre su pago pendiente. Saludos, ASM.`
+      return `Hola ${nombre}, le recordamos sobre su pago pendiente. Saludos, Gaia Business School.`
   }
 }

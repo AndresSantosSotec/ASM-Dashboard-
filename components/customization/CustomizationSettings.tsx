@@ -17,9 +17,9 @@ export function CustomizationSettings() {
 
   const [formData, setFormData] = useState({
     organization_name: customization?.organization_name || "",
-    primary_color: customization?.primary_color || "#3B82F6",
-    secondary_color: customization?.secondary_color || "#A48644",
-    accent_color: customization?.accent_color || "#EBDDB7",
+    primary_color: customization?.primary_color || "#0E2B49",
+    secondary_color: customization?.secondary_color || "#7E162B",
+    accent_color: customization?.accent_color || "#F2F2F2",
     dark_mode_enabled: customization?.dark_mode_enabled || false,
     description: customization?.description || "",
   });

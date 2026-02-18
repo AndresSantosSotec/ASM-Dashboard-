@@ -721,18 +721,18 @@ export default function ProfileView() {
                           </p>
                           <div className="flex flex-col gap-2 text-sm">
                             <a 
-                              href="mailto:informatica@american-edu.com" 
+                              href="mailto:informatica@gaia-edu.com" 
                               className="flex items-center gap-2 text-yellow-800 hover:text-yellow-900 underline"
                             >
                               <Mail className="h-4 w-4" />
-                              informatica@american-edu.com
+                              informatica@gaia-edu.com
                             </a>
                             <a 
-                              href="mailto:soporte@american-edu.com" 
+                              href="mailto:soporte@gaia-edu.com" 
                               className="flex items-center gap-2 text-yellow-800 hover:text-yellow-900 underline"
                             >
                               <Mail className="h-4 w-4" />
-                              soporte@american-edu.com
+                              soporte@gaia-edu.com
                             </a>
                             <a 
                               href="https://wa.me/50247629787/" 

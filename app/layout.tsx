@@ -10,7 +10,7 @@ import { Toaster } from "@/components/ui/toaster"
 
 
 export const metadata: Metadata = {
-  title: "American School of Management",
+  title: "Gaia Business School",
   description: "Sistema de Gestión Académica",
   icons: {
     icon: [
@@ -39,8 +39,8 @@ export default function RootLayout({
         <Suspense fallback={
           <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-[#0c1220]">
             <div className="flex flex-col items-center gap-3">
-              <div className="w-10 h-10 border-3 border-asm-medium-gold/30 border-t-asm-medium-gold rounded-full animate-spin" />
-              <p className="text-sm text-asm-navy/60 dark:text-asm-light-gold/50 font-medium">Cargando...</p>
+              <div className="w-10 h-10 border-3 border-gaia-wine/30 border-t-gaia-wine rounded-full animate-spin" />
+              <p className="text-sm text-gaia-navy/60 dark:text-gaia-light/50 font-medium">Cargando...</p>
             </div>
           </div>
         }>

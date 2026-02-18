@@ -1,6 +1,6 @@
 {
-  "name": "American School of Management",
-  "short_name": "ASM",
+  "name": "Gaia Business School",
+  "short_name": "GBS",
   "description": "Sistema de Gestión Académica",
   "start_url": "/webpanel/dashboard",
   "display": "standalone",

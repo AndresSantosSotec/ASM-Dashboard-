@@ -2,7 +2,7 @@ import MiPerfilView from "@/components/mi-perfil/mi-perfil-view"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Mi Perfil | ASM Dashboard",
+  title: "Mi Perfil | Gaia Business School",
   description: "Gestión de perfil y seguridad de cuenta",
 }
 

@@ -131,7 +131,7 @@ export default function NotificationBell() {
         <Button
           variant="ghost"
           size="icon"
-          className="relative text-asm-navy dark:text-asm-light-gold hover:bg-asm-light-gold/10 hover:text-asm-navy dark:hover:bg-asm-medium-gold/20 dark:hover:text-asm-light-gold"
+          className="relative text-gaia-navy dark:text-gaia-light hover:bg-gaia-light/10 hover:text-gaia-navy dark:hover:bg-gaia-wine/20 dark:hover:text-gaia-light"
           aria-label="Notificaciones"
         >
           <Bell className="h-5 w-5" />

@@ -334,13 +334,13 @@ export default function ReciboPagoGenerator({
       </head>
       <body>
         <div class="logo-bar">
-          <img src="${headerSrc}" alt="American School of Management" />
+          <img src="${headerSrc}" alt="Gaia Business School" />
         </div>
         <div class="gold-line"></div>
         <div class="header">
-          <h1>AMERICAN</h1>
-          <p style="font-size: 8pt; letter-spacing: 2px;">SCHOOL OF MANAGEMENT</p>
-          <p><strong>American School of Management</strong></p>
+          <h1>GAIA</h1>
+          <p style="font-size: 8pt; letter-spacing: 2px;">BUSINESS SCHOOL</p>
+          <p><strong>Gaia Business School</strong></p>
           <p>Torre Tigo, Km. 9.5 Carretera al Salvador, Oficina 6C</p>
           <p>Cel. 5486-2301</p>
         </div>

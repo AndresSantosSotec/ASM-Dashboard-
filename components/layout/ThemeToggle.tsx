@@ -50,7 +50,7 @@ export function ThemeToggle() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 text-asm-navy dark:text-asm-light-gold hover:bg-asm-light-gold/10"
+                className="h-9 w-9 text-gaia-navy dark:text-gaia-light hover:bg-gaia-light/10"
               >
                 {currentIcon}
                 <span className="sr-only">Cambiar tema</span>

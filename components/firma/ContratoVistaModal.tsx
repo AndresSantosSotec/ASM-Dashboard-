@@ -195,7 +195,7 @@ export default function ContratoVistaModal({
                 <p>
                   Yo: <strong>{contrato.datos_contrato?.nombre_completo || contrato.prospecto?.nombre_completo}</strong> me comprometo a mantener
                   de manera estrictamente confidencial los precios corporativos otorgados por
-                  American School of Management para cursar mi programa de:<br/>
+                  Gaia Business School para cursar mi programa de:<br/>
                   <strong>{contrato.datos_contrato?.programa || 'N/A'}</strong>
                 </p>
 
@@ -227,7 +227,7 @@ export default function ContratoVistaModal({
                 </p>
 
                 <p>
-                  Finalmente, autorizo a American School of Management a utilizar mis
+                  Finalmente, autorizo a Gaia Business School a utilizar mis
                   fotografías para fines de colaboración institucional en materiales
                   impresos o digitales.
                 </p>
@@ -250,7 +250,7 @@ export default function ContratoVistaModal({
                 </p>
 
                 <p>
-                  En American School of Management, los estudiantes se comprometen a la
+                  En Gaia Business School, los estudiantes se comprometen a la
                   excelencia académica desde el inicio de su programa. Se fomenta la búsqueda
                   de altos promedios para obtener menciones honoríficas:
                 </p>
@@ -268,7 +268,7 @@ export default function ContratoVistaModal({
                   Asimismo, acepto que al realizar los pagos correspondientes a las
                   mensualidades y gastos adicionales, me comprometo a enviar las boletas
                   únicamente a las siguientes direcciones:
-                  <strong> contabilidad@american-edu.com</strong> o a los números de WhatsApp
+                  <strong> contabilidad@gaia-edu.com</strong> o a los números de WhatsApp
                   <strong> +502 4169-8467</strong> o <strong>+502 4138-1907</strong>. Se
                   exceptúa el pago de inscripción, el cual deberá ser remitido directamente
                   al asesor educativo. Está prohibido enviar boletas a direcciones distintas

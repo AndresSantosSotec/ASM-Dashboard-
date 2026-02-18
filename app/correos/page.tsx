@@ -43,23 +43,23 @@ const plantillasCorreo = [
   {
     id: 1,
     nombre: "Bienvenida",
-    asunto: "Bienvenido a American School of Management",
+    asunto: "Bienvenido a Gaia Business School",
     cuerpo:
-      "Estimado/a [nombre],\n\nEs un placer darle la bienvenida a American School of Management. Estamos emocionados de tenerle como parte de nuestra comunidad educativa...\n\nSaludos cordiales,\nEquipo ASM",
+      "Estimado/a [nombre],\n\nEs un placer darle la bienvenida a Gaia Business School. Estamos emocionados de tenerle como parte de nuestra comunidad educativa...\n\nSaludos cordiales,\nEquipo GBS",
   },
   {
     id: 2,
     nombre: "Seguimiento",
     asunto: "Seguimiento a su interés en nuestros programas",
     cuerpo:
-      "Estimado/a [nombre],\n\nEsperamos que se encuentre bien. Nos comunicamos para dar seguimiento a su interés en nuestros programas académicos...\n\nQuedamos atentos,\nEquipo ASM",
+      "Estimado/a [nombre],\n\nEsperamos que se encuentre bien. Nos comunicamos para dar seguimiento a su interés en nuestros programas académicos...\n\nQuedamos atentos,\nEquipo GBS",
   },
   {
     id: 3,
     nombre: "Información de matrícula",
     asunto: "Información sobre proceso de matrícula",
     cuerpo:
-      "Estimado/a [nombre],\n\nA continuación le compartimos la información detallada sobre nuestro proceso de matrícula...\n\nSaludos cordiales,\nEquipo ASM",
+      "Estimado/a [nombre],\n\nA continuación le compartimos la información detallada sobre nuestro proceso de matrícula...\n\nSaludos cordiales,\nEquipo GBS",
   },
 ]
 

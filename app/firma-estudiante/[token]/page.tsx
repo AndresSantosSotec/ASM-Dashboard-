@@ -274,7 +274,7 @@ export default function FirmaEstudiantePage() {
 
               <p>
                 Me comprometo a mantener de manera estrictamente confidencial los
-                precios corporativos otorgados por American School of Management para
+                precios corporativos otorgados por Gaia Business School para
                 cursar mi programa de:
               </p>
 
@@ -325,7 +325,7 @@ export default function FirmaEstudiantePage() {
               </p>
 
               <p>
-                Finalmente, autorizo a American School of Management a utilizar mis
+                Finalmente, autorizo a Gaia Business School a utilizar mis
                 fotografías para fines de colaboración institucional.
               </p>
 
@@ -403,7 +403,7 @@ export default function FirmaEstudiantePage() {
 
         {/* Footer */}
         <div className="mt-6 text-center text-sm text-gray-500">
-          <p>American School of Management</p>
+          <p>Gaia Business School</p>
           <p>Contrato generado el {new Date(contrato.fecha_envio).toLocaleDateString('es-GT')}</p>
         </div>
       </div>

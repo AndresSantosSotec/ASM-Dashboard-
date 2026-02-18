@@ -467,7 +467,7 @@ export default function FirmarContratoPage() {
                   <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.fecha_inicio}</p>
                 </div>
                 <div className="p-3 border-b border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">¿Cómo conoció ASM?</p>
+                  <p className="text-xs font-bold text-[#1e264d]">¿Cómo conoció GBS?</p>
                   <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.medio_conocio}</p>
                 </div>
               </div>
@@ -654,7 +654,7 @@ export default function FirmarContratoPage() {
 
             <p className="text-justify">
               Me comprometo a mantener de manera estrictamente confidencial los
-              precios corporativos otorgados por American School of Management para
+              precios corporativos otorgados por Gaia Business School para
               cursar mi programa de:
             </p>
 
@@ -711,7 +711,7 @@ export default function FirmarContratoPage() {
             </p>
 
             <p className="text-justify">
-              Finalmente, autorizo a American School of Management a utilizar mis
+              Finalmente, autorizo a Gaia Business School a utilizar mis
               fotografías para fines de colaboración institucional.
             </p>
 

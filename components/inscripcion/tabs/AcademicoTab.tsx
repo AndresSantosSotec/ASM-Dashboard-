@@ -382,7 +382,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
         {/* Medio conoció */}
         <div className="space-y-2">
           <Label>
-            ¿Cómo conoció ASM? <RequiredAsterisk />
+            ¿Cómo conoció GBS? <RequiredAsterisk />
           </Label>
           <Select
             value={datos.medioConocio}

@@ -19,103 +19,103 @@ body {
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 232 65% 26%;
-    /* Based on #213362 */
+    --foreground: 211 68% 17%;
+    /* #0E2B49 - Gaia navy */
     --card: 0 0% 100%;
-    --card-foreground: 232 65% 26%;
-    /* Based on #213362 */
+    --card-foreground: 211 68% 17%;
+    /* #0E2B49 */
     --popover: 0 0% 100%;
-    --popover-foreground: 232 65% 26%;
-    /* Based on #213362 */
-    --primary: 232 65% 26%;
-    /* #213362 - navy blue */
-    --primary-foreground: 45 50% 82%;
-    /* #EBDDB7 - light gold */
-    --secondary: 45 50% 82%;
-    /* #EBDDB7 - light gold */
-    --secondary-foreground: 232 65% 26%;
-    --muted: 45 50% 82%;
-    /* #EBDDB7 - light gold */
-    --muted-foreground: 232 65% 26%;
-    --accent: 43 36% 52%;
-    /* #B7A053 - medium gold */
-    --accent-foreground: 232 65% 26%;
+    --popover-foreground: 211 68% 17%;
+    /* #0E2B49 */
+    --primary: 211 68% 17%;
+    /* #0E2B49 - Azul Marino */
+    --primary-foreground: 0 0% 95%;
+    /* #F2F2F2 - Gris Claro */
+    --secondary: 0 0% 95%;
+    /* #F2F2F2 - Gris Claro */
+    --secondary-foreground: 211 68% 17%;
+    --muted: 0 0% 96%;
+    /* light gray muted */
+    --muted-foreground: 211 40% 40%;
+    --accent: 348 70% 29%;
+    /* #7E162B - Rojo Tinto */
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 43 36% 52%;
-    /* #B7A053 - medium gold */
-    --input: 43 36% 52%;
-    /* #B7A053 - medium gold */
-    --ring: 232 65% 26%;
-    /* #213362 - navy blue */
-    --chart-1: 43 36% 52%;
-    /* #B7A053 - medium gold */
-    --chart-2: 41 41% 45%;
-    /* #A48644 - darker gold */
-    --chart-3: 232 65% 26%;
-    /* #213362 - navy blue */
-    --chart-4: 45 50% 82%;
-    /* #EBDDB7 - light gold */
-    --chart-5: 244 76% 12%;
-    /* #10072F - very dark navy */
+    --border: 211 20% 80%;
+    /* subtle navy-tinted border */
+    --input: 211 20% 80%;
+    /* subtle navy-tinted input border */
+    --ring: 211 68% 17%;
+    /* #0E2B49 - navy ring */
+    --chart-1: 348 70% 29%;
+    /* #7E162B - Rojo Tinto */
+    --chart-2: 211 68% 17%;
+    /* #0E2B49 - Navy */
+    --chart-3: 211 50% 40%;
+    /* medium blue */
+    --chart-4: 348 50% 45%;
+    /* lighter red */
+    --chart-5: 211 80% 10%;
+    /* dark navy */
     --radius: 0.625rem;
-    --sidebar-background: 232 65% 26%;
-    /* #213362 - navy blue */
-    --sidebar-foreground: 45 50% 82%;
-    /* #EBDDB7 - light gold */
-    --sidebar-primary: 43 36% 52%;
-    /* #B7A053 - medium gold */
+    --sidebar-background: 211 68% 17%;
+    /* #0E2B49 - Azul Marino */
+    --sidebar-foreground: 0 0% 95%;
+    /* #F2F2F2 - Gris Claro */
+    --sidebar-primary: 348 70% 29%;
+    /* #7E162B - Rojo Tinto */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 45 50% 82%;
-    /* #EBDDB7 - light gold */
-    --sidebar-accent-foreground: 232 65% 26%;
-    /* #213362 - navy blue */
-    --sidebar-border: 43 36% 52%;
-    /* #B7A053 - medium gold */
-    --sidebar-ring: 43 36% 52%;
-    /* #B7A053 - medium gold */
+    --sidebar-accent: 211 60% 25%;
+    /* lighter navy accent */
+    --sidebar-accent-foreground: 0 0% 95%;
+    /* #F2F2F2 */
+    --sidebar-border: 211 40% 30%;
+    /* navy-tinted border */
+    --sidebar-ring: 348 70% 29%;
+    /* #7E162B - Rojo Tinto */
   }
 
   .dark {
-    --background: 220 40% 13%;
-    /* #141e2e - dark blue comfortable */
+    --background: 211 60% 10%;
+    /* #0a1929 - dark navy */
     --foreground: 210 20% 90%;
-    /* #e1e6ed - soft white-blue */
-    --card: 220 38% 16%;
-    /* #1a2744 - card dark blue */
+    /* #e1e6ed - soft white */
+    --card: 211 55% 13%;
+    /* #0f2236 - card dark navy */
     --card-foreground: 210 20% 90%;
-    /* #e1e6ed - soft white-blue */
-    --popover: 220 38% 16%;
-    /* #1a2744 - popover dark blue */
+    /* soft white */
+    --popover: 211 55% 13%;
+    /* dark navy popover */
     --popover-foreground: 210 20% 90%;
-    /* #e1e6ed - soft white-blue */
-    --primary: 43 50% 55%;
-    /* #c9a94d - warm gold */
-    --primary-foreground: 220 40% 13%;
-    /* dark background */
-    --secondary: 220 35% 22%;
-    /* #253552 - medium dark blue */
+    /* soft white */
+    --primary: 348 70% 38%;
+    /* lighter rojo tinto for dark mode */
+    --primary-foreground: 0 0% 95%;
+    /* #F2F2F2 */
+    --secondary: 211 50% 20%;
+    /* medium dark navy */
     --secondary-foreground: 210 20% 90%;
-    /* #e1e6ed - soft white-blue */
-    --muted: 220 35% 20%;
-    /* #1f2f48 - muted dark blue */
-    --muted-foreground: 210 15% 70%;
-    /* #a8b3c0 - muted text */
-    --accent: 43 45% 50%;
-    /* #b99a3d - golden accent */
-    --accent-foreground: 210 20% 95%;
+    /* soft white */
+    --muted: 211 45% 18%;
+    /* muted dark navy */
+    --muted-foreground: 210 15% 65%;
+    /* muted text */
+    --accent: 348 60% 40%;
+    /* rojo tinto accent */
+    --accent-foreground: 0 0% 95%;
     /* light text */
     --destructive: 0 65% 45%;
     /* softer red */
     --destructive-foreground: 210 20% 95%;
-    --border: 220 30% 28%;
-    /* #3a4a66 - subtle border */
-    --input: 220 30% 25%;
-    /* #2f3f5a - input bg */
-    --ring: 43 50% 55%;
-    /* gold ring */
-    --chart-1: 43 50% 55%;
-    /* gold */
+    --border: 211 35% 25%;
+    /* subtle navy border */
+    --input: 211 35% 22%;
+    /* input bg */
+    --ring: 348 70% 38%;
+    /* rojo tinto ring */
+    --chart-1: 348 70% 38%;
+    /* rojo tinto */
     --chart-2: 200 60% 50%;
     /* blue accent */
     --chart-3: 160 50% 45%;
@@ -124,20 +124,20 @@ body {
     /* purple */
     --chart-5: 30 60% 50%;
     /* orange */
-    --sidebar-background: 220 42% 11%;
-    /* #0f1825 - darker sidebar */
-    --sidebar-foreground: 210 20% 88%;
-    /* soft white-blue */
-    --sidebar-primary: 43 50% 55%;
-    /* gold */
-    --sidebar-primary-foreground: 220 40% 13%;
-    --sidebar-accent: 220 35% 20%;
-    /* accent blue */
-    --sidebar-accent-foreground: 210 20% 90%;
-    --sidebar-border: 220 30% 25%;
-    /* subtle border */
-    --sidebar-ring: 43 50% 55%;
-    /* gold */
+    --sidebar-background: 211 70% 10%;
+    /* #081b2e - darker sidebar */
+    --sidebar-foreground: 0 0% 92%;
+    /* near white */
+    --sidebar-primary: 348 70% 38%;
+    /* rojo tinto */
+    --sidebar-primary-foreground: 0 0% 95%;
+    --sidebar-accent: 211 50% 18%;
+    /* accent navy */
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 211 40% 22%;
+    /* subtle navy border */
+    --sidebar-ring: 348 70% 38%;
+    /* rojo tinto */
   }
 }
 
@@ -190,42 +190,26 @@ body {
    PREMIUM SIDEBAR STYLES
    ============================================ */
 
-/* Sidebar gradient — depth + subtle noise feel */
-.asm-gradient {
-  background: linear-gradient(180deg, #1a2a52 0%, #152040 40%, #10072f 100%);
-  position: relative;
+/* Sidebar solid background — Gaia Business School branding */
+.gaia-sidebar-bg {
+  background: #0E2B49;
 }
 
-/* Subtle noise overlay on sidebar */
-.asm-gradient::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at 50% 0%, rgba(183, 160, 83, 0.06) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.asm-gradient>* {
-  position: relative;
-  z-index: 1;
-}
-
-.asm-gold-gradient {
-  background: linear-gradient(135deg, #ebddb7 0%, #B7A053 50%, #a48644 100%);
+.gaia-wine-bg {
+  background: #7E162B;
 }
 
 /* Sidebar item base */
-.asm-sidebar-item {
+.gaia-sidebar-item {
   @apply transition-all duration-200 rounded-lg;
 }
 
-.asm-sidebar-item:hover {
-  @apply bg-asm-medium-gold/20;
+.gaia-sidebar-item:hover {
+  @apply bg-gaia-wine/20;
 }
 
-.asm-sidebar-item.active {
-  @apply bg-asm-medium-gold text-white font-medium;
+.gaia-sidebar-item.active {
+  @apply bg-gaia-wine text-white font-medium;
 }
 
 /* Active link indicator bar */
@@ -241,7 +225,7 @@ body {
   transform: translateY(-50%);
   width: 3px;
   height: 60%;
-  background: linear-gradient(180deg, #EBDDB7, #B7A053);
+  background: #7E162B;
   border-radius: 0 4px 4px 0;
   animation: indicatorSlideIn 0.3s ease-out;
 }
@@ -273,9 +257,9 @@ body {
   height: 200%;
   background: linear-gradient(45deg,
       transparent 30%,
-      rgba(235, 221, 183, 0.08) 45%,
-      rgba(183, 160, 83, 0.12) 50%,
-      rgba(235, 221, 183, 0.08) 55%,
+      rgba(242, 242, 242, 0.05) 45%,
+      rgba(126, 22, 43, 0.08) 50%,
+      rgba(242, 242, 242, 0.05) 55%,
       transparent 70%);
   animation: shimmer 4s ease-in-out infinite;
   pointer-events: none;
@@ -325,7 +309,7 @@ body {
 /* Separator line with gradient */
 .sidebar-separator {
   height: 1px;
-  background: linear-gradient(90deg, transparent 0%, rgba(183, 160, 83, 0.3) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(242, 242, 242, 0.2) 50%, transparent 100%);
   margin: 0.5rem 1rem;
 }
 
@@ -333,15 +317,15 @@ body {
    PREMIUM CARD STYLES
    ============================================ */
 
-.asm-card {
-  @apply border border-asm-medium-gold/20 shadow-sm transition-all duration-300;
+.gaia-card {
+  @apply border border-gaia-wine/20 shadow-sm transition-all duration-300;
   border-radius: var(--radius);
 }
 
-.asm-card:hover {
+.gaia-card:hover {
   @apply shadow-lg;
   transform: translateY(-1px);
-  border-color: rgba(183, 160, 83, 0.35);
+  border-color: rgba(126, 22, 43, 0.35);
 }
 
 /* Glassmorphism card */
@@ -349,48 +333,48 @@ body {
   background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(183, 160, 83, 0.15);
+  border: 1px solid rgba(126, 22, 43, 0.15);
   border-radius: var(--radius);
 }
 
 .dark .glass-card {
-  background: rgba(26, 39, 68, 0.6);
-  border-color: rgba(183, 160, 83, 0.1);
+  background: rgba(14, 43, 73, 0.6);
+  border-color: rgba(126, 22, 43, 0.1);
 }
 
 /* ============================================
    PREMIUM BUTTON STYLES
    ============================================ */
 
-.asm-button {
-  @apply bg-asm-navy text-asm-light-gold transition-all duration-200;
+.gaia-button {
+  @apply bg-gaia-navy text-gaia-light transition-all duration-200;
   position: relative;
   overflow: hidden;
 }
 
-.asm-button:hover {
-  @apply bg-asm-navy/90;
+.gaia-button:hover {
+  @apply bg-gaia-navy/90;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(33, 51, 98, 0.3);
+  box-shadow: 0 4px 12px rgba(14, 43, 73, 0.3);
 }
 
-.asm-button:active {
+.gaia-button:active {
   transform: translateY(0);
 }
 
-.asm-gold-button {
-  @apply bg-asm-medium-gold text-white transition-all duration-200;
+.gaia-wine-button {
+  @apply bg-gaia-wine text-white transition-all duration-200;
   position: relative;
   overflow: hidden;
 }
 
-.asm-gold-button:hover {
-  @apply bg-asm-dark-gold;
+.gaia-wine-button:hover {
+  @apply bg-gaia-wine-dark;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(183, 160, 83, 0.35);
+  box-shadow: 0 4px 12px rgba(126, 22, 43, 0.35);
 }
 
-.asm-gold-button:active {
+.gaia-wine-button:active {
   transform: translateY(0);
 }
 
@@ -402,12 +386,12 @@ body {
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(16px) saturate(180%);
   -webkit-backdrop-filter: blur(16px) saturate(180%);
-  border-bottom: 1px solid rgba(183, 160, 83, 0.15);
+  border-bottom: 1px solid rgba(14, 43, 73, 0.12);
 }
 
 .dark .header-glass {
-  background: rgba(16, 7, 47, 0.75);
-  border-bottom-color: rgba(183, 160, 83, 0.1);
+  background: rgba(14, 43, 73, 0.75);
+  border-bottom-color: rgba(242, 242, 242, 0.08);
 }
 
 /* ============================================
@@ -527,7 +511,7 @@ body {
   }
 
   .hamburger-btn:hover {
-    background-color: rgba(183, 160, 83, 0.1);
+    background-color: rgba(14, 43, 73, 0.1);
   }
 
   .hamburger-btn:active {
@@ -604,7 +588,7 @@ body {
 /* Firefox scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(183, 160, 83, 0.25) transparent;
+  scrollbar-color: rgba(14, 43, 73, 0.2) transparent;
 }
 
 /* Webkit scrollbar (Chrome, Safari, Edge) */
@@ -618,24 +602,24 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(183, 160, 83, 0.25);
+  background: rgba(126, 22, 43, 0.25);
   border-radius: 100px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(183, 160, 83, 0.45);
+  background: rgba(126, 22, 43, 0.45);
 }
 
 /* Sidebar-specific scrollbar */
-.asm-gradient::-webkit-scrollbar-thumb {
-  background: rgba(235, 221, 183, 0.15);
+.gaia-sidebar-bg::-webkit-scrollbar-thumb {
+  background: rgba(242, 242, 242, 0.15);
 }
 
-.asm-gradient::-webkit-scrollbar-thumb:hover {
-  background: rgba(235, 221, 183, 0.3);
+.gaia-sidebar-bg::-webkit-scrollbar-thumb:hover {
+  background: rgba(242, 242, 242, 0.3);
 }
 
-.asm-gradient::-webkit-scrollbar-track {
+.gaia-sidebar-bg::-webkit-scrollbar-track {
   background: transparent;
 }
 
@@ -649,27 +633,27 @@ body {
 .dark .rdt_TableCol,
 .dark .rdt_TableCell,
 .dark .rdt_TableBody {
-  background-color: hsl(220, 38%, 16%) !important;
+  background-color: hsl(211, 55%, 13%) !important;
   color: hsl(210, 20%, 90%) !important;
 }
 
 .dark .rdt_TableHeadRow {
-  background-color: hsl(220, 35%, 22%) !important;
-  border-bottom-color: hsl(220, 30%, 28%) !important;
+  background-color: hsl(211, 50%, 18%) !important;
+  border-bottom-color: hsl(211, 40%, 25%) !important;
 }
 
 .dark .rdt_TableRow {
-  border-bottom-color: hsl(220, 30%, 28%) !important;
+  border-bottom-color: hsl(211, 40%, 25%) !important;
 }
 
 .dark .rdt_TableRow:hover {
-  background-color: hsl(220, 35%, 25%) !important;
+  background-color: hsl(211, 45%, 20%) !important;
 }
 
 .dark .rdt_Pagination {
-  background-color: hsl(220, 38%, 16%) !important;
+  background-color: hsl(211, 55%, 13%) !important;
   color: hsl(210, 20%, 90%) !important;
-  border-top-color: hsl(220, 30%, 28%) !important;
+  border-top-color: hsl(211, 40%, 25%) !important;
 }
 
 .dark .rdt_Pagination button {
@@ -683,9 +667,9 @@ body {
 }
 
 .dark .rdt_Pagination select {
-  background-color: hsl(220, 35%, 22%) !important;
+  background-color: hsl(211, 50%, 18%) !important;
   color: hsl(210, 20%, 90%) !important;
-  border-color: hsl(220, 30%, 28%) !important;
+  border-color: hsl(211, 40%, 25%) !important;
 }
 
 /* DataTable wrapper and container */
@@ -703,7 +687,7 @@ body {
 
 /* No data component */
 .dark .rdt_Table>div:not(.rdt_TableHead):not(.rdt_TableBody) {
-  background-color: hsl(220, 38%, 16%) !important;
+  background-color: hsl(211, 55%, 13%) !important;
   color: hsl(210, 20%, 90%) !important;
 }
 
@@ -711,37 +695,37 @@ body {
    DARK MODE - General table elements
    ============================================ */
 .dark table {
-  background-color: hsl(220, 38%, 16%);
+  background-color: hsl(211, 55%, 13%);
   color: hsl(210, 20%, 90%);
 }
 
 .dark thead {
-  background-color: hsl(220, 35%, 22%);
+  background-color: hsl(211, 50%, 18%);
 }
 
 .dark th {
   color: hsl(210, 20%, 90%);
-  border-color: hsl(220, 30%, 28%);
+  border-color: hsl(211, 40%, 25%);
 }
 
 .dark td {
-  border-color: hsl(220, 30%, 28%);
+  border-color: hsl(211, 40%, 25%);
 }
 
 .dark tbody tr:hover {
-  background-color: hsl(220, 35%, 25%);
+  background-color: hsl(211, 45%, 20%);
 }
 
 /* ============================================
    DARK MODE - Cards and containers
    ============================================ */
 .dark .bg-white {
-  background-color: hsl(220, 38%, 16%) !important;
+  background-color: hsl(211, 55%, 13%) !important;
 }
 
 .dark .bg-gray-50,
 .dark .bg-gray-100 {
-  background-color: hsl(220, 35%, 20%) !important;
+  background-color: hsl(211, 45%, 16%) !important;
 }
 
 .dark .text-gray-900,
@@ -757,7 +741,7 @@ body {
 
 .dark .border-gray-200,
 .dark .border-gray-300 {
-  border-color: hsl(220, 30%, 28%) !important;
+  border-color: hsl(211, 35%, 25%) !important;
 }
 
 /* ============================================
@@ -766,9 +750,9 @@ body {
 .dark input:not([type="checkbox"]):not([type="radio"]),
 .dark textarea,
 .dark select {
-  background-color: hsl(220, 35%, 20%) !important;
+  background-color: hsl(211, 45%, 16%) !important;
   color: hsl(210, 20%, 90%) !important;
-  border-color: hsl(220, 30%, 28%) !important;
+  border-color: hsl(211, 35%, 25%) !important;
 }
 
 .dark input::placeholder,
@@ -779,9 +763,9 @@ body {
 .dark input:focus,
 .dark textarea:focus,
 .dark select:focus {
-  border-color: hsl(43, 50%, 55%) !important;
-  outline-color: hsl(43, 50%, 55%) !important;
-  box-shadow: 0 0 0 2px hsl(43, 50%, 55%, 0.2) !important;
+  border-color: hsl(348, 70%, 38%) !important;
+  outline-color: hsl(348, 70%, 38%) !important;
+  box-shadow: 0 0 0 2px hsl(348, 70%, 38%, 0.2) !important;
 }
 
 /* Dark mode labels */
@@ -794,13 +778,13 @@ body {
    ============================================ */
 .dark [role="dialog"],
 .dark [data-radix-popper-content-wrapper] {
-  background-color: hsl(220, 38%, 16%);
+  background-color: hsl(211, 55%, 13%);
   color: hsl(210, 20%, 90%);
 }
 
 .dark .DialogContent,
 .dark [class*="DialogContent"] {
-  background-color: hsl(220, 38%, 16%) !important;
+  background-color: hsl(211, 55%, 13%) !important;
 }
 
 /* ============================================
@@ -809,8 +793,8 @@ body {
 .dark [role="listbox"],
 .dark [role="menu"],
 .dark [data-radix-menu-content] {
-  background-color: hsl(220, 35%, 22%) !important;
-  border-color: hsl(220, 30%, 28%) !important;
+  background-color: hsl(211, 50%, 18%) !important;
+  border-color: hsl(211, 35%, 25%) !important;
 }
 
 .dark [role="option"],
@@ -821,7 +805,7 @@ body {
 .dark [role="option"]:hover,
 .dark [role="menuitem"]:hover,
 .dark [data-highlighted] {
-  background-color: hsl(220, 35%, 28%) !important;
+  background-color: hsl(211, 45%, 22%) !important;
 }
 
 /* ============================================
@@ -829,7 +813,7 @@ body {
    ============================================ */
 .dark .badge,
 .dark [class*="Badge"] {
-  border-color: hsl(220, 30%, 35%) !important;
+  border-color: hsl(211, 35%, 30%) !important;
 }
 
 /* ============================================
@@ -838,7 +822,7 @@ body {
 /* Firefox scrollbar for dark mode */
 .dark * {
   scrollbar-width: thin;
-  scrollbar-color: hsl(220, 30%, 30%) transparent;
+  scrollbar-color: hsl(211, 35%, 28%) transparent;
 }
 
 /* Webkit scrollbar for dark mode */
@@ -852,23 +836,23 @@ body {
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: hsl(220, 30%, 30%);
+  background: hsl(211, 35%, 28%);
   border-radius: 100px;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: hsl(220, 30%, 40%);
+  background: hsl(211, 35%, 38%);
 }
 
 /* ============================================
    DARK MODE - Override Tailwind bg-white
    ============================================ */
 .dark .bg-white:not([class*="data-[state=checked]"]) {
-  background-color: hsl(220, 38%, 16%) !important;
+  background-color: hsl(211, 55%, 13%) !important;
 }
 
 .dark .bg-white\/80 {
-  background-color: hsla(220, 38%, 16%, 0.9) !important;
+  background-color: hsla(211, 55%, 13%, 0.9) !important;
 }
 
 /* Override text colors in dark containers */
@@ -886,13 +870,13 @@ body {
 /* Border colors in dark mode */
 .dark .border-gray-200,
 .dark .border-gray-100 {
-  border-color: hsl(220, 30%, 28%) !important;
+  border-color: hsl(211, 35%, 25%) !important;
 }
 
 .dark .border-indigo-100,
 .dark .border-blue-200,
 .dark .border-blue-100 {
-  border-color: hsl(220, 35%, 32%) !important;
+  border-color: hsl(211, 40%, 28%) !important;
 }
 
 .dark .border-green-200,
@@ -908,24 +892,24 @@ body {
 /* Hover states in dark mode */
 .dark .hover\:bg-gray-50:hover,
 .dark .hover\:bg-blue-50:hover {
-  background-color: hsl(220, 35%, 22%) !important;
+  background-color: hsl(211, 50%, 18%) !important;
 }
 
 /* Sticky headers in dark mode */
 .dark .sticky.bg-white {
-  background-color: hsl(220, 38%, 16%) !important;
+  background-color: hsl(211, 55%, 13%) !important;
 }
 
 /* Loading skeletons / animate-pulse in dark mode */
 .dark .animate-pulse.bg-white {
-  background-color: hsl(220, 40%, 12%) !important;
+  background-color: hsl(211, 60%, 10%) !important;
 }
 
 /* ============================================
    PREMIUM FOCUS RING
    ============================================ */
 *:focus-visible {
-  outline: 2px solid rgba(183, 160, 83, 0.5);
+  outline: 2px solid rgba(14, 43, 73, 0.4);
   outline-offset: 2px;
   border-radius: 4px;
 }

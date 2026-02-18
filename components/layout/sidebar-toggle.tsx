@@ -15,9 +15,9 @@ export default function SidebarToggle({ isOpen, onClick, className }: SidebarTog
       onClick={onClick}
       className={cn(
         "p-2 rounded-md transition-colors duration-200",
-        "text-asm-navy dark:text-asm-light-gold",
-        "hover:bg-asm-light-gold/10 dark:hover:bg-asm-medium-gold/20",
-        "focus:outline-none focus:ring-2 focus:ring-asm-medium-gold/50",
+        "text-gaia-navy dark:text-gaia-light",
+        "hover:bg-gaia-light/10 dark:hover:bg-gaia-wine/20",
+        "focus:outline-none focus:ring-2 focus:ring-gaia-wine/50",
         className,
       )}
       aria-label={isOpen ? "Cerrar menú" : "Abrir menú"}
