@@ -1,4 +1,5 @@
 "use client"
+import { jsPDF } from "jspdf"
 import React, { useState, useRef, useEffect } from "react"
 import axios from "axios"
 import { API_BASE_URL } from "@/utils/apiConfig"
@@ -217,6 +218,10 @@ export default function ReciboPagoGenerator({
     }
   }
 
+
+
+
+
   // Registrar recibo emitido en el backend
   const registrarRecibo = async () => {
     if (!recibo.reciboNo) return
@@ -233,7 +238,11 @@ export default function ReciboPagoGenerator({
       }, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
-    } catch (err) {
+    } catch (err: any) {
+      if (err.response && err.response.status === 409) {
+        console.log("Recibo ya registrado, continuando...")
+        return
+      }
       console.warn("No se pudo registrar el recibo:", err)
     } finally {
       setRegistrando(false)
@@ -260,60 +269,276 @@ export default function ReciboPagoGenerator({
 
   // Helper para resolver rutas de assets (public) con el prefix de Next.js
   const resolveAssetUrl = (path: string) => {
-    // Si estamos en producción o con basePath /webpanel, lo incluimos
+    if (path.startsWith("http")) return path
+
+    const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost"
     const prefix = "/webpanel"
+
+    if (isLocal && !path.startsWith(prefix)) {
+      return path
+    }
+
     if (path.startsWith(prefix)) return path
     return `${prefix}${path.startsWith("/") ? "" : "/"}${path}`
   }
 
-  // Convertir imagen a base64 para usar en la ventana de impresión
-  const toBase64 = (url: string): Promise<string> => {
-    const fullUrl = resolveAssetUrl(url)
-    return new Promise((resolve) => {
-      // Método 1: Usar Image + Canvas
-      const img = new Image()
-      img.crossOrigin = "anonymous"
-      img.onload = () => {
-        try {
-          const canvas = document.createElement("canvas")
-          canvas.width = img.naturalWidth
-          canvas.height = img.naturalHeight
-          const ctx = canvas.getContext("2d")
-          if (ctx) {
-            ctx.drawImage(img, 0, 0)
-            resolve(canvas.toDataURL("image/png"))
-          } else {
+  // Convertir imagen a base64 con manejo de errores robusto
+  const toBase64 = async (url: string): Promise<string> => {
+    const loadImg = (src: string): Promise<string> => {
+      return new Promise((resolve) => {
+        const img = new Image()
+        img.crossOrigin = "anonymous"
+        img.onload = () => {
+          try {
+            const canvas = document.createElement("canvas")
+            canvas.width = img.width
+            canvas.height = img.height
+            const ctx = canvas.getContext("2d")
+            if (ctx) {
+              ctx.drawImage(img, 0, 0)
+              resolve(canvas.toDataURL("image/png"))
+            } else {
+              resolve("")
+            }
+          } catch {
             resolve("")
           }
-        } catch (e) {
-          console.warn("Error canvas toDataURL:", e)
-          resolve("")
         }
+        img.onerror = () => resolve("")
+        img.src = src
+      })
+    }
+
+    let b64 = await loadImg(resolveAssetUrl(url))
+    if (b64) return b64
+
+    if (!url.startsWith("http")) {
+      const rootUrl = url.startsWith("/") ? url : `/${url}`
+      b64 = await loadImg(rootUrl)
+      if (b64) return b64
+    }
+
+    return ""
+  }
+
+  const handleDownloadPDF = async () => {
+    setIsPrinting(true)
+    try {
+      // Registrar recibo antes de descargar
+      await registrarRecibo()
+
+      // Pre-cargar logos con fallback robusto
+      const [headerLogoB64, footerLogoB64] = await Promise.all([
+        toBase64('/recursos/Logos-02.png'),
+        toBase64('/recursos/Logos_Mesa.png')
+      ])
+
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'pt',
+        format: 'letter'
+      })
+
+      // Configuración de fuentes y estilos
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(10)
+
+      // --- Header ---
+      // Logo Izquierdo
+      if (headerLogoB64) {
+        doc.addImage(headerLogoB64, 'PNG', 40, 30, 100, 40)
       }
-      img.onerror = () => {
-        // Fallback: fetch
-        fetch(fullUrl)
-          .then((r) => r.blob())
-          .then((blob) => {
-            const reader = new FileReader()
-            reader.onloadend = () => resolve(reader.result as string)
-            reader.onerror = () => resolve("")
-            reader.readAsDataURL(blob)
-          })
-          .catch((e) => {
-            console.warn("Error fetch toBase64:", e)
-            resolve("")
-          })
+
+      // Información Institucional (Centrado)
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(16)
+      doc.text("AMERICAN", 306, 50, { align: "center" })
+
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(9)
+      // LETTER SPACING SIMULADO
+      doc.text("S C H O O L   O F   M A N A G E M E N T", 306, 62, { align: "center" })
+
+      doc.setFont("helvetica", "bold")
+      doc.text("American School of Management", 306, 75, { align: "center" })
+
+      doc.setFont("helvetica", "normal")
+      doc.text("Torre Tigo, Km. 9.5 Carretera al Salvador, Oficina 6C", 306, 87, { align: "center" })
+      doc.text("Cel. 5486-2301", 306, 99, { align: "center" })
+
+      // --- Info Section ---
+      const startY = 130
+
+      // Line 1: Nit left, Recibo No right
+      doc.setFont("helvetica", "bold")
+      doc.text("Nit:", 40, startY)
+      doc.setFont("helvetica", "normal")
+      doc.text(recibo.nit || "C/F", 70, startY)
+
+      doc.setFont("helvetica", "bold")
+      doc.text('Recibo Serie "A" Nº', 380, startY)
+      doc.setTextColor(200, 0, 0) // Red
+      doc.setFontSize(12)
+      doc.text(recibo.reciboNo || "", 500, startY)
+      doc.setTextColor(0, 0, 0) // Black
+      doc.setFontSize(10)
+
+      // Line 2: Fecha left, Total right
+      const line2Y = startY + 20
+      doc.setFont("helvetica", "bold")
+      doc.text("Fecha", 40, line2Y)
+      doc.setFont("helvetica", "normal")
+      const formattedDate = new Date(recibo.fecha + "T12:00:00").toLocaleDateString("es-GT", { day: "2-digit", month: "2-digit", year: "numeric" })
+      doc.text(formattedDate, 80, line2Y)
+
+      doc.setFont("helvetica", "bold")
+      doc.text("Q", 480, line2Y)
+      doc.setFont("helvetica", "normal")
+      // Alineando a la derecha
+      const totalStr = parseFloat(recibo.total).toFixed(2)
+      doc.text(totalStr, 520, line2Y)
+
+      // Line 3: Recibimos de
+      const line3Y = line2Y + 20
+      doc.setFont("helvetica", "bold")
+      doc.text("Recibimos de:", 40, line3Y)
+      doc.setFont("helvetica", "normal")
+      doc.text(recibo.recibidoDe || "", 120, line3Y)
+
+      // Line 4: Cantidad de
+      const line4Y = line3Y + 20
+      doc.setFont("helvetica", "bold")
+      doc.text("La cantidad de:", 40, line4Y)
+      doc.setFont("helvetica", "normal")
+      doc.text(recibo.cantidadLetras || "", 125, line4Y)
+
+      // --- Table ---
+      let tableY = line4Y + 25
+      const colWidth1 = 400
+      const colWidth2 = 132
+      const rowHeight = 20
+
+      // Header Table
+      doc.setLineWidth(1)
+      doc.rect(40, tableY, colWidth1 + colWidth2, rowHeight) // Border header
+      doc.line(40 + colWidth1, tableY, 40 + colWidth1, tableY + rowHeight) // Split header
+
+      doc.setFont("helvetica", "bold")
+      doc.text("Concepto", 40 + (colWidth1 + colWidth2) / 2, tableY + 14, { align: "center" })
+
+      tableY += rowHeight
+
+      // Rows
+      const concepts = [
+        { label: "Matrícula", value: recibo.matricula },
+        { label: "Mensualidad", value: recibo.mensualidad },
+        { label: "Mora", value: recibo.mora },
+        { label: "Graduación", value: recibo.graduacion },
+        { label: "Títulos", value: recibo.titulos },
+        { label: "Proyecto de Grado", value: recibo.proyectoGrado },
+        { label: "Otros:", value: recibo.otros },
+      ]
+
+      doc.setFont("helvetica", "normal")
+      concepts.forEach((item) => {
+        doc.rect(40, tableY, colWidth1 + colWidth2, rowHeight) // Outer border
+        doc.line(40 + colWidth1, tableY, 40 + colWidth1, tableY + rowHeight) // Split col
+
+        doc.text(item.label, 45, tableY + 14)
+        const valStr = `Q. ${item.value ? parseFloat(item.value).toFixed(2) : "________"}`
+        // Right align text in second col
+        // Column starts at 40+colWidth1 (440). Width is 132. End is 572.
+        // We want to align maybe at 560
+        doc.text(valStr, 560, tableY + 14, { align: "right" })
+
+        tableY += rowHeight
+      })
+
+      // --- Payment Section ---
+      let footerY = tableY + 20
+
+      doc.setFont("helvetica", "bold")
+      doc.text("Mes que cancela:", 40, footerY)
+      doc.setFont("helvetica", "normal")
+      doc.text(recibo.mesQueCancela || "________________", 130, footerY)
+
+      footerY += 20
+      doc.setFont("helvetica", "bold")
+      doc.text("Forma de pago:", 40, footerY)
+
+      // Checkboxes
+      const payOptions = ["Efectivo", "Tarjeta", "Cheque", "Boleta"]
+      let checkX = 130
+      payOptions.forEach(opt => {
+        const isSelected = recibo.formaPago === opt
+        doc.setDrawColor(0)
+
+        // Draw square
+        if (isSelected) {
+          doc.setFillColor(230, 230, 230)
+          doc.rect(checkX, footerY - 10, 60, 15, "FD")
+          doc.setFont("helvetica", "bold")
+        } else {
+          doc.rect(checkX, footerY - 10, 60, 15)
+          doc.setFont("helvetica", "normal")
+        }
+
+        doc.text(opt, checkX + 30, footerY + 1, { align: "center" })
+        checkX += 70
+      })
+
+      footerY += 25
+      doc.setFont("helvetica", "bold")
+      doc.text("Fecha de pago:", 40, footerY)
+      doc.setFont("helvetica", "normal")
+      doc.text(new Date(recibo.fechaPago + "T12:00:00").toLocaleDateString("es-GT", { day: "2-digit", month: "2-digit", year: "numeric" }), 120, footerY)
+
+      footerY += 20
+      doc.setFont("helvetica", "bold")
+      doc.text("No. De Boleta/cheque/otro:", 40, footerY)
+      doc.setFont("helvetica", "normal")
+      doc.text(recibo.noBoleta || "________________", 180, footerY)
+
+      footerY += 20
+      doc.setFont("helvetica", "bold")
+      doc.text("Banco:", 40, footerY)
+      doc.setFont("helvetica", "normal")
+      doc.text(recibo.banco || "________________", 90, footerY)
+
+      footerY += 25
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "bold")
+      doc.text(`Total Q. ${parseFloat(recibo.total).toFixed(2)}`, 40, footerY)
+
+      footerY += 30
+      doc.setFontSize(9)
+      doc.setFont("helvetica", "bold")
+      doc.text("No hacemos devoluciones de pago.", 40, footerY)
+
+      // Signature area (Right aligned)
+      doc.line(350, footerY, 550, footerY) // Line
+      doc.setFont("helvetica", "normal")
+      doc.text("Firma y nombre de quien recibe", 450, footerY + 12, { align: "center" })
+
+      // Footer Logo
+      if (footerLogoB64) {
+        doc.addImage(footerLogoB64, 'PNG', 260, footerY + 30, 100, 30)
       }
-      img.src = fullUrl
-    })
+
+      doc.save(`Recibo-${recibo.reciboNo}.pdf`)
+
+    } catch (e) {
+      console.error("Error al generar PDF:", e)
+    } finally {
+      setIsPrinting(false)
+    }
   }
 
   const handlePrint = async () => {
     // Registrar recibo antes de imprimir
     await registrarRecibo()
 
-    // Pre-cargar logos como base64
+    // Pre-cargar logos
     const [headerLogoB64, footerLogoB64] = await Promise.all([
       toBase64('/recursos/Logos-02.png'),
       toBase64('/recursos/Logos_Mesa.png')
@@ -322,6 +547,7 @@ export default function ReciboPagoGenerator({
     const printWindow = window.open("", "_blank")
     if (!printWindow) return
 
+    // Fallback: si toBase64 falló (string vacío), usar ruta directa
     const headerSrc = headerLogoB64 || resolveAssetUrl("/recursos/Logos-02.png")
     const footerSrc = footerLogoB64 || resolveAssetUrl("/recursos/Logos_Mesa.png")
 
@@ -658,12 +884,12 @@ export default function ReciboPagoGenerator({
           <div className="flex gap-2 w-full sm:w-auto">
             <Button
               variant="outline"
-              onClick={handlePrint}
+              onClick={handleDownloadPDF}
               className="flex-1 sm:flex-none border-blue-800 text-blue-800 hover:bg-blue-50"
               disabled={registrando || !recibo.reciboNo || isPrinting}
             >
               <Download className="h-4 w-4 mr-2" />
-              {isPrinting ? "Cargando..." : "Descargar Recibo"}
+              {isPrinting ? "Generando PDF..." : "Descargar Recibo"}
             </Button>
             <Button
               onClick={handlePrint}
@@ -675,7 +901,7 @@ export default function ReciboPagoGenerator({
               ) : (
                 <Printer className="h-4 w-4 mr-2" />
               )}
-              {isPrinting ? "Preparando..." : "Imprimir Recibo"}
+              {isPrinting ? "Imprimiendo..." : "Imprimir Recibo"}
             </Button>
           </div>
         </DialogFooter>
