@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { FileText, Printer, Copy, Loader2, RefreshCw, Download } from "lucide-react"
+import { FileText, Printer, Copy, Loader2, RefreshCw, Download, AlertTriangle } from "lucide-react"
 
 const BANCOS = [
   "Banco Industrial",
@@ -130,6 +130,8 @@ export default function ReciboPagoGenerator({
   const printRef = useRef<HTMLDivElement>(null)
   const [generandoNumero, setGenerandoNumero] = useState(false)
   const [registrando, setRegistrando] = useState(false)
+  const [isPrinting, setIsPrinting] = useState(false)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
   // Mapear forma de pago del sistema al recibo
   const mapFormaPago = (fp?: string): "Efectivo" | "Tarjeta" | "Cheque" | "Boleta" => {
@@ -172,7 +174,7 @@ export default function ReciboPagoGenerator({
       const newData: ReciboData = {
         ...recibo,
         recibidoDe: studentName || recibo.recibidoDe,
-        nit: recibo.nit,
+        nit: nit || recibo.nit,
         matricula: matriculaVal,
         mensualidad: mensualidadVal,
         formaPago: mapFormaPago(formaPago),
@@ -268,7 +270,7 @@ export default function ReciboPagoGenerator({
   const toBase64 = (url: string): Promise<string> => {
     const fullUrl = resolveAssetUrl(url)
     return new Promise((resolve) => {
-      // Método 1: Usar Image + Canvas (más compatible)
+      // Método 1: Usar Image + Canvas
       const img = new Image()
       img.crossOrigin = "anonymous"
       img.onload = () => {
@@ -283,12 +285,13 @@ export default function ReciboPagoGenerator({
           } else {
             resolve("")
           }
-        } catch {
+        } catch (e) {
+          console.warn("Error canvas toDataURL:", e)
           resolve("")
         }
       }
       img.onerror = () => {
-        // Método 2: Intentar con fetch como fallback
+        // Fallback: fetch
         fetch(fullUrl)
           .then((r) => r.blob())
           .then((blob) => {
@@ -297,18 +300,20 @@ export default function ReciboPagoGenerator({
             reader.onerror = () => resolve("")
             reader.readAsDataURL(blob)
           })
-          .catch(() => resolve(""))
+          .catch((e) => {
+            console.warn("Error fetch toBase64:", e)
+            resolve("")
+          })
       }
       img.src = fullUrl
     })
   }
 
   const handlePrint = async () => {
-    if (!printRef.current) return
     // Registrar recibo antes de imprimir
     await registrarRecibo()
 
-    // Pre-cargar logos como base64 para que estén disponibles inmediatamente en la ventana de impresión
+    // Pre-cargar logos como base64
     const [headerLogoB64, footerLogoB64] = await Promise.all([
       toBase64('/recursos/Logos-02.png'),
       toBase64('/recursos/Logos_Mesa.png')
@@ -317,8 +322,6 @@ export default function ReciboPagoGenerator({
     const printWindow = window.open("", "_blank")
     if (!printWindow) return
 
-    // URL absoluta como fallback si base64 falla
-    const origin = window.location.origin
     const headerSrc = headerLogoB64 || resolveAssetUrl("/recursos/Logos-02.png")
     const footerSrc = footerLogoB64 || resolveAssetUrl("/recursos/Logos_Mesa.png")
 
@@ -326,120 +329,93 @@ export default function ReciboPagoGenerator({
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Recibo de Pago - ${recibo.reciboNo}</title>
+        <title>Recibo - ${recibo.reciboNo}</title>
         <style>
           @page { size: letter; margin: 1cm 1.5cm; }
-          body { font-family: 'Times New Roman', serif; font-size: 10pt; color: #000; margin: 0; padding: 15px; }
-          .logo-bar { background: linear-gradient(90deg, #1e264d 0%, #26335b 100%); padding: 8px 15px; margin: -15px -15px 0 -15px; text-align: left; display: flex; align-items: center; }
-          .logo-bar img { height: 38px; width: auto; display: block; }
-          .gold-line { height: 2px; background: #b08b4f; margin: 0 -15px 8px -15px; }
-          .header { text-align: center; margin-bottom: 10px; }
-          .header h1 { font-size: 13pt; margin: 0; font-weight: bold; }
-          .header p { margin: 1px 0; font-size: 9pt; }
-          .footer-logos { margin-top: 15px; text-align: center; border-top: 1px solid #1e264d; padding-top: 5px; }
-          .footer-logos img { height: 28px; width: auto; }
-          .info-row { display: flex; justify-content: space-between; margin: 3px 0; }
-          .info-row span { font-size: 10pt; }
-          .concepto-table { width: 100%; border-collapse: collapse; margin: 8px 0; }
-          .concepto-table th { text-align: center; font-weight: bold; border: 1px solid #000; padding: 3px; font-size: 10pt; }
-          .concepto-table td { border: 1px solid #000; padding: 2px 8px; font-size: 10pt; }
-          .concepto-table td:last-child { text-align: right; width: 100px; }
-          .pago-section { margin-top: 8px; }
-          .pago-row { display: flex; gap: 10px; margin: 2px 0; font-size: 10pt; }
-          .forma-pago { display: flex; gap: 15px; margin: 4px 0; }
-          .forma-pago span { border: 1px solid #000; padding: 2px 10px; font-size: 9pt; }
-          .forma-pago span.selected { background: #ddd; font-weight: bold; }
-          .total-row { font-weight: bold; font-size: 12pt; margin-top: 6px; }
-          .firma { margin-top: 25px; text-align: right; }
-          .firma-line { border-top: 1px solid #000; width: 180px; margin-left: auto; margin-top: 25px; padding-top: 3px; text-align: center; font-size: 9pt; }
-          .no-devolucion { font-size: 8pt; font-weight: bold; margin-top: 8px; }
+          body { font-family: 'Arial', sans-serif; font-size: 10pt; color: #000; margin: 0; padding: 20px; }
+          .header-container { position: relative; text-align: center; margin-bottom: 20px; }
+          .header-logo { position: absolute; left: 0; top: 0; height: 50px; }
+          .header-info h1 { font-size: 14pt; margin: 0; font-weight: bold; }
+          .header-info p { margin: 1px 0; font-size: 8.5pt; }
+          .data-line { margin: 4px 0; line-height: 1.4; }
+          .data-row { display: flex; justify-content: space-between; margin: 4px 0; }
+          .concepto-table { width: 100%; border-collapse: collapse; margin: 15px 0; border: 1.2px solid #000; }
+          .concepto-table th { border: 1.2px solid #000; padding: 4px; font-weight: bold; text-align: center; background: #fff; }
+          .concepto-table td { border: 1.2px solid #000; padding: 3px 10px; }
+          .amount-cell { text-align: right; width: 130px; }
+          .payment-grid { display: flex; gap: 15px; margin: 10px 0; align-items: center; }
+          .payment-option { border: 1px solid #000; padding: 2px 12px; font-size: 9pt; min-width: 70px; text-align: center; }
+          .payment-option.selected { background: #eee; font-weight: bold; }
+          .signature-box { margin-top: 50px; text-align: right; }
+          .signature-line { border-top: 1px solid #000; width: 220px; margin-left: auto; text-align: center; padding-top: 5px; font-size: 9pt; }
+          .footer-logos { margin-top: 40px; text-align: center; }
+          .footer-logos img { height: 35px; }
+          .no-devolucion { font-size: 8pt; font-weight: bold; margin-top: 10px; }
+          @media print {
+            .payment-option.selected { background-color: #ddd !important; -webkit-print-color-adjust: exact; }
+          }
         </style>
       </head>
-      <body>
-        <div class="logo-bar">
-          <img src="${headerSrc}" alt="American School of Management" />
+      <body onload="setTimeout(function(){ window.print(); window.close(); }, 800)">
+        <div class="header-container">
+          <img src="${headerSrc}" class="header-logo" alt="Logo" />
+          <div class="header-info">
+            <h1>AMERICAN</h1>
+            <p style="letter-spacing: 2px;">SCHOOL OF MANAGEMENT</p>
+            <p><strong>American School of Management</strong></p>
+            <p>Torre Tigo, Km. 9.5 Carretera al Salvador, Oficina 6C</p>
+            <p>Cel. 5486-2301</p>
+          </div>
         </div>
-        <div class="gold-line"></div>
-        <div class="header">
-          <h1>AMERICAN</h1>
-          <p style="font-size: 8pt; letter-spacing: 2px;">SCHOOL OF MANAGEMENT</p>
-          <p><strong>American School of Management</strong></p>
-          <p>Torre Tigo, Km. 9.5 Carretera al Salvador, Oficina 6C</p>
-          <p>Cel. 5486-2301</p>
+
+        <div class="data-line"><strong>Nit:</strong> ${recibo.nit || "C/F"}</div>
+        <div class="data-line"><strong>Recibo Serie "A"</strong> Nº <strong style="color: red; font-size: 12pt;">${recibo.reciboNo}</strong></div>
+        <div class="data-row">
+          <span><strong>Fecha</strong> ${new Date(recibo.fecha + "T12:00:00").toLocaleDateString("es-GT")}</span>
+          <span style="font-weight: bold;">Q${parseFloat(recibo.total).toFixed(2)}</span>
         </div>
-        
-        <div class="info-row">
-          <span><strong>Nit:</strong> ${recibo.nit}</span>
-        </div>
-        <div class="info-row">
-          <span><strong>Recibo Serie "A"</strong> Nº <strong style="color: red; font-size: 12pt;">${recibo.reciboNo}</strong></span>
-        </div>
-        <div class="info-row">
-          <span><strong>Fecha</strong> ${new Date(recibo.fecha + "T12:00:00").toLocaleDateString("es-GT", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
-          <span><strong>Q</strong>${recibo.total}</span>
-        </div>
-        <div class="info-row">
-          <span><strong>Recibimos de:</strong> ${recibo.recibidoDe}</span>
-        </div>
-        <div class="info-row">
-          <span><strong>La cantidad de:</strong> ${recibo.cantidadLetras}</span>
-        </div>
+        <div class="data-line"><strong>Recibimos de:</strong> ${recibo.recibidoDe}</div>
+        <div class="data-line"><strong>La cantidad de:</strong> ${recibo.cantidadLetras}</div>
 
         <table class="concepto-table">
           <thead><tr><th colspan="2">Concepto</th></tr></thead>
           <tbody>
-            <tr><td>Matrícula</td><td>Q. ${recibo.matricula || "________"}</td></tr>
-            <tr><td>Mensualidad</td><td>Q. ${recibo.mensualidad || "________"}</td></tr>
-            <tr><td>Mora</td><td>Q. ${recibo.mora || "________"}</td></tr>
-            <tr><td>Graduación</td><td>Q. ${recibo.graduacion || "________"}</td></tr>
-            <tr><td>Títulos</td><td>Q. ${recibo.titulos || "________"}</td></tr>
-            <tr><td>Proyecto de Grado</td><td>Q. ${recibo.proyectoGrado || "________"}</td></tr>
-            <tr><td>Otros:</td><td>Q. ${recibo.otros || "________"}</td></tr>
+            <tr><td>Matrícula</td><td class="amount-cell">Q. ${recibo.matricula || "________"}</td></tr>
+            <tr><td>Mensualidad</td><td class="amount-cell">Q. ${recibo.mensualidad || "________"}</td></tr>
+            <tr><td>Mora</td><td class="amount-cell">Q. ${recibo.mora || "________"}</td></tr>
+            <tr><td>Graduación</td><td class="amount-cell">Q. ${recibo.graduacion || "________"}</td></tr>
+            <tr><td>Títulos</td><td class="amount-cell">Q. ${recibo.titulos || "________"}</td></tr>
+            <tr><td>Proyecto de Grado</td><td class="amount-cell">Q. ${recibo.proyectoGrado || "________"}</td></tr>
+            <tr><td>Otros:</td><td class="amount-cell">Q. ${recibo.otros || "________"}</td></tr>
           </tbody>
         </table>
 
-        <div class="pago-section">
-          <div class="pago-row"><strong>Mes que cancela:</strong> ${recibo.mesQueCancela}</div>
-          <p style="margin:2px 0;"><strong>Forma de pago:</strong></p>
-          <div class="forma-pago">
-            <span class="${recibo.formaPago === "Efectivo" ? "selected" : ""}">Efectivo</span>
-            <span class="${recibo.formaPago === "Tarjeta" ? "selected" : ""}">Tarjeta</span>
-            <span class="${recibo.formaPago === "Cheque" ? "selected" : ""}">Cheque</span>
-            <span class="${recibo.formaPago === "Boleta" ? "selected" : ""}">Boleta</span>
-          </div>
-          <div class="pago-row"><strong>Fecha de pago:</strong> ${new Date(recibo.fechaPago + "T12:00:00").toLocaleDateString("es-GT", { day: "2-digit", month: "2-digit", year: "numeric" })}</div>
-          <div class="pago-row"><strong>No. De Boleta/cheque/otro:</strong> ${recibo.noBoleta}</div>
-          <div class="pago-row"><strong>Banco:</strong> ${recibo.banco}</div>
-          <div class="total-row">Total Q. ${recibo.total}</div>
+        <div class="data-line"><strong>Mes que cancela:</strong> ${recibo.mesQueCancela || "________________"}</div>
+        <div style="margin-top: 10px;"><strong>Forma de pago:</strong></div>
+        <div class="payment-grid">
+          <div class="payment-option ${recibo.formaPago === "Efectivo" ? "selected" : ""}">Efectivo</div>
+          <div class="payment-option ${recibo.formaPago === "Tarjeta" ? "selected" : ""}">Tarjeta</div>
+          <div class="payment-option ${recibo.formaPago === "Cheque" ? "selected" : ""}">Cheque</div>
+          <div class="payment-option ${recibo.formaPago === "Boleta" ? "selected" : ""}">Boleta</div>
         </div>
+        <div class="data-line" style="margin-top: 10px;"><strong>Fecha de pago:</strong> ${new Date(recibo.fechaPago + "T12:00:00").toLocaleDateString("es-GT")}</div>
+        <div class="data-line"><strong>No. De Boleta/cheque/otro:</strong> ${recibo.noBoleta || "________________"}</div>
+        <div class="data-line"><strong>Banco:</strong> ${recibo.banco || "________________"}</div>
+        <div style="font-weight: bold; margin-top: 10px; font-size: 11pt;">Total Q. ${parseFloat(recibo.total).toFixed(2)}</div>
 
         <p class="no-devolucion">No hacemos devoluciones de pago.</p>
-        <div class="firma">
-          <div class="firma-line">Firma y nombre de quien recibe</div>
+        
+        <div class="signature-box">
+          <div class="signature-line">Firma y nombre de quien recibe</div>
         </div>
+
         <div class="footer-logos">
-          <img src="${footerSrc}" alt="Logos institucionales" />
+          <img src="${footerSrc}" alt="Footer" />
         </div>
       </body>
       </html>
     `)
     printWindow.document.close()
-    // Esperar a que las imágenes carguen antes de imprimir
-    const images = printWindow.document.querySelectorAll('img')
-    const loadPromises = Array.from(images).map(img => {
-      if (img.complete) return Promise.resolve()
-      return new Promise<void>((resolve) => {
-        img.onload = () => resolve()
-        img.onerror = () => resolve() // Continuar aunque falle una imagen
-      })
-    })
-    await Promise.all(loadPromises)
-    // Pequeño delay para asegurar renderizado
-    await new Promise(r => setTimeout(r, 300))
-    printWindow.onafterprint = () => printWindow.close()
-    printWindow.print()
-    // Cerrar el diálogo después de imprimir
-    onOpenChange(false)
   }
 
   return (
@@ -454,49 +430,60 @@ export default function ReciboPagoGenerator({
 
         <div className="flex flex-col gap-6">
           {/* Vista Previa del Recibo (Visualización) */}
-          <div className="border rounded-lg bg-white shadow-inner p-6 overflow-hidden hidden md:block select-none scale-[0.85] origin-top border-asm-medium-gold/20">
-            <div className="bg-gradient-to-r from-[#1e264d] to-[#26335b] p-3 -mx-6 -mt-6 mb-4 flex items-center">
+          <div className="border rounded-lg bg-white shadow-inner p-6 overflow-hidden hidden md:block select-none scale-[0.85] origin-top border-gray-200">
+            <div className="relative text-center mb-6">
               <img
                 src={resolveAssetUrl("/recursos/Logos-02.png")}
                 alt="ASM Logo"
-                className="h-8 w-auto"
+                className="absolute left-0 top-0 h-12 w-auto"
                 onError={(e) => (e.currentTarget.style.display = "none")}
               />
-            </div>
-            <div className="h-0.5 bg-[#b08b4f] -mx-6 mb-4"></div>
-
-            <div className="text-center mb-4">
               <h2 className="text-xl font-bold m-0 leading-tight">AMERICAN</h2>
               <p className="text-[9px] uppercase tracking-[0.2em] m-0 text-gray-500">School of Management</p>
+              <p className="text-[10px] font-bold mt-1">American School of Management</p>
+              <p className="text-[9px] text-gray-500">Torre Tigo, Km. 9.5 Carretera al Salvador, Oficina 6C</p>
+              <p className="text-[9px] text-gray-500">Cel. 5486-2301</p>
             </div>
 
-            <div className="flex justify-between items-start mb-4">
-              <div className="text-xs space-y-1">
-                <p><strong>NIT:</strong> {recibo.nit || "________________"}</p>
-                <p><strong>Recibimos de:</strong> {recibo.recibidoDe || "________________"}</p>
+            <div className="space-y-1 mb-4">
+              <p className="text-xs"><strong>Nit:</strong> {recibo.nit || "________________"}</p>
+              <p className="text-xs"><strong>Recibo Serie "A"</strong> Nº <span className="text-red-600 font-bold">{recibo.reciboNo || "0000"}</span></p>
+              <div className="flex justify-between text-xs">
+                <span><strong>Fecha:</strong> {new Date(recibo.fecha + "T12:00:00").toLocaleDateString("es-GT")}</span>
+                <span className="font-bold">Q{recibo.total || "0.00"}</span>
               </div>
-              <div className="text-right">
-                <p className="text-red-600 font-bold text-lg leading-none">NO. {recibo.reciboNo || "0000"}</p>
-                <p className="text-xs text-gray-500 mt-1">{new Date(recibo.fecha + "T12:00:00").toLocaleDateString("es-GT")}</p>
-                <p className="text-xl font-bold text-blue-900 mt-1">Q{recibo.total || "0.00"}</p>
+              <p className="text-xs"><strong>Recibimos de:</strong> {recibo.recibidoDe || "________________"}</p>
+              <p className="text-xs"><strong>La cantidad de:</strong> {recibo.cantidadLetras || "________________"}</p>
+            </div>
+
+            <div className="border border-black rounded p-0 text-xs mb-4">
+              <div className="grid grid-cols-[1fr_120px] bg-gray-50 border-b border-black font-bold">
+                <div className="p-2 border-r border-black text-center">Concepto</div>
+                <div className="p-2 text-center">Total</div>
+              </div>
+              <div className="grid grid-cols-[1fr_120px] border-b border-black">
+                <div className="p-1 px-3 border-r border-black">Matrícula:</div>
+                <div className="p-1 px-3 text-right">Q{recibo.matricula || "0.00"}</div>
+              </div>
+              <div className="grid grid-cols-[1fr_120px] border-b border-black">
+                <div className="p-1 px-3 border-r border-black">Mensualidad:</div>
+                <div className="p-1 px-3 text-right">Q{recibo.mensualidad || "0.00"}</div>
+              </div>
+              <div className="grid grid-cols-[1fr_120px] border-b border-black">
+                <div className="p-1 px-3 border-r border-black">Otros:</div>
+                <div className="p-1 px-3 text-right">Q{recibo.otros || "0.00"}</div>
+              </div>
+              <div className="grid grid-cols-[1fr_120px]">
+                <div className="p-1 px-3 border-r border-black font-bold">Total General:</div>
+                <div className="p-1 px-3 text-right font-bold">Q{recibo.total || "0.00"}</div>
               </div>
             </div>
 
-            <div className="border border-gray-200 rounded p-3 text-xs mb-4">
-              <p className="mb-2 italic text-gray-600 font-serif">"{recibo.cantidadLetras || "Cero quetzales exactos"}"</p>
-              <div className="grid grid-cols-2 gap-x-8 gap-y-1">
-                <div className="flex justify-between border-b border-gray-100"><span>Matrícula:</span> <span>Q{recibo.matricula || "0.00"}</span></div>
-                <div className="flex justify-between border-b border-gray-100"><span>Mensualidad:</span> <span>Q{recibo.mensualidad || "0.00"}</span></div>
-                <div className="flex justify-between border-b border-gray-100"><span>Mora:</span> <span>Q{recibo.mora || "0.00"}</span></div>
-                <div className="flex justify-between border-b border-gray-100"><span>Otros:</span> <span>Q{recibo.otros || "0.00"}</span></div>
-              </div>
-            </div>
-
-            <div className="text-[10px] text-center border-t border-gray-100 pt-3">
+            <div className="text-[10px] text-center pt-2">
               <img
                 src={resolveAssetUrl("/recursos/Logos_Mesa.png")}
                 alt="Footer Logos"
-                className="h-6 w-auto mx-auto mb-1 opacity-80"
+                className="h-8 w-auto mx-auto mb-1 opacity-80"
                 onError={(e) => (e.currentTarget.style.display = "none")}
               />
             </div>
@@ -642,33 +629,53 @@ export default function ReciboPagoGenerator({
           </div>
 
           {/* Total */}
-          <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
-            <span className="text-lg font-bold">Total Q.</span>
-            <span className="text-2xl font-bold text-blue-800">{recibo.total}</span>
+          <div className="flex items-center justify-between bg-blue-50 border border-blue-100 p-4 rounded-lg">
+            <span className="text-lg font-bold text-blue-900">Total Q.</span>
+            <span className="text-2xl font-black text-blue-800">
+              {parseFloat(recibo.total).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+            </span>
           </div>
         </div>
 
-        <DialogFooter className="flex flex-wrap gap-2 sm:justify-between items-center sm:gap-0">
+        <iframe
+          ref={iframeRef}
+          style={{ position: 'absolute', width: 0, height: 0, border: 'none', visibility: 'hidden' }}
+          title="Print Frame"
+        />
+
+        {registrando && (
+          <div className="mt-4 p-3 bg-blue-50 text-blue-700 rounded-md flex items-center gap-2 text-sm animate-pulse">
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            Registrando recibo en el sistema...
+          </div>
+        )}
+
+
+        <DialogFooter className="flex flex-wrap gap-2 sm:justify-between items-center sm:gap-0 mt-4">
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-gray-500 order-last sm:order-first">
-            Cancelar
+            Cerrar Ventana
           </Button>
           <div className="flex gap-2 w-full sm:w-auto">
             <Button
               variant="outline"
               onClick={handlePrint}
               className="flex-1 sm:flex-none border-blue-800 text-blue-800 hover:bg-blue-50"
-              disabled={registrando || !recibo.reciboNo}
+              disabled={registrando || !recibo.reciboNo || isPrinting}
             >
               <Download className="h-4 w-4 mr-2" />
-              Descargar PDF
+              {isPrinting ? "Cargando..." : "Descargar Recibo"}
             </Button>
             <Button
               onClick={handlePrint}
-              className="flex-1 sm:flex-none bg-blue-800 hover:bg-blue-900"
-              disabled={registrando || !recibo.reciboNo}
+              className="flex-1 sm:flex-none bg-blue-800 hover:bg-blue-900 text-white"
+              disabled={registrando || !recibo.reciboNo || isPrinting}
             >
-              {registrando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Printer className="h-4 w-4 mr-2" />}
-              {registrando ? "Registrando..." : "Imprimir"}
+              {isPrinting ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Printer className="h-4 w-4 mr-2" />
+              )}
+              {isPrinting ? "Preparando..." : "Imprimir Recibo"}
             </Button>
           </div>
         </DialogFooter>
