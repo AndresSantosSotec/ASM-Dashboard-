@@ -626,7 +626,7 @@ function ExtraRequirements() {
   return (
     <div className="mt-6 space-y-6 rounded-lg bg-blue-50 p-4">
       <h3 className="font-semibold text-blue-900">
-        Documentos adicionales requeridos para los distintos programas de ASM
+        Documentos adicionales requeridos para los distintos programas de Gaia BS
       </h3>
 
       <ScrollArea className="overflow-x-auto">

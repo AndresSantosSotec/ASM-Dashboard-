@@ -505,7 +505,7 @@ export interface EstudianteProgramaSelect {
   correo: string
   programa_nombre: string
   programa_abreviatura: string | null
-  label: string // "Juan Pérez (ASM2024123) - Bachelor of Business Administration"
+  label: string // "Juan Pérez (GBS2024123) - Bachelor of Business Administration"
 }
 
 export const getEstudiantesProgramaSelect = async (

@@ -106,7 +106,7 @@ export async function downloadExcelTemplate(
     cell.fill = {
       type: "pattern",
       pattern: "solid",
-      fgColor: { argb: "FF1E3A5F" }, // Azul oscuro ASM
+      fgColor: { argb: "FF0E2B49" }, // Azul oscuro Gaia
     }
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true }
     cell.border = {

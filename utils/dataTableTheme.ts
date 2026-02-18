@@ -7,7 +7,7 @@ let themesRegistered = false
 export function registerDataTableThemes() {
   if (themesRegistered) return
   
-  createTheme('asmDark', {
+  createTheme('gaiaDark', {
     text: {
       primary: '#e1e6ed',      // soft white-blue
       secondary: '#a8b3c0',    // muted text
@@ -23,13 +23,13 @@ export function registerDataTableThemes() {
       default: 'rgba(58, 74, 102, 0.5)',  // subtle border
     },
     button: {
-      default: '#c9a94d',      // warm gold
-      hover: 'rgba(201, 169, 77, 0.2)',
-      focus: 'rgba(201, 169, 77, 0.3)',
+      default: '#7E162B',      // Gaia wine
+      hover: 'rgba(126, 22, 43, 0.2)',
+      focus: 'rgba(126, 22, 43, 0.3)',
       disabled: 'rgba(225, 230, 237, 0.4)',
     },
     sortFocus: {
-      default: '#c9a94d',      // warm gold
+      default: '#7E162B',      // Gaia wine
     },
     highlightOnHover: {
       default: 'rgba(37, 53, 82, 0.7)',   // medium dark blue hover
@@ -49,7 +49,7 @@ registerDataTableThemes()
  * @returns El nombre del tema para DataTable
  */
 export function getDataTableTheme(resolvedTheme: string | undefined): string {
-  return resolvedTheme === 'dark' ? 'asmDark' : 'default'
+  return resolvedTheme === 'dark' ? 'gaiaDark' : 'default'
 }
 
 /**

@@ -27,7 +27,7 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }: NavbarProps) {
   const isMobile = useMobile()
   const router = useRouter()
   const { setToken } = useAuth()
-  const [userName, setUserName] = useState("ASM")
+  const [userName, setUserName] = useState("GBS")
   const [userRole, setUserRole] = useState("")
 
   useEffect(() => {

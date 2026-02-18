@@ -14,9 +14,9 @@ export const metadata: Metadata = {
   description: "Sistema de Gestión Académica",
   icons: {
     icon: [
-      { url: "/webpanel/icons/ASM.ico" },
+      { url: "/webpanel/icons/favicon.ico" },
     ],
-    shortcut: "/webpanel/icons/ASM.ico",
+    shortcut: "/webpanel/icons/favicon.ico",
   },
 }
 
@@ -28,6 +28,25 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <head>
+        {/* Prevent white flash by setting theme class before paint */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var theme = localStorage.getItem('theme');
+                  if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.style.colorScheme = 'dark';
+                  } else {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.style.colorScheme = 'light';
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -35,12 +54,12 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="font-sans antialiased">
+      <body className="font-sans antialiased bg-background text-foreground">
         <Suspense fallback={
-          <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-[#0c1220]">
+          <div className="flex items-center justify-center h-screen bg-background">
             <div className="flex flex-col items-center gap-3">
               <div className="w-10 h-10 border-3 border-gaia-wine/30 border-t-gaia-wine rounded-full animate-spin" />
-              <p className="text-sm text-gaia-navy/60 dark:text-gaia-light/50 font-medium">Cargando...</p>
+              <p className="text-sm text-foreground/60 font-medium">Cargando...</p>
             </div>
           </div>
         }>

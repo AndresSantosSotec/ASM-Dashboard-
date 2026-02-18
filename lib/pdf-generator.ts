@@ -79,10 +79,10 @@ function drawHeaderFooter(doc: jsPDF, headerImage?: string | null, footerImage?:
   const pageHeight = doc.internal.pageSize.getHeight()
 
   // Header: fondo azul institucional + logo superpuesto
-  doc.setFillColor(30, 38, 77) // #1e264d - Azul institucional ASM
+  doc.setFillColor(14, 43, 73) // #0E2B49 - Azul institucional Gaia
   doc.rect(0, 0, pageWidth, HEADER_HEIGHT, 'F')
-  // Línea dorada decorativa
-  doc.setFillColor(176, 139, 79) // #b08b4f
+  // Línea decorativa
+  doc.setFillColor(126, 22, 43) // #7E162B - Rojo tinto Gaia
   doc.rect(0, HEADER_HEIGHT - 3, pageWidth, 3, 'F')
 
   if (headerImage && headerImage.length > 0) {

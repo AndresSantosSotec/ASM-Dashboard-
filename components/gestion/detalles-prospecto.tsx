@@ -365,7 +365,7 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
                   <InfoRow icon={Hash} label="Cursos Aprobados" value={prospecto.cantidad_cursos_aprobados?.toString() || "—"} />
                 </div>
 
-                <SectionTitle icon={BookOpen} title="Programa de Interés en ASM" />
+                <SectionTitle icon={BookOpen} title="Programa de Interés en Gaia BS" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <InfoRow icon={BookOpen} label="Programa de Interés" value={programaNombre} />
                   <InfoRow icon={Clock} label="Modalidad" value={prospecto.modalidad || "—"} />
