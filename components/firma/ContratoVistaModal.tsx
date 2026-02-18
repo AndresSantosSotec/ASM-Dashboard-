@@ -26,6 +26,7 @@ interface ContratoData {
     telefono: string
     correo: string
     programa: string
+    asesor?: string
   }
   firma_asesor: string | null
   firma_estudiante: string | null
@@ -77,17 +78,17 @@ export default function ContratoVistaModal({
       if (!response.ok) throw new Error("Error al cargar el contrato")
 
       const data = await response.json()
-      
+
       console.log("=== DATOS RECIBIDOS DEL API ===", data)
       console.log("datos_contrato:", data.datos_contrato)
       console.log("firma_asesor:", data.firma_asesor?.substring(0, 50) + '...')
       console.log("firma_estudiante:", data.firma_estudiante?.substring(0, 50) + '...')
       console.log("prospecto:", data.prospecto)
       console.log("programas:", data.prospecto?.programas)
-      
+
       // datos_contrato ya viene como objeto por el cast del modelo
       // No necesita parsing
-      
+
       setContrato(data)
     } catch (error) {
       console.error("Error:", error)
@@ -195,7 +196,7 @@ export default function ContratoVistaModal({
                 <p>
                   Yo: <strong>{contrato.datos_contrato?.nombre_completo || contrato.prospecto?.nombre_completo}</strong> me comprometo a mantener
                   de manera estrictamente confidencial los precios corporativos otorgados por
-                  American School of Management para cursar mi programa de:<br/>
+                  American School of Management para cursar mi programa de:<br />
                   <strong>{contrato.datos_contrato?.programa || 'N/A'}</strong>
                 </p>
 
@@ -205,12 +206,12 @@ export default function ContratoVistaModal({
                 </p>
 
                 <p>
-                  Deseo que el cobro de mi mensualidad sea de manera automática:<br/>
+                  Deseo que el cobro de mi mensualidad sea de manera automática:<br />
                   <em>(EL COBRO SERÁ EN LOS PRIMEROS DÍAS DEL MES, APLICANDO EL PORCENTAJE DE BECA)</em>
                 </p>
 
                 <p>
-                  Confirmo que tengo:<br/>
+                  Confirmo que tengo:<br />
                   — Declaración de estar plenamente informado(a) y de acuerdo con que mi día de
                   estudio puede ser modificado durante el transcurso de la carrera, y que
                   los cursos del área común pueden variar según la programación anual.
@@ -279,6 +280,23 @@ export default function ContratoVistaModal({
                   Con pleno entendimiento y aceptación de las condiciones aquí establecidas,
                   firmo en señal de conformidad con este contrato.
                 </p>
+
+                <div className="grid grid-cols-2 gap-8 mt-12 mb-4 not-prose border-t pt-8">
+                  <div className="text-center">
+                    <div className="border-b border-black w-full max-w-[160px] mx-auto mb-2"></div>
+                    <p className="font-bold text-[10px] uppercase">
+                      {contrato.datos_contrato?.nombre_completo || contrato.prospecto?.nombre_completo}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground uppercase tracking-widest mt-1">Prospecto</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="border-b border-black w-full max-w-[160px] mx-auto mb-2"></div>
+                    <p className="font-bold text-[10px] uppercase">
+                      {contrato.datos_contrato?.asesor || "Asesor Educativo"}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground uppercase tracking-widest mt-1">Asesor Educativo</p>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -289,9 +307,9 @@ export default function ContratoVistaModal({
                 <p className="text-sm font-semibold text-gray-700 mb-2">Firma del Estudiante</p>
                 {contrato.firma_estudiante ? (
                   <div className="border rounded bg-gray-50 p-2">
-                    <img 
-                      src={contrato.firma_estudiante} 
-                      alt="Firma del estudiante" 
+                    <img
+                      src={contrato.firma_estudiante}
+                      alt="Firma del estudiante"
                       className="w-full h-32 object-contain"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none'
@@ -315,9 +333,9 @@ export default function ContratoVistaModal({
                 <p className="text-sm font-semibold text-gray-700 mb-2">Firma del Asesor</p>
                 {contrato.firma_asesor ? (
                   <div className="border rounded bg-gray-50 p-2">
-                    <img 
-                      src={contrato.firma_asesor} 
-                      alt="Firma del asesor" 
+                    <img
+                      src={contrato.firma_asesor}
+                      alt="Firma del asesor"
                       className="w-full h-32 object-contain"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none'
@@ -359,9 +377,9 @@ export default function ContratoVistaModal({
                         Authorization: `Bearer ${token}`,
                       },
                     })
-                    
+
                     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-                    
+
                     const blob = await res.blob()
                     const url = window.URL.createObjectURL(blob)
                     const a = document.createElement("a")
@@ -371,7 +389,7 @@ export default function ContratoVistaModal({
                     a.click()
                     window.URL.revokeObjectURL(url)
                     document.body.removeChild(a)
-                    
+
                     await Swal.fire({
                       icon: "success",
                       title: "Descarga exitosa",
@@ -392,8 +410,8 @@ export default function ContratoVistaModal({
                 className={contrato.firma_asesor && contrato.firma_estudiante ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}
               >
                 <FileText className="mr-2 h-4 w-4" />
-                {contrato.firma_asesor && contrato.firma_estudiante 
-                  ? "Descargar Contrato Firmado" 
+                {contrato.firma_asesor && contrato.firma_estudiante
+                  ? "Descargar Contrato Firmado"
                   : "Contrato sin firmas completas"}
               </Button>
               <Button onClick={onClose}>Cerrar</Button>
@@ -405,6 +423,6 @@ export default function ContratoVistaModal({
           </div>
         )}
       </DialogContent>
-    </Dialog>
+    </Dialog >
   )
 }

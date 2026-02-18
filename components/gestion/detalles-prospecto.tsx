@@ -62,6 +62,7 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
   const [documentos, setDocumentos] = useState<any[]>([])
   const [descargandoDoc, setDescargandoDoc] = useState<number | null>(null)
   const [descargandoTodo, setDescargandoTodo] = useState(false)
+  const [departamentos, setDepartamentos] = useState<{ id: number; nombre: string }[]>([])
 
   // Cargar datos completos del prospecto
   useEffect(() => {
@@ -101,6 +102,12 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
           const docsData = await resDocs.json()
           setDocumentos(Array.isArray(docsData) ? docsData : docsData.data ? (Array.isArray(docsData.data) ? docsData.data : []) : [])
         }
+        // Cargar departamentos
+        const resDeptos = await fetch(`${API_URL}/ubicacion/1`, { headers })
+        if (resDeptos.ok) {
+          const deptosData = await resDeptos.json()
+          setDepartamentos(deptosData.departamentos || [])
+        }
       } catch (err: any) {
         setError(err.message || "Error inesperado")
       } finally {
@@ -109,6 +116,12 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
     }
     fetchData()
   }, [prospectoId])
+
+  const getDepartamentoNombre = (id: string | number) => {
+    if (!id) return ""
+    const dep = departamentos.find(d => d.id.toString() === id.toString())
+    return dep ? dep.nombre : id.toString()
+  }
 
   const getEstadoColor = (estado: string) => {
     const colors: Record<string, string> = {
@@ -462,7 +475,7 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
                 <SectionTitle icon={MapPin} title="Ubicación" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <InfoRow icon={Globe} label="País" value={prospecto.pais_nombre || prospecto.pais_origen || "—"} />
-                  <InfoRow icon={MapPin} label="Departamento" value={prospecto.departamento_nombre || prospecto.departamento || "—"} />
+                  <InfoRow icon={MapPin} label="Departamento" value={prospecto.departamento_nombre || getDepartamentoNombre(prospecto.departamento)} />
                   <InfoRow icon={MapPin} label="Municipio" value={prospecto.municipio_nombre || prospecto.municipio || "—"} />
                   <InfoRow icon={MapPin} label="Dirección de Residencia" value={prospecto.direccion_residencia || "—"} />
                 </div>
@@ -482,6 +495,7 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <InfoRow icon={Building2} label="Empresa Actual" value={prospecto.empresa_donde_labora_actualmente || "—"} />
                   <InfoRow icon={Briefcase} label="Puesto" value={prospecto.puesto || "—"} />
+                  <InfoRow icon={MapPin} label="Departamento" value={prospecto.departamento_nombre || getDepartamentoNombre(prospecto.departamento)} />
                   <InfoRow icon={Phone} label="Teléfono Corporativo" value={prospecto.telefono_corporativo || "—"} />
                   <InfoRow icon={Mail} label="Correo Corporativo" value={prospecto.correo_corporativo || "—"} />
                   <InfoRow icon={MapPin} label="Dirección de la Empresa" value={prospecto.direccion_empresa || "—"} />
@@ -613,13 +627,12 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
                                     <td className="p-2 text-center">
                                       <Badge
                                         variant="outline"
-                                        className={`text-[10px] ${
-                                          cuota.estado?.toLowerCase() === "pagado"
+                                        className={`text-[10px] ${cuota.estado?.toLowerCase() === "pagado"
                                             ? "bg-green-50 text-green-700 border-green-200"
                                             : cuota.estado?.toLowerCase() === "vencido"
                                               ? "bg-red-50 text-red-700 border-red-200"
                                               : "bg-yellow-50 text-yellow-700 border-yellow-200"
-                                        }`}
+                                          }`}
                                       >
                                         {cuota.estado || "Pendiente"}
                                       </Badge>
@@ -666,12 +679,10 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
                         <Card key={doc.id} className="p-4 border-gray-200">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <div className={`p-2 rounded-lg ${
-                                esImagen ? "bg-purple-100" : esPDF ? "bg-red-100" : "bg-blue-100"
-                              }`}>
-                                <FileText className={`h-5 w-5 ${
-                                  esImagen ? "text-purple-600" : esPDF ? "text-red-600" : "text-blue-600"
-                                }`} />
+                              <div className={`p-2 rounded-lg ${esImagen ? "bg-purple-100" : esPDF ? "bg-red-100" : "bg-blue-100"
+                                }`}>
+                                <FileText className={`h-5 w-5 ${esImagen ? "text-purple-600" : esPDF ? "text-red-600" : "text-blue-600"
+                                  }`} />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-gray-900 truncate">

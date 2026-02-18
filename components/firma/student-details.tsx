@@ -159,24 +159,24 @@ export function StudentDetails() {
   // 3.5) Traer documentos del prospecto
   useEffect(() => {
     if (!studentId) return
-    ; (async () => {
-      try {
-        const token = localStorage.getItem("token")
-        const res = await fetch(`${API_BASE_URL}/api/documentos`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!res.ok) throw new Error("Error al cargar documentos")
-        const allDocs = await res.json()
-        // Filtrar solo los de este prospecto
-        const prospectoId = Number(studentId)
-        const docsProspecto = allDocs
-          .filter((d: any) => d.prospecto_id === prospectoId)
-          .map((d: any) => d.tipo_documento)
-        setDocumentos(docsProspecto)
-      } catch (err) {
-        console.error("Error cargando documentos:", err)
-      }
-    })()
+      ; (async () => {
+        try {
+          const token = localStorage.getItem("token")
+          const res = await fetch(`${API_BASE_URL}/api/documentos`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (!res.ok) throw new Error("Error al cargar documentos")
+          const allDocs = await res.json()
+          // Filtrar solo los de este prospecto
+          const prospectoId = Number(studentId)
+          const docsProspecto = allDocs
+            .filter((d: any) => d.prospecto_id === prospectoId)
+            .map((d: any) => d.tipo_documento)
+          setDocumentos(docsProspecto)
+        } catch (err) {
+          console.error("Error cargando documentos:", err)
+        }
+      })()
   }, [studentId])
 
   // 4) Inicializar canvas
@@ -204,7 +204,7 @@ export function StudentDetails() {
 
   // 4.5) Cargar firmas guardadas
   useEffect(() => {
-    ;(async () => {
+    ; (async () => {
       try {
         const token = localStorage.getItem("token")
         const res = await fetch(`${API_BASE_URL}/api/firmas-guardadas`, {
@@ -406,7 +406,7 @@ export function StudentDetails() {
     // Validar documentos mínimos requeridos
     const docsRequeridos = ["dpi", "recibo", "american", "inscripcion"]
     const docsFaltantes = docsRequeridos.filter(doc => !documentos.includes(doc))
-    
+
     if (docsFaltantes.length > 0) {
       const listaFaltantes = docsFaltantes.map(d => d.toUpperCase()).join(", ")
       Swal.fire({
@@ -434,7 +434,7 @@ export function StudentDetails() {
     setError(null)
     try {
       const token = localStorage.getItem("token")
-      
+
       // 1. Guardar firma del asesor y obtener token
       const firmaRes = await fetch(
         `${API_BASE_URL}/api/contratos/firma-asesor`,
@@ -502,14 +502,14 @@ export function StudentDetails() {
           }),
         }
       )
-      
+
       if (!res.ok) {
         const text = await res.text()
         throw new Error(text || res.statusText)
       }
-      
+
       await res.json()
-      
+
       // Mostrar modal de éxito con el link
       await Swal.fire({
         icon: 'success',
@@ -529,7 +529,7 @@ export function StudentDetails() {
         `,
         confirmButtonText: 'Aceptar',
       })
-      
+
       setShowSuccessDialog(true)
     } catch (err: any) {
       // Manejar errores generales
@@ -712,14 +712,20 @@ export function StudentDetails() {
               Con pleno entendimiento y aceptación de las condiciones aquí
               establecidas, firmo en señal de conformidad con este contrato.
             </p>
-            <p>
-              Firma: ____________________ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-              Firma: ____________________<br />
-              {student.name} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {currentUser.first_name}{" "}
-              {currentUser.last_name}
-              <br />
-              Prospecto &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Asesor Educativo
-            </p>
+            <div className="grid grid-cols-2 gap-12 mt-16 mb-8 border-t pt-8">
+              <div className="text-center">
+                <div className="border-b border-black w-full max-w-[200px] mx-auto mb-2"></div>
+                <p className="font-bold text-xs uppercase">{student.name}</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Prospecto</p>
+              </div>
+              <div className="text-center">
+                <div className="border-b border-black w-full max-w-[200px] mx-auto mb-2"></div>
+                <p className="font-bold text-xs uppercase">
+                  {currentUser.first_name} {currentUser.last_name}
+                </p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Asesor Educativo</p>
+              </div>
+            </div>
           </div>
 
           <Separator />
@@ -809,9 +815,8 @@ export function StudentDetails() {
                     {firmasGuardadas.map((f) => (
                       <div
                         key={f.id}
-                        className={`border rounded-lg p-2 cursor-pointer transition-all ${
-                          signature === f.imagen_base64 ? "border-primary ring-2 ring-primary/30" : "hover:border-muted-foreground"
-                        }`}
+                        className={`border rounded-lg p-2 cursor-pointer transition-all ${signature === f.imagen_base64 ? "border-primary ring-2 ring-primary/30" : "hover:border-muted-foreground"
+                          }`}
                         onClick={() => setSignature(f.imagen_base64)}
                       >
                         <img src={f.imagen_base64} alt={f.nombre} className="w-full h-24 object-contain bg-white rounded" />

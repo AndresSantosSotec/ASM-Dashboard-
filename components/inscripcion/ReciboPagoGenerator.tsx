@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { FileText, Printer, Copy, Loader2, RefreshCw } from "lucide-react"
+import { FileText, Printer, Copy, Loader2, RefreshCw, Download } from "lucide-react"
 
 const BANCOS = [
   "Banco Industrial",
@@ -193,7 +193,7 @@ export default function ReciboPagoGenerator({
         generarNumeroRecibo()
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   // Generar siguiente número de recibo vía API
@@ -256,41 +256,50 @@ export default function ReciboPagoGenerator({
     })
   }
 
+  // Helper para resolver rutas de assets (public) con el prefix de Next.js
+  const resolveAssetUrl = (path: string) => {
+    // Si estamos en producción o con basePath /webpanel, lo incluimos
+    const prefix = "/webpanel"
+    if (path.startsWith(prefix)) return path
+    return `${prefix}${path.startsWith("/") ? "" : "/"}${path}`
+  }
+
   // Convertir imagen a base64 para usar en la ventana de impresión
   const toBase64 = (url: string): Promise<string> => {
+    const fullUrl = resolveAssetUrl(url)
     return new Promise((resolve) => {
       // Método 1: Usar Image + Canvas (más compatible)
       const img = new Image()
-      img.crossOrigin = 'anonymous'
+      img.crossOrigin = "anonymous"
       img.onload = () => {
         try {
-          const canvas = document.createElement('canvas')
+          const canvas = document.createElement("canvas")
           canvas.width = img.naturalWidth
           canvas.height = img.naturalHeight
-          const ctx = canvas.getContext('2d')
+          const ctx = canvas.getContext("2d")
           if (ctx) {
             ctx.drawImage(img, 0, 0)
-            resolve(canvas.toDataURL('image/png'))
+            resolve(canvas.toDataURL("image/png"))
           } else {
-            resolve('')
+            resolve("")
           }
         } catch {
-          resolve('')
+          resolve("")
         }
       }
       img.onerror = () => {
         // Método 2: Intentar con fetch como fallback
-        fetch(url)
-          .then(r => r.blob())
-          .then(blob => {
+        fetch(fullUrl)
+          .then((r) => r.blob())
+          .then((blob) => {
             const reader = new FileReader()
             reader.onloadend = () => resolve(reader.result as string)
-            reader.onerror = () => resolve('')
+            reader.onerror = () => resolve("")
             reader.readAsDataURL(blob)
           })
-          .catch(() => resolve(''))
+          .catch(() => resolve(""))
       }
-      img.src = url
+      img.src = fullUrl
     })
   }
 
@@ -310,9 +319,9 @@ export default function ReciboPagoGenerator({
 
     // URL absoluta como fallback si base64 falla
     const origin = window.location.origin
-    const headerSrc = headerLogoB64 || `${origin}/recursos/Logos-02.png`
-    const footerSrc = footerLogoB64 || `${origin}/recursos/Logos_Mesa.png`
-    
+    const headerSrc = headerLogoB64 || resolveAssetUrl("/recursos/Logos-02.png")
+    const footerSrc = footerLogoB64 || resolveAssetUrl("/recursos/Logos_Mesa.png")
+
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
@@ -443,7 +452,55 @@ export default function ReciboPagoGenerator({
           </DialogTitle>
         </DialogHeader>
 
-        <div ref={printRef} className="space-y-4">
+        <div className="flex flex-col gap-6">
+          {/* Vista Previa del Recibo (Visualización) */}
+          <div className="border rounded-lg bg-white shadow-inner p-6 overflow-hidden hidden md:block select-none scale-[0.85] origin-top border-asm-medium-gold/20">
+            <div className="bg-gradient-to-r from-[#1e264d] to-[#26335b] p-3 -mx-6 -mt-6 mb-4 flex items-center">
+              <img
+                src={resolveAssetUrl("/recursos/Logos-02.png")}
+                alt="ASM Logo"
+                className="h-8 w-auto"
+                onError={(e) => (e.currentTarget.style.display = "none")}
+              />
+            </div>
+            <div className="h-0.5 bg-[#b08b4f] -mx-6 mb-4"></div>
+
+            <div className="text-center mb-4">
+              <h2 className="text-xl font-bold m-0 leading-tight">AMERICAN</h2>
+              <p className="text-[9px] uppercase tracking-[0.2em] m-0 text-gray-500">School of Management</p>
+            </div>
+
+            <div className="flex justify-between items-start mb-4">
+              <div className="text-xs space-y-1">
+                <p><strong>NIT:</strong> {recibo.nit || "________________"}</p>
+                <p><strong>Recibimos de:</strong> {recibo.recibidoDe || "________________"}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-red-600 font-bold text-lg leading-none">NO. {recibo.reciboNo || "0000"}</p>
+                <p className="text-xs text-gray-500 mt-1">{new Date(recibo.fecha + "T12:00:00").toLocaleDateString("es-GT")}</p>
+                <p className="text-xl font-bold text-blue-900 mt-1">Q{recibo.total || "0.00"}</p>
+              </div>
+            </div>
+
+            <div className="border border-gray-200 rounded p-3 text-xs mb-4">
+              <p className="mb-2 italic text-gray-600 font-serif">"{recibo.cantidadLetras || "Cero quetzales exactos"}"</p>
+              <div className="grid grid-cols-2 gap-x-8 gap-y-1">
+                <div className="flex justify-between border-b border-gray-100"><span>Matrícula:</span> <span>Q{recibo.matricula || "0.00"}</span></div>
+                <div className="flex justify-between border-b border-gray-100"><span>Mensualidad:</span> <span>Q{recibo.mensualidad || "0.00"}</span></div>
+                <div className="flex justify-between border-b border-gray-100"><span>Mora:</span> <span>Q{recibo.mora || "0.00"}</span></div>
+                <div className="flex justify-between border-b border-gray-100"><span>Otros:</span> <span>Q{recibo.otros || "0.00"}</span></div>
+              </div>
+            </div>
+
+            <div className="text-[10px] text-center border-t border-gray-100 pt-3">
+              <img
+                src={resolveAssetUrl("/recursos/Logos_Mesa.png")}
+                alt="Footer Logos"
+                className="h-6 w-auto mx-auto mb-1 opacity-80"
+                onError={(e) => (e.currentTarget.style.display = "none")}
+              />
+            </div>
+          </div>
           {/* Encabezado info */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -591,14 +648,29 @@ export default function ReciboPagoGenerator({
           </div>
         </div>
 
-        <DialogFooter className="flex gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="flex flex-wrap gap-2 sm:justify-between items-center sm:gap-0">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-gray-500 order-last sm:order-first">
             Cancelar
           </Button>
-          <Button onClick={handlePrint} className="bg-blue-800 hover:bg-blue-900" disabled={registrando || !recibo.reciboNo}>
-            {registrando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Printer className="h-4 w-4 mr-2" />}
-            {registrando ? "Registrando..." : "Imprimir Recibo"}
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              onClick={handlePrint}
+              className="flex-1 sm:flex-none border-blue-800 text-blue-800 hover:bg-blue-50"
+              disabled={registrando || !recibo.reciboNo}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Descargar PDF
+            </Button>
+            <Button
+              onClick={handlePrint}
+              className="flex-1 sm:flex-none bg-blue-800 hover:bg-blue-900"
+              disabled={registrando || !recibo.reciboNo}
+            >
+              {registrando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Printer className="h-4 w-4 mr-2" />}
+              {registrando ? "Registrando..." : "Imprimir"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

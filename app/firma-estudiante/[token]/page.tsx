@@ -265,9 +265,9 @@ export default function FirmaEstudiantePage() {
                 CONTRATO DE CONFIDENCIALIDAD Y COMPROMISO DE ESTUDIANTE
               </p>
               <p className="text-center italic">(Por favor firme en donde corresponde)</p>
-              
+
               <p>En la ciudad de Guatemala, el día: <strong>{datos.fecha}</strong></p>
-              
+
               <p>
                 Yo: <strong>{prospecto.nombre}</strong> {datos.email && <span>({datos.email})</span>}
               </p>
@@ -339,6 +339,19 @@ export default function FirmaEstudiantePage() {
                 Con pleno entendimiento y aceptación de las condiciones aquí
                 establecidas, firmo en señal de conformidad con este contrato.
               </p>
+
+              <div className="grid grid-cols-2 gap-8 mt-16 mb-8 border-t pt-8 not-prose">
+                <div className="text-center">
+                  <div className="border-b border-black w-full max-w-[180px] mx-auto mb-2"></div>
+                  <p className="font-bold text-[11px] uppercase">{prospecto.nombre}</p>
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-widest mt-1">Prospecto</p>
+                </div>
+                <div className="text-center">
+                  <div className="border-b border-black w-full max-w-[180px] mx-auto mb-2"></div>
+                  <p className="font-bold text-[11px] uppercase">{datos.asesor}</p>
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-widest mt-1">Asesor Educativo</p>
+                </div>
+              </div>
             </div>
 
             <Separator />
