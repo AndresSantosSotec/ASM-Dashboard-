@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { CheckCircle, ZoomIn, ZoomOut, RotateCw, Loader2 } from "lucide-react"
+import { CheckCircle, ZoomIn, ZoomOut, RotateCw, Loader2, Upload, Save, Trash2, Star } from "lucide-react"
 import Swal from 'sweetalert2'
 import { API_BASE_URL } from '@/utils/apiConfig'
 
@@ -69,6 +69,14 @@ export function StudentDetails() {
   const [error, setError] = useState<string | null>(null)
   const [documentos, setDocumentos] = useState<string[]>([])
 
+  // Firmas guardadas
+  interface FirmaGuardada { id: number; nombre: string; imagen_base64: string; es_predeterminada: boolean }
+  const [firmasGuardadas, setFirmasGuardadas] = useState<FirmaGuardada[]>([])
+  const [signatureMode, setSignatureMode] = useState<"draw" | "saved" | "upload">("draw")
+  const [savingSignature, setSavingSignature] = useState(false)
+  const [signatureName, setSignatureName] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const canvasContainerRef = useRef<HTMLDivElement>(null)
   // Alias al primer programa (si existe)
   const programa = programas[0]
 
@@ -180,16 +188,136 @@ export function StudentDetails() {
     ctx.strokeStyle = "#000"
     ctx.lineWidth = 2
     ctx.lineCap = "round"
+
+    // Hacer el canvas responsive al contenedor
+    const container = canvasContainerRef.current
+    if (container) {
+      const w = Math.min(container.clientWidth - 16, 500)
+      canvas.width = w
+      canvas.height = Math.round(w * 0.5)
+      // Reinicializar contexto después de cambiar tamaño
+      ctx.strokeStyle = "#000"
+      ctx.lineWidth = 2
+      ctx.lineCap = "round"
+    }
+  }, [signatureMode])
+
+  // 4.5) Cargar firmas guardadas
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const token = localStorage.getItem("token")
+        const res = await fetch(`${API_BASE_URL}/api/firmas-guardadas`, {
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        })
+        if (res.ok) {
+          const data: FirmaGuardada[] = await res.json()
+          setFirmasGuardadas(data)
+          // Si hay una firma predeterminada, usarla por defecto
+          const defaultFirma = data.find(f => f.es_predeterminada)
+          if (defaultFirma) {
+            setSignatureMode("saved")
+            setSignature(defaultFirma.imagen_base64)
+          }
+        }
+      } catch (err) {
+        console.error("Error cargando firmas guardadas:", err)
+      }
+    })()
   }, [])
 
-  // 5) Handlers de dibujo
+  // Helpers para guardar/cargar firmas
+  const handleSaveSignature = async () => {
+    if (!signature || !signatureName.trim()) return
+    setSavingSignature(true)
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_BASE_URL}/api/firmas-guardadas`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ nombre: signatureName, imagen_base64: signature }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || "Error al guardar")
+      }
+      const { data } = await res.json()
+      setFirmasGuardadas(prev => [...prev, data])
+      setSignatureName("")
+      Swal.fire({ icon: "success", title: "Firma guardada", text: "Puede usarla en futuros contratos.", timer: 2000, showConfirmButton: false })
+    } catch (err: any) {
+      Swal.fire({ icon: "error", title: "Error", text: err.message })
+    } finally {
+      setSavingSignature(false)
+    }
+  }
+
+  const handleDeleteSavedSignature = async (firmaId: number) => {
+    const result = await Swal.fire({ title: "¿Eliminar firma?", icon: "warning", showCancelButton: true, confirmButtonText: "Eliminar", cancelButtonText: "Cancelar" })
+    if (!result.isConfirmed) return
+    try {
+      const token = localStorage.getItem("token")
+      await fetch(`${API_BASE_URL}/api/firmas-guardadas/${firmaId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      setFirmasGuardadas(prev => prev.filter(f => f.id !== firmaId))
+      if (signature) {
+        const deleted = firmasGuardadas.find(f => f.id === firmaId)
+        if (deleted && deleted.imagen_base64 === signature) setSignature(null)
+      }
+    } catch (err) {
+      console.error("Error eliminando firma:", err)
+    }
+  }
+
+  const handleSetDefaultSignature = async (firmaId: number) => {
+    try {
+      const token = localStorage.getItem("token")
+      await fetch(`${API_BASE_URL}/api/firmas-guardadas/${firmaId}/default`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      setFirmasGuardadas(prev => prev.map(f => ({ ...f, es_predeterminada: f.id === firmaId })))
+    } catch (err) {
+      console.error("Error:", err)
+    }
+  }
+
+  const handleUploadSignature = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith("image/")) {
+      Swal.fire({ icon: "error", title: "Archivo inválido", text: "Solo se permiten imágenes (PNG, JPG)." })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      setSignature(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // 5) Handlers de dibujo (mouse + touch)
+  const getCanvasCoords = (canvas: HTMLCanvasElement, clientX: number, clientY: number) => {
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
+    }
+  }
+
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return
     setIsDrawing(true)
-    const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    const { x, y } = getCanvasCoords(canvas, e.clientX, e.clientY)
     setLastX(x)
     setLastY(y)
     const ctx = canvas.getContext("2d")
@@ -203,9 +331,7 @@ export function StudentDetails() {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext("2d")
     if (!canvas || !ctx) return
-    const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    const { x, y } = getCanvasCoords(canvas, e.clientX, e.clientY)
     ctx.beginPath()
     ctx.moveTo(lastX, lastY)
     ctx.lineTo(x, y)
@@ -213,6 +339,39 @@ export function StudentDetails() {
     setLastX(x)
     setLastY(y)
   }
+
+  // Touch handlers
+  const startDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const touch = e.touches[0]
+    setIsDrawing(true)
+    const { x, y } = getCanvasCoords(canvas, touch.clientX, touch.clientY)
+    setLastX(x)
+    setLastY(y)
+    const ctx = canvas.getContext("2d")
+    ctx?.beginPath()
+    ctx?.moveTo(x, y)
+    ctx?.lineTo(x, y)
+    ctx?.stroke()
+  }
+  const drawTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
+    if (!isDrawing) return
+    const canvas = canvasRef.current
+    const ctx = canvas?.getContext("2d")
+    if (!canvas || !ctx) return
+    const touch = e.touches[0]
+    const { x, y } = getCanvasCoords(canvas, touch.clientX, touch.clientY)
+    ctx.beginPath()
+    ctx.moveTo(lastX, lastY)
+    ctx.lineTo(x, y)
+    ctx.stroke()
+    setLastX(x)
+    setLastY(y)
+  }
+
   const stopDrawing = () => {
     if (!isDrawing) return
     setIsDrawing(false)
@@ -566,25 +725,176 @@ export function StudentDetails() {
           <Separator />
 
           {/* Firma del Asesor */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <h4 className="text-sm font-medium">Firma del Asesor</h4>
-            <div className="border rounded-lg p-2">
-              <canvas
-                ref={canvasRef}
-                width={400}
-                height={200}
-                className="border rounded cursor-crosshair bg-white"
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseOut={stopDrawing}
-              />
-              <div className="mt-2">
-                <Button variant="outline" size="sm" onClick={clearSignature}>
-                  Limpiar Firma
-                </Button>
-              </div>
+
+            {/* Selector de modo */}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={signatureMode === "draw" ? "default" : "outline"}
+                size="sm"
+                onClick={() => { setSignatureMode("draw"); setSignature(null); clearSignature() }}
+              >
+                ✏️ Dibujar
+              </Button>
+              <Button
+                variant={signatureMode === "saved" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSignatureMode("saved")}
+                disabled={firmasGuardadas.length === 0}
+              >
+                <Star className="h-3 w-3 mr-1" /> Mis Firmas ({firmasGuardadas.length})
+              </Button>
+              <Button
+                variant={signatureMode === "upload" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSignatureMode("upload")}
+              >
+                <Upload className="h-3 w-3 mr-1" /> Subir imagen
+              </Button>
             </div>
+
+            {/* Modo: Dibujar */}
+            {signatureMode === "draw" && (
+              <div className="border rounded-lg p-2" ref={canvasContainerRef}>
+                <canvas
+                  ref={canvasRef}
+                  width={400}
+                  height={200}
+                  className="border rounded cursor-crosshair bg-white w-full touch-none"
+                  style={{ maxWidth: "500px" }}
+                  onMouseDown={startDrawing}
+                  onMouseMove={draw}
+                  onMouseUp={stopDrawing}
+                  onMouseOut={stopDrawing}
+                  onTouchStart={startDrawingTouch}
+                  onTouchMove={drawTouch}
+                  onTouchEnd={stopDrawing}
+                  onTouchCancel={stopDrawing}
+                />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={clearSignature}>
+                    Limpiar Firma
+                  </Button>
+                  {signature && (
+                    <div className="flex items-center gap-2 ml-auto">
+                      <Input
+                        placeholder="Nombre de la firma..."
+                        value={signatureName}
+                        onChange={(e) => setSignatureName(e.target.value)}
+                        className="h-8 w-40 text-sm"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSaveSignature}
+                        disabled={savingSignature || !signatureName.trim()}
+                      >
+                        <Save className="h-3 w-3 mr-1" />
+                        {savingSignature ? "Guardando..." : "Guardar"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Modo: Firmas guardadas */}
+            {signatureMode === "saved" && (
+              <div className="space-y-2">
+                {firmasGuardadas.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No tiene firmas guardadas. Dibuje una y guárdela.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {firmasGuardadas.map((f) => (
+                      <div
+                        key={f.id}
+                        className={`border rounded-lg p-2 cursor-pointer transition-all ${
+                          signature === f.imagen_base64 ? "border-primary ring-2 ring-primary/30" : "hover:border-muted-foreground"
+                        }`}
+                        onClick={() => setSignature(f.imagen_base64)}
+                      >
+                        <img src={f.imagen_base64} alt={f.nombre} className="w-full h-24 object-contain bg-white rounded" />
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-xs font-medium truncate">
+                            {f.es_predeterminada && <Star className="h-3 w-3 inline mr-1 text-yellow-500" />}
+                            {f.nombre}
+                          </span>
+                          <div className="flex gap-1">
+                            {!f.es_predeterminada && (
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={(e) => { e.stopPropagation(); handleSetDefaultSignature(f.id) }} title="Predeterminada">
+                                <Star className="h-3 w-3" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-500" onClick={(e) => { e.stopPropagation(); handleDeleteSavedSignature(f.id) }} title="Eliminar">
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Modo: Subir imagen */}
+            {signatureMode === "upload" && (
+              <div className="border rounded-lg p-4 space-y-3">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg"
+                  onChange={handleUploadSignature}
+                  className="hidden"
+                />
+                <div className="flex flex-col items-center gap-3">
+                  {signature ? (
+                    <img src={signature} alt="Firma subida" className="max-w-[400px] max-h-[200px] border rounded bg-white p-2" />
+                  ) : (
+                    <div
+                      className="w-full max-w-[400px] h-[150px] border-2 border-dashed rounded-lg flex items-center justify-center cursor-pointer hover:bg-muted/30 transition-colors"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <div className="text-center text-muted-foreground">
+                        <Upload className="h-8 w-8 mx-auto mb-2" />
+                        <p className="text-sm">Haga clic para seleccionar imagen de firma</p>
+                        <p className="text-xs">PNG o JPG</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                      <Upload className="h-3 w-3 mr-1" /> {signature ? "Cambiar imagen" : "Seleccionar"}
+                    </Button>
+                    {signature && (
+                      <Button variant="outline" size="sm" onClick={() => setSignature(null)} className="text-red-500">
+                        Eliminar
+                      </Button>
+                    )}
+                  </div>
+                  {/* Opción de guardar la imagen subida */}
+                  {signature && (
+                    <div className="flex items-center gap-2 w-full max-w-sm">
+                      <Input
+                        placeholder="Nombre para guardar..."
+                        value={signatureName}
+                        onChange={(e) => setSignatureName(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSaveSignature}
+                        disabled={savingSignature || !signatureName.trim()}
+                      >
+                        <Save className="h-3 w-3 mr-1" /> Guardar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <Button

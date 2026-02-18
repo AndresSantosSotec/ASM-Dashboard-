@@ -797,14 +797,14 @@ export default function CapturaProspectos() {
                           <SelectItem value="instagram">Instagram</SelectItem>
                           <SelectItem value="linkedin">LinkedIn</SelectItem>
                           <SelectItem value="referido">Referido</SelectItem>
-                          <SelectItem value="whatsapp Corporativo">
+                          <SelectItem value="whatsapp_corporativo">
                             WhatsApp Corporativo
                           </SelectItem>
                           <SelectItem value="pagina_web">Página Web</SelectItem>
-                          <SelectItem value="escritorio">
+                          <SelectItem value="actividades_escritorio">
                             Actividades de Escritorio
                           </SelectItem>
-                          <SelectItem value="Meeting">Meeting</SelectItem>
+                          <SelectItem value="meeting">Meeting</SelectItem>
                           <SelectItem value="otros">Otros</SelectItem>
                         </SelectContent>
                       </Select>

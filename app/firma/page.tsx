@@ -206,7 +206,7 @@ export default function FirmaPage() {
 
     return (
       <Card key={env.id}>
-        <CardHeader className="p-4 flex justify-between items-center">
+        <CardHeader className="p-4 flex flex-wrap gap-2 justify-between items-start sm:items-center">
           <div>
             <CardTitle className="text-base">
               {env.prospecto.nombre_completo}
@@ -243,9 +243,10 @@ export default function FirmaPage() {
             </span>
           </div>
 
-          <div className="mt-4 flex justify-end gap-2">
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
             <Button 
-              variant="outline" 
+              variant="outline"
+              size="sm"
               onClick={() => {
                 setContratoSeleccionado(env.id)
                 setModalVistaOpen(true)
@@ -255,13 +256,15 @@ export default function FirmaPage() {
             </Button>
             <Button 
               variant="outline"
+              size="sm"
               className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
               onClick={() => handleDescargarContrato(env.id, env.prospecto.nombre_completo)}
             >
               <Download className="h-4 w-4 mr-1" /> Descargar PDF
             </Button>
             <Button 
-              variant="outline" 
+              variant="outline"
+              size="sm"
               className="text-red-600 hover:text-red-700 hover:bg-red-50"
               onClick={() => handleDiscard(env.id)}
             >

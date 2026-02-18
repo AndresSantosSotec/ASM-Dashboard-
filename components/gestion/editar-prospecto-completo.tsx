@@ -694,13 +694,15 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                         <SelectValue placeholder="Seleccione origen" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Facebook">Facebook</SelectItem>
-                        <SelectItem value="Instagram">Instagram</SelectItem>
-                        <SelectItem value="Google">Google</SelectItem>
-                        <SelectItem value="Referido">Referido</SelectItem>
-                        <SelectItem value="Llamada telefónica">Llamada telefónica</SelectItem>
-                        <SelectItem value="Visita presencial">Visita presencial</SelectItem>
-                        <SelectItem value="Otro">Otro</SelectItem>
+                        <SelectItem value="facebook">Facebook</SelectItem>
+                        <SelectItem value="instagram">Instagram</SelectItem>
+                        <SelectItem value="linkedin">LinkedIn</SelectItem>
+                        <SelectItem value="referido">Referido</SelectItem>
+                        <SelectItem value="whatsapp_corporativo">WhatsApp Corporativo</SelectItem>
+                        <SelectItem value="pagina_web">Página Web</SelectItem>
+                        <SelectItem value="actividades_escritorio">Actividades de Escritorio</SelectItem>
+                        <SelectItem value="meeting">Meeting</SelectItem>
+                        <SelectItem value="otros">Otros</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

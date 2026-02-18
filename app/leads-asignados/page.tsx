@@ -35,22 +35,8 @@ interface Prospecto {
 }
 
 export default function GestionProspectos() {
-  // Estados para prospectos con caché optimizado
-  const [prospectos, setProspectos] = useState<Prospecto[]>(() => {
-    if (typeof window !== "undefined") {
-      const cached = localStorage.getItem("leads_asignados_cache");
-      const cacheTime = localStorage.getItem("leads_asignados_cache_time");
-      if (cached && cacheTime) {
-        const now = Date.now();
-        const elapsed = now - parseInt(cacheTime);
-        // Cache válido por 5 minutos
-        if (elapsed < 300000) {
-          return JSON.parse(cached);
-        }
-      }
-    }
-    return [];
-  });
+  // Estados para prospectos — inicializar vacío para evitar hydration mismatch
+  const [prospectos, setProspectos] = useState<Prospecto[]>([])
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string>("")
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -69,14 +55,18 @@ export default function GestionProspectos() {
   // ⚡ Carga inicial de prospectos con caché optimizado
   useEffect(() => {
     const fetchProspectos = async () => {
-      // Verificar caché válido
+      // Verificar caché válido (mismo usuario + no expirado)
       const cached = localStorage.getItem("leads_asignados_cache");
       const cacheTime = localStorage.getItem("leads_asignados_cache_time");
-      if (cached && cacheTime) {
+      const cacheUser = localStorage.getItem("leads_asignados_cache_user");
+      const storedUser = localStorage.getItem("user");
+      const currentUserId = storedUser ? JSON.parse(storedUser).id : null;
+      if (cached && cacheTime && cacheUser === String(currentUserId)) {
         const now = Date.now();
         const elapsed = now - parseInt(cacheTime);
         if (elapsed < 300000) {
-          console.log("✅ Usando caché de leads asignados");
+          console.log("✅ Usando caché de leads asignados (usuario válido)");
+          setProspectos(JSON.parse(cached));
           return;
         }
       }
@@ -116,10 +106,13 @@ export default function GestionProspectos() {
           })
         setProspectos(prospectosTransformados)
         
-        // 💾 Guardar en caché
+        // 💾 Guardar en caché (con ID de usuario para evitar filtración entre sesiones)
         if (typeof window !== "undefined") {
+          const storedUser = localStorage.getItem("user");
+          const userId = storedUser ? JSON.parse(storedUser).id : null;
           localStorage.setItem("leads_asignados_cache", JSON.stringify(prospectosTransformados));
           localStorage.setItem("leads_asignados_cache_time", Date.now().toString());
+          localStorage.setItem("leads_asignados_cache_user", String(userId));
         }
       } catch (err: any) {
         setError(err.message || "Error inesperado")

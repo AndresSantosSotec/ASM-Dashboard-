@@ -42,7 +42,29 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
   const diasDisponibles = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado","domingo"]
 
   const titulos = ["diversificado", "tecnico", "licenciatura", "maestria", "doctorado", "cierre_pensum", "Carrera Universitaria Incompleta"] as const
-  const medios = ["redes", "amigo", "empresa", "evento", "busqueda", "otros"] as const
+  const medios = [
+    "facebook",
+    "instagram",
+    "linkedin",
+    "referido",
+    "whatsapp_corporativo",
+    "pagina_web",
+    "actividades_escritorio",
+    "meeting",
+    "otros",
+  ] as const
+
+  const medioLabels: Record<string, string> = {
+    facebook: "Facebook",
+    instagram: "Instagram",
+    linkedin: "LinkedIn",
+    referido: "Referido",
+    whatsapp_corporativo: "WhatsApp Corporativo",
+    pagina_web: "Página Web",
+    actividades_escritorio: "Actividades de Escritorio",
+    meeting: "Meeting",
+    otros: "Otros",
+  }
 
   const [programas, setProgramas] = useState<Programa[]>([])
   const programasUnicos = useMemo(() => {
@@ -394,7 +416,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
             <SelectContent>
               {medios.map((m) => (
                 <SelectItem key={m} value={m}>
-                  {m.charAt(0).toUpperCase() + m.slice(1)}
+                  {medioLabels[m] || m}
                 </SelectItem>
               ))}
             </SelectContent>

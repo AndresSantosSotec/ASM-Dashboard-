@@ -58,6 +58,7 @@ type Props = {
   onFinalizar?: () => Promise<void>
   isFinalizing?: boolean
   montoInscripcion?: number
+  descuentoInscripcion?: boolean
   estudianteProgramaId?: number
   studentName?: string
   studentPhone?: string
@@ -88,6 +89,7 @@ export default function DocumentosTab({
   onFinalizar,
   isFinalizing,
   montoInscripcion = 1000,
+  descuentoInscripcion = false,
   estudianteProgramaId,
   studentName = "",
   studentPhone = "",
@@ -230,8 +232,12 @@ export default function DocumentosTab({
       formData.append("file", file)
 
       try {
+        const token = localStorage.getItem("token") || sessionStorage.getItem("token")
         await axios.post(`${API_BASE_URL}/api/documentos`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
+          headers: {
+            "Content-Type": "multipart/form-data",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
         })
         // Registrar el nombre subido para evitar duplicados futuros
         setServerFileNames(prev => ({
@@ -359,6 +365,7 @@ export default function DocumentosTab({
             prospectoId={prospectoId}
             estudianteProgramaId={estudianteProgramaId}
             montoInscripcion={montoInscripcion}
+            descuentoInscripcion={descuentoInscripcion}
             onBoletaSubida={() => {
               // Marcar documento de inscripción como cargado
               setDocumentos(docs =>

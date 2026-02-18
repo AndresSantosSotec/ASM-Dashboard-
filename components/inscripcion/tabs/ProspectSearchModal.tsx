@@ -88,8 +88,8 @@ export default function ProspectSearchModal({
           estado: p.status,
           
           // Datos personales
-          paisOrigen: p.pais_origen ?? "",
-          paisResidencia: p.pais_residencia ?? "",
+          paisOrigen: p.pais_origen ?? p.pais_nombre ?? "",
+          paisResidencia: p.pais_residencia ?? p.pais_nombre ?? "",
           dpi: p.numero_identificacion ?? "",
           fechaNacimiento: p.fecha_nacimiento ?? "",
           direccion: p.direccion_residencia ?? "",
@@ -110,6 +110,7 @@ export default function ProspectSearchModal({
           fechaTallerReduccion: p.fecha_taller_reduccion ?? "",
           fechaTallerIntegracion: p.fecha_taller_integracion ?? "",
           medioConocimiento: p.medio_conocimiento_institucion ?? "",
+          medioConocio: p.medio_conocimiento_institucion ?? "",
           cursosAprobados: p.cantidad_cursos_aprobados?.toString() ?? "",
           diaEstudio: p.dia_estudio ?? "",
           observaciones: p.observaciones ?? "",

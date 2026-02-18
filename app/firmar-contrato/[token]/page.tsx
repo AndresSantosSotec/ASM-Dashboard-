@@ -255,7 +255,7 @@ export default function FirmarContratoPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50" style={{ colorScheme: 'light' }}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900 mx-auto"></div>
           <p className="mt-4 text-slate-600">Cargando contrato...</p>
@@ -266,7 +266,7 @@ export default function FirmarContratoPage() {
 
   if (error || yaFirmado) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4" style={{ colorScheme: 'light' }}>
         <div className="max-w-md w-full bg-white rounded-lg shadow-xl p-8 text-center">
           <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
             <svg className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -284,7 +284,7 @@ export default function FirmarContratoPage() {
 
   if (showSuccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4" style={{ colorScheme: 'light' }}>
         <div className="max-w-md w-full bg-white rounded-lg shadow-xl p-8 text-center">
           <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
             <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -306,7 +306,7 @@ export default function FirmarContratoPage() {
   const datos = contrato.datos_contrato
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 text-slate-900" style={{ colorScheme: 'light' }}>
       {/* Header Profesional */}
       <header className="bg-gradient-to-r from-blue-900 to-blue-800 text-white shadow-lg">
         <div className="max-w-5xl mx-auto px-6 py-8">
@@ -771,8 +771,8 @@ export default function FirmarContratoPage() {
               maxLength={100}
               value={dpi}
               onChange={(e) => setDpi(e.target.value.replace(/\D/g, ""))}
-              placeholder="0000 00000 0000"
-              className="w-full max-w-md px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-blue-900 focus:ring-2 focus:ring-blue-900/20 outline-none transition-colors text-lg font-mono"
+              placeholder="0000000000000"
+              className="w-full max-w-md px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-blue-900 focus:ring-2 focus:ring-blue-900/20 outline-none transition-colors text-lg font-mono bg-white text-slate-900 placeholder:text-slate-400"
             />
             <p className="text-xs text-slate-500 mt-1">13 dígitos sin espacios</p>
           </div>

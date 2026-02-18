@@ -277,13 +277,35 @@ export default function FinancieroTab({
 
       {/* — Costos dinámicos — */}
       <div className={`mt-6 grid gap-4 md:grid-cols-4 ${loading ? "opacity-50" : ""}`}>
-        <InputWithLabel
-          id="ins"
-          label="Inscripción (Q)"
-          value={datos.inscripcion}
-          placeholder={sugeridos.inscripcion}
-          onChange={(v) => setDatos((d) => ({ ...d, inscripcion: v }))}
-        />
+        <div>
+          <InputWithLabel
+            id="ins"
+            label="Inscripción (Q)"
+            value={datos.inscripcion}
+            placeholder={sugeridos.inscripcion}
+            onChange={(v) => setDatos((d) => ({ ...d, inscripcion: v }))}
+          />
+          {/* Toggle de descuento: visible cuando inscripción < 1000 */}
+          {parseFloat(datos.inscripcion?.replace(/,/g, "") || "0") > 0 &&
+            parseFloat(datos.inscripcion?.replace(/,/g, "") || "0") < 1000 && (
+            <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={!!datos.descuentoInscripcion}
+                onChange={(e) => setDatos(d => ({ ...d, descuentoInscripcion: e.target.checked }))}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-blue-700 font-medium">Descuento en inscripción</span>
+            </label>
+          )}
+          {!!datos.descuentoInscripcion &&
+            parseFloat(datos.inscripcion?.replace(/,/g, "") || "0") > 0 &&
+            parseFloat(datos.inscripcion?.replace(/,/g, "") || "0") < 1000 && (
+            <p className="text-xs text-green-700 mt-1">
+              Se aplicará como pago completo de inscripción (descuento de Q{(1000 - parseFloat(datos.inscripcion?.replace(/,/g, "") || "0")).toFixed(2)})
+            </p>
+          )}
+        </div>
         <InputWithLabel
           id="cuo"
           label="Cuota mensual (Q)"

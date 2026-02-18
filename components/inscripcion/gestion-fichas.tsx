@@ -69,9 +69,15 @@ export function GestionFichas() {
   useEffect(() => {
     async function fetchFichas() {
       try {
+        const token = localStorage.getItem("token")
         const res = await fetch(
-          `${API_URL}/prospectos/fichas/pendientes-public`,
-          { headers: { Accept: "application/json" } }
+          `${API_URL}/prospectos/fichas/pendientes`,
+          {
+            headers: {
+              Authorization: token ? `Bearer ${token}` : "",
+              Accept: "application/json",
+            },
+          }
         )
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const { data } = await res.json()

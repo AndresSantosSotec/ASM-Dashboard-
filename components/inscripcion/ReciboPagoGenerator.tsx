@@ -21,6 +21,20 @@ import {
 } from "@/components/ui/select"
 import { FileText, Printer, Copy, Loader2, RefreshCw } from "lucide-react"
 
+const BANCOS = [
+  "Banco Industrial",
+  "Banrural",
+  "BAM",
+  "G&T Continental",
+  "Promerica",
+  "Banco Agromercantil",
+  "BAC",
+  "Bantrab",
+  "Vivibanco",
+  "Banco Internacional",
+  "Otro"
+]
+
 interface ReciboData {
   nit: string
   reciboNo: string
@@ -542,7 +556,31 @@ export default function ReciboPagoGenerator({
             </div>
             <div>
               <Label>Banco</Label>
-              <Input value={recibo.banco} onChange={(e) => update("banco", e.target.value)} placeholder="Ej: BAM" />
+              <Select
+                value={BANCOS.includes(recibo.banco) ? recibo.banco : recibo.banco ? "Otro" : ""}
+                onValueChange={(v) => {
+                  if (v === "Otro") {
+                    update("banco", "Otro")
+                  } else {
+                    update("banco", v)
+                  }
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Seleccione el banco" /></SelectTrigger>
+                <SelectContent>
+                  {BANCOS.map((banco) => (
+                    <SelectItem key={banco} value={banco}>{banco}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {(recibo.banco === "Otro" || (recibo.banco && !BANCOS.includes(recibo.banco))) && (
+                <Input
+                  className="mt-2"
+                  value={recibo.banco === "Otro" ? "" : recibo.banco}
+                  onChange={(e) => update("banco", e.target.value || "Otro")}
+                  placeholder="Nombre del banco"
+                />
+              )}
             </div>
           </div>
 
