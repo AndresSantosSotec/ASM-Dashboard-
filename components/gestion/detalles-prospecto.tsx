@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ServerFilePreviewModal } from "@/components/ui/server-file-preview-modal"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import Swal from "sweetalert2"
 import JSZip from "jszip"
@@ -63,6 +64,8 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
   const [descargandoDoc, setDescargandoDoc] = useState<number | null>(null)
   const [descargandoTodo, setDescargandoTodo] = useState(false)
   const [departamentos, setDepartamentos] = useState<{ id: number; nombre: string }[]>([])
+  // Vista previa de documentos
+  const [previewDoc, setPreviewDoc] = useState<any>(null)
 
   // Cargar datos completos del prospecto
   useEffect(() => {
@@ -707,20 +710,32 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
                                 </div>
                               </div>
                             </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDescargarDocumento(doc)}
-                              disabled={descargandoDoc === doc.id}
-                              className="gap-1.5 text-blue-700 border-blue-300 hover:bg-blue-100 flex-shrink-0 ml-3"
-                            >
-                              {descargandoDoc === doc.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Download className="h-3.5 w-3.5" />
-                              )}
-                              Descargar
-                            </Button>
+                            <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setPreviewDoc(doc)}
+                                className="gap-1.5 text-indigo-700 border-indigo-300 hover:bg-indigo-100"
+                                title="Vista previa"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                                Ver
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDescargarDocumento(doc)}
+                                disabled={descargandoDoc === doc.id}
+                                className="gap-1.5 text-blue-700 border-blue-300 hover:bg-blue-100"
+                              >
+                                {descargandoDoc === doc.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Download className="h-3.5 w-3.5" />
+                                )}
+                                Descargar
+                              </Button>
+                            </div>
                           </div>
                         </Card>
                       )
@@ -728,6 +743,17 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
                   </div>
                 )}
               </TabsContent>
+
+              {/* Modal de vista previa de documentos */}
+              <ServerFilePreviewModal
+                isOpen={!!previewDoc}
+                onClose={() => setPreviewDoc(null)}
+                fileUrl={previewDoc ? `${API_URL}/documentos/documentos/${previewDoc.id}/file` : null}
+                fileName={previewDoc?.ruta_archivo?.split("/").pop() || `documento-${previewDoc?.id}`}
+                tipoDocumento={previewDoc?.tipo_documento}
+                estado={previewDoc?.estado}
+                authToken={typeof window !== "undefined" ? localStorage.getItem("token") : null}
+              />
 
               {/* ══════ TAB: NOTAS ══════ */}
               <TabsContent value="notas" className="space-y-4 mt-4">

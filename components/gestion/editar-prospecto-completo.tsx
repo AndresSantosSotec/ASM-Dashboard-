@@ -13,6 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { SimpleDatePicker } from "@/components/ui/simple-date-picker"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ServerFilePreviewModal } from "@/components/ui/server-file-preview-modal"
 import Swal from "sweetalert2"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import fetchFicha from "@/services/fichas"
@@ -650,6 +651,9 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
     }
     prevProgramaRef.current = datosAcademicos.programa
   }, [datosAcademicos.programa, programasUnicos])
+
+  // Vista previa de documentos
+  const [previewDoc, setPreviewDoc] = useState<any>(null)
 
   // Documentos agrupados por tipo (más reciente de cada tipo)
   const documentosPorTipo = useMemo(() => {
@@ -1419,12 +1423,10 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  asChild
+                                  onClick={() => setPreviewDoc(doc)}
                                 >
-                                  <a href={getDocUrl(doc)} target="_blank" rel="noreferrer">
-                                    <Eye className="h-4 w-4 mr-1" />
-                                    Ver
-                                  </a>
+                                  <Eye className="h-4 w-4 mr-1" />
+                                  Ver
                                 </Button>
                                 <Button
                                   variant="outline"
@@ -1633,6 +1635,17 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           </form>
         </ScrollArea>
       </DialogContent>
+
+      {/* Modal de vista previa de documentos */}
+      <ServerFilePreviewModal
+        isOpen={!!previewDoc}
+        onClose={() => setPreviewDoc(null)}
+        fileUrl={previewDoc ? getDocUrl(previewDoc) : null}
+        fileName={previewDoc?.ruta_archivo?.split("/").pop() || `documento-${previewDoc?.id}`}
+        tipoDocumento={previewDoc?.tipo_documento}
+        estado={previewDoc?.estado}
+        authToken={typeof window !== "undefined" ? localStorage.getItem("token") : null}
+      />
     </Dialog>
   )
 }
