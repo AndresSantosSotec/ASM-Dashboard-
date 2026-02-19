@@ -91,7 +91,10 @@ export default function CargaMasivaProspectos() {
 
   // Función para recargar las columnas desde el backend.
   const fetchColumns = () => {
-    fetch(`${API_BASE_URL}/api/columns`)
+    const token = localStorage.getItem("token")
+    fetch(`${API_BASE_URL}/api/columns`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP error: ${res.status}`)
         return res.json()
@@ -162,7 +165,10 @@ export default function CargaMasivaProspectos() {
 
   // Función para obtener columnas disponibles de la tabla prospectos
   const fetchAvailableColumns = () => {
-    fetch(`${API_BASE_URL}/api/columns/available`)
+    const token = localStorage.getItem("token")
+    fetch(`${API_BASE_URL}/api/columns/available`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP error: ${res.status}`)
         return res.json()
@@ -251,10 +257,14 @@ export default function CargaMasivaProspectos() {
       columnNumber: editingColumn.columnNumber,
     }
 
+    const token = localStorage.getItem("token")
     if (editingColumn.id === 0) {
       fetch(`${API_BASE_URL}/api/columns`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload),
       })
         .then((res) => {
@@ -291,7 +301,10 @@ export default function CargaMasivaProspectos() {
     } else {
       fetch(`${API_BASE_URL}/api/columns/${editingColumn.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload),
       })
         .then((res) => {
@@ -349,8 +362,10 @@ export default function CargaMasivaProspectos() {
     if (!result.isConfirmed) return
 
     try {
+      const token = localStorage.getItem("token")
       const response = await fetch(`${API_BASE_URL}/api/columns/${columnId}`, {
         method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
 
       if (!response.ok) {
@@ -497,9 +512,13 @@ export default function CargaMasivaProspectos() {
         payload.defaultValue = newColumnData.defaultValue
       }
 
+      const token = localStorage.getItem("token")
       const response = await fetch(`${API_BASE_URL}/api/columns/create`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload),
       })
 
@@ -563,9 +582,13 @@ export default function CargaMasivaProspectos() {
     }
 
     try {
+      const token = localStorage.getItem("token")
       const response = await fetch(`${API_BASE_URL}/api/columns/delete`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           columnName: columnToDelete.column_name,
           confirmation: "DELETE_COLUMN"
