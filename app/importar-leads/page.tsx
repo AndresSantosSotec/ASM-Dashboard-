@@ -812,10 +812,12 @@ export default function CargaMasivaProspectos() {
               <Button variant="outline" onClick={() => setShowStructure(!showStructure)}>
                 {showStructure ? "Ocultar Estructura" : "Mostrar Estructura"}
               </Button>
-              <Button variant="outline" onClick={() => setShowAvailableColumns(!showAvailableColumns)}>
-                <Info className="h-4 w-4 mr-2" />
-                {showAvailableColumns ? "Ocultar Campos DB" : "Gestionar Campos DB"}
-              </Button>
+              {currentUser?.rol?.toLowerCase() === "administrador" && (
+                <Button variant="outline" onClick={() => setShowAvailableColumns(!showAvailableColumns)}>
+                  <Info className="h-4 w-4 mr-2" />
+                  {showAvailableColumns ? "Ocultar Campos DB" : "Gestionar Campos DB"}
+                </Button>
+              )}
               <Button variant="outline" onClick={handleDownloadTemplate}>
                 <Download className="h-4 w-4 mr-2" />
                 Descargar Plantilla
@@ -835,10 +837,12 @@ export default function CargaMasivaProspectos() {
           <div className="bg-white p-6 rounded-lg shadow-sm">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold">Estructura esperada</h2>
-              <div className="flex gap-4">
-                <Button onClick={handleAddColumn}>Agregar Columna</Button>
-                <Button onClick={handleSaveConfiguration}>Guardar Configuración</Button>
-              </div>
+              {currentUser?.rol?.toLowerCase() === "administrador" && (
+                <div className="flex gap-4">
+                  <Button onClick={handleAddColumn}>Agregar Columna</Button>
+                  <Button onClick={handleSaveConfiguration}>Guardar Configuración</Button>
+                </div>
+              )}
             </div>
             <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
               <p className="text-sm text-blue-800">
@@ -902,6 +906,7 @@ export default function CargaMasivaProspectos() {
                       <td className="px-4 py-2">{column.columnNumber}</td>
                       <td className="px-4 py-2">{column.state}</td>
                       <td className="px-4 py-2 text-right">
+                        {currentUser?.rol?.toLowerCase() === "administrador" && (
                         <div className="flex gap-2 justify-end">
                           <Button size="sm" variant="outline" onClick={() => handleEditColumn(column)}>
                             Editar
@@ -915,6 +920,7 @@ export default function CargaMasivaProspectos() {
                             🗑️ Eliminar
                           </Button>
                         </div>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -924,8 +930,8 @@ export default function CargaMasivaProspectos() {
           </div>
         )}
 
-        {/* Sección de gestión de columnas de base de datos */}
-        {showAvailableColumns && (
+        {/* Sección de gestión de columnas de base de datos — Solo administradores */}
+        {showAvailableColumns && currentUser?.rol?.toLowerCase() === "administrador" && (
           <div className="bg-white p-6 rounded-lg shadow-sm">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold">Gestión de Campos en Base de Datos</h2>
