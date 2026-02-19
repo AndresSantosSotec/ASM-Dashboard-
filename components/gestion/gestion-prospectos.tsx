@@ -57,6 +57,7 @@ interface Prospecto {
 export default function GestionProspectos() {
   const [mounted, setMounted] = useState(false);
   const [prospectos, setProspectos] = useState<Prospecto[]>([]);
+  const [statuses, setStatuses] = useState<string[]>([]);
   const [programas, setProgramas] = useState<Record<string, string>>({});
   const [programasLoaded, setProgramasLoaded] = useState(false);
   const [loading, setLoading] = useState(true)
@@ -117,10 +118,10 @@ export default function GestionProspectos() {
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [totalProspectos, setTotalProspectos] = useState<number>(0)
   const [totalPages, setTotalPages] = useState<number>(1)
-  
+
   // ⚡ Debouncing para búsqueda
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  
+
   useEffect(() => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
@@ -129,7 +130,7 @@ export default function GestionProspectos() {
       setDebouncedSearchTerm(searchTerm)
       setCurrentPage(1) // Reset a primera página al buscar
     }, 500) // 500ms de delay
-    
+
     return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current)
@@ -177,6 +178,23 @@ export default function GestionProspectos() {
   // ⚙️ Control de montaje para evitar hidratación
   useEffect(() => {
     setMounted(true);
+
+    // Cargar estados dinámicos
+    const fetchStatuses = async () => {
+      try {
+        const token = localStorage.getItem("token")
+        const res = await fetch(`${API_URL}/prospectos/statuses`, {
+          headers: { Authorization: token ? `Bearer ${token}` : "" },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setStatuses(data)
+        }
+      } catch (err) {
+        console.error("Error cargando estados:", err)
+      }
+    }
+    fetchStatuses()
   }, []);
 
   // 📚 Cargar programas académicos
@@ -214,8 +232,8 @@ export default function GestionProspectos() {
     if (!programasLoaded) return;
 
     // Verificar caché solo si no hay filtros activos y no es refresh
-    if (!resetCache && !debouncedSearchTerm && estadoFilter === "todos" && 
-        departamentoFilter === "todos" && puestoFilter === "todos" && origenFilter === "todos" && page === 1) {
+    if (!resetCache && !debouncedSearchTerm && estadoFilter === "todos" &&
+      departamentoFilter === "todos" && puestoFilter === "todos" && origenFilter === "todos" && page === 1) {
       if (typeof window !== "undefined") {
         const cached = localStorage.getItem("gestion_prospectos_cache");
         const cacheTime = localStorage.getItem("gestion_prospectos_cache_time");
@@ -241,13 +259,13 @@ export default function GestionProspectos() {
     setError("")
     try {
       const token = localStorage.getItem("token")
-      
+
       // ⚡ Construir query params optimizados
       const params = new URLSearchParams({
         page: page.toString(),
         per_page: pageSize === "all" ? "200" : pageSize,
       })
-      
+
       if (debouncedSearchTerm) params.append("search", debouncedSearchTerm)
       if (estadoFilter !== "todos") params.append("status", estadoFilter)
       if (departamentoFilter !== "todos") params.append("departamento", departamentoFilter)
@@ -260,14 +278,14 @@ export default function GestionProspectos() {
           "Content-Type": "application/json",
         },
       })
-      
+
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}))
         throw new Error(errorData.message || `Error al obtener prospectos: ${res.status}`)
       }
-      
+
       const json = await res.json()
-      
+
       // ⚡ Mapear datos de forma optimizada
       const list: Prospecto[] = (json.data || []).map((item: any) => {
         let programaNombre = "—";
@@ -296,18 +314,18 @@ export default function GestionProspectos() {
           asesor: item.creator ? `${item.creator.first_name || ""} ${item.creator.last_name || ""}`.trim() : "Sin asignar",
         };
       })
-      
+
       setProspectos(list)
-      
+
       // ⚡ Actualizar paginación
       if (json.pagination) {
         setTotalProspectos(json.pagination.total)
         setTotalPages(json.pagination.last_page)
       }
-      
+
       // 💾 Guardar en caché solo si es primera página sin filtros
-      if (page === 1 && !debouncedSearchTerm && estadoFilter === "todos" && 
-          departamentoFilter === "todos" && puestoFilter === "todos" && origenFilter === "todos") {
+      if (page === 1 && !debouncedSearchTerm && estadoFilter === "todos" &&
+        departamentoFilter === "todos" && puestoFilter === "todos" && origenFilter === "todos") {
         if (typeof window !== "undefined") {
           localStorage.setItem("gestion_prospectos_cache", JSON.stringify({
             items: list,
@@ -427,7 +445,7 @@ export default function GestionProspectos() {
       localStorage.removeItem("gestion_prospectos_cache_time")
     }
   }
-  
+
   // ⚡ Invalidar caché cuando se actualiza un prospecto
   const handleUpdateProspecto = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -467,7 +485,7 @@ export default function GestionProspectos() {
         throw new Error(`Error al actualizar estado: ${res.status}`)
       }
       await res.json()
-      
+
       // ✅ Mostrar mensaje de éxito y redirigir automáticamente
       await Swal.fire({
         title: "¡Listo!",
@@ -476,10 +494,10 @@ export default function GestionProspectos() {
         timer: 2000,
         showConfirmButton: false,
       })
-      
+
       // 🔄 Redirigir a la ficha de inscripción con el ID del prospecto
       window.location.href = `/inscripcion/ficha?prospectoId=${id}`
-      
+
     } catch (err: any) {
       Swal.fire("Error", err.message, "error")
       console.log('Error details:', err);
@@ -553,14 +571,11 @@ export default function GestionProspectos() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos</SelectItem>
-            <SelectItem value="No contactado">No contactado</SelectItem>
-            <SelectItem value="En seguimiento">En seguimiento</SelectItem>
-            <SelectItem value="Le interesa a futuro">
-              Le interesa a futuro
-            </SelectItem>
-            <SelectItem value="Perdido">Perdido</SelectItem>
-            <SelectItem value="Inscrito">Inscrito</SelectItem>
-            <SelectItem value="Promesa de pago">Promesa de pago</SelectItem>
+            {statuses.map((s) => (
+              <SelectItem key={s} value={s}>
+                {s}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
@@ -627,7 +642,7 @@ export default function GestionProspectos() {
           <Filter className="h-4 w-4 mr-2" />
           Filtros
         </Button>
-        
+
         <Button
           variant="outline"
           onClick={() => {
@@ -643,7 +658,7 @@ export default function GestionProspectos() {
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
           Refrescar
         </Button>
-        
+
         <Button
           variant="outline"
           disabled={selectedIds.length === 0}
@@ -678,228 +693,228 @@ export default function GestionProspectos() {
 
       {/* Tabla */}
       {mounted && !loading && (
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600">
-            <tr>
-              <th className="py-3 px-4">
-                <Checkbox
-                  checked={selectedIds.length === prospectos.length}
-                  onCheckedChange={(c) => handleSelectAll(c as boolean)}
-                />
-              </th>
-              <th className="py-3 px-4 text-left">Nombre</th>
-              <th className="py-3 px-4 text-left">Email</th>
-              <th className="py-3 px-4 text-left">Teléfono</th>
-              <th className="py-3 px-4 text-left">Empresa</th>
-              <th className="py-3 px-4 text-left">Puesto</th>
-              <th className="py-3 px-4 text-left">Origen</th>
-              <th className="py-3 px-4 text-left">Notas</th>
-              <th className="py-3 px-4 text-left">Estado</th>
-              <th className="py-3 px-4 text-left">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {paginatedProspectos && paginatedProspectos.length > 0 && paginatedProspectos.map((p) => (
-              <tr key={p.id} className="hover:bg-gray-50">
-                <td className="py-3 px-4">
-                  <Checkbox
-                    checked={selectedIds.includes(p.id)}
-                    onCheckedChange={(c) => handleSelectOne(p.id, c as boolean)}
-                  />
-                </td>
-                <td className="py-3 px-4">{p.nombre}</td>
-                <td className="py-3 px-4">{p.email}</td>
-              <td className="py-3 px-4">{p.telefono}</td>
-              <td className="py-3 px-4">{p.departamento}</td>
-              <td className="py-3 px-4">{p.puesto}</td>
-              <td className="py-3 px-4">{p.origen}</td>
-              <td className="py-3 px-4">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="max-w-[150px] truncate cursor-help">
-                        {p.notasGenerales || p.observaciones ? (
-                          <span className="text-xs text-gray-600">
-                            {p.notasGenerales || p.observaciones}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-400">Sin notas</span>
-                        )}
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      {p.notasGenerales && (
-                        <div className="mb-2">
-                          <strong>Notas Generales:</strong>
-                          <p className="text-sm">{p.notasGenerales}</p>
-                        </div>
-                      )}
-                      {p.observaciones && (
-                        <div>
-                          <strong>Observaciones:</strong>
-                          <p className="text-sm">{p.observaciones}</p>
-                        </div>
-                      )}
-                      {!p.notasGenerales && !p.observaciones && (
-                        <p className="text-sm text-gray-400">Sin notas ni observaciones</p>
-                      )}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </td>
-              <td className="py-3 px-4">
-                  <div className="flex flex-col">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getEstadoColor(
-                        p.estado
-                      )}`}
-                    >
-                      {p.estado}
-                    </span>
-                    <span className="text-xs text-gray-500 mt-1">
-                      Último cambio: {p.ultimoCambio}
-                    </span>
-                  </div>
-                </td>
-                <td className="py-3 px-4">
-                  <TooltipProvider>
-                    <div className="flex items-center gap-2">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setSelectedProspecto(p)
-                              setModalType("detalles")
-                            }}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Ver prospecto</TooltipContent>
-                      </Tooltip>
-
-                      {currentUser?.rol !== "asesor" && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setSelectedProspecto(p)
-                                setModalType("editar")
-                              }}
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Editar</TooltipContent>
-                        </Tooltip>
-                      )}
-
-                      {currentUser?.rol === "administrador" && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setSelectedProspecto(p)
-                                setModalType("editar")
-                              }}
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Editar</TooltipContent>
-                        </Tooltip>
-                      )}
-
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleInscribir(p.id)}
-                          >
-                            <UserPlus className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Inscribir</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setSelectedProspecto(p)
-                              setModalType("alerta")
-                            }}
-                            className="text-orange-600 hover:text-orange-700"
-                          >
-                            <AlertCircle className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Alerta Alumno Nuevo</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <DropdownMenu>
-                          <TooltipTrigger asChild>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                          </TooltipTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedProspecto(p)
-                                setModalType("editar")
-                              }}
-                            >
-                              Actualizar Prospecto
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedProspecto(p)
-                                setShowEstadoMenu(true)
-                              }}
-                            >
-                              Cambiar Estado
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleInscribir(p.id)}>
-                              Inscribir
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleDescargarReporte(p.id)}
-                              disabled={descargandoReporte === p.id}
-                            >
-                              <Download className="h-4 w-4 mr-2" />
-                              {descargandoReporte === p.id ? "Descargando..." : "Descargar Reporte PDF"}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                        <TooltipContent>Más acciones</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </TooltipProvider>
-                </td>
-              </tr>
-            ))}
-            {paginatedProspectos.length === 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-gray-600">
               <tr>
-                <td colSpan={10} className="py-4 text-center text-gray-500">
-                  No se encontraron prospectos.
-                </td>
+                <th className="py-3 px-4">
+                  <Checkbox
+                    checked={selectedIds.length === prospectos.length}
+                    onCheckedChange={(c) => handleSelectAll(c as boolean)}
+                  />
+                </th>
+                <th className="py-3 px-4 text-left">Nombre</th>
+                <th className="py-3 px-4 text-left">Email</th>
+                <th className="py-3 px-4 text-left">Teléfono</th>
+                <th className="py-3 px-4 text-left">Empresa</th>
+                <th className="py-3 px-4 text-left">Puesto</th>
+                <th className="py-3 px-4 text-left">Origen</th>
+                <th className="py-3 px-4 text-left">Notas</th>
+                <th className="py-3 px-4 text-left">Estado</th>
+                <th className="py-3 px-4 text-left">Acciones</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y">
+              {paginatedProspectos && paginatedProspectos.length > 0 && paginatedProspectos.map((p) => (
+                <tr key={p.id} className="hover:bg-gray-50">
+                  <td className="py-3 px-4">
+                    <Checkbox
+                      checked={selectedIds.includes(p.id)}
+                      onCheckedChange={(c) => handleSelectOne(p.id, c as boolean)}
+                    />
+                  </td>
+                  <td className="py-3 px-4">{p.nombre}</td>
+                  <td className="py-3 px-4">{p.email}</td>
+                  <td className="py-3 px-4">{p.telefono}</td>
+                  <td className="py-3 px-4">{p.departamento}</td>
+                  <td className="py-3 px-4">{p.puesto}</td>
+                  <td className="py-3 px-4">{p.origen}</td>
+                  <td className="py-3 px-4">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="max-w-[150px] truncate cursor-help">
+                            {p.notasGenerales || p.observaciones ? (
+                              <span className="text-xs text-gray-600">
+                                {p.notasGenerales || p.observaciones}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">Sin notas</span>
+                            )}
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          {p.notasGenerales && (
+                            <div className="mb-2">
+                              <strong>Notas Generales:</strong>
+                              <p className="text-sm">{p.notasGenerales}</p>
+                            </div>
+                          )}
+                          {p.observaciones && (
+                            <div>
+                              <strong>Observaciones:</strong>
+                              <p className="text-sm">{p.observaciones}</p>
+                            </div>
+                          )}
+                          {!p.notasGenerales && !p.observaciones && (
+                            <p className="text-sm text-gray-400">Sin notas ni observaciones</p>
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex flex-col">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getEstadoColor(
+                          p.estado
+                        )}`}
+                      >
+                        {p.estado}
+                      </span>
+                      <span className="text-xs text-gray-500 mt-1">
+                        Último cambio: {p.ultimoCambio}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="py-3 px-4">
+                    <TooltipProvider>
+                      <div className="flex items-center gap-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setSelectedProspecto(p)
+                                setModalType("detalles")
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Ver prospecto</TooltipContent>
+                        </Tooltip>
+
+                        {currentUser?.rol !== "asesor" && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setSelectedProspecto(p)
+                                  setModalType("editar")
+                                }}
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Editar</TooltipContent>
+                          </Tooltip>
+                        )}
+
+                        {currentUser?.rol === "administrador" && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setSelectedProspecto(p)
+                                  setModalType("editar")
+                                }}
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Editar</TooltipContent>
+                          </Tooltip>
+                        )}
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleInscribir(p.id)}
+                            >
+                              <UserPlus className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Inscribir</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setSelectedProspecto(p)
+                                setModalType("alerta")
+                              }}
+                              className="text-orange-600 hover:text-orange-700"
+                            >
+                              <AlertCircle className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Alerta Alumno Nuevo</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <DropdownMenu>
+                            <TooltipTrigger asChild>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                            </TooltipTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedProspecto(p)
+                                  setModalType("editar")
+                                }}
+                              >
+                                Actualizar Prospecto
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedProspecto(p)
+                                  setShowEstadoMenu(true)
+                                }}
+                              >
+                                Cambiar Estado
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleInscribir(p.id)}>
+                                Inscribir
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDescargarReporte(p.id)}
+                                disabled={descargandoReporte === p.id}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                {descargandoReporte === p.id ? "Descargando..." : "Descargar Reporte PDF"}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          <TooltipContent>Más acciones</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TooltipProvider>
+                  </td>
+                </tr>
+              ))}
+              {paginatedProspectos.length === 0 && (
+                <tr>
+                  <td colSpan={10} className="py-4 text-center text-gray-500">
+                    No se encontraron prospectos.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {/* Paginación */}
