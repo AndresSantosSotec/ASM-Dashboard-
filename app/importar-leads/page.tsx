@@ -128,13 +128,13 @@ export default function CargaMasivaProspectos() {
     fetchColumns()
     fetchAvailableColumns()
     
-    // Cargar usuario actual y asesores
+    // Cargar usuario actual — primero desde localStorage, luego refrescar desde /user
+    const token = localStorage.getItem("token")
     try {
       const storedUser = localStorage.getItem("user")
       if (storedUser) {
         const user = JSON.parse(storedUser)
         setCurrentUser({ id: user.id, rol: user.rol || "" })
-        // Si es asesor, pre-seleccionar a sí mismo
         if ((user.rol || "").toLowerCase() === "asesor") {
           setSelectedAsesorId(String(user.id))
         }
@@ -142,9 +142,34 @@ export default function CargaMasivaProspectos() {
     } catch (e) {
       console.error("Error parsing user:", e)
     }
+
+    // Obtener rol actualizado desde el backend (el localStorage puede no tener 'rol')
+    if (token) {
+      fetch(`${API_BASE_URL}/user`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(res => res.ok ? res.json() : null)
+        .then(user => {
+          if (user && user.id) {
+            setCurrentUser({ id: user.id, rol: user.rol || "" })
+            // Actualizar localStorage para futuras cargas
+            const stored = localStorage.getItem("user")
+            if (stored) {
+              try {
+                const parsed = JSON.parse(stored)
+                parsed.rol = user.rol || ""
+                localStorage.setItem("user", JSON.stringify(parsed))
+              } catch {}
+            }
+            if ((user.rol || "").toLowerCase() === "asesor") {
+              setSelectedAsesorId(String(user.id))
+            }
+          }
+        })
+        .catch(err => console.error("Error fetching user role:", err))
+    }
     
     // Cargar lista de asesores
-    const token = localStorage.getItem("token")
     fetch(`${API_BASE_URL}/api/users/role/7`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
