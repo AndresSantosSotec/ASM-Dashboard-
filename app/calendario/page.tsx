@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Clock, Plus, Trash2, Edit, CalendarIcon, Bell, } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Plus, Trash2, Edit, CalendarIcon, Bell, CheckCircle2, } from "lucide-react";
 
 import { api } from "@/services/api";
 import Swal from "sweetalert2";
@@ -148,6 +148,7 @@ export default function CalendarioPage() {
     });
 
     citas.forEach((c) => {
+      if (c.estado === "completada") return; // No alertar citas ya completadas
       const citaDate = parseISO(c.datecita);
       if (citaDate >= now && citaDate <= in24h) {
         upcoming.push({ id: c.id, titulo: c.descricita, fecha: c.datecita, horaInicio: format(citaDate, "HH:mm"), tipo: "cita" });
@@ -402,6 +403,17 @@ export default function CalendarioPage() {
 
     const nuevoEstado = c.estado === "completada" ? "pendiente" : "completada";
 
+    // Optimistic update — UI reacts instantly
+    const optimisticCita: Cita = { ...c, estado: nuevoEstado };
+    setCitas((prev) => prev.map((x) => (x.id === id ? optimisticCita : x)));
+    if (selectedCita && selectedCita.id === id) setSelectedCita(optimisticCita);
+    if (selectedDayActivities) {
+      setSelectedDayActivities((prev) => {
+        if (!prev) return null;
+        return { ...prev, items: prev.items.map((it) => it.kind === "cita" && (it.item as Cita).id === id ? { ...it, item: optimisticCita } : it) };
+      });
+    }
+
     try {
       const res = await api.put(`/citas/${id}`, { estado: nuevoEstado });
 
@@ -447,6 +459,15 @@ export default function CalendarioPage() {
       });
     } catch (err) {
       console.error(err);
+      // Rollback optimistic update
+      setCitas((prev) => prev.map((x) => (x.id === id ? c : x)));
+      if (selectedCita && selectedCita.id === id) setSelectedCita(c);
+      if (selectedDayActivities) {
+        setSelectedDayActivities((prev) => {
+          if (!prev) return null;
+          return { ...prev, items: prev.items.map((it) => it.kind === "cita" && (it.item as Cita).id === id ? { ...it, item: c } : it) };
+        });
+      }
       Swal.fire({
         icon: "error",
         title: "Error",
@@ -649,12 +670,13 @@ export default function CalendarioPage() {
                         ) : (
                           <div
                             key={item.id}
-                            className="px-2 py-1 text-xs rounded-md cursor-pointer truncate bg-green-100 text-green-800 border-green-200"
+                            className={`px-2 py-1 text-xs rounded-md cursor-pointer truncate bg-green-100 text-green-800 border-green-200 ${(item as Cita).estado === "completada" ? "opacity-60 line-through" : ""}`}
                             onClick={(e) => {
                               e.stopPropagation();
                               openCitaDetails(item);
                             }}
                           >
+                            {(item as Cita).estado === "completada" && "✓ "}
                             {format(parseISO(item.datecita), "HH:mm")} -{" "}
                             {item.descricita}
                           </div>
@@ -908,10 +930,28 @@ export default function CalendarioPage() {
                 </div>
               )}
               <p className="text-gray-700">{selectedCita.descricita}</p>
+              {selectedCita.estado && (
+                <div className="mt-2">
+                  <Badge
+                    variant="outline"
+                    className={selectedCita.estado === "completada" ? "bg-green-100 text-green-800 border-green-300" : selectedCita.estado === "cancelada" ? "bg-red-100 text-red-800 border-red-300" : "bg-yellow-100 text-yellow-800 border-yellow-300"}
+                  >
+                    {selectedCita.estado === "completada" ? "✓ Completada" : selectedCita.estado === "cancelada" ? "✕ Cancelada" : "⏳ Pendiente"}
+                  </Badge>
+                </div>
+              )}
             </div>
             <DialogFooter className="justify-end space-x-2">
               <Button variant="outline" onClick={() => setCitaModalOpen(false)}>
                 Cerrar
+              </Button>
+              <Button
+                variant={selectedCita.estado === "completada" ? "outline" : "default"}
+                className={selectedCita.estado === "completada" ? "text-green-600 border-green-600 hover:bg-green-50" : "bg-green-600 hover:bg-green-700 text-white"}
+                onClick={() => toggleCitaComplete(selectedCita.id)}
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                {selectedCita.estado === "completada" ? "Marcar como pendiente" : "Marcar como completada"}
               </Button>
               <Button variant="destructive" onClick={() => deleteCita(selectedCita.id)}>
                 <Trash2 className="mr-2 h-4 w-4" />
@@ -1005,7 +1045,7 @@ export default function CalendarioPage() {
                     return (
                       <div
                         key={cita.id}
-                        className="p-4 rounded-lg border-2 cursor-pointer hover:shadow-md transition-shadow bg-green-50 border-green-200"
+                        className={`p-4 rounded-lg border-2 cursor-pointer hover:shadow-md transition-shadow bg-green-50 border-green-200 ${cita.estado === "completada" ? "opacity-60" : ""}`}
                         onClick={() => {
                           setDayActivitiesModalOpen(false);
                           openCitaDetails(cita);
@@ -1013,10 +1053,17 @@ export default function CalendarioPage() {
                       >
                         <div className="flex justify-between items-start mb-2">
                           <div className="flex-1">
-                            <Badge variant="outline" className="text-xs bg-green-100 mb-2">
-                              📅 Cita
-                            </Badge>
-                            <h4 className="font-semibold text-green-900">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant="outline" className="text-xs bg-green-100">
+                                📅 Cita
+                              </Badge>
+                              {cita.estado === "completada" && (
+                                <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
+                                  ✓ Completada
+                                </Badge>
+                              )}
+                            </div>
+                            <h4 className={`font-semibold text-green-900 ${cita.estado === "completada" ? "line-through" : ""}`}>
                               {cita.descricita}
                             </h4>
                             {cita.nombre_prospecto && (
@@ -1031,6 +1078,19 @@ export default function CalendarioPage() {
                         <div className="flex items-center text-sm gap-2 mt-2 text-green-800">
                           <Clock className="h-4 w-4" />
                           <span>{format(parseISO(cita.datecita), "HH:mm")}</span>
+                        </div>
+                        <div className="mt-3 flex justify-end">
+                          <Button
+                            variant={cita.estado === "completada" ? "outline" : "default"}
+                            size="sm"
+                            className={cita.estado === "completada" ? "text-green-600 border-green-600 hover:bg-green-50" : "bg-green-600 hover:bg-green-700 text-white"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleCitaComplete(cita.id);
+                            }}
+                          >
+                            {cita.estado === "completada" ? "Marcar como pendiente" : "Marcar como completada"}
+                          </Button>
                         </div>
                       </div>
                     );
