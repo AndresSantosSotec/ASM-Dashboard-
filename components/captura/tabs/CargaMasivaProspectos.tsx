@@ -28,7 +28,8 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
   const [showStructure, setShowStructure] = useState(false)
   const [columns, setColumns] = useState<Column[]>([])
   const [searchFilter, setSearchFilter] = useState("")
-  
+  const [isImporting, setIsImporting] = useState(false)
+
   const { toast } = useToast()
   const router = useRouter()
 
@@ -113,17 +114,25 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
       return;
     }
 
+    setIsImporting(true);
     console.log("[Import] iniciando petición", { confirm, file });
+
+    // Mostrar loading con SweetAlert
+    Swal.fire({
+      title: 'Importando...',
+      html: 'Procesando el archivo, esto puede tardar unos minutos para archivos grandes.',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
 
     const formData = new FormData();
     formData.append("file", file);
     if (confirm) formData.append("confirm", "true");
 
     const token = localStorage.getItem("token");
-    console.log("[Import] headers y body preparados", {
-      token,
-      hasFile: formData.has("file"),
-    });
 
     fetch(`${API_BASE_URL}/api/import`, {
       method: "POST",
@@ -132,7 +141,10 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
     })
       .then(async (res) => {
         console.log("[Import] respuesta fetch:", res);
-        if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => null);
+          throw new Error(errorData?.message || `Error del servidor: ${res.status}`);
+        }
         return res.json();
       })
       .then((data) => {
@@ -147,7 +159,7 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
           Swal.fire({
             title: '¡Duplicados encontrados!',
             html: `
-                <p>Total filas enviadas: ${data.inserted}</p>
+                <p>Nuevos por insertar: ${data.insertable}</p>
                 <p>Duplicados detectados: ${data.skipped}</p>
                 <ul style="text-align:left;">${duplicatesHtml}</ul>
                 <p>Por favor corrige tu archivo Excel y vuelve a intentarlo.</p>
@@ -157,25 +169,56 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
             width: 600,
           });
 
-
           return;
         }
 
-        // Flujo final: éxito (sin duplicados o tras confirmación)
+        // 🛡️ NUEVO: Manejo de error de estructura (columnas faltantes)
+        if (data.status === "column_mismatch") {
+          const missingList = data.missing_columns
+            .map((col: string) => `<li>${col}</li>`)
+            .join("");
+
+          Swal.fire({
+            icon: "warning",
+            title: "Estructura incorrecta",
+            html: `
+                    <div class="text-left">
+                        <p class="font-medium text-red-600 mb-2">Las columnas del archivo no coinciden con la configuración actual.</p>
+                        <p class="text-sm text-gray-700 mb-1">Faltan las siguientes columnas:</p>
+                        <ul class="list-disc pl-5 text-sm text-gray-600 mb-4 h-32 overflow-y-auto border p-2 rounded bg-gray-50">
+                            ${missingList}
+                        </ul>
+                        <p class="text-sm">Por favor descarga la nueva plantilla y asegúrate de usar los encabezados correctos.</p>
+                    </div>
+                `,
+            showCancelButton: true,
+            confirmButtonText: "Descargar Plantilla",
+            cancelButtonText: "Entendido",
+            confirmButtonColor: "#3085d6",
+            cancelButtonColor: "#71717a"
+          }).then((result) => {
+            if (result.isConfirmed) {
+              handleDownloadTemplate(); // Esta función existe en este componente
+            }
+          });
+          return;
+        }
+
+        // Flujo final: éxito
         Swal.fire({
           icon: "success",
           title: "Importación completada",
           html: `
-            ${data.skipped > 0
-              ? `<p>Duplicados importados: ${data.skipped}</p>`
-              : ''
-            }
+            <p>Insertados: ${data.inserted || 0}</p>
+            ${data.skipped > 0 ? `<p>Duplicados omitidos: ${data.skipped}</p>` : ''}
+            ${data.errors > 0 ? `<p>Filas con error: ${data.errors}</p>` : ''}
           `,
         });
         toast({
           title: "Importación completada",
           description: data.message,
         });
+        setFile(null);
         if (onImportSuccess) onImportSuccess();
         router.refresh();
       })
@@ -184,13 +227,16 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
         Swal.fire({
           icon: "error",
           title: "Error en la importación",
-          text: "Detalle: " + error.message,
+          html: `<p>${error.message}</p><p class="text-sm text-gray-500">Si el archivo es muy grande, intenta dividirlo en partes más pequeñas.</p>`,
         });
         toast({
           title: "Error",
-          description: "No se pudieron importar los datos",
+          description: "No se pudieron importar los datos: " + error.message,
           variant: "destructive",
         });
+      })
+      .finally(() => {
+        setIsImporting(false);
       });
   };
 
@@ -235,7 +281,9 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
                 <Download className="h-4 w-4 mr-2" />
                 Descargar Plantilla
               </Button>
-              <Button onClick={() => handleImport()}>Importar Leads</Button>
+              <Button onClick={() => handleImport()} disabled={isImporting || !file}>
+                {isImporting ? "Importando..." : "Importar Leads"}
+              </Button>
             </div>
           </div>
         </div>
@@ -248,7 +296,7 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
             </div>
             <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
               <p className="text-sm text-blue-800">
-                ℹ️ Esta tabla muestra las <strong>parametrizaciones activas</strong> (mapeos entre columnas de Excel y la base de datos). 
+                ℹ️ Esta tabla muestra las <strong>parametrizaciones activas</strong> (mapeos entre columnas de Excel y la base de datos).
                 Al eliminar una fila, solo se elimina el mapeo, la columna seguirá existiendo en la base de datos.
               </p>
             </div>
@@ -280,17 +328,17 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
                       return column.name.toLowerCase().includes(search) || column.excelName.toLowerCase().includes(search)
                     })
                     .map((column, index) => (
-                    <tr
-                      key={column.id ? column.id : `${column.name}-${index}`}
-                      className="border-b odd:bg-white even:bg-gray-100"
-                    >
-                      <td className="px-4 py-2">{index + 1}</td>
-                      <td className="px-4 py-2">{column.name}</td>
-                      <td className="px-4 py-2">{column.excelName}</td>
-                      <td className="px-4 py-2">{column.columnNumber}</td>
-                      <td className="px-4 py-2">{column.state}</td>
-                    </tr>
-                  ))}
+                      <tr
+                        key={column.id ? column.id : `${column.name}-${index}`}
+                        className="border-b odd:bg-white even:bg-gray-100"
+                      >
+                        <td className="px-4 py-2">{index + 1}</td>
+                        <td className="px-4 py-2">{column.name}</td>
+                        <td className="px-4 py-2">{column.excelName}</td>
+                        <td className="px-4 py-2">{column.columnNumber}</td>
+                        <td className="px-4 py-2">{column.state}</td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>

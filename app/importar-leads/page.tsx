@@ -54,16 +54,16 @@ export default function CargaMasivaProspectos() {
   const [editingColumn, setEditingColumn] = useState<Column | null>(null)
   const [selectedDbColumn, setSelectedDbColumn] = useState<string>("")
   const [progress, setProgress] = useState<number>(0)
-  
+
   // Estados para asignar asesor al importar
   const [asesores, setAsesores] = useState<{ id: number; nombre: string }[]>([])
   const [selectedAsesorId, setSelectedAsesorId] = useState<string>("")
   const [currentUser, setCurrentUser] = useState<{ id: number; rol: string } | null>(null)
-  
+
   // Estados para filtros
   const [searchFilter, setSearchFilter] = useState("")
   const [searchAvailableFilter, setSearchAvailableFilter] = useState("")
-  
+
   // Estados para crear columna
   const [showCreateColumnDialog, setShowCreateColumnDialog] = useState(false)
   const [newColumnData, setNewColumnData] = useState({
@@ -73,12 +73,12 @@ export default function CargaMasivaProspectos() {
     nullable: true,
     defaultValue: ""
   })
-  
+
   // Estados para eliminar columna
   const [showDeleteColumnDialog, setShowDeleteColumnDialog] = useState(false)
   const [columnToDelete, setColumnToDelete] = useState<AvailableColumn | null>(null)
   const [deleteConfirmation, setDeleteConfirmation] = useState("")
-  
+
   const { toast } = useToast()
   const router = useRouter()
 
@@ -127,7 +127,7 @@ export default function CargaMasivaProspectos() {
   useEffect(() => {
     fetchColumns()
     fetchAvailableColumns()
-    
+
     // Cargar usuario actual — primero desde localStorage, luego refrescar desde /user
     const token = localStorage.getItem("token")
     try {
@@ -159,7 +159,7 @@ export default function CargaMasivaProspectos() {
                 const parsed = JSON.parse(stored)
                 parsed.rol = user.rol || ""
                 localStorage.setItem("user", JSON.stringify(parsed))
-              } catch {}
+              } catch { }
             }
             if ((user.rol || "").toLowerCase() === "asesor") {
               setSelectedAsesorId(String(user.id))
@@ -168,7 +168,7 @@ export default function CargaMasivaProspectos() {
         })
         .catch(err => console.error("Error fetching user role:", err))
     }
-    
+
     // Cargar lista de asesores
     fetch(`${API_BASE_URL}/api/users/role/7`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -255,7 +255,7 @@ export default function CargaMasivaProspectos() {
   // Guarda los cambios en la columna (POST para nueva, PUT para existente)
   const handleSaveColumn = () => {
     if (!editingColumn) return
-    
+
     // Validación: nombre de columna requerido
     if (!editingColumn.name) {
       toast({
@@ -265,7 +265,7 @@ export default function CargaMasivaProspectos() {
       })
       return
     }
-    
+
     // Validación: nombre en Excel requerido
     if (!editingColumn.excelName.trim()) {
       toast({
@@ -716,7 +716,7 @@ export default function CargaMasivaProspectos() {
         const data = JSON.parse(xhr.responseText);
         console.log("[Import] JSON recibido:", data);
 
-        // Si el backend detectó duplicados y aún no confirmamos
+        // Si el backend detectó duplicados
         if (data.status === "duplicates" && !confirm) {
           const duplicatesHtml = data.duplicates
             .map((d: any) => `<li>${d.correo_electronico}: ${d.count} duplicado(s)</li>`)
@@ -734,8 +734,38 @@ export default function CargaMasivaProspectos() {
             confirmButtonText: 'Entendido',
             width: 600,
           });
+          return;
+        }
 
+        // 🛡️ NUEVO: Manejo de error de estructura (columnas faltantes)
+        if (data.status === "column_mismatch") {
+          const missingList = data.missing_columns
+            .map((col: string) => `<li>${col}</li>`)
+            .join("");
 
+          Swal.fire({
+            icon: "warning",
+            title: "Estructura incorrecta",
+            html: `
+                    <div class="text-left">
+                        <p class="font-medium text-red-600 mb-2">Las columnas del archivo no coinciden con la configuración actual.</p>
+                        <p class="text-sm text-gray-700 mb-1">Faltan las siguientes columnas:</p>
+                        <ul class="list-disc pl-5 text-sm text-gray-600 mb-4 h-32 overflow-y-auto border p-2 rounded bg-gray-50">
+                            ${missingList}
+                        </ul>
+                        <p class="text-sm">Por favor descarga la nueva plantilla y asegúrate de usar los encabezados correctos.</p>
+                    </div>
+                `,
+            showCancelButton: true,
+            confirmButtonText: "Descargar Plantilla",
+            cancelButtonText: "Entendido",
+            confirmButtonColor: "#3085d6",
+            cancelButtonColor: "#71717a"
+          }).then((result) => {
+            if (result.isConfirmed) {
+              handleDownloadTemplate();
+            }
+          });
           return;
         }
 
@@ -894,11 +924,11 @@ export default function CargaMasivaProspectos() {
             </div>
             <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
               <p className="text-sm text-blue-800">
-                ℹ️ Esta tabla muestra las <strong>parametrizaciones activas</strong> (mapeos entre columnas de Excel y la base de datos). 
+                ℹ️ Esta tabla muestra las <strong>parametrizaciones activas</strong> (mapeos entre columnas de Excel y la base de datos).
                 Al eliminar una fila, solo se elimina el mapeo, la columna seguirá existiendo en la base de datos.
               </p>
             </div>
-            
+
             {/* Filtro de búsqueda */}
             <div className="mb-4 flex items-center gap-4">
               <Input
@@ -946,34 +976,34 @@ export default function CargaMasivaProspectos() {
                       )
                     })
                     .map((column, index) => (
-                    <tr
-                      key={column.id ? column.id : `${column.name}-${index}`}
-                      className="border-b odd:bg-white even:bg-gray-100"
-                    >
-                      <td className="px-4 py-2">{index + 1}</td>
-                      <td className="px-4 py-2">{column.name}</td>
-                      <td className="px-4 py-2">{column.excelName}</td>
-                      <td className="px-4 py-2">{column.columnNumber}</td>
-                      <td className="px-4 py-2">{column.state}</td>
-                      {currentUser?.rol?.toLowerCase() === "administrador" && (
-                        <td className="px-4 py-2 text-right">
-                          <div className="flex gap-2 justify-end">
-                            <Button size="sm" variant="outline" onClick={() => handleEditColumn(column)}>
-                              Editar
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="ghost"
-                              onClick={() => handleDeleteMapping(column.id, column.name)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              🗑️ Eliminar
-                            </Button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
+                      <tr
+                        key={column.id ? column.id : `${column.name}-${index}`}
+                        className="border-b odd:bg-white even:bg-gray-100"
+                      >
+                        <td className="px-4 py-2">{index + 1}</td>
+                        <td className="px-4 py-2">{column.name}</td>
+                        <td className="px-4 py-2">{column.excelName}</td>
+                        <td className="px-4 py-2">{column.columnNumber}</td>
+                        <td className="px-4 py-2">{column.state}</td>
+                        {currentUser?.rol?.toLowerCase() === "administrador" && (
+                          <td className="px-4 py-2 text-right">
+                            <div className="flex gap-2 justify-end">
+                              <Button size="sm" variant="outline" onClick={() => handleEditColumn(column)}>
+                                Editar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDeleteMapping(column.id, column.name)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                🗑️ Eliminar
+                              </Button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
@@ -990,7 +1020,7 @@ export default function CargaMasivaProspectos() {
                 Crear Nueva Columna
               </Button>
             </div>
-            
+
             <p className="text-sm text-gray-600 mb-4">
               Estas son todas las columnas disponibles en la tabla <code className="bg-gray-100 px-2 py-1 rounded">prospectos</code>.
               Puedes crear nuevas columnas o eliminar las que no necesites.
@@ -1031,36 +1061,36 @@ export default function CargaMasivaProspectos() {
                   )
                 })
                 .map((col) => (
-                <div
-                  key={col.column_name}
-                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge variant={col.is_configured ? "secondary" : "outline"} className="text-xs">
-                        {col.is_configured ? "✓ Mapeado" : "○ Disponible"}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        {col.data_type}
-                      </Badge>
-                    </div>
-                    <p className="text-sm font-medium">{col.display_name}</p>
-                    {col.is_configured && (
-                      <p className="text-xs text-gray-500">
-                        Excel: {col.excel_column_name}
-                      </p>
-                    )}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleOpenDeleteColumn(col)}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  <div
+                    key={col.column_name}
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
                   >
-                    🗑️
-                  </Button>
-                </div>
-              ))}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant={col.is_configured ? "secondary" : "outline"} className="text-xs">
+                          {col.is_configured ? "✓ Mapeado" : "○ Disponible"}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {col.data_type}
+                        </Badge>
+                      </div>
+                      <p className="text-sm font-medium">{col.display_name}</p>
+                      {col.is_configured && (
+                        <p className="text-xs text-gray-500">
+                          Excel: {col.excel_column_name}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleOpenDeleteColumn(col)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      🗑️
+                    </Button>
+                  </div>
+                ))}
             </div>
           </div>
         )}
@@ -1091,13 +1121,13 @@ export default function CargaMasivaProspectos() {
                 <Input
                   placeholder="ejemplo: campo_personalizado"
                   value={newColumnData.columnName}
-                  onChange={(e) => setNewColumnData({...newColumnData, columnName: e.target.value.toLowerCase()})}
+                  onChange={(e) => setNewColumnData({ ...newColumnData, columnName: e.target.value.toLowerCase() })}
                   className={
                     newColumnData.columnName && !/^[a-z_]+$/.test(newColumnData.columnName)
                       ? "border-red-300 focus:border-red-500"
                       : newColumnData.columnName.length >= 3 && /^[a-z_]+$/.test(newColumnData.columnName) && !newColumnData.columnName.endsWith('_')
-                      ? "border-green-300 focus:border-green-500"
-                      : ""
+                        ? "border-green-300 focus:border-green-500"
+                        : ""
                   }
                 />
                 <div className="mt-1 space-y-1">
@@ -1115,11 +1145,11 @@ export default function CargaMasivaProspectos() {
                       {newColumnData.columnName.endsWith('_') && (
                         <p className="text-xs text-red-600">❌ No puede terminar con guión bajo</p>
                       )}
-                      {newColumnData.columnName.length >= 3 && 
-                       /^[a-z_]+$/.test(newColumnData.columnName) && 
-                       !newColumnData.columnName.endsWith('_') && (
-                        <p className="text-xs text-green-600">✅ Nombre válido</p>
-                      )}
+                      {newColumnData.columnName.length >= 3 &&
+                        /^[a-z_]+$/.test(newColumnData.columnName) &&
+                        !newColumnData.columnName.endsWith('_') && (
+                          <p className="text-xs text-green-600">✅ Nombre válido</p>
+                        )}
                     </div>
                   )}
                 </div>
@@ -1129,9 +1159,9 @@ export default function CargaMasivaProspectos() {
                 <label className="block text-sm font-medium mb-1">
                   Tipo de Dato *
                 </label>
-                <Select 
+                <Select
                   value={newColumnData.dataType}
-                  onValueChange={(value) => setNewColumnData({...newColumnData, dataType: value})}
+                  onValueChange={(value) => setNewColumnData({ ...newColumnData, dataType: value })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -1158,7 +1188,7 @@ export default function CargaMasivaProspectos() {
                     min="1"
                     max="65535"
                     value={newColumnData.length}
-                    onChange={(e) => setNewColumnData({...newColumnData, length: parseInt(e.target.value) || 255})}
+                    onChange={(e) => setNewColumnData({ ...newColumnData, length: parseInt(e.target.value) || 255 })}
                   />
                 </div>
               )}
@@ -1168,7 +1198,7 @@ export default function CargaMasivaProspectos() {
                   type="checkbox"
                   id="nullable"
                   checked={newColumnData.nullable}
-                  onChange={(e) => setNewColumnData({...newColumnData, nullable: e.target.checked})}
+                  onChange={(e) => setNewColumnData({ ...newColumnData, nullable: e.target.checked })}
                   className="rounded"
                 />
                 <label htmlFor="nullable" className="text-sm">
@@ -1183,7 +1213,7 @@ export default function CargaMasivaProspectos() {
                 <Input
                   placeholder="Dejar vacío si no aplica"
                   value={newColumnData.defaultValue}
-                  onChange={(e) => setNewColumnData({...newColumnData, defaultValue: e.target.value})}
+                  onChange={(e) => setNewColumnData({ ...newColumnData, defaultValue: e.target.value })}
                 />
               </div>
             </div>
@@ -1191,10 +1221,10 @@ export default function CargaMasivaProspectos() {
               <Button variant="outline" onClick={() => setShowCreateColumnDialog(false)}>
                 Cancelar
               </Button>
-              <Button 
+              <Button
                 onClick={handleCreateColumn}
                 disabled={
-                  !newColumnData.columnName || 
+                  !newColumnData.columnName ||
                   newColumnData.columnName.length < 3 ||
                   !/^[a-z_]+$/.test(newColumnData.columnName) ||
                   newColumnData.columnName.endsWith('_')
@@ -1252,8 +1282,8 @@ export default function CargaMasivaProspectos() {
               </div>
             </div>
             <DialogFooter>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => {
                   setShowDeleteColumnDialog(false)
                   setColumnToDelete(null)
@@ -1262,7 +1292,7 @@ export default function CargaMasivaProspectos() {
               >
                 Cancelar
               </Button>
-              <Button 
+              <Button
                 variant="destructive"
                 onClick={handleDeleteColumn}
                 disabled={deleteConfirmation !== "DELETE_COLUMN"}
@@ -1293,8 +1323,8 @@ export default function CargaMasivaProspectos() {
                   <label className="text-sm font-medium flex items-center gap-2">
                     Campo de Base de Datos <Badge variant="destructive">Requerido</Badge>
                   </label>
-                  <Select 
-                    value={selectedDbColumn} 
+                  <Select
+                    value={selectedDbColumn}
                     onValueChange={(value) => {
                       setSelectedDbColumn(value)
                       if (editingColumn) {
@@ -1325,7 +1355,7 @@ export default function CargaMasivaProspectos() {
                   </p>
                 </div>
               )}
-              
+
               {editingColumn?.id !== 0 && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Campo de BD (No editable)</label>
@@ -1335,7 +1365,7 @@ export default function CargaMasivaProspectos() {
                   </p>
                 </div>
               )}
-              
+
               <div className="space-y-2">
                 <label className="text-sm font-medium flex items-center gap-2">
                   Nombre en Excel <Badge variant="destructive">Requerido</Badge>
@@ -1353,7 +1383,7 @@ export default function CargaMasivaProspectos() {
                   Escribe exactamente como aparece la columna en tu archivo Excel
                 </p>
               </div>
-              
+
               <div className="space-y-2">
                 <label className="text-sm font-medium flex items-center gap-2">
                   Número de Columna <Info className="h-4 w-4 text-gray-400" />
@@ -1377,13 +1407,13 @@ export default function CargaMasivaProspectos() {
                   }
                 />
                 <p className="text-xs text-gray-500">
-                  {editingColumn?.id === 0 
+                  {editingColumn?.id === 0
                     ? `💡 Se asignó automáticamente el número ${editingColumn.columnNumber}. Puedes cambiarlo si lo deseas.`
                     : "Número de la columna en tu Excel (usado para ordenamiento)"
                   }
                 </p>
               </div>
-              
+
               {/* Botón para ver columnas disponibles */}
               <div className="border-t pt-4">
                 <Button
@@ -1394,14 +1424,14 @@ export default function CargaMasivaProspectos() {
                 >
                   {showAvailableColumns ? "Ocultar" : "Ver"} Columnas Disponibles en BD
                 </Button>
-                
+
                 {showAvailableColumns && (
                   <div className="mt-4 border rounded-lg p-4 bg-gray-50 max-h-[200px] overflow-y-auto">
                     <h4 className="text-sm font-semibold mb-2">Columnas de la tabla prospectos:</h4>
                     <div className="grid grid-cols-2 gap-2">
                       {availableColumns.map((col) => (
                         <div key={col.column_name} className="text-xs flex items-center gap-2">
-                          <Badge 
+                          <Badge
                             variant={col.is_configured ? "secondary" : "outline"}
                             className="text-xs"
                           >
@@ -1424,7 +1454,7 @@ export default function CargaMasivaProspectos() {
               }}>
                 Cancelar
               </Button>
-              <Button 
+              <Button
                 onClick={handleSaveColumn}
                 disabled={editingColumn?.id === 0 && !selectedDbColumn}
               >
