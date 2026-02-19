@@ -11,11 +11,12 @@ interface ColumnConfig {
   columnNumber: number  // orden de la columna
 }
 
-/** Datos de ejemplo por nombre de columna BD */
-const EXAMPLE_DATA: Record<string, string> = {
+/** Datos de ejemplo conocidos por nombre de columna BD */
+const KNOWN_EXAMPLES: Record<string, string> = {
   nombre_completo: "Juan Pérez López",
   correo_electronico: "juan.perez@ejemplo.com",
   telefono: "50212345678",
+  telefono_corporativo: "50298765432",
   genero: "masculino",
   empresa_donde_labora_actualmente: "Empresa Guatemala S.A.",
   puesto: "Gerente de Operaciones",
@@ -38,6 +39,44 @@ const EXAMPLE_DATA: Record<string, string> = {
   nivel_academico: "Licenciatura",
   universidad: "Universidad San Carlos de Guatemala",
   carrera: "Administración de Empresas",
+  campania: "Campaña Enero 2026",
+  asesor_asignado: "María López",
+  retroalimentacion_asesor: "Interesado, llamar en 2 días",
+  sector_empresa: "Tecnología",
+}
+
+/**
+ * Genera un ejemplo dinámico para columnas no conocidas,
+ * basado en patrones del nombre de la columna.
+ */
+function getExampleForColumn(columnName: string): string {
+  // Primero buscar en los datos conocidos
+  if (KNOWN_EXAMPLES[columnName]) return KNOWN_EXAMPLES[columnName]
+
+  const lower = columnName.toLowerCase()
+
+  // Patrones dinámicos basados en palabras clave del nombre de columna
+  if (lower.includes("fecha") || lower.includes("date")) return "2026-01-15"
+  if (lower.includes("correo") || lower.includes("email") || lower.includes("mail")) return "ejemplo@correo.com"
+  if (lower.includes("telefono") || lower.includes("phone") || lower.includes("celular") || lower.includes("movil")) return "50212345678"
+  if (lower.includes("nombre") || lower.includes("name")) return "Dato de ejemplo"
+  if (lower.includes("direccion") || lower.includes("address")) return "Zona 10, Guatemala"
+  if (lower.includes("nota") || lower.includes("comentario") || lower.includes("observacion")) return "Nota de ejemplo"
+  if (lower.includes("pais") || lower.includes("country")) return "Guatemala"
+  if (lower.includes("ciudad") || lower.includes("city")) return "Ciudad de Guatemala"
+  if (lower.includes("empresa") || lower.includes("company")) return "Empresa S.A."
+  if (lower.includes("sector") || lower.includes("industria")) return "Tecnología"
+  if (lower.includes("nivel") || lower.includes("level")) return "Licenciatura"
+  if (lower.includes("status") || lower.includes("estado")) return "Nuevo"
+  if (lower.includes("origen") || lower.includes("source") || lower.includes("fuente")) return "facebook"
+  if (lower.includes("campania") || lower.includes("campaign")) return "Campaña Ejemplo"
+  if (lower.includes("asesor") || lower.includes("advisor") || lower.includes("vendedor")) return "Nombre del Asesor"
+  if (lower.includes("monto") || lower.includes("precio") || lower.includes("amount")) return "1500.00"
+  if (lower.includes("nit") || lower.includes("dpi") || lower.includes("cui")) return "1234567-8"
+  if (lower.includes("retroalimentacion") || lower.includes("feedback")) return "Retroalimentación de ejemplo"
+
+  // Fallback: retorna cadena vacía (el usuario verá la celda y sabrá que debe llenarla)
+  return ""
 }
 
 /** Columnas por defecto si no hay configuración registrada */
@@ -122,7 +161,7 @@ export async function downloadExcelTemplate(
   const exampleRow = ws.getRow(3)
   cols.forEach((col, idx) => {
     const cell = exampleRow.getCell(idx + 1)
-    cell.value = EXAMPLE_DATA[col.name] || ""
+    cell.value = getExampleForColumn(col.name)
     cell.font = { size: 10, italic: true, color: { argb: "FF888888" } }
     cell.fill = {
       type: "pattern",
@@ -149,7 +188,7 @@ export async function downloadExcelTemplate(
   // ── Ajustar ancho de columnas ───────────────────────────────
   cols.forEach((col, idx) => {
     const header = col.excelName
-    const example = EXAMPLE_DATA[col.name] || ""
+    const example = getExampleForColumn(col.name)
     const maxLen = Math.max(header.length, example.length, 12)
     ws.getColumn(idx + 1).width = Math.min(maxLen + 4, 40)
   })

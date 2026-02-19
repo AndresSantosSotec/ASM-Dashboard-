@@ -905,7 +905,9 @@ export default function CargaMasivaProspectos() {
                     <th className="px-4 py-2 text-left">Nombre en Excel</th>
                     <th className="px-4 py-2 text-left">Número de Columna</th>
                     <th className="px-4 py-2 text-left">Estado</th>
-                    <th className="px-4 py-2 text-right">Acciones</th>
+                    {currentUser?.rol?.toLowerCase() === "administrador" && (
+                      <th className="px-4 py-2 text-right">Acciones</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -928,23 +930,23 @@ export default function CargaMasivaProspectos() {
                       <td className="px-4 py-2">{column.excelName}</td>
                       <td className="px-4 py-2">{column.columnNumber}</td>
                       <td className="px-4 py-2">{column.state}</td>
-                      <td className="px-4 py-2 text-right">
-                        {currentUser?.rol?.toLowerCase() === "administrador" && (
-                        <div className="flex gap-2 justify-end">
-                          <Button size="sm" variant="outline" onClick={() => handleEditColumn(column)}>
-                            Editar
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            onClick={() => handleDeleteMapping(column.id, column.name)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            🗑️ Eliminar
-                          </Button>
-                        </div>
-                        )}
-                      </td>
+                      {currentUser?.rol?.toLowerCase() === "administrador" && (
+                        <td className="px-4 py-2 text-right">
+                          <div className="flex gap-2 justify-end">
+                            <Button size="sm" variant="outline" onClick={() => handleEditColumn(column)}>
+                              Editar
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="ghost"
+                              onClick={() => handleDeleteMapping(column.id, column.name)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              🗑️ Eliminar
+                            </Button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
