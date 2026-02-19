@@ -122,6 +122,13 @@ export default function DocumentosTab({
   const [loadingServerDocs, setLoadingServerDocs] = useState(false)
   const docsLoadedRef = useRef(false)
 
+  // Resetear ref cuando cambia prospectoId para permitir recarga
+  useEffect(() => {
+    docsLoadedRef.current = false
+    setServerDocsByType({})
+    setServerFileNames({})
+  }, [prospectoId])
+
   // Cargar documentos existentes del servidor al montar (o cuando cambia prospectoId)
   useEffect(() => {
     if (!prospectoId || docsLoadedRef.current) return

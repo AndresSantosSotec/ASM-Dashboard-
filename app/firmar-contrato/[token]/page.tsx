@@ -541,19 +541,28 @@ export default function FirmarContratoPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {fichaInscripcion.servicios_electronicos.length > 0 ? (
-                    fichaInscripcion.servicios_electronicos.map((servicio, idx) => (
-                      <tr key={idx} className="border-b border-slate-200">
+                  {(() => {
+                    const duracion = fichaInscripcion.datos_financieros.duracion_meses;
+                    // Buscar si existe un precio configurado para esta duración específica
+                    let servicio = fichaInscripcion.servicios_electronicos.find(s => s.cantidad_cursos == duracion);
+
+                    // Si no existe configuración específica, calcular basado en la regla Q70/Q77
+                    if (!servicio) {
+                      servicio = {
+                        cantidad_cursos: duracion,
+                        precio_transferencia: duracion * 70,
+                        precio_otro_metodo: duracion * 77
+                      };
+                    }
+
+                    return (
+                      <tr className="border-b border-slate-200">
                         <td className="p-2 bg-slate-50 font-semibold">Programa de {servicio.cantidad_cursos} cursos</td>
                         <td className="p-2 text-center">Q{Number(servicio.precio_transferencia).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
                         <td className="p-2 text-center">Q{Number(servicio.precio_otro_metodo).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={3} className="p-2 text-center text-slate-400">Sin precios configurados</td>
-                    </tr>
-                  )}
+                    );
+                  })()}
                 </tbody>
               </table>
 

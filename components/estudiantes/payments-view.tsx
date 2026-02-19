@@ -609,14 +609,14 @@ export function PaymentsView() {
                       </Badge>
                     </div>
                     <CardDescription>
-                      <div className="flex items-center gap-2">
+                      <span className="flex items-center gap-2">
                         <span>Fecha límite: {formatDate(payment.fecha_vencimiento)}</span>
                         {formatMesAnio(payment) !== '—' && (
                           <Badge variant="outline" className="text-xs">
                             {formatMesAnio(payment)}
                           </Badge>
                         )}
-                      </div>
+                      </span>
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pb-2">
@@ -720,14 +720,14 @@ export function PaymentsView() {
                       </Badge>
                     </div>
                     <CardDescription>
-                      <div className="flex items-center gap-2">
+                      <span className="flex items-center gap-2">
                         <span>Fecha límite: {formatDate(payment.fecha_vencimiento)}</span>
                         {formatMesAnio(payment) !== '—' && (
                           <Badge variant="outline" className="text-xs">
                             {formatMesAnio(payment)}
                           </Badge>
                         )}
-                      </div>
+                      </span>
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pb-2">

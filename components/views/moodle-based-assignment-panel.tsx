@@ -590,10 +590,10 @@ export function MoodleBasedAssignmentPanel({
                                 <strong>Programa(s):</strong>{" "}
                                 {selection.internalStudent.programas.map((p) => p.nombre).join(", ") || "N/A"}
                               </p>
-                              <p>
+                              <div>
                                 <strong>Estado:</strong>{" "}
                                 <Badge variant="outline">{selection.internalStudent.estado}</Badge>
-                              </p>
+                              </div>
                             </div>
                           </div>
 
@@ -642,17 +642,17 @@ export function MoodleBasedAssignmentPanel({
                                         htmlFor={`${selection.moodleStudent.carnet}-${course.id}`}
                                         className="flex-1 cursor-pointer"
                                       >
-                                        <div className="flex items-center justify-between">
-                                          <div>
-                                            <p className="font-medium text-sm">{course.name}</p>
-                                            <p className="text-xs text-gray-600">
+                                        <span className="flex items-center justify-between">
+                                          <span>
+                                            <span className="font-medium text-sm block">{course.name}</span>
+                                            <span className="text-xs text-gray-600 block">
                                               {course.code} • Inicio: {course.startDate}
-                                            </p>
-                                          </div>
+                                            </span>
+                                          </span>
                                           {isSelected && (
                                             <CheckCircle2 className="h-5 w-5 text-purple-600" />
                                           )}
-                                        </div>
+                                        </span>
                                       </label>
                                     </div>
                                   );

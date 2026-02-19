@@ -17,13 +17,17 @@ interface DayModalData {
 }
 
 export default function ProgramacionCursosPage() {
-  const [currentDate, setCurrentDate] = useState(new Date())
+  const [currentDate, setCurrentDate] = useState<Date | null>(null)
   const [currentView, setCurrentView] = useState<"month" | "week">("month")
   const [showNewSessionDialog, setShowNewSessionDialog] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedDay, setSelectedDay] = useState<DayModalData | null>(null)
   const [allCourses, setAllCourses] = useState<ProgramacionCurso[]>([])
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setCurrentDate(new Date())
+  }, [])
 
   // Cargar cursos al montar el componente
   useEffect(() => {
@@ -44,23 +48,24 @@ export default function ProgramacionCursosPage() {
 
   // Calcular información del calendario dinámicamente
   const calendarInfo = useMemo(() => {
+    if (!currentDate) return { monthName: "", firstDayOffset: 0, totalDays: 0, month: 0, year: 0 };
     const year = currentDate.getFullYear()
     const month = currentDate.getMonth()
-    
+
     // Nombres de meses en español
     const monthNames = [
       "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
       "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
     ]
-    
+
     // Obtener el primer día del mes (0 = Domingo, 1 = Lunes, etc.)
     const firstDayOfMonth = new Date(year, month, 1).getDay()
     // Ajustar para que Lunes sea 0 (0 = Lunes, 6 = Domingo)
     const firstDayOffset = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1
-    
+
     // Obtener el total de días en el mes
     const totalDays = new Date(year, month + 1, 0).getDate()
-    
+
     return {
       monthName: `${monthNames[month]} ${year}`,
       firstDayOffset,
@@ -86,20 +91,20 @@ export default function ProgramacionCursosPage() {
   // Obtener cursos para un día específico
   const getCoursesForDay = (day: number): ProgramacionCurso[] => {
     if (!day) return []
-    
+
     return currentMonthCourses.filter(course => {
       if (!course.fecha_inicio || !course.fecha_fin) return false
-      
+
       const startDate = new Date(course.fecha_inicio)
       const endDate = new Date(course.fecha_fin)
       const checkDate = new Date(calendarInfo.year, calendarInfo.month, day)
-      
+
       // Verificar que la fecha esté en el rango
       if (checkDate < startDate || checkDate > endDate) return false
-      
+
       // Verificar que el día de la semana coincida con el día de la semana del curso
       const dayOfWeek = checkDate.getDay() // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
-      
+
       // Mapeo de días de la semana en español al número correspondiente
       const dayToNumber: { [key: string]: number } = {
         "Domingo": 0,
@@ -110,7 +115,7 @@ export default function ProgramacionCursosPage() {
         "Viernes": 5,
         "Sábado": 6
       }
-      
+
       // Verificar que el día de la semana del curso coincide con el día de la semana de la fecha
       return dayOfWeek === dayToNumber[course.dia_semana]
     })
@@ -200,14 +205,14 @@ export default function ProgramacionCursosPage() {
                 </div>
               ))}
             </div>
-            
+
             {/* Calendar days */}
             <div className="grid grid-cols-7 gap-px bg-gray-200">
               {/* Empty cells for the offset */}
               {Array.from({ length: calendarInfo.firstDayOffset }).map((_, i) => (
                 <div key={`empty-${i}`} className="bg-gray-50 p-2 min-h-[100px]" />
               ))}
-              
+
               {calendarDays.map((day) => {
                 const dayCourses = getCoursesForDay(day)
                 const isToday = isCurrentMonth && day === todayDay
@@ -217,46 +222,42 @@ export default function ProgramacionCursosPage() {
                   <div
                     key={day}
                     onClick={() => handleDayClick(day)}
-                    className={`min-h-[100px] p-2 transition-all cursor-pointer ${
-                      isToday
-                        ? 'bg-blue-50 border-blue-400 border-2'
-                        : hasCourses
+                    className={`min-h-[100px] p-2 transition-all cursor-pointer ${isToday
+                      ? 'bg-blue-50 border-blue-400 border-2'
+                      : hasCourses
                         ? 'bg-white hover:bg-gray-50'
                         : 'bg-white hover:bg-gray-50'
-                    }`}
+                      }`}
                   >
-                    <div className={`text-right mb-1 ${
-                      isToday 
-                        ? 'font-bold text-blue-600' 
-                        : 'text-gray-600'
-                    }`}>
-                      <span className={`text-sm ${
-                        isToday ? 'bg-blue-600 text-white px-2 py-0.5 rounded-full' : ''
+                    <div className={`text-right mb-1 ${isToday
+                      ? 'font-bold text-blue-600'
+                      : 'text-gray-600'
                       }`}>
+                      <span className={`text-sm ${isToday ? 'bg-blue-600 text-white px-2 py-0.5 rounded-full' : ''
+                        }`}>
                         {day}
                       </span>
                     </div>
-                    
+
                     {/* Courses for this day */}
                     <div className="space-y-1 overflow-y-auto max-h-[70px]">
                       {dayCourses.slice(0, 2).map((course, idx) => (
                         <div
                           key={course.courseid}
-                          className={`text-xs p-1.5 rounded ${
-                            idx === 0 ? 'bg-blue-100 text-blue-800' :
+                          className={`text-xs p-1.5 rounded ${idx === 0 ? 'bg-blue-100 text-blue-800' :
                             'bg-green-100 text-green-800'
-                          } hover:opacity-80 transition-opacity`}
+                            } hover:opacity-80 transition-opacity`}
                           title={course.coursename}
                         >
                           <div className="font-medium truncate">
-                            {course.coursename.length > 15 
-                              ? `${course.coursename.substring(0, 15)}...` 
+                            {course.coursename.length > 15
+                              ? `${course.coursename.substring(0, 15)}...`
                               : course.coursename}
                           </div>
                         </div>
                       ))}
                     </div>
-                    
+
                     {/* Show +X more indicator if there are many courses */}
                     {dayCourses.length > 2 && (
                       <div className="text-[10px] text-blue-600 text-center mt-1 font-semibold">
@@ -310,7 +311,7 @@ export default function ProgramacionCursosPage() {
                 const color = colors[index % colors.length]
 
                 return (
-                  <div 
+                  <div
                     key={course.courseid}
                     className={`${color.bg} border-2 ${color.border} rounded-lg p-5 hover:shadow-md transition-shadow`}
                   >
@@ -336,13 +337,13 @@ export default function ProgramacionCursosPage() {
                           <span className="font-semibold text-sm text-gray-700">Fecha de Inicio</span>
                         </div>
                         <p className="text-gray-800 font-medium">
-                          {course.fecha_inicio 
+                          {course.fecha_inicio
                             ? new Date(course.fecha_inicio).toLocaleDateString('es-GT', {
-                                weekday: 'long',
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
-                              })
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })
                             : 'No disponible'}
                         </p>
                       </div>
@@ -353,13 +354,13 @@ export default function ProgramacionCursosPage() {
                           <span className="font-semibold text-sm text-gray-700">Fecha de Finalización</span>
                         </div>
                         <p className="text-gray-800 font-medium">
-                          {course.fecha_fin 
+                          {course.fecha_fin
                             ? new Date(course.fecha_fin).toLocaleDateString('es-GT', {
-                                weekday: 'long',
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
-                              })
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })
                             : 'No disponible'}
                         </p>
                       </div>
@@ -397,7 +398,7 @@ export default function ProgramacionCursosPage() {
                             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
                             const weeks = Math.floor(diffDays / 7)
                             const days = diffDays % 7
-                            
+
                             if (weeks > 0) {
                               return `${weeks} ${weeks === 1 ? 'semana' : 'semanas'}${days > 0 ? ` y ${days} ${days === 1 ? 'día' : 'días'}` : ''}`
                             }
@@ -456,8 +457,8 @@ export default function ProgramacionCursosPage() {
                   const color = colors[index % colors.length]
 
                   return (
-                    <div 
-                      key={course.courseid} 
+                    <div
+                      key={course.courseid}
                       className={`flex items-start p-3 ${color.bg} border ${color.border} rounded-lg hover:shadow-md transition-shadow cursor-pointer`}
                       onClick={() => {
                         const courseDate = new Date(course.fecha_inicio)
@@ -510,16 +511,14 @@ export default function ProgramacionCursosPage() {
                 return (
                   <div
                     key={day}
-                    className={`p-4 rounded-lg text-center transition-all border-2 ${
-                      hasClasses 
-                        ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300 shadow-md' 
-                        : 'bg-gray-50 border-gray-200'
-                    }`}
+                    className={`p-4 rounded-lg text-center transition-all border-2 ${hasClasses
+                      ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300 shadow-md'
+                      : 'bg-gray-50 border-gray-200'
+                      }`}
                   >
                     <h4 className="font-semibold text-sm mb-2">{day.slice(0, 3)}</h4>
-                    <p className={`text-3xl font-bold mb-1 ${
-                      hasClasses ? 'text-green-600' : 'text-gray-400'
-                    }`}>
+                    <p className={`text-3xl font-bold mb-1 ${hasClasses ? 'text-green-600' : 'text-gray-400'
+                      }`}>
                       {count}
                     </p>
                     <p className="text-xs text-gray-600">

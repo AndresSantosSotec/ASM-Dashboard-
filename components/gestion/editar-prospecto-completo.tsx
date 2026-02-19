@@ -94,7 +94,17 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
       try {
         const token = localStorage.getItem("token")
         
-        // Cargar prospecto
+        // Helper: convertir ISO timestamp a "YYYY-MM-DD" para SimpleDatePicker
+        const toDateStr = (v: string | null | undefined): string => {
+          if (!v) return ""
+          // Si ya es YYYY-MM-DD, devolverlo tal cual
+          if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v
+          // Si es ISO timestamp "2026-03-01T00:00:00.000000Z", extraer solo la fecha
+          const match = v.match(/^(\d{4}-\d{2}-\d{2})/)
+          return match ? match[1] : v
+        }
+        
+        // Cargar prospecto (incluye programas.programa eager-loaded)
         const resProspecto = await fetch(`${API_URL}/prospectos/${prospectoId}`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -105,38 +115,112 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
         if (!resProspecto.ok) throw new Error("Error al cargar prospecto")
         
         const { data } = await resProspecto.json()
+
+        // Normalizar género: DB puede almacenar "masculino" pero Select espera "Masculino"
+        const normalizeGenero = (g: string | null | undefined): string => {
+          if (!g) return ""
+          const lower = g.toLowerCase().trim()
+          const map: Record<string, string> = { masculino: "Masculino", femenino: "Femenino", otro: "Otro" }
+          return map[lower] || g
+        }
+
+        // Normalizar status: asegurar que coincida con las opciones del Select
+        const normalizeStatus = (s: string | null | undefined): string => {
+          if (!s) return ""
+          const opciones = ["No contactado", "En seguimiento", "Le interesa a futuro", "Perdido", "Inscrito", "Activo", "Promesa de pago"]
+          const found = opciones.find(o => o.toLowerCase() === s.toLowerCase().trim())
+          return found || s
+        }
         
         setFormData({
           id: data.id,
           nombre_completo: data.nombre_completo || "",
           telefono: data.telefono || "",
           correo_electronico: data.correo_electronico || "",
-          genero: data.genero || "",
+          genero: normalizeGenero(data.genero),
           empresa_donde_labora_actualmente: data.empresa_donde_labora_actualmente || "",
           puesto: data.puesto || "",
           notas_generales: data.notas_generales || "",
           observaciones: data.observaciones || "",
           interes: data.interes || "",
-          status: data.status || "",
+          status: normalizeStatus(data.status),
           medio_conocimiento_institucion: data.medio_conocimiento_institucion || "",
           pais_nombre: data.pais_nombre || "",
           departamento_nombre: data.departamento_nombre || "",
           municipio_nombre: data.municipio_nombre || "",
         })
 
+        // Usar programas inscritos directamente del prospecto (eager-loaded)
+        const prospectoPrograms = Array.isArray(data.programas) ? data.programas : []
+        if (prospectoPrograms.length > 0) {
+          setProgramasInscritos(prospectoPrograms)
+          
+          const epMasReciente = [...prospectoPrograms].sort((a: any, b: any) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          )[0]
+          setEstudiantePrograma(epMasReciente)
+          
+          // Cargar cuotas del programa más reciente
+          try {
+            const resCuotas = await fetch(`${API_URL}/cuotas/estudiante-programa/${epMasReciente.id}`, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            })
+            if (resCuotas.ok) {
+              const cuotasData = await resCuotas.json()
+              setCuotasEstudiante(Array.isArray(cuotasData) ? cuotasData : [])
+            }
+          } catch (err) {
+            console.warn("No se pudo cargar cuotas:", err)
+          }
+        }
+
         // Intentar cargar ficha de inscripción
+        let fichaLoaded = false
         try {
           const fichaData = await fetchFicha(Number(prospectoId))
+          fichaLoaded = true
           setTieneFicha(true)
           
-          // Cargar datos académicos
+          // Cargar datos académicos — merge con programa/duracion del programa inscrito
+          const academicosBase: Partial<DatosAcademicos> = {}
           if (fichaData.academicos) {
-            setDatosAcademicos(fichaData.academicos)
+            Object.assign(academicosBase, fichaData.academicos)
+            // Convertir fechas a formato YYYY-MM-DD para SimpleDatePicker
+            if (academicosBase.fechaInicioEspecifica) {
+              academicosBase.fechaInicioEspecifica = toDateStr(academicosBase.fechaInicioEspecifica as string)
+            }
+            if (academicosBase.fechaTallerInduccion) {
+              academicosBase.fechaTallerInduccion = toDateStr(academicosBase.fechaTallerInduccion as string)
+            }
+            if (academicosBase.fechaTallerIntegracion) {
+              academicosBase.fechaTallerIntegracion = toDateStr(academicosBase.fechaTallerIntegracion as string)
+            }
           }
           
-          // Cargar datos financieros
+          // Poblar programa y duracion desde el programa inscrito más reciente
+          if (prospectoPrograms.length > 0) {
+            const ep0 = prospectoPrograms[0]
+            if (ep0.programa_id && !academicosBase.programa) {
+              academicosBase.programa = ep0.programa_id.toString()
+            }
+            if (ep0.duracion_meses && !academicosBase.duracion) {
+              academicosBase.duracion = ep0.duracion_meses.toString()
+            }
+          }
+          
+          setDatosAcademicos(academicosBase)
+          
+          // Cargar datos financieros — asegurar tieneConvenio
           if (fichaData.financieros) {
-            setDatosFinancieros(fichaData.financieros)
+            const fin = { ...fichaData.financieros }
+            // Derivar tieneConvenio de convenioId
+            if (fin.convenioId && !fin.tieneConvenio) {
+              fin.tieneConvenio = true
+            }
+            setDatosFinancieros(fin)
           }
           
           // Cargar datos laborales
@@ -144,16 +228,63 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
             setDatosLaborales(fichaData.laborales)
           }
           
-          // Cargar documentos
+          // Cargar documentos de la ficha
           if (fichaData.documentos) {
             setDocumentos(fichaData.documentos)
           }
         } catch {
-          // No tiene ficha aún
+          // No tiene ficha — cargar datos directamente del prospecto
+          fichaLoaded = false
           setTieneFicha(false)
+          
+          // Aún así poblar académicos y financieros del prospecto directo
+          const academicosFromProspecto: Partial<DatosAcademicos> = {
+            modalidad: data.modalidad || undefined,
+            fechaInicioEspecifica: toDateStr(data.fecha_inicio_especifica),
+            fechaTallerInduccion: toDateStr(data.fecha_taller_reduccion),
+            fechaTallerIntegracion: toDateStr(data.fecha_taller_integracion),
+            ultimoTitulo: data.ultimo_titulo_obtenido || undefined,
+            institucionAnterior: data.institucion_titulo || undefined,
+            añoGraduacion: data.anio_graduacion || undefined,
+            cursosAprobados: data.cantidad_cursos_aprobados || undefined,
+            diaEstudio: data.dia_estudio || undefined,
+            medioConocio: data.medio_conocimiento_institucion || undefined,
+          }
+          
+          // Poblar programa y duracion desde programa inscrito
+          if (prospectoPrograms.length > 0) {
+            const ep0 = prospectoPrograms[0]
+            if (ep0.programa_id) academicosFromProspecto.programa = ep0.programa_id.toString()
+            if (ep0.duracion_meses) academicosFromProspecto.duracion = ep0.duracion_meses.toString()
+          }
+          
+          setDatosAcademicos(academicosFromProspecto)
+          
+          // Financieros del prospecto
+          const finFromProspecto: Partial<DatosFinancieros> = {
+            formaPago: data.metodo_pago || undefined,
+            convenioId: data.convenio_pago_id || undefined,
+            tieneConvenio: !!data.convenio_pago_id,
+          }
+          if (prospectoPrograms.length > 0) {
+            const ep0 = prospectoPrograms[0]
+            if (ep0.inscripcion) finFromProspecto.inscripcion = ep0.inscripcion
+            if (ep0.cuota_mensual) finFromProspecto.cuotaMensual = ep0.cuota_mensual
+            if (ep0.inversion_total) finFromProspecto.inversionTotal = ep0.inversion_total
+          }
+          setDatosFinancieros(finFromProspecto)
+          
+          // Laborales del prospecto
+          setDatosLaborales({
+            empresa: data.empresa_donde_labora_actualmente || undefined,
+            puesto: data.puesto || undefined,
+            telefonoCorporativo: data.telefono_corporativo || undefined,
+            direccionEmpresa: data.direccion_empresa || undefined,
+            sectorEmpresa: data.sector_empresa || undefined,
+          })
         }
         
-        // Cargar programas
+        // Cargar programas catálogo
         const resProgramas = await fetch(`${API_URL}/programas`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -214,44 +345,6 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
             })
           }
           setDocumentos(Array.from(docsPorTipo.values()))
-        }
-
-        // Cargar estudiante_programa y cuotas si tiene ficha
-        if (tieneFicha) {
-          try {
-            const resEP = await fetch(`${API_URL}/estudiante-programa/prospecto/${prospectoId}`, {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-            })
-            if (resEP.ok) {
-              const epData = await resEP.json()
-              if (epData && epData.length > 0) {
-                // Guardar TODOS los programas inscritos
-                setProgramasInscritos(epData)
-
-                const epMasReciente = epData.sort((a: any, b: any) => 
-                  new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-                )[0]
-                setEstudiantePrograma(epMasReciente)
-                
-                // Cargar cuotas
-                const resCuotas = await fetch(`${API_URL}/cuotas/estudiante-programa/${epMasReciente.id}`, {
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                  },
-                })
-                if (resCuotas.ok) {
-                  const cuotasData = await resCuotas.json()
-                  setCuotasEstudiante(Array.isArray(cuotasData) ? cuotasData : [])
-                }
-              }
-            }
-          } catch (err) {
-            console.warn("No se pudo cargar estudiante_programa:", err)
-          }
         }
         
       } catch (err: any) {
@@ -541,11 +634,13 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
       })
   }, [datosAcademicos.programa, datosAcademicos.duracion, datosFinancieros.tieneConvenio, datosFinancieros.convenioId])
 
-  // Actualizar duración cuando cambia el programa
+  // Actualizar duración cuando cambia el programa (solo si no tiene valor manual)
+  const prevProgramaRef = useRef<string | undefined>(undefined)
   useEffect(() => {
     if (!datosAcademicos.programa) return
     const prog = programasUnicos.find((p) => p.id.toString() === datosAcademicos.programa)
-    if (prog && prog.meses) {
+    // Solo auto-setear duración cuando el programa cambia (no al cargar por primera vez con datos existentes)
+    if (prog && prog.meses && prevProgramaRef.current !== undefined && prevProgramaRef.current !== datosAcademicos.programa) {
       setDatosAcademicos(prev => ({
         ...prev,
         duracion: prog.meses.toString(),
@@ -553,6 +648,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
         titulo1_duracion: prog.meses.toString(),
       }))
     }
+    prevProgramaRef.current = datosAcademicos.programa
   }, [datosAcademicos.programa, programasUnicos])
 
   // Documentos agrupados por tipo (más reciente de cada tipo)
@@ -679,6 +775,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                         <SelectItem value="Le interesa a futuro">Le interesa a futuro</SelectItem>
                         <SelectItem value="Perdido">Perdido</SelectItem>
                         <SelectItem value="Inscrito">Inscrito</SelectItem>
+                        <SelectItem value="Activo">Activo</SelectItem>
                         <SelectItem value="Promesa de pago">Promesa de pago</SelectItem>
                       </SelectContent>
                     </Select>
@@ -839,8 +936,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                       value={datosAcademicos.duracion || ""}
                       onChange={(e) => setDatosAcademicos(prev => ({ ...prev, duracion: e.target.value }))}
                       placeholder="Meses"
-                      readOnly
-                      className="bg-gray-50"
+                      min="1"
                     />
                   </div>
 
@@ -980,28 +1076,45 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                     </div>
                     {programasInscritos.map((ep: any) => {
                       const nombreProg = ep.programa?.abreviatura
-                        ? `${ep.programa.abreviatura} ${ep.programa.nombre_del_programa}`
+                        ? `${ep.programa.abreviatura} – ${ep.programa.nombre_del_programa}`
                         : programas.find((p: any) => p.id === ep.programa_id)?.nombre_del_programa || `Programa ${ep.programa_id}`
                       return (
-                        <div key={ep.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-800">{nombreProg}</p>
-                            <div className="flex gap-4 mt-1 text-xs text-gray-500">
-                              {ep.fecha_inicio && <span>Inicio: {new Date(ep.fecha_inicio).toLocaleDateString("es-GT")}</span>}
-                              {ep.fecha_fin && <span>Fin: {new Date(ep.fecha_fin).toLocaleDateString("es-GT")}</span>}
-                              {ep.duracion_meses && <span>Duración: {ep.duracion_meses} meses</span>}
+                        <div key={ep.id} className="p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <span className="text-sm font-semibold text-gray-800">{nombreProg}</span>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1 mt-2 text-xs text-gray-600">
+                                {ep.fecha_inicio && (
+                                  <span><span className="font-medium text-gray-500">Inicio:</span> {new Date(ep.fecha_inicio).toLocaleDateString("es-GT")}</span>
+                                )}
+                                {ep.fecha_fin && (
+                                  <span><span className="font-medium text-gray-500">Fin:</span> {new Date(ep.fecha_fin).toLocaleDateString("es-GT")}</span>
+                                )}
+                                {ep.duracion_meses && (
+                                  <span><span className="font-medium text-gray-500">Duración:</span> {ep.duracion_meses} meses</span>
+                                )}
+                                {ep.inscripcion != null && (
+                                  <span><span className="font-medium text-gray-500">Inscripción:</span> Q{Number(ep.inscripcion).toFixed(2)}</span>
+                                )}
+                                {ep.cuota_mensual != null && (
+                                  <span><span className="font-medium text-gray-500">Cuota:</span> Q{Number(ep.cuota_mensual).toFixed(2)}/mes</span>
+                                )}
+                                {ep.inversion_total != null && (
+                                  <span><span className="font-medium text-gray-500">Total:</span> Q{Number(ep.inversion_total).toFixed(2)}</span>
+                                )}
+                              </div>
                             </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 ml-2 flex-shrink-0"
+                              title="Eliminar programa y datos asociados"
+                              onClick={() => handleEliminarProgramaInscrito(ep, nombreProg)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
-                            title="Eliminar programa y datos asociados"
-                            onClick={() => handleEliminarProgramaInscrito(ep, nombreProg)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
                         </div>
                       )
                     })}
@@ -1274,10 +1387,20 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                                 <FileText className="h-4 w-4 text-blue-500" />
                                 <span className="font-medium">
                                   {tipo === "inscripcion" ? "Boleta de Inscripción" : 
-                                   tipo === "dpi" ? "DPI" :
-                                   tipo === "recibo" ? "Recibo" :
-                                   tipo === "foto" ? "Foto" :
-                                   tipo === "titulo" ? "Título o Diploma" : "Otros"}
+                                   tipo === "dpi" ? "DPI (ambos lados)" :
+                                   tipo === "recibo" ? "Recibo de luz o teléfono" :
+                                   tipo === "american" ? "Recibo de American" :
+                                   tipo === "foto" ? "Fotografía reciente" :
+                                   tipo === "titulo" ? "Título o Diploma" :
+                                   tipo === "cierrePensum" ? "Cierre de Pénsum" :
+                                   tipo === "certificacionCursos" ? "Certificación de cursos" :
+                                   tipo === "carnetColaborador" ? "Carnet de Colaborador" :
+                                   tipo === "autorizacionAcademica" ? "Autorización Académica" :
+                                   tipo === "autorizacionFinanciera" ? "Autorización Financiera" :
+                                   tipo === "autorizacionAsociaciones" ? "Autorización Asociaciones" :
+                                   tipo === "valeDescuento" ? "Vale de Descuento" :
+                                   tipo === "mensajeFinal" ? "Mensaje Final" : 
+                                   "Otros"}
                                 </span>
                                 {esBoleta && (
                                   <Badge variant="secondary" className="text-xs">Solo lectura</Badge>
@@ -1388,11 +1511,20 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                             <SelectValue placeholder="Seleccionar tipo" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="dpi">DPI</SelectItem>
-                            <SelectItem value="recibo">Recibo</SelectItem>
-                            <SelectItem value="foto">Foto</SelectItem>
+                            <SelectItem value="dpi">DPI (ambos lados)</SelectItem>
+                            <SelectItem value="recibo">Recibo de luz o teléfono</SelectItem>
+                            <SelectItem value="american">Recibo de American</SelectItem>
+                            <SelectItem value="foto">Fotografía reciente</SelectItem>
                             <SelectItem value="titulo">Título o Diploma</SelectItem>
-                            <SelectItem value="otros">Otros</SelectItem>
+                            <SelectItem value="cierrePensum">Cierre de Pénsum</SelectItem>
+                            <SelectItem value="certificacionCursos">Certificación de cursos aprobados</SelectItem>
+                            <SelectItem value="carnetColaborador">Carnet de Colaborador</SelectItem>
+                            <SelectItem value="autorizacionAcademica">Autorización Académica</SelectItem>
+                            <SelectItem value="autorizacionFinanciera">Autorización Financiera</SelectItem>
+                            <SelectItem value="autorizacionAsociaciones">Autorización Asociaciones</SelectItem>
+                            <SelectItem value="valeDescuento">Vale de Descuento</SelectItem>
+                            <SelectItem value="mensajeFinal">Mensaje Final</SelectItem>
+                            <SelectItem value="otros">Otros documentos</SelectItem>
                           </SelectContent>
                         </Select>
                         <p className="text-xs text-gray-500 mt-1">

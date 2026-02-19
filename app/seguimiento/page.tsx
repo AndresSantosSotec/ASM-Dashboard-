@@ -94,69 +94,23 @@ interface Actividad {
 
 export default function SeguimientoPage() {
   // Estados para prospectos con caché
-  const [prospectos, setProspectos] = useState<Prospecto[]>(() => {
-    if (typeof window !== "undefined") {
-      const cached = localStorage.getItem("seguimiento_prospectos_cache");
-      const cacheTime = localStorage.getItem("seguimiento_prospectos_cache_time");
-      if (cached && cacheTime) {
-        const now = Date.now();
-        const elapsed = now - parseInt(cacheTime);
-        // Cache válido por 5 minutos (300000 ms)
-        if (elapsed < 300000) {
-          return JSON.parse(cached);
-        }
-      }
-    }
-    return [];
-  });
-  const [loading, setLoading] = useState<boolean>(false);
+  const [prospectos, setProspectos] = useState<Prospecto[]>([]);
+  const [loading, setLoading] = useState<boolean>(true); // Start loading true to fetch/cache check
   const [error, setError] = useState<string>("");
-  
+
   // 💀 Estados de carga granulares
   const [loadingInteracciones, setLoadingInteracciones] = useState<boolean>(false);
   const [loadingCitas, setLoadingCitas] = useState<boolean>(false);
 
   // Estado para el prospecto seleccionado con persistencia
-  const [selectedProspecto, setSelectedProspecto] = useState<Prospecto | null>(() => {
-    if (typeof window !== "undefined") {
-      const cached = localStorage.getItem("seguimiento_prospecto_seleccionado");
-      return cached ? JSON.parse(cached) : null;
-    }
-    return null;
-  });
+  const [selectedProspecto, setSelectedProspecto] = useState<Prospecto | null>(null);
 
   // Estados para interacciones
-  const [interacciones, setInteracciones] = useState<any[]>(() => {
-    if (typeof window !== "undefined") {
-      const cached = localStorage.getItem("seguimiento_interacciones");
-      return cached ? JSON.parse(cached) : [];
-    }
-    return [];
-  });
-  const [interactionType, setInteractionType] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("seguimiento_interaction_type") || "";
-    }
-    return "";
-  });
-  const [interactionDate, setInteractionDate] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("seguimiento_interaction_date") || "";
-    }
-    return "";
-  });
-  const [interactionDuration, setInteractionDuration] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("seguimiento_interaction_duration") || "";
-    }
-    return "";
-  });
-  const [interactionNotes, setInteractionNotes] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("seguimiento_interaction_notes") || "";
-    }
-    return "";
-  });
+  const [interacciones, setInteracciones] = useState<any[]>([]);
+  const [interactionType, setInteractionType] = useState<string>("");
+  const [interactionDate, setInteractionDate] = useState<string>("");
+  const [interactionDuration, setInteractionDuration] = useState<string>("");
+  const [interactionNotes, setInteractionNotes] = useState<string>("");
 
   // Estados para citas
   const toLocalInputValue = (date: Date) => {
@@ -168,25 +122,9 @@ export default function SeguimientoPage() {
     d.setHours(9, 0, 0, 0);
     return toLocalInputValue(d);
   };
-  const [citas, setCitas] = useState<any[]>(() => {
-    if (typeof window !== "undefined") {
-      const cached = localStorage.getItem("seguimiento_citas");
-      return cached ? JSON.parse(cached) : [];
-    }
-    return [];
-  });
-  const [appointmentDate, setAppointmentDate] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("seguimiento_appointment_date") || getDefaultAppointmentDate();
-    }
-    return getDefaultAppointmentDate();
-  });
-  const [appointmentDescription, setAppointmentDescription] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("seguimiento_appointment_description") || "";
-    }
-    return "";
-  });
+  const [citas, setCitas] = useState<any[]>([]);
+  const [appointmentDate, setAppointmentDate] = useState<string>(getDefaultAppointmentDate());
+  const [appointmentDescription, setAppointmentDescription] = useState<string>("");
 
   // Estado para almacenar actividades
   const [actividades, setActividades] = useState<Actividad[]>([]);
@@ -198,6 +136,46 @@ export default function SeguimientoPage() {
   // Token desde contexto y estado para user_id
   const { token } = useAuth();
   const [userId, setUserId] = useState<string | null>(null);
+
+  // Load from localStorage on mount (Client-side only)
+  useEffect(() => {
+    const loadFromCache = () => {
+      // Prospectos
+      const cachedProspectos = localStorage.getItem("seguimiento_prospectos_cache");
+      const cacheTime = localStorage.getItem("seguimiento_prospectos_cache_time");
+      if (cachedProspectos && cacheTime) {
+        const now = Date.now();
+        const elapsed = now - parseInt(cacheTime);
+        if (elapsed < 300000) {
+          setProspectos(JSON.parse(cachedProspectos));
+          setLoading(false); // Data loaded from cache
+        }
+      }
+
+      // Selected Prospecto
+      const cachedSelected = localStorage.getItem("seguimiento_prospecto_seleccionado");
+      if (cachedSelected) setSelectedProspecto(JSON.parse(cachedSelected));
+
+      // Interacciones
+      const cachedInteracciones = localStorage.getItem("seguimiento_interacciones");
+      if (cachedInteracciones) setInteracciones(JSON.parse(cachedInteracciones));
+
+      // Form state
+      setInteractionType(localStorage.getItem("seguimiento_interaction_type") || "");
+      setInteractionDate(localStorage.getItem("seguimiento_interaction_date") || "");
+      setInteractionDuration(localStorage.getItem("seguimiento_interaction_duration") || "");
+      setInteractionNotes(localStorage.getItem("seguimiento_interaction_notes") || "");
+
+      // Citas
+      const cachedCitas = localStorage.getItem("seguimiento_citas");
+      if (cachedCitas) setCitas(JSON.parse(cachedCitas));
+
+      setAppointmentDate(localStorage.getItem("seguimiento_appointment_date") || getDefaultAppointmentDate());
+      setAppointmentDescription(localStorage.getItem("seguimiento_appointment_description") || "");
+    };
+
+    loadFromCache();
+  }, []);
 
   // 🔄 Estado para controlar cierre automático del modal
   const [shouldCloseModal, setShouldCloseModal] = useState<boolean>(false);
@@ -334,9 +312,9 @@ export default function SeguimientoPage() {
           api.get("/prospectos"),
           api.get("/actividades")
         ]);
-        
+
         console.log("✅ Datos cargados en paralelo");
-        
+
         const prospectosTransformados: Prospecto[] = prospectosRes.data.data
           .map((item: any) => ({
             id: String(item.id),
@@ -356,10 +334,10 @@ export default function SeguimientoPage() {
             };
             return getTime(b.ultimoCambio) - getTime(a.ultimoCambio);
           });
-        
+
         setProspectos(prospectosTransformados);
         setActividades(actividadesRes.data);
-        
+
         // 💾 Guardar en caché
         if (typeof window !== "undefined") {
           localStorage.setItem("seguimiento_prospectos_cache", JSON.stringify(prospectosTransformados));
@@ -388,16 +366,16 @@ export default function SeguimientoPage() {
           api.get(`/interacciones?id_lead=${selectedProspecto.id}`),
           api.get(`/citas?prospecto_id=${selectedProspecto.id}`)
         ]);
-        
+
         console.log("✅ Interacciones y citas cargadas en paralelo");
-        
+
         // Procesar interacciones
         if (Array.isArray(interaccionesRes.data.data)) {
           setInteracciones(interaccionesRes.data.data);
         } else {
           setInteracciones([]);
         }
-        
+
         // Procesar citas
         const citasArray = Array.isArray(citasRes.data)
           ? citasRes.data
@@ -435,12 +413,12 @@ export default function SeguimientoPage() {
     }
     const formattedDate = interactionDate.split("T")[0];
     const leadId = parseInt(selectedProspecto.id, 10);
-    
+
     // Buscar el id_actividades o usar el interactionType directamente si no hay actividades cargadas
-    const actividadId = actividades.length > 0 
-      ? actividades.find((act) => act.id.toString() === interactionType)?.id 
+    const actividadId = actividades.length > 0
+      ? actividades.find((act) => act.id.toString() === interactionType)?.id
       : parseInt(interactionType, 10);
-    
+
     // Validar que se haya seleccionado una actividad válida
     if (!actividadId) {
       Swal.fire({
@@ -450,7 +428,7 @@ export default function SeguimientoPage() {
       });
       return;
     }
-    
+
     const newInteraction = {
       id_lead: leadId,
       id_actividades: actividadId,
@@ -467,14 +445,14 @@ export default function SeguimientoPage() {
         newInteraction
       );
       console.log("✅ Interacción guardada:", response.data);
-      
+
       // ⚡ OPTIMIZACIÓN: Solo actualizar estado sin recargar todo
       setInteracciones((prev) => Array.isArray(prev) ? [...prev, response.data] : [response.data]);
       setInteractionType("");
       setInteractionDate("");
       setInteractionDuration("");
       setInteractionNotes("");
-      
+
       // 🧹 Limpiar localStorage de campos del formulario
       if (typeof window !== "undefined") {
         localStorage.removeItem("seguimiento_interaction_type");
@@ -482,7 +460,7 @@ export default function SeguimientoPage() {
         localStorage.removeItem("seguimiento_interaction_duration");
         localStorage.removeItem("seguimiento_interaction_notes");
       }
-      
+
       // ✅ Toast ligero para mejor UX
       const Toast = Swal.mixin({
         toast: true,
@@ -491,7 +469,7 @@ export default function SeguimientoPage() {
         timer: 2000,
         timerProgressBar: true,
       });
-      
+
       Toast.fire({
         icon: 'success',
         title: 'Interacción guardada'
@@ -525,12 +503,12 @@ export default function SeguimientoPage() {
       });
       return;
     }
-    
+
     // 🕒 Construir fecha con la hora seleccionada
-    const formattedDate = appointmentDate.includes("T") 
+    const formattedDate = appointmentDate.includes("T")
       ? appointmentDate + (appointmentDate.includes(":00", appointmentDate.length - 3) ? "" : ":00")
       : appointmentDate + "T09:00:00";
-    
+
     // Auto-incluir datos del prospecto en la descripción SIEMPRE
     let descripcionFinal = appointmentDescription.trim();
     if (selectedProspecto) {
@@ -542,7 +520,7 @@ export default function SeguimientoPage() {
         ? `${descripcionFinal} | ${datosProspecto}`
         : datosProspecto;
     }
-    
+
     const newCita = {
       datecita: formattedDate,
       descricita: descripcionFinal || "Cita agendada",
@@ -558,19 +536,19 @@ export default function SeguimientoPage() {
       const response = await api.post("/citas", newCita);
       const saved = response.data?.data ?? response.data;
       console.log("✅ Cita guardada:", response.data);
-      
+
       // ⚡ OPTIMIZACIÓN: Actualizar solo el estado con la nueva cita
       setCitas((prev) => [...prev, saved]);
       setAppointmentDescription("");
       setAppointmentDate(getDefaultAppointmentDate());
-      
+
       // 🧹 Limpiar localStorage de campos del formulario
       if (typeof window !== "undefined") {
         localStorage.removeItem("seguimiento_appointment_description");
         // No removemos appointment_date porque se resetea a valor por defecto
         localStorage.setItem("seguimiento_appointment_date", getDefaultAppointmentDate());
       }
-      
+
       // ✅ Toast ligero en lugar de Swal
       const Toast = Swal.mixin({
         toast: true,
@@ -579,7 +557,7 @@ export default function SeguimientoPage() {
         timer: 2000,
         timerProgressBar: true,
       });
-      
+
       Toast.fire({
         icon: 'success',
         title: 'Cita agendada correctamente'
@@ -604,76 +582,76 @@ export default function SeguimientoPage() {
           </div>
         </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 mb-4">
-        <Input
-          placeholder="Buscar por nombre"
-          value={searchTerm}
-          onChange={(e) => {
-            setSearchTerm(e.target.value);
-            setCurrentPage(1);
-          }}
-          className="w-full sm:max-w-xs"
-        />
-        <Input
-          placeholder="Buscar por correo"
-          value={emailFilter}
-          onChange={(e) => {
-            setEmailFilter(e.target.value);
-            setCurrentPage(1);
-          }}
-          className="w-full sm:max-w-xs"
-        />
-        <Input
-          placeholder="Buscar por teléfono"
-          value={phoneFilter}
-          onChange={(e) => {
-            setPhoneFilter(e.target.value);
-            setCurrentPage(1);
-          }}
-          className="w-full sm:max-w-xs"
-        />
-        <Select
-          value={estadoFilter}
-          onValueChange={(value) => {
-            setEstadoFilter(value);
-            setCurrentPage(1);
-          }}
-        >
-          <SelectTrigger className="w-full sm:max-w-xs">
-            <SelectValue placeholder="Filtrar por estado" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="No contactado">No contactado</SelectItem>
-            <SelectItem value="En seguimiento">En seguimiento</SelectItem>
-            <SelectItem value="Le interesa a futuro">Le interesa a futuro</SelectItem>
-            <SelectItem value="Perdido">Perdido</SelectItem>
-            <SelectItem value="Inscrito">Inscrito</SelectItem>
-            <SelectItem value="Promesa de pago">Promesa de pago</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+        <div className="flex flex-col sm:flex-row gap-4 mb-4">
+          <Input
+            placeholder="Buscar por nombre"
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full sm:max-w-xs"
+          />
+          <Input
+            placeholder="Buscar por correo"
+            value={emailFilter}
+            onChange={(e) => {
+              setEmailFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full sm:max-w-xs"
+          />
+          <Input
+            placeholder="Buscar por teléfono"
+            value={phoneFilter}
+            onChange={(e) => {
+              setPhoneFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full sm:max-w-xs"
+          />
+          <Select
+            value={estadoFilter}
+            onValueChange={(value) => {
+              setEstadoFilter(value);
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="w-full sm:max-w-xs">
+              <SelectValue placeholder="Filtrar por estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="No contactado">No contactado</SelectItem>
+              <SelectItem value="En seguimiento">En seguimiento</SelectItem>
+              <SelectItem value="Le interesa a futuro">Le interesa a futuro</SelectItem>
+              <SelectItem value="Perdido">Perdido</SelectItem>
+              <SelectItem value="Inscrito">Inscrito</SelectItem>
+              <SelectItem value="Promesa de pago">Promesa de pago</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-      {error && <p className="text-red-500">{error}</p>}
+        {error && <p className="text-red-500">{error}</p>}
 
-      <div className="bg-white p-6 rounded-lg shadow-sm">
-        <h2 className="text-lg font-semibold mb-4">Lista de Prospectos</h2>
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Teléfono</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Acción</TableHead>
-              </TableRow>
-            </TableHeader>
-            {loading ? (
-              <TableSkeleton />
-            ) : (
-              <TableBody>
-                {paginatedProspectos.map((prospecto) => (
+        <div className="bg-white p-6 rounded-lg shadow-sm">
+          <h2 className="text-lg font-semibold mb-4">Lista de Prospectos</h2>
+          <div className="border rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Teléfono</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Acción</TableHead>
+                </TableRow>
+              </TableHeader>
+              {loading ? (
+                <TableSkeleton />
+              ) : (
+                <TableBody>
+                  {paginatedProspectos.map((prospecto) => (
                     <TableRow key={prospecto.id}>
                       <TableCell>{prospecto.nombre}</TableCell>
                       <TableCell>{prospecto.email}</TableCell>
@@ -690,10 +668,10 @@ export default function SeguimientoPage() {
                       </TableCell>
                     </TableRow>
                   ))}
-              </TableBody>
-            )}
-          </Table>
-        </div>
+                </TableBody>
+              )}
+            </Table>
+          </div>
           <div className="flex justify-end space-x-4 mt-4">
             <Button onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1}>
               Anterior

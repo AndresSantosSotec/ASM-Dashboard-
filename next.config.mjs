@@ -29,6 +29,9 @@ const nextConfig = {
       : [],
   },
   
+  // Turbopack config (evita warning en Next.js 16+)
+  turbopack: {},
+  
   // Optimizaciones de compilación
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production' ? {

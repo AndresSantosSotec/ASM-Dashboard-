@@ -55,6 +55,11 @@ export default function CargaMasivaProspectos() {
   const [selectedDbColumn, setSelectedDbColumn] = useState<string>("")
   const [progress, setProgress] = useState<number>(0)
   
+  // Estados para asignar asesor al importar
+  const [asesores, setAsesores] = useState<{ id: number; nombre: string }[]>([])
+  const [selectedAsesorId, setSelectedAsesorId] = useState<string>("")
+  const [currentUser, setCurrentUser] = useState<{ id: number; rol: string } | null>(null)
+  
   // Estados para filtros
   const [searchFilter, setSearchFilter] = useState("")
   const [searchAvailableFilter, setSearchAvailableFilter] = useState("")
@@ -119,6 +124,40 @@ export default function CargaMasivaProspectos() {
   useEffect(() => {
     fetchColumns()
     fetchAvailableColumns()
+    
+    // Cargar usuario actual y asesores
+    try {
+      const storedUser = localStorage.getItem("user")
+      if (storedUser) {
+        const user = JSON.parse(storedUser)
+        setCurrentUser({ id: user.id, rol: user.rol || "" })
+        // Si es asesor, pre-seleccionar a sí mismo
+        if ((user.rol || "").toLowerCase() === "asesor") {
+          setSelectedAsesorId(String(user.id))
+        }
+      }
+    } catch (e) {
+      console.error("Error parsing user:", e)
+    }
+    
+    // Cargar lista de asesores
+    const token = localStorage.getItem("token")
+    fetch(`${API_BASE_URL}/api/users/role/7`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => r.json())
+      .then(json => {
+        const users: any[] = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : []
+        setAsesores(
+          users.map(u => ({
+            id: u.id,
+            nombre:
+              u.full_name ??
+              (u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username ?? "—"),
+          }))
+        )
+      })
+      .catch(() => setAsesores([]))
   }, [toast])
 
   // Función para obtener columnas disponibles de la tabla prospectos
@@ -597,6 +636,8 @@ export default function CargaMasivaProspectos() {
     const formData = new FormData();
     formData.append("file", file);
     if (confirm) formData.append("confirm", "true");
+    // Enviar asesor_id si se seleccionó uno
+    if (selectedAsesorId) formData.append("asesor_id", selectedAsesorId);
 
     const token = localStorage.getItem("token");
     console.log("[Import] headers y body preparados", {
@@ -737,6 +778,35 @@ export default function CargaMasivaProspectos() {
               </label>
               <Input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileChange} />
             </div>
+            {/* Asignar asesor */}
+            {asesores.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Asignar leads a asesor
+                </label>
+                <Select
+                  value={selectedAsesorId}
+                  onValueChange={setSelectedAsesorId}
+                  disabled={currentUser?.rol?.toLowerCase() === "asesor"}
+                >
+                  <SelectTrigger className="w-full md:w-80">
+                    <SelectValue placeholder="Seleccione un asesor (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {asesores.map(a => (
+                      <SelectItem key={a.id} value={String(a.id)}>
+                        {a.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {selectedAsesorId
+                    ? `Los leads importados se asignarán a: ${asesores.find(a => String(a.id) === selectedAsesorId)?.nombre || "—"}`
+                    : "Si no selecciona un asesor, los leads se asignarán al usuario que importa"}
+                </p>
+              </div>
+            )}
             {/* Botones de acción */}
             <div className="flex flex-wrap gap-4 items-center">
               <Button variant="outline" onClick={() => setShowStructure(!showStructure)}>

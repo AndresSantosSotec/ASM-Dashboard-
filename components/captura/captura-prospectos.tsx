@@ -132,6 +132,11 @@ export default function CapturaProspectos() {
   const [showOtherCompany, setShowOtherCompany] = useState(false);
   const [showOtherOrigin, setShowOtherOrigin] = useState(false);
 
+  // Estados para selector de asesor
+  const [asesores, setAsesores] = useState<{ id: number; nombre: string }[]>([])
+  const [selectedAsesorId, setSelectedAsesorId] = useState<string>("")
+  const [currentUser, setCurrentUser] = useState<{ id: number; rol: string; nombre: string } | null>(null)
+
   // Estados para la sección de tareas
   const [showTareaSection, setShowTareaSection] = useState(false);
   const [tareaData, setTareaData] = useState({
@@ -195,6 +200,40 @@ export default function CapturaProspectos() {
     fetchEmpresas()
   }, [])
 
+  // Cargar usuario actual y lista de asesores
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem("user")
+      if (storedUser) {
+        const user = JSON.parse(storedUser)
+        const nombre = user.full_name ?? (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.username ?? "—")
+        setCurrentUser({ id: user.id, rol: user.rol || "", nombre })
+        if ((user.rol || "").toLowerCase() === "asesor") {
+          setSelectedAsesorId(String(user.id))
+        }
+      }
+    } catch (e) {
+      console.error("Error parsing user:", e)
+    }
+
+    const token = localStorage.getItem("token")
+    fetch(`${API_BASE_URL}/api/users/role/7`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => r.json())
+      .then(json => {
+        const users: any[] = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : []
+        setAsesores(
+          users.map(u => ({
+            id: u.id,
+            nombre:
+              u.full_name ??
+              (u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username ?? "—"),
+          }))
+        )
+      })
+      .catch(() => setAsesores([]))
+  }, [])
 
   // Cargar países al montar el componente
   useEffect(() => {
@@ -486,6 +525,8 @@ export default function CapturaProspectos() {
         departamentoNombre: departamentoSeleccionado?.name || '',
         municipio: data.municipio,
         municipioNombre: municipioSeleccionado?.name || '',
+        // Asesor asignado (solo admin puede asignar a otro)
+        ...(selectedAsesorId ? { asesor_id: Number(selectedAsesorId) } : {}),
       }
       
       await axios.post(`${API_BASE_URL}/api/prospectos`, payload, {
@@ -597,6 +638,30 @@ export default function CapturaProspectos() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             {/* Tu formulario completo actual */}
             <div className="bg-white p-6 rounded-lg shadow-sm space-y-6">
+              {/* Selector de asesor */}
+              {asesores.length > 0 && (
+                <div className="mb-2">
+                  <label className="block text-sm font-medium mb-2">Asesor asignado</label>
+                  <Select
+                    value={selectedAsesorId}
+                    onValueChange={setSelectedAsesorId}
+                    disabled={currentUser?.rol?.toLowerCase() === "asesor"}
+                  >
+                    <SelectTrigger className="w-full md:w-80">
+                      <SelectValue placeholder="Seleccione un asesor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {asesores
+                        .filter(a => currentUser?.rol?.toLowerCase() === "asesor" ? a.id === currentUser.id : true)
+                        .map(a => (
+                          <SelectItem key={a.id} value={String(a.id)}>
+                            {a.nombre}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               {/* Campos principales */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Fecha */}
