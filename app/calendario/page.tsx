@@ -908,7 +908,7 @@ export default function CalendarioPage() {
       {/* Modal Detalles Cita */}
       <Dialog open={citaModalOpen} onOpenChange={() => setCitaModalOpen(false)}>
         {selectedCita && (
-          <DialogContent className="sm:max-w-[400px]">
+          <DialogContent className="sm:max-w-[480px] max-w-[95vw]">
             <DialogHeader>
               <DialogTitle>Detalles de Cita</DialogTitle>
               <DialogDescription>
@@ -941,23 +941,24 @@ export default function CalendarioPage() {
                 </div>
               )}
             </div>
-            <DialogFooter className="justify-end space-x-2">
-              <Button variant="outline" onClick={() => setCitaModalOpen(false)}>
+            <div className="flex flex-wrap gap-2 justify-end pt-2 border-t">
+              <Button variant="outline" size="sm" onClick={() => setCitaModalOpen(false)}>
                 Cerrar
               </Button>
               <Button
+                size="sm"
                 variant={selectedCita.estado === "completada" ? "outline" : "default"}
                 className={selectedCita.estado === "completada" ? "text-green-600 border-green-600 hover:bg-green-50" : "bg-green-600 hover:bg-green-700 text-white"}
                 onClick={() => toggleCitaComplete(selectedCita.id)}
               >
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-                {selectedCita.estado === "completada" ? "Marcar como pendiente" : "Marcar como completada"}
+                <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                {selectedCita.estado === "completada" ? "Pendiente" : "Completada"}
               </Button>
-              <Button variant="destructive" onClick={() => deleteCita(selectedCita.id)}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Eliminar Cita
+              <Button size="sm" variant="destructive" onClick={() => deleteCita(selectedCita.id)}>
+                <Trash2 className="mr-1.5 h-4 w-4" />
+                Eliminar
               </Button>
-            </DialogFooter>
+            </div>
           </DialogContent>
         )}
       </Dialog>
