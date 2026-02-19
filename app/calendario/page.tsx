@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, parseISO, isToday, setYear, setMonth as setMonthFn, } from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ interface Cita {
   id: string;
   datecita: string;
   descricita: string;
+  estado: "pendiente" | "completada" | "cancelada";
   nombre_prospecto?: string;
   email_prospecto?: string;
   telefono_prospecto?: string;
@@ -293,10 +295,22 @@ export default function CalendarioPage() {
   const toggleComplete = async (id: string) => {
     const t = tareas.find((x) => x.id === id);
     if (!t || !token) return;
+
+    // Preparar payload completo para evitar errores de validación en PUT
+    const payload = {
+      titulo: t.titulo,
+      descripcion: t.descripcion,
+      fecha: t.fecha,
+      hora_inicio: t.horaInicio,
+      hora_fin: t.horaFin,
+      tipo: t.tipo,
+      completada: !t.completada,
+    };
+
     try {
       const res = await api.put(
         `/tareas/${id}`,
-        { completada: !t.completada },
+        payload,
         {
           headers: {
             "Content-Type": "application/json",
@@ -305,7 +319,17 @@ export default function CalendarioPage() {
         }
       );
 
-      const updatedTask = normalizeTarea(res.data.data);
+      // Intentar obtener la tarea actualizada de la respuesta
+      let updatedTask: Tarea;
+      if (res.data && res.data.data) {
+        updatedTask = normalizeTarea(res.data.data);
+      } else if (res.data && res.data.id) {
+        // Si la respuesta es el objeto directo
+        updatedTask = normalizeTarea(res.data);
+      } else {
+        // Si no se devuelve la tarea, usar la local con el estado invertido
+        updatedTask = { ...t, completada: !t.completada };
+      }
 
       // Update global list
       setTareas((prev) =>
@@ -333,8 +357,31 @@ export default function CalendarioPage() {
         });
       }
 
+      // Feedback visual opcional
+      const Toast = Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 1500,
+        timerProgressBar: true,
+      });
+
+      Toast.fire({
+        icon: 'success',
+        title: updatedTask.completada ? 'Tarea completada' : 'Tarea pendiente'
+      });
+
     } catch (err) {
       console.error(err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo actualizar el estado de la tarea',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000
+      });
     }
   };
 
@@ -346,6 +393,69 @@ export default function CalendarioPage() {
       setCitaModalOpen(false);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const toggleCitaComplete = async (id: string) => {
+    const c = citas.find((x) => x.id === id);
+    if (!c || !token) return;
+
+    const nuevoEstado = c.estado === "completada" ? "pendiente" : "completada";
+
+    try {
+      const res = await api.put(`/citas/${id}`, { estado: nuevoEstado });
+
+      const updated = res.data?.data ?? res.data;
+      const updatedCita: Cita = {
+        ...c,
+        estado: updated?.estado ?? nuevoEstado,
+      };
+
+      setCitas((prev) => prev.map((x) => (x.id === id ? updatedCita : x)));
+
+      if (selectedCita && selectedCita.id === id) {
+        setSelectedCita(updatedCita);
+      }
+
+      // Actualizar modal de actividades del día si está abierto
+      if (selectedDayActivities) {
+        setSelectedDayActivities((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            items: prev.items.map((item) => {
+              if (item.kind === "cita" && (item.item as Cita).id === id) {
+                return { ...item, item: updatedCita };
+              }
+              return item;
+            }),
+          };
+        });
+      }
+
+      const Toast = Swal.mixin({
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 1500,
+        timerProgressBar: true,
+      });
+
+      Toast.fire({
+        icon: "success",
+        title: nuevoEstado === "completada" ? "Cita completada" : "Cita marcada como pendiente",
+      });
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se pudo actualizar el estado de la cita",
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 3000,
+      });
     }
   };
 
@@ -683,17 +793,15 @@ export default function CalendarioPage() {
             </div>
             {selectedTarea && (
               <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
+                <Switch
                   id="completada"
                   checked={nuevaTarea.completada}
-                  onChange={(e) =>
+                  onCheckedChange={(checked) =>
                     setNuevaTarea({
                       ...nuevaTarea,
-                      completada: e.target.checked,
+                      completada: checked,
                     })
                   }
-                  className="rounded border-gray-300"
                 />
                 <Label htmlFor="completada">Marcar como completada</Label>
               </div>
@@ -740,11 +848,9 @@ export default function CalendarioPage() {
               </div>
               <div className="mt-6 flex justify-between items-center">
                 <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
+                  <Switch
                     checked={selectedTarea.completada}
-                    onChange={() => toggleComplete(selectedTarea.id)}
-                    className="rounded border-gray-300"
+                    onCheckedChange={() => toggleComplete(selectedTarea.id)}
                   />
                   <Label>
                     {selectedTarea.completada ? "Completada" : "Marcar como completada"}
