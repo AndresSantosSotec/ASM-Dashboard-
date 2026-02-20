@@ -89,7 +89,7 @@ export default function DocumentosTab({
   prospectoId,
   onFinalizar,
   isFinalizing,
-  montoInscripcion = 1000,
+  montoInscripcion = 0,
   descuentoInscripcion = false,
   estudianteProgramaId,
   studentName = "",

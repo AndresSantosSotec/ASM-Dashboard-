@@ -285,9 +285,11 @@ export default function FinancieroTab({
             placeholder={sugeridos.inscripcion}
             onChange={(v) => setDatos((d) => ({ ...d, inscripcion: v }))}
           />
-          {/* Toggle de descuento: visible cuando inscripción < 1000 */}
-          {parseFloat(datos.inscripcion?.replace(/,/g, "") || "0") > 0 &&
-            parseFloat(datos.inscripcion?.replace(/,/g, "") || "0") < 1000 && (
+          {/* Toggle de descuento: visible cuando inscripción < precio sugerido del API */}
+          {(() => {
+            const precioBase = parseFloat(sugeridos.inscripcion) || 0
+            const montoActual = parseFloat(datos.inscripcion?.replace(/,/g, "") || "0")
+            return precioBase > 0 && montoActual > 0 && montoActual < precioBase ? (
               <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -297,14 +299,17 @@ export default function FinancieroTab({
                 />
                 <span className="text-sm text-blue-700 font-medium">Descuento en inscripción</span>
               </label>
-            )}
-          {!!datos.descuentoInscripcion &&
-            parseFloat(datos.inscripcion?.replace(/,/g, "") || "0") > 0 &&
-            parseFloat(datos.inscripcion?.replace(/,/g, "") || "0") < 1000 && (
+            ) : null
+          })()}
+          {(() => {
+            const precioBase = parseFloat(sugeridos.inscripcion) || 0
+            const montoActual = parseFloat(datos.inscripcion?.replace(/,/g, "") || "0")
+            return !!datos.descuentoInscripcion && precioBase > 0 && montoActual > 0 && montoActual < precioBase ? (
               <p className="text-xs text-green-700 mt-1">
-                Se aplicará como pago completo de inscripción (descuento de Q{(1000 - parseFloat(datos.inscripcion?.replace(/,/g, "") || "0")).toFixed(2)})
+                Se aplicará como pago completo de inscripción (descuento de Q{(precioBase - montoActual).toFixed(2)})
               </p>
-            )}
+            ) : null
+          })()}
         </div>
         <InputWithLabel
           id="cuo"

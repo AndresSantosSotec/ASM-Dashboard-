@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -53,10 +53,19 @@ export default function BoletaInscripcionUpload({
   const [datos, setDatos] = useState<BoletaInscripcionData>({
     numeroBoleta: "",
     banco: "",
-    monto: montoInscripcion.toString(),
+    monto: montoInscripcion > 0 ? montoInscripcion.toString() : "",
     fechaRecibo: "",
     archivo: null
   })
+
+  // Sincronizar monto cuando cambia el prop montoInscripcion (e.g. al cargar precios del API)
+  const prevMontoRef = useRef(montoInscripcion)
+  useEffect(() => {
+    if (montoInscripcion !== prevMontoRef.current && montoInscripcion > 0) {
+      setDatos(prev => ({ ...prev, monto: montoInscripcion.toString() }))
+      prevMontoRef.current = montoInscripcion
+    }
+  }, [montoInscripcion])
 
   const archivoRef = useRef<File | null>(null) // 🔥 Evita el doble upload
 
@@ -130,7 +139,7 @@ export default function BoletaInscripcionUpload({
       Swal.fire("Error", "Ingrese un monto válido", "error")
       return
     }
-    if (parseFloat(datos.monto) > montoInscripcion) {
+    if (montoInscripcion > 0 && parseFloat(datos.monto) > montoInscripcion) {
       await Swal.fire({
         icon: "warning",
         title: "Monto mayor al esperado",
@@ -325,12 +334,12 @@ export default function BoletaInscripcionUpload({
           <Input
             type="number"
             min="0"
-            max={montoInscripcion}
+            max={montoInscripcion > 0 ? montoInscripcion : undefined}
             value={datos.monto}
             onChange={(e) => setDatos({ ...datos, monto: e.target.value })}
           />
 
-          {parseFloat(datos.monto) < montoInscripcion && parseFloat(datos.monto) > 0 && !descuentoInscripcion && (
+          {montoInscripcion > 0 && parseFloat(datos.monto) < montoInscripcion && parseFloat(datos.monto) > 0 && !descuentoInscripcion && (
             <Alert className="mt-2">
               <AlertDescription>
                 ⚠️ Pago parcial — Pendiente: Q{(montoInscripcion - parseFloat(datos.monto)).toFixed(2)}
@@ -338,7 +347,7 @@ export default function BoletaInscripcionUpload({
             </Alert>
           )}
 
-          {descuentoInscripcion && parseFloat(datos.monto) > 0 && parseFloat(datos.monto) >= montoInscripcion && (
+          {descuentoInscripcion && parseFloat(datos.monto) > 0 && montoInscripcion > 0 && parseFloat(datos.monto) >= montoInscripcion && (
             <Alert className="mt-2 bg-green-50 border-green-200">
               <AlertDescription className="text-green-800">
                 ✅ Inscripción con descuento — Pago completo
@@ -346,7 +355,7 @@ export default function BoletaInscripcionUpload({
             </Alert>
           )}
 
-          {descuentoInscripcion && parseFloat(datos.monto) > 0 && parseFloat(datos.monto) < montoInscripcion && (
+          {descuentoInscripcion && parseFloat(datos.monto) > 0 && montoInscripcion > 0 && parseFloat(datos.monto) < montoInscripcion && (
             <Alert className="mt-2">
               <AlertDescription>
                 ⚠️ El monto es menor al precio con descuento (Q{montoInscripcion.toFixed(2)}) — Pendiente: Q{(montoInscripcion - parseFloat(datos.monto)).toFixed(2)}
