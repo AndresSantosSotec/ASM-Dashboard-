@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   format,
   startOfMonth,
@@ -44,6 +44,14 @@ export function SimpleDatePicker({ value, onChange, placeholder = "Seleccionar f
       ? initialParsed
       : new Date()
   )
+
+  // 🔧 FIX: Sincronizar currentMonth cuando cambia el prop value
+  // Esto permite que al editar una fecha, el calendario muestre el mes correcto
+  useEffect(() => {
+    if (value && selectedDate && !isNaN(selectedDate.getTime())) {
+      setCurrentMonth(selectedDate)
+    }
+  }, [value, selectedDate])
 
   // Cálculos del mes
   const monthStart = startOfMonth(currentMonth)
