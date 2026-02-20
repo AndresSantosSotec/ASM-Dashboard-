@@ -55,6 +55,7 @@ interface ReciboData {
   noBoleta: string
   banco: string
   total: string
+  observaciones: string
 }
 
 interface Props {
@@ -165,7 +166,26 @@ export default function ReciboPagoGenerator({
     noBoleta: "",
     banco: "",
     total: monto || "",
+    observaciones: "",
   })
+
+  // Recalcular total y cantidad en letras
+  const recalculate = (data: ReciboData) => {
+    const values = [data.matricula, data.mensualidad, data.mora, data.graduacion, data.titulos, data.proyectoGrado, data.otros]
+    const total = values.reduce((sum, v) => sum + (parseFloat(v.replace(/,/g, "")) || 0), 0)
+    const totalStr = total.toFixed(2)
+    return { ...data, total: totalStr, cantidadLetras: amountToWords(totalStr) }
+  }
+
+  const update = (field: keyof ReciboData, value: string) => {
+    setRecibo(prev => {
+      const updated = { ...prev, [field]: value }
+      if (["matricula", "mensualidad", "mora", "graduacion", "titulos", "proyectoGrado", "otros"].includes(field)) {
+        return recalculate(updated)
+      }
+      return updated
+    })
+  }
 
   // Sincronizar datos cuando se abre el diálogo
   useEffect(() => {
@@ -188,7 +208,11 @@ export default function ReciboPagoGenerator({
         titulos: recibo.titulos,
         proyectoGrado: recibo.proyectoGrado,
         otros: recibo.otros,
+        observaciones: recibo.observaciones,
       }
+      // Note: Recalculate will be called here. As long as it is defined in the component scope, it's fine.
+      // But standard practice is to define helpers outside or useCallback. 
+      // Since recalculate is defined in the component body above, it is available.
       setRecibo(recalculate(newData))
 
       // Auto-generar número de recibo si está vacío
@@ -218,10 +242,6 @@ export default function ReciboPagoGenerator({
     }
   }
 
-
-
-
-
   // Registrar recibo emitido en el backend
   const registrarRecibo = async () => {
     if (!recibo.reciboNo) return
@@ -235,6 +255,7 @@ export default function ReciboPagoGenerator({
         total: parseFloat(recibo.total) || 0,
         concepto: concepto || "matricula",
         forma_pago: recibo.formaPago,
+        observaciones: recibo.observaciones,
       }, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
@@ -247,24 +268,6 @@ export default function ReciboPagoGenerator({
     } finally {
       setRegistrando(false)
     }
-  }
-
-  // Recalcular total y cantidad en letras
-  const recalculate = (data: ReciboData) => {
-    const values = [data.matricula, data.mensualidad, data.mora, data.graduacion, data.titulos, data.proyectoGrado, data.otros]
-    const total = values.reduce((sum, v) => sum + (parseFloat(v.replace(/,/g, "")) || 0), 0)
-    const totalStr = total.toFixed(2)
-    return { ...data, total: totalStr, cantidadLetras: amountToWords(totalStr) }
-  }
-
-  const update = (field: keyof ReciboData, value: string) => {
-    setRecibo(prev => {
-      const updated = { ...prev, [field]: value }
-      if (["matricula", "mensualidad", "mora", "graduacion", "titulos", "proyectoGrado", "otros"].includes(field)) {
-        return recalculate(updated)
-      }
-      return updated
-    })
   }
 
   // Helper para resolver rutas de assets (public) con el prefix de Next.js
@@ -282,8 +285,8 @@ export default function ReciboPagoGenerator({
     return `${prefix}${path.startsWith("/") ? "" : "/"}${path}`
   }
 
-  // Convertir imagen a base64 con manejo de errores robusto
-  const toBase64 = async (url: string): Promise<string> => {
+  // Optimize image loading: use JPEG for smaller size where transparency isn't needed or resizing
+  const toBase64 = async (url: string, format: "image/png" | "image/jpeg" = "image/png", quality = 0.7): Promise<string> => {
     const loadImg = (src: string): Promise<string> => {
       return new Promise((resolve) => {
         const img = new Image()
@@ -291,12 +294,26 @@ export default function ReciboPagoGenerator({
         img.onload = () => {
           try {
             const canvas = document.createElement("canvas")
-            canvas.width = img.width
-            canvas.height = img.height
+            // Resize if too large (e.g. max width 1000px)
+            let width = img.width
+            let height = img.height
+            const MAX_WIDTH = 800
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width
+              width = MAX_WIDTH
+            }
+
+            canvas.width = width
+            canvas.height = height
             const ctx = canvas.getContext("2d")
             if (ctx) {
-              ctx.drawImage(img, 0, 0)
-              resolve(canvas.toDataURL("image/png"))
+              // White background for JPEGs to avoid black transparency
+              if (format === "image/jpeg") {
+                ctx.fillStyle = "#FFFFFF";
+                ctx.fillRect(0, 0, width, height);
+              }
+              ctx.drawImage(img, 0, 0, width, height)
+              resolve(canvas.toDataURL(format, quality))
             } else {
               resolve("")
             }
@@ -317,26 +334,25 @@ export default function ReciboPagoGenerator({
       b64 = await loadImg(rootUrl)
       if (b64) return b64
     }
-
     return ""
   }
 
   const handleDownloadPDF = async () => {
     setIsPrinting(true)
     try {
-      // Registrar recibo antes de descargar
       await registrarRecibo()
 
-      // Pre-cargar logos con fallback robusto
+      // Use JPEG with 0.7 quality for logos to save space
       const [headerLogoB64, footerLogoB64] = await Promise.all([
-        toBase64('/recursos/Logos-02.png'),
-        toBase64('/recursos/Logos_Mesa.png')
+        toBase64('/recursos/Logos-02.png', "image/jpeg", 0.7),
+        toBase64('/recursos/Logos_Mesa.png', "image/png", 0.7)
       ])
 
       const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'pt',
-        format: 'letter'
+        format: 'letter',
+        compress: true
       })
 
       // Configuración de fuentes y estilos
@@ -344,9 +360,8 @@ export default function ReciboPagoGenerator({
       doc.setFontSize(10)
 
       // --- Header ---
-      // Logo Izquierdo
       if (headerLogoB64) {
-        doc.addImage(headerLogoB64, 'PNG', 40, 30, 100, 40)
+        doc.addImage(headerLogoB64, 'JPEG', 40, 30, 100, 40, undefined, 'FAST')
       }
 
       // Información Institucional (Centrado)
@@ -356,7 +371,6 @@ export default function ReciboPagoGenerator({
 
       doc.setFont("helvetica", "normal")
       doc.setFontSize(9)
-      // LETTER SPACING SIMULADO
       doc.text("S C H O O L   O F   M A N A G E M E N T", 306, 62, { align: "center" })
 
       doc.setFont("helvetica", "bold")
@@ -369,7 +383,6 @@ export default function ReciboPagoGenerator({
       // --- Info Section ---
       const startY = 130
 
-      // Line 1: Nit left, Recibo No right
       doc.setFont("helvetica", "bold")
       doc.text("Nit:", 40, startY)
       doc.setFont("helvetica", "normal")
@@ -383,7 +396,6 @@ export default function ReciboPagoGenerator({
       doc.setTextColor(0, 0, 0) // Black
       doc.setFontSize(10)
 
-      // Line 2: Fecha left, Total right
       const line2Y = startY + 20
       doc.setFont("helvetica", "bold")
       doc.text("Fecha", 40, line2Y)
@@ -394,18 +406,15 @@ export default function ReciboPagoGenerator({
       doc.setFont("helvetica", "bold")
       doc.text("Q", 480, line2Y)
       doc.setFont("helvetica", "normal")
-      // Alineando a la derecha
       const totalStr = parseFloat(recibo.total).toFixed(2)
       doc.text(totalStr, 520, line2Y)
 
-      // Line 3: Recibimos de
       const line3Y = line2Y + 20
       doc.setFont("helvetica", "bold")
       doc.text("Recibimos de:", 40, line3Y)
       doc.setFont("helvetica", "normal")
       doc.text(recibo.recibidoDe || "", 120, line3Y)
 
-      // Line 4: Cantidad de
       const line4Y = line3Y + 20
       doc.setFont("helvetica", "bold")
       doc.text("La cantidad de:", 40, line4Y)
@@ -418,17 +427,15 @@ export default function ReciboPagoGenerator({
       const colWidth2 = 132
       const rowHeight = 20
 
-      // Header Table
       doc.setLineWidth(1)
-      doc.rect(40, tableY, colWidth1 + colWidth2, rowHeight) // Border header
-      doc.line(40 + colWidth1, tableY, 40 + colWidth1, tableY + rowHeight) // Split header
+      doc.rect(40, tableY, colWidth1 + colWidth2, rowHeight)
+      doc.line(40 + colWidth1, tableY, 40 + colWidth1, tableY + rowHeight)
 
       doc.setFont("helvetica", "bold")
       doc.text("Concepto", 40 + (colWidth1 + colWidth2) / 2, tableY + 14, { align: "center" })
 
       tableY += rowHeight
 
-      // Rows
       const concepts = [
         { label: "Matrícula", value: recibo.matricula },
         { label: "Mensualidad", value: recibo.mensualidad },
@@ -441,14 +448,11 @@ export default function ReciboPagoGenerator({
 
       doc.setFont("helvetica", "normal")
       concepts.forEach((item) => {
-        doc.rect(40, tableY, colWidth1 + colWidth2, rowHeight) // Outer border
-        doc.line(40 + colWidth1, tableY, 40 + colWidth1, tableY + rowHeight) // Split col
+        doc.rect(40, tableY, colWidth1 + colWidth2, rowHeight)
+        doc.line(40 + colWidth1, tableY, 40 + colWidth1, tableY + rowHeight)
 
         doc.text(item.label, 45, tableY + 14)
         const valStr = `Q. ${item.value ? parseFloat(item.value).toFixed(2) : "________"}`
-        // Right align text in second col
-        // Column starts at 40+colWidth1 (440). Width is 132. End is 572.
-        // We want to align maybe at 560
         doc.text(valStr, 560, tableY + 14, { align: "right" })
 
         tableY += rowHeight
@@ -466,14 +470,11 @@ export default function ReciboPagoGenerator({
       doc.setFont("helvetica", "bold")
       doc.text("Forma de pago:", 40, footerY)
 
-      // Checkboxes
       const payOptions = ["Efectivo", "Tarjeta", "Cheque", "Boleta"]
       let checkX = 130
       payOptions.forEach(opt => {
         const isSelected = recibo.formaPago === opt
         doc.setDrawColor(0)
-
-        // Draw square
         if (isSelected) {
           doc.setFillColor(230, 230, 230)
           doc.rect(checkX, footerY - 10, 60, 15, "FD")
@@ -482,7 +483,6 @@ export default function ReciboPagoGenerator({
           doc.rect(checkX, footerY - 10, 60, 15)
           doc.setFont("helvetica", "normal")
         }
-
         doc.text(opt, checkX + 30, footerY + 1, { align: "center" })
         checkX += 70
       })
@@ -505,6 +505,18 @@ export default function ReciboPagoGenerator({
       doc.setFont("helvetica", "normal")
       doc.text(recibo.banco || "________________", 90, footerY)
 
+      // Add Observations
+      footerY += 20
+      if (recibo.observaciones) {
+        doc.setFont("helvetica", "bold")
+        doc.text("Observaciones:", 40, footerY)
+        doc.setFont("helvetica", "normal")
+        doc.setFontSize(9)
+        doc.text(recibo.observaciones, 120, footerY, { maxWidth: 450 })
+        doc.setFontSize(10)
+        footerY += 15
+      }
+
       footerY += 25
       doc.setFontSize(12)
       doc.setFont("helvetica", "bold")
@@ -515,14 +527,13 @@ export default function ReciboPagoGenerator({
       doc.setFont("helvetica", "bold")
       doc.text("No hacemos devoluciones de pago.", 40, footerY)
 
-      // Signature area (Right aligned)
-      doc.line(350, footerY, 550, footerY) // Line
+      // Signature area
+      doc.line(350, footerY, 550, footerY)
       doc.setFont("helvetica", "normal")
       doc.text("Firma y nombre de quien recibe", 450, footerY + 12, { align: "center" })
 
-      // Footer Logo
       if (footerLogoB64) {
-        doc.addImage(footerLogoB64, 'PNG', 260, footerY + 30, 100, 30)
+        doc.addImage(footerLogoB64, 'PNG', 260, footerY + 30, 100, 30, undefined, 'FAST')
       }
 
       doc.save(`Recibo-${recibo.reciboNo}.pdf`)
@@ -535,19 +546,16 @@ export default function ReciboPagoGenerator({
   }
 
   const handlePrint = async () => {
-    // Registrar recibo antes de imprimir
     await registrarRecibo()
 
-    // Pre-cargar logos
     const [headerLogoB64, footerLogoB64] = await Promise.all([
-      toBase64('/recursos/Logos-02.png'),
-      toBase64('/recursos/Logos_Mesa.png')
+      toBase64('/recursos/Logos-02.png', "image/jpeg"),
+      toBase64('/recursos/Logos_Mesa.png', "image/png")
     ])
 
     const printWindow = window.open("", "_blank")
     if (!printWindow) return
 
-    // Fallback: si toBase64 falló (string vacío), usar ruta directa
     const headerSrc = headerLogoB64 || resolveAssetUrl("/recursos/Logos-02.png")
     const footerSrc = footerLogoB64 || resolveAssetUrl("/recursos/Logos_Mesa.png")
 
@@ -577,6 +585,7 @@ export default function ReciboPagoGenerator({
           .footer-logos { margin-top: 40px; text-align: center; }
           .footer-logos img { height: 35px; }
           .no-devolucion { font-size: 8pt; font-weight: bold; margin-top: 10px; }
+          .observaciones { margin: 10px 0; font-size: 9pt; font-style: italic; }
           @media print {
             .payment-option.selected { background-color: #ddd !important; -webkit-print-color-adjust: exact; }
           }
@@ -584,14 +593,14 @@ export default function ReciboPagoGenerator({
       </head>
       <body onload="setTimeout(function(){ window.print(); window.close(); }, 800)">
         <div class="header-container">
-          <img src="${headerSrc}" class="header-logo" alt="Logo" />
-          <div class="header-info">
-            <h1>AMERICAN</h1>
-            <p style="letter-spacing: 2px;">SCHOOL OF MANAGEMENT</p>
-            <p><strong>American School of Management</strong></p>
-            <p>Torre Tigo, Km. 9.5 Carretera al Salvador, Oficina 6C</p>
-            <p>Cel. 5486-2301</p>
-          </div>
+            <img src="${headerSrc}" class="header-logo" alt="Logo" />
+            <div class="header-info">
+              <h1>AMERICAN</h1>
+              <p style="letter-spacing: 2px;">SCHOOL OF MANAGEMENT</p>
+              <p><strong>American School of Management</strong></p>
+              <p>Torre Tigo, Km. 9.5 Carretera al Salvador, Oficina 6C</p>
+              <p>Cel. 5486-2301</p>
+            </div>
         </div>
 
         <div class="data-line"><strong>Nit:</strong> ${recibo.nit || "C/F"}</div>
@@ -627,6 +636,9 @@ export default function ReciboPagoGenerator({
         <div class="data-line" style="margin-top: 10px;"><strong>Fecha de pago:</strong> ${new Date(recibo.fechaPago + "T12:00:00").toLocaleDateString("es-GT")}</div>
         <div class="data-line"><strong>No. De Boleta/cheque/otro:</strong> ${recibo.noBoleta || "________________"}</div>
         <div class="data-line"><strong>Banco:</strong> ${recibo.banco || "________________"}</div>
+        
+        ${recibo.observaciones ? `<div class="observaciones"><strong>Observaciones:</strong> ${recibo.observaciones}</div>` : ''}
+
         <div style="font-weight: bold; margin-top: 10px; font-size: 11pt;">Total Q. ${parseFloat(recibo.total).toFixed(2)}</div>
 
         <p class="no-devolucion">No hacemos devoluciones de pago.</p>
@@ -704,6 +716,12 @@ export default function ReciboPagoGenerator({
                 <div className="p-1 px-3 text-right font-bold">Q{recibo.total || "0.00"}</div>
               </div>
             </div>
+
+            {recibo.observaciones && (
+              <div className="text-[10px] mb-2 px-2 italic text-left">
+                <strong>Observaciones:</strong> {recibo.observaciones}
+              </div>
+            )}
 
             <div className="text-[10px] text-center pt-2">
               <img
@@ -799,12 +817,14 @@ export default function ReciboPagoGenerator({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Mes que cancela</Label>
-              <Input value={recibo.mesQueCancela} onChange={(e) => update("mesQueCancela", e.target.value)} placeholder="Ej: Febrero 2026" />
+              <Input value={recibo.mesQueCancela} onChange={(e) => update("mesQueCancela", e.target.value)} placeholder="Ej: Enero" />
             </div>
             <div>
-              <Label>Forma de pago</Label>
-              <Select value={recibo.formaPago} onValueChange={(v) => update("formaPago", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Label>Forma de Pago</Label>
+              <Select value={recibo.formaPago} onValueChange={(v: any) => update("formaPago", v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Efectivo">Efectivo</SelectItem>
                   <SelectItem value="Tarjeta">Tarjeta</SelectItem>
@@ -815,93 +835,53 @@ export default function ReciboPagoGenerator({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Fecha de pago</Label>
+              <Label>Fecha de Pago</Label>
               <Input type="date" value={recibo.fechaPago} onChange={(e) => update("fechaPago", e.target.value)} />
             </div>
             <div>
-              <Label>No. Boleta/Cheque/Otro</Label>
-              <Input value={recibo.noBoleta} onChange={(e) => update("noBoleta", e.target.value)} />
-            </div>
-            <div>
-              <Label>Banco</Label>
-              <Select
-                value={BANCOS.includes(recibo.banco) ? recibo.banco : recibo.banco ? "Otro" : ""}
-                onValueChange={(v) => {
-                  if (v === "Otro") {
-                    update("banco", "Otro")
-                  } else {
-                    update("banco", v)
-                  }
-                }}
-              >
-                <SelectTrigger><SelectValue placeholder="Seleccione el banco" /></SelectTrigger>
-                <SelectContent>
-                  {BANCOS.map((banco) => (
-                    <SelectItem key={banco} value={banco}>{banco}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {(recibo.banco === "Otro" || (recibo.banco && !BANCOS.includes(recibo.banco))) && (
-                <Input
-                  className="mt-2"
-                  value={recibo.banco === "Otro" ? "" : recibo.banco}
-                  onChange={(e) => update("banco", e.target.value || "Otro")}
-                  placeholder="Nombre del banco"
-                />
-              )}
+              <Label>No. Boleta/Cheque</Label>
+              <Input value={recibo.noBoleta} onChange={(e) => update("noBoleta", e.target.value)} placeholder="Ingresar número" />
             </div>
           </div>
 
-          {/* Total */}
-          <div className="flex items-center justify-between bg-blue-50 border border-blue-100 p-4 rounded-lg">
-            <span className="text-lg font-bold text-blue-900">Total Q.</span>
-            <span className="text-2xl font-black text-blue-800">
-              {parseFloat(recibo.total).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
-            </span>
+          <div>
+            <Label>Banco</Label>
+            <Select value={recibo.banco} onValueChange={(v) => update("banco", v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar banco" />
+              </SelectTrigger>
+              <SelectContent>
+                {BANCOS.map(b => (
+                  <SelectItem key={b} value={b}>{b}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Observaciones</Label>
+            <Input
+              value={recibo.observaciones}
+              onChange={(e) => update("observaciones", e.target.value)}
+              placeholder="Ej. Pago de cuota pendiente 2024"
+            />
           </div>
         </div>
 
-        <iframe
-          ref={iframeRef}
-          style={{ position: 'absolute', width: 0, height: 0, border: 'none', visibility: 'hidden' }}
-          title="Print Frame"
-        />
-
-        {registrando && (
-          <div className="mt-4 p-3 bg-blue-50 text-blue-700 rounded-md flex items-center gap-2 text-sm animate-pulse">
-            <RefreshCw className="h-4 w-4 animate-spin" />
-            Registrando recibo en el sistema...
-          </div>
-        )}
-
-
-        <DialogFooter className="flex flex-wrap gap-2 sm:justify-between items-center sm:gap-0 mt-4">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-gray-500 order-last sm:order-first">
-            Cerrar Ventana
+        <DialogFooter className="mt-6 flex justify-between sm:justify-between">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
           </Button>
-          <div className="flex gap-2 w-full sm:w-auto">
-            <Button
-              variant="outline"
-              onClick={handleDownloadPDF}
-              className="flex-1 sm:flex-none border-blue-800 text-blue-800 hover:bg-blue-50"
-              disabled={registrando || !recibo.reciboNo || isPrinting}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              {isPrinting ? "Generando PDF..." : "Descargar Recibo"}
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={handlePrint} disabled={registrando || isPrinting}>
+              <Printer className="mr-2 h-4 w-4" />
+              {isPrinting ? "Procesando..." : "Imprimir"}
             </Button>
-            <Button
-              onClick={handlePrint}
-              className="flex-1 sm:flex-none bg-blue-800 hover:bg-blue-900 text-white"
-              disabled={registrando || !recibo.reciboNo || isPrinting}
-            >
-              {isPrinting ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Printer className="h-4 w-4 mr-2" />
-              )}
-              {isPrinting ? "Imprimiendo..." : "Imprimir Recibo"}
+            <Button onClick={handleDownloadPDF} disabled={registrando || isPrinting}>
+              {isPrinting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              Descargar PDF
             </Button>
           </div>
         </DialogFooter>
