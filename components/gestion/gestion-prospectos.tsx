@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Swal from "sweetalert2"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle, RefreshCw, Download } from "lucide-react"
+import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle, RefreshCw, Download, MessageCircle } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -31,6 +31,7 @@ import EditarProspecto from "./editar-prospecto"
 import EditarProspectoCompleto from "./editar-prospecto-completo"
 import CambiarEstado from "./cambiar-estado"
 import AlertaAlumnoNuevo from "./alerta-alumno-nuevo"
+import SeguimientoModalPanel from "@/components/seguimiento/seguimiento-modal-panel"
 import { API_BASE_URL } from "@/utils/apiConfig"
 
 const API_URL = `${API_BASE_URL}/api`
@@ -63,7 +64,7 @@ export default function GestionProspectos() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>("")
   const [selectedProspecto, setSelectedProspecto] = useState<Prospecto | null>(null)
-  const [modalType, setModalType] = useState<"detalles" | "editar" | "alerta" | null>(null)
+  const [modalType, setModalType] = useState<"detalles" | "editar" | "alerta" | "seguimiento" | null>(null)
   const [showEstadoMenu, setShowEstadoMenu] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [descargandoReporte, setDescargandoReporte] = useState<string | null>(null)
@@ -861,6 +862,22 @@ export default function GestionProspectos() {
                           <TooltipContent>Alerta Alumno Nuevo</TooltipContent>
                         </Tooltip>
                         <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setSelectedProspecto(p)
+                                setModalType("seguimiento")
+                              }}
+                              className="text-blue-600 hover:text-blue-700"
+                            >
+                              <MessageCircle className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Panel de Seguimiento</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
                           <DropdownMenu>
                             <TooltipTrigger asChild>
                               <DropdownMenuTrigger asChild>
@@ -1006,6 +1023,15 @@ export default function GestionProspectos() {
             />
           </DialogContent>
         </Dialog>
+      )}
+      {selectedProspecto && modalType === "seguimiento" && (
+        <SeguimientoModalPanel
+          prospecto={selectedProspecto}
+          onClose={() => {
+            setSelectedProspecto(null)
+            setModalType(null)
+          }}
+        />
       )}
     </div>
   )
