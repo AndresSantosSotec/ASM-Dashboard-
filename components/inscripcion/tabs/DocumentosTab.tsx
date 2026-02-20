@@ -3,6 +3,7 @@ import React, { useEffect, useState, useRef, useMemo, Dispatch, SetStateAction }
 import axios, { AxiosError } from "axios"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import { ArrowLeft, ArrowRight, FileText, Info, Upload, X, CheckCircle, Loader2, Eye, MessageSquare, ExternalLink, Trash2, ShieldCheck } from "lucide-react"
+import Swal from "sweetalert2"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import WhatsAppMensajeGenerator from "../WhatsAppMensajeGenerator"
@@ -58,6 +59,7 @@ type Props = {
   onFinalizar?: () => Promise<void>
   isFinalizing?: boolean
   montoInscripcion?: number
+  descuentoInscripcion?: boolean
   estudianteProgramaId?: number
   studentName?: string
   studentPhone?: string
@@ -88,6 +90,7 @@ export default function DocumentosTab({
   onFinalizar,
   isFinalizing,
   montoInscripcion = 1000,
+  descuentoInscripcion = false,
   estudianteProgramaId,
   studentName = "",
   studentPhone = "",
@@ -120,69 +123,76 @@ export default function DocumentosTab({
   const [loadingServerDocs, setLoadingServerDocs] = useState(false)
   const docsLoadedRef = useRef(false)
 
+  // Resetear ref cuando cambia prospectoId para permitir recarga
+  useEffect(() => {
+    docsLoadedRef.current = false
+    setServerDocsByType({})
+    setServerFileNames({})
+  }, [prospectoId])
+
   // Cargar documentos existentes del servidor al montar (o cuando cambia prospectoId)
   useEffect(() => {
     if (!prospectoId || docsLoadedRef.current) return
     docsLoadedRef.current = true
     setLoadingServerDocs(true)
-    ;(async () => {
-      try {
-        const token = localStorage.getItem("token")
-        const res = await axios.get(
-          `${API_BASE_URL}/api/documentos/prospecto/${prospectoId}?latest_iteration=1`,
-          {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          }
-        )
-        const serverDocs: any[] = Array.isArray(res.data) ? res.data : []
-        if (serverDocs.length === 0) return
-
-        // Construir mapa de nombres ya subidos por tipo
-        const namesMap: Record<string, string[]> = {}
-        const docsMap: Record<string, ServerDoc[]> = {}
-
-        for (const sd of serverDocs) {
-          const tipo = (sd.tipo_documento || "").trim().toLowerCase()
-          const fileName = (sd.ruta_archivo || "").split("/").pop() || ""
-          const backendOrigin = API_BASE_URL.replace(/\/api\/?$/, "").replace(/\/$/, "")
-          const docUrl = sd.url
-            ? (sd.url.startsWith("http") ? sd.url : `${backendOrigin}${sd.url}`)
-            : `${backendOrigin}/storage/${sd.ruta_archivo}`
-
-          if (!namesMap[tipo]) namesMap[tipo] = []
-          if (fileName) namesMap[tipo].push(fileName)
-
-          if (!docsMap[tipo]) docsMap[tipo] = []
-          docsMap[tipo].push({
-            id: sd.id,
-            tipo_documento: sd.tipo_documento,
-            ruta_archivo: sd.ruta_archivo,
-            url: docUrl,
-            estado: sd.estado || "pendiente",
-            subida_at: sd.subida_at || sd.created_at || "",
-            fileName,
-          })
-        }
-        setServerFileNames(namesMap)
-        setServerDocsByType(docsMap)
-
-        // Marcar los documentos que ya están en el servidor como "cargado"
-        setDocumentos(prev =>
-          prev.map(doc => {
-            const tipoKey = doc.id.trim().toLowerCase()
-            const existeEnServer = tipoKey in docsMap
-            if (existeEnServer && doc.estado === "pendiente") {
-              return { ...doc, estado: "cargado" as const }
+      ; (async () => {
+        try {
+          const token = localStorage.getItem("token")
+          const res = await axios.get(
+            `${API_BASE_URL}/api/documentos/prospecto/${prospectoId}?latest_iteration=1`,
+            {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
             }
-            return doc
-          })
-        )
-      } catch (err) {
-        console.error("Error precargando documentos existentes:", err)
-      } finally {
-        setLoadingServerDocs(false)
-      }
-    })()
+          )
+          const serverDocs: any[] = Array.isArray(res.data) ? res.data : []
+          if (serverDocs.length === 0) return
+
+          // Construir mapa de nombres ya subidos por tipo
+          const namesMap: Record<string, string[]> = {}
+          const docsMap: Record<string, ServerDoc[]> = {}
+
+          for (const sd of serverDocs) {
+            const tipo = (sd.tipo_documento || "").trim().toLowerCase()
+            const fileName = (sd.ruta_archivo || "").split("/").pop() || ""
+            const backendOrigin = API_BASE_URL.replace(/\/api\/?$/, "").replace(/\/$/, "")
+            const docUrl = sd.url
+              ? (sd.url.startsWith("http") ? sd.url : `${backendOrigin}${sd.url}`)
+              : `${backendOrigin}/storage/${sd.ruta_archivo}`
+
+            if (!namesMap[tipo]) namesMap[tipo] = []
+            if (fileName) namesMap[tipo].push(fileName)
+
+            if (!docsMap[tipo]) docsMap[tipo] = []
+            docsMap[tipo].push({
+              id: sd.id,
+              tipo_documento: sd.tipo_documento,
+              ruta_archivo: sd.ruta_archivo,
+              url: docUrl,
+              estado: sd.estado || "pendiente",
+              subida_at: sd.subida_at || sd.created_at || "",
+              fileName,
+            })
+          }
+          setServerFileNames(namesMap)
+          setServerDocsByType(docsMap)
+
+          // Marcar los documentos que ya están en el servidor como "cargado"
+          setDocumentos(prev =>
+            prev.map(doc => {
+              const tipoKey = doc.id.trim().toLowerCase()
+              const existeEnServer = tipoKey in docsMap
+              if (existeEnServer && doc.estado === "pendiente") {
+                return { ...doc, estado: "cargado" as const }
+              }
+              return doc
+            })
+          )
+        } catch (err) {
+          console.error("Error precargando documentos existentes:", err)
+        } finally {
+          setLoadingServerDocs(false)
+        }
+      })()
   }, [prospectoId])
 
   const triggerUpload = (id: string) => {
@@ -199,8 +209,12 @@ export default function DocumentosTab({
     const tipoKey = uploadTarget.current.trim().toLowerCase()
 
     for (const file of files) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert("El archivo excede 5 MB.")
+      if (file.size > 100 * 1024 * 1024) {
+        Swal.fire({
+          icon: "error",
+          title: "Archivo muy grande",
+          text: "El archivo no debe superar los 100MB",
+        })
         continue
       }
 
@@ -230,8 +244,12 @@ export default function DocumentosTab({
       formData.append("file", file)
 
       try {
+        const token = localStorage.getItem("token") || sessionStorage.getItem("token")
         await axios.post(`${API_BASE_URL}/api/documentos`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
+          headers: {
+            "Content-Type": "multipart/form-data",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
         })
         // Registrar el nombre subido para evitar duplicados futuros
         setServerFileNames(prev => ({
@@ -352,13 +370,14 @@ export default function DocumentosTab({
 
       <section className="space-y-6">
         <h3 className="text-lg font-semibold text-blue-900">Documentos obligatorios</h3>
-        
+
         {/* Componente expandido para Boleta de Inscripción - SIN CARD */}
         <div className="border-2 border-blue-200 rounded-lg p-6 bg-blue-50/30">
           <BoletaInscripcionUpload
             prospectoId={prospectoId}
             estudianteProgramaId={estudianteProgramaId}
             montoInscripcion={montoInscripcion}
+            descuentoInscripcion={descuentoInscripcion}
             onBoletaSubida={() => {
               // Marcar documento de inscripción como cargado
               setDocumentos(docs =>
@@ -379,140 +398,140 @@ export default function DocumentosTab({
             const docsEnServidor = serverDocsByType[tipoKey] || []
 
             return (
-            <article
-              key={doc.id}
-              className="rounded-lg border p-4 transition-all hover:border-blue-200 hover:bg-blue-50/30"
-            >
-              <header className="mb-2 flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <h4 className="font-medium">{doc.nombre}</h4>
-                  {doc.optional && (
-                    <Badge variant="secondary" className="text-xs">Opcional</Badge>
-                  )}
-                </div>
-                <Badge
-                  variant="outline"
-                  className={
-                    doc.estado === "cargado"
-                      ? "bg-green-100 text-green-800"
-                      : "bg-yellow-100 text-yellow-800"
-                  }
-                >
-                  {doc.estado === "cargado" ? "Cargado" : "Pendiente"}
-                </Badge>
-              </header>
+              <article
+                key={doc.id}
+                className="rounded-lg border p-4 transition-all hover:border-blue-200 hover:bg-blue-50/30"
+              >
+                <header className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <h4 className="font-medium">{doc.nombre}</h4>
+                    {doc.optional && (
+                      <Badge variant="secondary" className="text-xs">Opcional</Badge>
+                    )}
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={
+                      doc.estado === "cargado"
+                        ? "bg-green-100 text-green-800"
+                        : "bg-yellow-100 text-yellow-800"
+                    }
+                  >
+                    {doc.estado === "cargado" ? "Cargado" : "Pendiente"}
+                  </Badge>
+                </header>
 
-              <p className="mb-4 text-sm text-gray-600">{doc.descripcion}</p>
+                <p className="mb-4 text-sm text-gray-600">{doc.descripcion}</p>
 
-              {/* Documentos ya existentes en el servidor */}
-              {docsEnServidor.length > 0 && (
-                <div className="space-y-2 mb-3">
-                  <p className="text-xs font-semibold text-green-700 flex items-center gap-1">
-                    <ShieldCheck className="h-3.5 w-3.5" />
-                    Ya subido anteriormente
-                  </p>
-                  {docsEnServidor.map(sd => (
-                    <div
-                      key={sd.id}
-                      className="flex items-center justify-between p-2 rounded-lg border border-green-200 bg-green-50/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <FileText className="h-4 w-4 text-green-600 flex-shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm truncate font-medium" title={sd.fileName}>
-                            {sd.fileName}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Subido: {sd.subida_at ? new Date(sd.subida_at).toLocaleDateString("es-GT") : "—"}
-                          </p>
+                {/* Documentos ya existentes en el servidor */}
+                {docsEnServidor.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    <p className="text-xs font-semibold text-green-700 flex items-center gap-1">
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      Ya subido anteriormente
+                    </p>
+                    {docsEnServidor.map(sd => (
+                      <div
+                        key={sd.id}
+                        className="flex items-center justify-between p-2 rounded-lg border border-green-200 bg-green-50/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <FileText className="h-4 w-4 text-green-600 flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm truncate font-medium" title={sd.fileName}>
+                              {sd.fileName}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Subido: {sd.subida_at ? new Date(sd.subida_at).toLocaleDateString("es-GT") : "—"}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700"
-                          onClick={() => handlePreviewServerDoc(sd)}
-                          title="Ver documento"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                          onClick={() => handleDiscardServerDoc(tipoKey, sd)}
-                          title="Descartar documento"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Archivos locales nuevos (subidos en esta sesión) */}
-              {doc.archivos.length > 0 && (
-                <div className="space-y-2">
-                  {doc.archivos.map((f, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between p-2 rounded-lg border hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-blue-600 flex-shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <p
-                            className="text-sm truncate font-medium"
-                            title={f.name}
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700"
+                            onClick={() => handlePreviewServerDoc(sd)}
+                            title="Ver documento"
                           >
-                            {f.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {(f.size / 1024).toFixed(2)} KB
-                          </p>
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            onClick={() => handleDiscardServerDoc(tipoKey, sd)}
+                            title="Descartar documento"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => handlePreviewFile(f)}
-                          title="Vista previa"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                          onClick={() => removeFile(doc.id, idx)}
-                          title="Eliminar"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
 
-              {/* Botón para subir */}
-              <div className="mt-2">
-                <Button
-                  variant="outline"
-                  className="w-full gap-2"
-                  onClick={() => triggerUpload(doc.id)}
-                >
-                  <Upload className="h-4 w-4" />
-                  {docsEnServidor.length > 0 || doc.archivos.length > 0
-                    ? "Reemplazar / Agregar archivo"
-                    : "Subir archivo"}
-                </Button>
-              </div>
-            </article>
+                {/* Archivos locales nuevos (subidos en esta sesión) */}
+                {doc.archivos.length > 0 && (
+                  <div className="space-y-2">
+                    {doc.archivos.map((f, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-2 rounded-lg border hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className="text-sm truncate font-medium"
+                              title={f.name}
+                            >
+                              {f.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {(f.size / 1024).toFixed(2)} KB
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => handlePreviewFile(f)}
+                            title="Vista previa"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            onClick={() => removeFile(doc.id, idx)}
+                            title="Eliminar"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Botón para subir */}
+                <div className="mt-2">
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2"
+                    onClick={() => triggerUpload(doc.id)}
+                  >
+                    <Upload className="h-4 w-4" />
+                    {docsEnServidor.length > 0 || doc.archivos.length > 0
+                      ? "Reemplazar / Agregar archivo"
+                      : "Subir archivo"}
+                  </Button>
+                </div>
+              </article>
             )
           })}
         </div>

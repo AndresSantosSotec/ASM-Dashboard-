@@ -83,7 +83,7 @@ async function buildFromProspecto(
   const prospectoId = prospecto.id ?? fallbackId
   if (prospectoId) {
     try {
-      const { data } = await api.get(`/documentos/prospecto/${prospectoId}?latest_iteration=1`)
+      const { data } = await api.get(`/documentos/prospecto/${prospectoId}`)
       if (Array.isArray(data)) {
         documentos.push(
           ...data.map((d: any) => ({
@@ -149,7 +149,9 @@ async function buildFromProspecto(
       fechaInicioEspecifica: prospecto.fecha_inicio_especifica,
       fechaTallerInduccion: prospecto.fecha_taller_reduccion,
       fechaTallerIntegracion: prospecto.fecha_taller_integracion,
+      ultimoTitulo: prospecto.ultimo_titulo_obtenido,
       institucionAnterior: prospecto.institucion_titulo,
+      carrera: prospecto.carrera_ultimo_titulo,
       añoGraduacion: prospecto.anio_graduacion,
       medioConocio: prospecto.medio_conocimiento_institucion,
       cursosAprobados: prospecto.cantidad_cursos_aprobados,
@@ -196,7 +198,7 @@ export async function fetchFicha(id: number): Promise<FichaDetalle> {
       }))
     } else {
       try {
-        const { data: docs } = await api.get(`/documentos/prospecto/${id}?latest_iteration=1`)
+        const { data: docs } = await api.get(`/documentos/prospecto/${id}`)
         if (Array.isArray(docs)) {
           documentos = docs.map((d: any) => ({
             ...d,
@@ -209,10 +211,22 @@ export async function fetchFicha(id: number): Promise<FichaDetalle> {
     }
 
     const academicos = { ...data.academicos }
+
+    // Intentar resolver nombre de departamento si es un ID
+    let departamentoDisplay = data.laborales?.departamentoNombre || data.laborales?.departamento
+    if (departamentoDisplay && !isNaN(Number(departamentoDisplay))) {
+      try {
+        const { data: locData } = await api.get(`/ubicacion/1`)
+        const dep = locData?.departamentos?.find((d: any) => d.id.toString() === departamentoDisplay.toString())
+        if (dep) departamentoDisplay = dep.nombre
+      } catch (err) {
+        console.warn("No se pudo resolver el nombre del departamento:", err)
+      }
+    }
+
     const laborales = {
       ...data.laborales,
-      departamento:
-        data.laborales?.departamentoNombre || data.laborales?.departamento,
+      departamento: departamentoDisplay,
     }
     const financieros = {
       ...data.financieros,

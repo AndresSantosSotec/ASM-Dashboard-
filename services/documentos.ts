@@ -13,12 +13,10 @@ export async function fetchDocumentosRevision(
     const params = latestIteration ? '?latest_iteration=1' : ''
     const { data } = await api.get(`/documentos/prospecto/${prospectoId}${params}`)
     if (!Array.isArray(data)) return []
-    return data
-      .filter((d: any) => d.estado === 'revision')
-      .map((d: any) => ({
-        ...d,
-        estado: d.estado ?? (d.url ? 'cargado' : 'pendiente'),
-      }))
+    return data.map((d: any) => ({
+      ...d,
+      estado: d.estado ?? (d.url ? 'cargado' : 'pendiente'),
+    }))
   } catch {
     return []
   }

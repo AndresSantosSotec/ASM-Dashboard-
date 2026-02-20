@@ -91,6 +91,7 @@ export default function FichaDetalleModal({
     ["Empresa", laborales.empresa],
     ["Puesto", laborales.puesto],
     ["Teléfono corp.", laborales.telefonoCorporativo],
+    ["Departamento", laborales.departamento],
     ["Dirección empresa", laborales.direccionEmpresa],
   ]
 
@@ -190,56 +191,56 @@ export default function FichaDetalleModal({
   // ===== Carga inicial =====
   useEffect(() => {
     if (!isOpen) return
-    ;(async () => {
-      try {
-        const data = await fetchFicha(ficha.id)
-        console.log("[FichaDetalleModal] detalle:", data)
-
-        const fromFicha = Array.isArray((data as any)?.documentos)
-          ? (data as any).documentos
-          : []
-
-        let fromRevision: any[] = []
+      ; (async () => {
         try {
-          const res = await fetchDocumentosRevision(ficha.id)
-          fromRevision = Array.isArray(res) ? res : []
-        } catch {
-          fromRevision = []
-        }
+          const data = await fetchFicha(ficha.id)
+          console.log("[FichaDetalleModal] detalle:", data)
 
-        const byId = new Map<number, any>()
-        for (const d of fromFicha) byId.set(d.id, d)
-        for (const d of fromRevision) {
-          const existing = byId.get(d.id)
-          byId.set(d.id, existing ? pickMostRecent(existing, d) : d)
-        }
-        const merged = Array.from(byId.values())
-        const latestByType = dedupeLatestByType(merged)
+          const fromFicha = Array.isArray((data as any)?.documentos)
+            ? (data as any).documentos
+            : []
 
-        setPersonales(data.personales || {})
-        setLaborales(data.laborales || {})
-        setAcademicos(data.academicos || {})
-        setFinancieros(data.financieros || {})
-        setProgramasInscritos(data.programas || [])
-        setDocumentos(latestByType)
-        setAsesoria(data.asesoria || null)
+          let fromRevision: any[] = []
+          try {
+            const res = await fetchDocumentosRevision(ficha.id, false)
+            fromRevision = Array.isArray(res) ? res : []
+          } catch {
+            fromRevision = []
+          }
 
-        // 🔥 CARGAR INFORMACIÓN DE CONTRATOS
-        await cargarInfoContratos(ficha.id)
+          const byId = new Map<number, any>()
+          for (const d of fromFicha) byId.set(d.id, d)
+          for (const d of fromRevision) {
+            const existing = byId.get(d.id)
+            byId.set(d.id, existing ? pickMostRecent(existing, d) : d)
+          }
+          const merged = Array.from(byId.values())
+          const latestByType = dedupeLatestByType(merged)
 
-        if (data.financieros?.convenioId && !data.financieros?.convenioNombre) {
-          console.warn(
-            `[FichaDetalleModal] convenio ${data.financieros.convenioId} sin nombre. Revisar GET /api/convenios/${data.financieros.convenioId}`,
+          setPersonales(data.personales || {})
+          setLaborales(data.laborales || {})
+          setAcademicos(data.academicos || {})
+          setFinancieros(data.financieros || {})
+          setProgramasInscritos(data.programas || [])
+          setDocumentos(latestByType)
+          setAsesoria(data.asesoria || null)
+
+          // 🔥 CARGAR INFORMACIÓN DE CONTRATOS
+          await cargarInfoContratos(ficha.id)
+
+          if (data.financieros?.convenioId && !data.financieros?.convenioNombre) {
+            console.warn(
+              `[FichaDetalleModal] convenio ${data.financieros.convenioId} sin nombre. Revisar GET /api/convenios/${data.financieros.convenioId}`,
+            )
+          }
+
+          setIsRevisada(
+            localStorage.getItem(`ficha-${ficha.id}-revisada`) === "true",
           )
+        } catch (err) {
+          console.error("Error al cargar detalle de ficha:", err)
         }
-
-        setIsRevisada(
-          localStorage.getItem(`ficha-${ficha.id}-revisada`) === "true",
-        )
-      } catch (err) {
-        console.error("Error al cargar detalle de ficha:", err)
-      }
-    })()
+      })()
   }, [isOpen, ficha.id])
 
   // 🔥 CARGAR INFORMACIÓN DE CONTRATOS DEL PROSPECTO
@@ -251,20 +252,20 @@ export default function FichaDetalleModal({
           Authorization: token ? `Bearer ${token}` : "",
         },
       })
-      
+
       if (!res.ok) return
-      
+
       const data = await res.json()
       // El backend retorna directamente el array, no envuelto en data.data
       const contratos = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : [])
-      
+
       console.log(`[Contratos] Total recibidos: ${contratos.length}`)
-      
+
       // Filtrar contratos de este prospecto
       const contratosProspecto = contratos.filter((c: any) => c.prospecto_id === prospectoId)
-      
+
       console.log(`[Contratos] Del prospecto ${prospectoId}: ${contratosProspecto.length}`)
-      
+
       if (contratosProspecto.length === 0) {
         setContratoInfo(null)
         return
@@ -278,7 +279,7 @@ export default function FichaDetalleModal({
       })
 
       // Contar contratos firmados (con firma de estudiante)
-      const contratosFirmados = contratosProspecto.filter((c: any) => 
+      const contratosFirmados = contratosProspecto.filter((c: any) =>
         c.firma_estudiante && c.firma_estudiante.trim() !== ''
       )
 
@@ -287,7 +288,7 @@ export default function FichaDetalleModal({
       // Verificar si hay nuevos firmados desde la última revisión
       const ultimaRevision = localStorage.getItem(`ultima-revision-contratos-${prospectoId}`)
       const fechaUltimaRevision = ultimaRevision ? new Date(ultimaRevision).getTime() : 0
-      
+
       const nuevosFirmadosCount = contratosFirmados.filter((c: any) => {
         const fechaFirma = new Date(c.updated_at || c.created_at).getTime()
         return fechaFirma > fechaUltimaRevision
@@ -296,10 +297,10 @@ export default function FichaDetalleModal({
       setNuevosFirmados(nuevosFirmadosCount)
 
       // Verificar si el último contrato tiene ambas firmas
-      const tieneAmbas = ultimoContrato.firma_asesor && 
-                        ultimoContrato.firma_asesor.trim() !== '' && 
-                        ultimoContrato.firma_estudiante && 
-                        ultimoContrato.firma_estudiante.trim() !== ''
+      const tieneAmbas = ultimoContrato.firma_asesor &&
+        ultimoContrato.firma_asesor.trim() !== '' &&
+        ultimoContrato.firma_estudiante &&
+        ultimoContrato.firma_estudiante.trim() !== ''
 
       console.log(`[Contratos] Último contrato ID: ${ultimoContrato.id}, Tiene ambas firmas: ${tieneAmbas}`)
 
@@ -340,7 +341,7 @@ export default function FichaDetalleModal({
         },
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      
+
       const blob = await res.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -350,7 +351,7 @@ export default function FichaDetalleModal({
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
-      
+
       Swal.fire({
         icon: "success",
         title: "Descarga exitosa",
@@ -419,7 +420,7 @@ export default function FichaDetalleModal({
       }
 
       const token = localStorage.getItem("token")
-      
+
       // 🔥 DESCARGAR EL ÚLTIMO CONTRATO CON FIRMAS
       const contratoId = contratoInfo.ultimoContrato.id
       const res = await fetch(`${API_BASE_URL}/api/contactos-enviados/${contratoId}/pdf`, {
@@ -427,9 +428,9 @@ export default function FichaDetalleModal({
           Authorization: token ? `Bearer ${token}` : "",
         },
       })
-      
+
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      
+
       const blob = await res.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -439,10 +440,10 @@ export default function FichaDetalleModal({
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
-      
+
       // Marcar contratos como revisados
       marcarContratosRevisados()
-      
+
       Swal.fire({
         icon: "success",
         title: "Descarga exitosa",
@@ -656,8 +657,8 @@ export default function FichaDetalleModal({
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-green-800">
-                  {nuevosFirmados === 1 
-                    ? "¡Nuevo contrato firmado!" 
+                  {nuevosFirmados === 1
+                    ? "¡Nuevo contrato firmado!"
                     : `¡${nuevosFirmados} nuevos contratos firmados!`}
                 </p>
                 <p className="text-xs text-green-600">

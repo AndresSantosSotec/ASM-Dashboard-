@@ -86,6 +86,7 @@ export default function FirmarContratoPage() {
   const [error, setError] = useState<string | null>(null)
   const [yaFirmado, setYaFirmado] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [departamentos, setDepartamentos] = useState<{ id: number; nombre: string }[]>([])
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
@@ -123,6 +124,32 @@ export default function FirmarContratoPage() {
     cargarContrato()
   }, [token])
 
+  // Cargar departamentos
+  useEffect(() => {
+    const fetchDepartamentos = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/ubicacion/1`)
+        if (res.ok) {
+          const data = await res.json()
+          const deps = (data.departamentos || []).map((d: any) => ({
+            id: d.id,
+            nombre: d.nombre,
+          }))
+          setDepartamentos(deps)
+        }
+      } catch (err) {
+        console.error("Error cargando departamentos:", err)
+      }
+    }
+    fetchDepartamentos()
+  }, [])
+
+  const getDepartamentoNombre = (id: string | number) => {
+    if (!id) return ""
+    const dep = departamentos.find(d => d.id.toString() === id.toString())
+    return dep ? dep.nombre : id.toString()
+  }
+
   // Inicializar canvas
   useEffect(() => {
     const canvas = canvasRef.current
@@ -147,10 +174,10 @@ export default function FirmarContratoPage() {
     const rect = canvas.getBoundingClientRect()
     const scaleX = canvas.width / rect.width
     const scaleY = canvas.height / rect.height
-    
+
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX
     const clientY = "touches" in e ? e.touches[0].clientY : e.clientY
-    
+
     const x = (clientX - rect.left) * scaleX
     const y = (clientY - rect.top) * scaleY
 
@@ -172,10 +199,10 @@ export default function FirmarContratoPage() {
     const rect = canvas.getBoundingClientRect()
     const scaleX = canvas.width / rect.width
     const scaleY = canvas.height / rect.height
-    
+
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX
     const clientY = "touches" in e ? e.touches[0].clientY : e.clientY
-    
+
     const x = (clientX - rect.left) * scaleX
     const y = (clientY - rect.top) * scaleY
 
@@ -255,7 +282,7 @@ export default function FirmarContratoPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50" style={{ colorScheme: 'light' }}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900 mx-auto"></div>
           <p className="mt-4 text-slate-600">Cargando contrato...</p>
@@ -266,7 +293,7 @@ export default function FirmarContratoPage() {
 
   if (error || yaFirmado) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4" style={{ colorScheme: 'light' }}>
         <div className="max-w-md w-full bg-white rounded-lg shadow-xl p-8 text-center">
           <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
             <svg className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -284,7 +311,7 @@ export default function FirmarContratoPage() {
 
   if (showSuccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4" style={{ colorScheme: 'light' }}>
         <div className="max-w-md w-full bg-white rounded-lg shadow-xl p-8 text-center">
           <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
             <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -306,7 +333,7 @@ export default function FirmarContratoPage() {
   const datos = contrato.datos_contrato
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 text-slate-900" style={{ colorScheme: 'light' }}>
       {/* Header Profesional */}
       <header className="bg-gradient-to-r from-blue-900 to-blue-800 text-white shadow-lg">
         <div className="max-w-5xl mx-auto px-6 py-8">
@@ -356,42 +383,26 @@ export default function FirmarContratoPage() {
             </div>
             <div className="border border-slate-300 rounded-b-md mb-5 overflow-hidden">
               <div className="grid grid-cols-1 md:grid-cols-2">
-                <div className="p-3 border-b border-r border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Nombre completo</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.nombre_completo}</p>
-                </div>
-                <div className="p-3 border-b border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">DPI/Identificación</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.dpi}</p>
-                </div>
-                <div className="p-3 border-b border-r border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">País de origen</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.pais_origen}</p>
-                </div>
-                <div className="p-3 border-b border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">País de residencia</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.pais_residencia}</p>
-                </div>
-                <div className="p-3 border-b border-r border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Teléfono móvil</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.telefono}</p>
-                </div>
-                <div className="p-3 border-b border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Fecha de nacimiento</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.fecha_nacimiento}</p>
-                </div>
-                <div className="p-3 border-b border-r border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Email personal</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.email_personal}</p>
-                </div>
-                <div className="p-3 border-b border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Email corporativo</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.email_corporativo}</p>
-                </div>
-                <div className="p-3 col-span-1 md:col-span-2">
-                  <p className="text-xs font-bold text-[#1e264d]">Dirección de residencia</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_personales.direccion}</p>
-                </div>
+                {[
+                  { label: "Nombre completo", value: fichaInscripcion.datos_personales.nombre_completo },
+                  { label: "DPI/Identificación", value: fichaInscripcion.datos_personales.dpi },
+                  { label: "País de origen", value: fichaInscripcion.datos_personales.pais_origen },
+                  { label: "País de residencia", value: fichaInscripcion.datos_personales.pais_residencia },
+                  { label: "Teléfono móvil", value: fichaInscripcion.datos_personales.telefono },
+                  { label: "Fecha de nacimiento", value: fichaInscripcion.datos_personales.fecha_nacimiento },
+                  { label: "Email personal", value: fichaInscripcion.datos_personales.email_personal },
+                  { label: "Email corporativo", value: fichaInscripcion.datos_personales.email_corporativo },
+                  { label: "Dirección de residencia", value: fichaInscripcion.datos_personales.direccion, full: true },
+                ].filter(f => f.value && f.value.toString().trim() !== "" && f.value.toString().toLowerCase() !== "null" && f.value.toString().toLowerCase() !== "na" && f.value.toString().toLowerCase() !== "n/a")
+                  .map((f, i) => (
+                    <div
+                      key={i}
+                      className={`p-3 border-b border-slate-200 ${f.full ? 'col-span-1 md:col-span-2' : (i % 2 === 0 ? 'md:border-r' : '')}`}
+                    >
+                      <p className="text-xs font-bold text-[#1e264d]">{f.label}</p>
+                      <p className="text-sm text-slate-800">{f.value}</p>
+                    </div>
+                  ))}
               </div>
             </div>
 
@@ -401,26 +412,22 @@ export default function FirmarContratoPage() {
             </div>
             <div className="border border-slate-300 rounded-b-md mb-5 overflow-hidden">
               <div className="grid grid-cols-1 md:grid-cols-2">
-                <div className="p-3 border-b border-r border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Empresa donde labora</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_laborales.empresa}</p>
-                </div>
-                <div className="p-3 border-b border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Puesto de trabajo</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_laborales.puesto}</p>
-                </div>
-                <div className="p-3 border-b border-r border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Teléfono corporativo</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_laborales.telefono_corporativo}</p>
-                </div>
-                <div className="p-3 border-b border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Departamento</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_laborales.departamento}</p>
-                </div>
-                <div className="p-3 col-span-1 md:col-span-2">
-                  <p className="text-xs font-bold text-[#1e264d]">Dirección de la empresa</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_laborales.direccion_empresa}</p>
-                </div>
+                {[
+                  { label: "Empresa donde labora", value: fichaInscripcion.datos_laborales.empresa },
+                  { label: "Puesto de trabajo", value: fichaInscripcion.datos_laborales.puesto },
+                  { label: "Teléfono corporativo", value: fichaInscripcion.datos_laborales.telefono_corporativo },
+                  { label: "Departamento", value: getDepartamentoNombre(fichaInscripcion.datos_laborales.departamento) },
+                  { label: "Dirección de la empresa", value: fichaInscripcion.datos_laborales.direccion_empresa, full: true },
+                ].filter(f => f.value && f.value.toString().trim() !== "" && f.value.toString().toLowerCase() !== "null" && f.value.toString().toLowerCase() !== "na" && f.value.toString().toLowerCase() !== "n/a")
+                  .map((f, i) => (
+                    <div
+                      key={i}
+                      className={`p-3 border-b border-slate-200 ${f.full ? 'col-span-1 md:col-span-2' : (i % 2 === 0 ? 'md:border-r' : '')}`}
+                    >
+                      <p className="text-xs font-bold text-[#1e264d]">{f.label}</p>
+                      <p className="text-sm text-slate-800">{f.value}</p>
+                    </div>
+                  ))}
               </div>
             </div>
 
@@ -430,46 +437,24 @@ export default function FirmarContratoPage() {
             </div>
             <div className="border border-slate-300 rounded-b-md mb-5 overflow-hidden">
               <div className="grid grid-cols-1 md:grid-cols-2">
-                <div className="p-3 border-b border-r border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Programa</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.programa}</p>
-                </div>
-                <div className="p-3 border-b border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Duración</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.duracion_meses} meses</p>
-                </div>
-                <div className="p-3 border-b border-r border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Último título obtenido</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.ultimo_titulo}</p>
-                </div>
-                <div className="p-3 border-b border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Institución</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.institucion}</p>
-                </div>
-                <div className="p-3 border-b border-r border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Carrera del último título</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.carrera}</p>
-                </div>
-                <div className="p-3 border-b border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Año de graduación</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.anio_graduacion}</p>
-                </div>
-                <div className="p-3 border-b border-r border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Modalidad</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.modalidad}</p>
-                </div>
-                <div className="p-3 border-b border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Día de estudio</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.dia_estudio}</p>
-                </div>
-                <div className="p-3 border-b border-r border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">Fecha de inicio</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.fecha_inicio}</p>
-                </div>
-                <div className="p-3 border-b border-slate-200">
-                  <p className="text-xs font-bold text-[#1e264d]">¿Cómo conoció GBS?</p>
-                  <p className="text-sm text-slate-800">{fichaInscripcion.datos_academicos.medio_conocio}</p>
-                </div>
+                {[
+                  { label: "Programa", value: fichaInscripcion.datos_academicos.programa },
+                  { label: "Duración", value: fichaInscripcion.datos_academicos.duracion_meses ? `${fichaInscripcion.datos_academicos.duracion_meses} meses` : null },
+                  { label: "Último título obtenido", value: fichaInscripcion.datos_academicos.ultimo_titulo },
+                  { label: "Institución", value: fichaInscripcion.datos_academicos.institucion },
+                  { label: "Carrera del último título", value: fichaInscripcion.datos_academicos.carrera },
+                  { label: "Año de graduación", value: fichaInscripcion.datos_academicos.anio_graduacion },
+                  { label: "Modalidad", value: fichaInscripcion.datos_academicos.modalidad },
+                  { label: "Día de estudio", value: fichaInscripcion.datos_academicos.dia_estudio },
+                  { label: "Fecha de inicio", value: fichaInscripcion.datos_academicos.fecha_inicio },
+                  { label: "¿Cómo conoció GBS?", value: fichaInscripcion.datos_academicos.medio_conocio },
+                ].filter(f => f.value && f.value.toString().trim() !== "" && f.value.toString().toLowerCase() !== "null" && f.value.toString().toLowerCase() !== "na" && f.value.toString().toLowerCase() !== "n/a")
+                  .map((f, i) => (
+                    <div key={i} className={`p-3 border-b border-slate-200 ${i % 2 === 0 ? 'md:border-r' : ''}`}>
+                      <p className="text-xs font-bold text-[#1e264d]">{f.label}</p>
+                      <p className="text-sm text-slate-800">{f.value}</p>
+                    </div>
+                  ))}
               </div>
             </div>
 
@@ -556,19 +541,28 @@ export default function FirmarContratoPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {fichaInscripcion.servicios_electronicos.length > 0 ? (
-                    fichaInscripcion.servicios_electronicos.map((servicio, idx) => (
-                      <tr key={idx} className="border-b border-slate-200">
+                  {(() => {
+                    const duracion = fichaInscripcion.datos_financieros.duracion_meses;
+                    // Buscar si existe un precio configurado para esta duración específica
+                    let servicio = fichaInscripcion.servicios_electronicos.find(s => s.cantidad_cursos == duracion);
+
+                    // Si no existe configuración específica, calcular basado en la regla Q70/Q77
+                    if (!servicio) {
+                      servicio = {
+                        cantidad_cursos: duracion,
+                        precio_transferencia: duracion * 70,
+                        precio_otro_metodo: duracion * 77
+                      };
+                    }
+
+                    return (
+                      <tr className="border-b border-slate-200">
                         <td className="p-2 bg-slate-50 font-semibold">Programa de {servicio.cantidad_cursos} cursos</td>
                         <td className="p-2 text-center">Q{Number(servicio.precio_transferencia).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
                         <td className="p-2 text-center">Q{Number(servicio.precio_otro_metodo).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={3} className="p-2 text-center text-slate-400">Sin precios configurados</td>
-                    </tr>
-                  )}
+                    );
+                  })()}
                 </tbody>
               </table>
 
@@ -643,11 +637,11 @@ export default function FirmarContratoPage() {
               CONTRATO DE CONFIDENCIALIDAD Y COMPROMISO DE ESTUDIANTE
             </p>
             <p className="text-center italic text-sm">(Por favor firme en donde corresponde)</p>
-            
+
             <p className="text-justify">
               En la ciudad de Guatemala, el día: <strong className="text-slate-900">{datos.fecha}</strong>
             </p>
-            
+
             <p className="text-justify">
               Yo: <strong className="text-slate-900">{datos.prospecto}</strong> ({prospecto?.email || prospecto?.correo_electronico || datos.email})
             </p>
@@ -761,18 +755,18 @@ export default function FirmarContratoPage() {
           {/* Verificación de DPI */}
           <div className="mb-6">
             <label className="block text-sm font-semibold text-slate-900 mb-2">
-              Número de Indentificacion<span className="text-red-600">*</span>
+              Número de Identificación <span className="text-red-600">*</span>
             </label>
             <p className="text-sm text-slate-600 mb-3">
-              Para confirmar su identidad, por favor ingrese su Documento Personal de Identificación o el Numero Documento Brindado.
+              Para confirmar su identidad, por favor ingrese su Documento Personal de Identificación o el número de documento brindado.
             </p>
             <input
               type="text"
               maxLength={100}
               value={dpi}
               onChange={(e) => setDpi(e.target.value.replace(/\D/g, ""))}
-              placeholder="0000 00000 0000"
-              className="w-full max-w-md px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-blue-900 focus:ring-2 focus:ring-blue-900/20 outline-none transition-colors text-lg font-mono"
+              placeholder="0000000000000"
+              className="w-full max-w-md px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-blue-900 focus:ring-2 focus:ring-blue-900/20 outline-none transition-colors text-lg font-mono bg-white text-slate-900 placeholder:text-slate-400"
             />
             <p className="text-xs text-slate-500 mt-1">13 dígitos sin espacios</p>
           </div>
@@ -798,7 +792,7 @@ export default function FirmarContratoPage() {
                 onTouchMove={draw}
                 onTouchEnd={stopDrawing}
                 className="w-full cursor-crosshair touch-none"
-                style={{ 
+                style={{
                   touchAction: "none",
                   maxHeight: "200px",
                   display: "block"

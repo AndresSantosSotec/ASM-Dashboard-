@@ -153,13 +153,13 @@ export default function AssignmentPage() {
                   )}
                   {downloadState === 'processing' && (
                     <>
-                      <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                      <span className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-blue-600 border-t-transparent inline-block" />
                       Procesando...
                     </>
                   )}
                   {downloadState === 'downloading' && (
                     <>
-                      <div className="h-4 w-4 mr-2 animate-bounce">⬇️</div>
+                      <span className="h-4 w-4 mr-2 animate-bounce inline-block">⬇️</span>
                       Descargando...
                     </>
                   )}

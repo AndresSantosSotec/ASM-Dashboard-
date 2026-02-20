@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
@@ -24,12 +24,42 @@ import AcademicoTab from "./tabs/AcademicoTab"
 import FinancieroTab from "./tabs/FinancieroTab"
 import DocumentosTab, { DOCUMENTOS_DEFAULT } from "./tabs/DocumentosTab"
 import ProspectSearchModal from "./tabs/ProspectSearchModal"
+import DraftManager from "./DraftManager"
 import type { ProgramaConDuracion } from "./types"
 import type { DuplicateProspect } from "@/hooks/useDuplicateProspectCheck"
+import { useDraftCache } from "@/hooks/useDraftCache"
 
 import axios from "axios"
 import { api } from "@/services/api"
 import { API_BASE_URL } from "@/utils/apiConfig"
+// ── Valores iniciales para resetear formulario ──────────────────────────────
+const INITIAL_PERSONAL: DatosPersonales = {
+  nombre: "", paisOrigen: "", paisResidencia: "", telefono: "",
+  dpi: "", emailPersonal: "", emailCorporativo: "",
+  fechaNacimiento: "", direccion: "", esReinscripcion: false
+}
+
+const INITIAL_ACADEMICO: DatosAcademicos = {
+  programa: "", duracion: "", ultimoTitulo: "licenciatura", modalidad: "sincronica",
+  fechaInicio: "", diaEstudio: "jueves", fechaInicioEspecifica: "",
+  fechaTallerInduccion: "", fechaTallerIntegracion: "", institucionAnterior: "",
+  añoGraduacion: "", medioConocio: "", observaciones: "",
+  cursosAprobados: "", titulo1: "", titulo1_duracion: "",
+  titulo2: "", titulo2_duracion: "", titulo3: "", titulo3_duracion: "",
+  carrera: "",
+}
+
+const INITIAL_LABORAL: DatosLaborales = {
+  empresa: "", puesto: "", telefonoCorporativo: "", departamento: "",
+  sectorEmpresa: "", direccionEmpresa: ""
+}
+
+const INITIAL_FINANCIERO: DatosFinancieros = {
+  inscripcion: "1,000.00", cuotaMensual: "1,400.00", cantidadMeses: "18",
+  inversionTotal: "26,200.00", formaPago: "debito", referencia: "",
+  aceptaTerminos: false, tieneConvenio: false
+}
+
 export default function RegistrationForm() {
   const [activeTab, setActiveTab] = useState<TabId>("personal")
   const [progress, setProgress] = useState(20)
@@ -38,21 +68,9 @@ export default function RegistrationForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [estudianteProgramaIds, setEstudianteProgramaIds] = useState<number[]>([])
 
-  const [datosPersonales, setDatosPersonales] = useState<DatosPersonales>({
-    nombre: "", paisOrigen: "", paisResidencia: "", telefono: "",
-    dpi: "", emailPersonal: "", emailCorporativo: "",
-    fechaNacimiento: "", direccion: "", esReinscripcion: false
-  })
+  const [datosPersonales, setDatosPersonales] = useState<DatosPersonales>({ ...INITIAL_PERSONAL })
 
-  const [datosAcademicos, setDatosAcademicos] = useState<DatosAcademicos>({
-    programa: "", duracion: "", ultimoTitulo: "licenciatura", modalidad: "sincronica",
-    fechaInicio: "", diaEstudio: "jueves", fechaInicioEspecifica: "",
-    fechaTallerInduccion: "", fechaTallerIntegracion: "", institucionAnterior: "",
-    añoGraduacion: "", medioConocio: "redes", observaciones: "",
-    cursosAprobados: "", titulo1: "", titulo1_duracion: "",
-    titulo2: "", titulo2_duracion: "", titulo3: "", titulo3_duracion: "",
-    carrera: "",
-  })
+  const [datosAcademicos, setDatosAcademicos] = useState<DatosAcademicos>({ ...INITIAL_ACADEMICO })
 
   const programasParaFinanciero: ProgramaConDuracion[] = [
     { programaId: Number(datosAcademicos.titulo1), duracion: Number(datosAcademicos.titulo1_duracion) },
@@ -60,22 +78,109 @@ export default function RegistrationForm() {
     { programaId: Number(datosAcademicos.titulo3), duracion: Number(datosAcademicos.titulo3_duracion) },
   ].filter(p => p.programaId > 0 && p.duracion > 0)
 
-  const [datosLaborales, setDatosLaborales] = useState<DatosLaborales>({
-    empresa: "", puesto: "", telefonoCorporativo: "", departamento: "",
-    sectorEmpresa: "", direccionEmpresa: ""
-  })
+  const [datosLaborales, setDatosLaborales] = useState<DatosLaborales>({ ...INITIAL_LABORAL })
 
-  const [datosFinancieros, setDatosFinancieros] = useState<DatosFinancieros>({
-    inscripcion: "1,000.00", cuotaMensual: "1,400.00", cantidadMeses: "18",
-    inversionTotal: "26,200.00", formaPago: "debito", referencia: "",
-    aceptaTerminos: false, tieneConvenio: false
-  })
+  const [datosFinancieros, setDatosFinancieros] = useState<DatosFinancieros>({ ...INITIAL_FINANCIERO })
 
   const [documentos, setDocumentos] = useState<Documento[]>(DOCUMENTOS_DEFAULT)
 
+  // ── Sistema de borradores (máx. 3 por asesor) ──────────────────────────────
+  const {
+    drafts,
+    activeDraftId,
+    synced,
+    saveDraft,
+    loadDraft,
+    deleteDraft,
+    clearAllDrafts,
+    updateAutoSaveData,
+    setActiveDraftId,
+    maxDrafts,
+  } = useDraftCache({ maxDrafts: 3, autoSaveInterval: 30_000 })
+
+  /** Construye el payload serializable del formulario */
+  const buildPayload = useCallback(() => ({
+    datosPersonales,
+    datosLaborales,
+    datosAcademicos,
+    datosFinancieros,
+    prospectoId,
+    activeTab,
+    progress,
+  }), [datosPersonales, datosLaborales, datosAcademicos, datosFinancieros, prospectoId, activeTab, progress])
+
+  // Mantener ref actualizada para auto-save
+  useEffect(() => {
+    const label = datosPersonales.nombre || "Borrador sin nombre"
+    updateAutoSaveData(label, activeTab, progress, buildPayload())
+  }, [datosPersonales, datosLaborales, datosAcademicos, datosFinancieros, activeTab, progress, buildPayload, updateAutoSaveData])
+
+  /** Guardar borrador manualmente */
+  const handleSaveDraft = useCallback(() => {
+    const label = datosPersonales.nombre || "Borrador sin nombre"
+    saveDraft(label, activeTab, progress, buildPayload())
+    Swal.fire({
+      icon: "success",
+      title: "Borrador guardado",
+      text: `"${label}" guardado correctamente.`,
+      timer: 2000,
+      timerProgressBar: true,
+      showConfirmButton: false,
+    })
+  }, [saveDraft, activeTab, progress, buildPayload, datosPersonales.nombre])
+
+  /** Crear nuevo borrador (limpia formulario) */
+  const handleNewDraft = useCallback(() => {
+    setActiveDraftId(null)
+    setProspectoId(null)
+    setDatosPersonales({ ...INITIAL_PERSONAL })
+    setDatosLaborales({ ...INITIAL_LABORAL })
+    setDatosAcademicos({ ...INITIAL_ACADEMICO })
+    setDatosFinancieros({ ...INITIAL_FINANCIERO })
+    setDocumentos(DOCUMENTOS_DEFAULT)
+    setActiveTab("personal")
+    setProgress(20)
+  }, [setActiveDraftId])
+
+  /** Cargar un borrador existente */
+  const handleLoadDraft = useCallback((draftId: string) => {
+    const draft = loadDraft(draftId)
+    if (!draft) return
+    const p = draft.payload as any
+    if (p.datosPersonales) setDatosPersonales(p.datosPersonales)
+    if (p.datosLaborales) setDatosLaborales(p.datosLaborales)
+    if (p.datosAcademicos) setDatosAcademicos(p.datosAcademicos)
+    if (p.datosFinancieros) setDatosFinancieros(p.datosFinancieros)
+    if (p.prospectoId !== undefined) setProspectoId(p.prospectoId)
+    if (p.activeTab) {
+      setActiveTab(p.activeTab as TabId)
+      setProgress(p.progress || 20)
+    }
+    Swal.fire({
+      icon: "success",
+      title: "Borrador cargado",
+      text: `Se restauró "${draft.label}".`,
+      timer: 2000,
+      timerProgressBar: true,
+      showConfirmButton: false,
+    })
+  }, [loadDraft])
+
+  /** Eliminar borrador */
+  const handleDeleteDraft = useCallback((draftId: string) => {
+    deleteDraft(draftId)
+  }, [deleteDraft])
+
   const changeTab = (tab: TabId) => {
+    // Auto-guardar borrador al cambiar de pestaña
+    const newProgress = tab === "personal" ? 20 : tab === "laboral" ? 40 : tab === "academico" ? 60 : tab === "financiero" ? 80 : 100
+    const label = datosPersonales.nombre || "Borrador sin nombre"
+    saveDraft(label, tab, newProgress, {
+      datosPersonales, datosLaborales, datosAcademicos, datosFinancieros, prospectoId,
+      activeTab: tab, progress: newProgress,
+    })
     setActiveTab(tab)
-    setProgress(tab === "personal" ? 20 : tab === "laboral" ? 40 : tab === "academico" ? 60 : tab === "financiero" ? 80 : 100)
+    setProgress(newProgress)
   }
 
   // 🔍 Handler para seleccionar un prospecto duplicado detectado automáticamente
@@ -86,8 +191,8 @@ export default function RegistrationForm() {
     setDatosPersonales(prev => ({
       ...prev,
       nombre: dup.nombre_completo || "",
-      paisOrigen: dup.pais_origen || "",
-      paisResidencia: dup.pais_residencia || "",
+      paisOrigen: dup.pais_origen || dup.pais_nombre || "",
+      paisResidencia: dup.pais_residencia || dup.pais_nombre || "",
       telefono: dup.telefono || "",
       dpi: dup.numero_identificacion || "",
       emailPersonal: dup.correo_electronico || "",
@@ -126,7 +231,7 @@ export default function RegistrationForm() {
       fechaTallerIntegracion: dup.fecha_taller_integracion
         ? dup.fecha_taller_integracion.split("T")[0] || dup.fecha_taller_integracion.split(" ")[0]
         : "",
-      medioConocio: (dup.medio_conocimiento_institucion as DatosAcademicos["medioConocio"]) || "redes",
+      medioConocio: (dup.medio_conocimiento_institucion as DatosAcademicos["medioConocio"]) || "",
       cursosAprobados: dup.cantidad_cursos_aprobados?.toString() || "",
       diaEstudio: (dup.dia_estudio as DatosAcademicos["diaEstudio"]) || "jueves",
       observaciones: dup.observaciones || "",
@@ -176,15 +281,15 @@ export default function RegistrationForm() {
           financieros: datosFinancieros,
         }
       );
-  
+
       const nuevoId = response.data.prospecto_id;
       const estudianteProgramas: any[] = response.data.programas || [];
       const advertencias = response.data.advertencias || [];
       const mensajeAdvertencia = response.data.mensaje_advertencia;
-      
+
       setProspectoId(nuevoId);
       setEstudianteProgramaIds(estudianteProgramas.map((p: any) => p.id));
-  
+
       // 2. Subida de documentos que NO se hayan subido ya durante la sesión
       // Los documentos se suben en tiempo real desde DocumentosTab.handleFileChange,
       // así que aquí solo subimos los que no se subieron aún (archivos sin prospectoId previo).
@@ -201,8 +306,12 @@ export default function RegistrationForm() {
             formData.append("tipo_documento", String(doc.id));
             formData.append("file", file);
 
+            const token = localStorage.getItem("token") || sessionStorage.getItem("token");
             await axios.post(`${API_BASE_URL}/api/documentos`, formData, {
-              headers: { "Content-Type": "multipart/form-data" },
+              headers: {
+                "Content-Type": "multipart/form-data",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
             });
           }
         }
@@ -260,6 +369,11 @@ export default function RegistrationForm() {
         });
       }
 
+      // ✅ Borrar cache del borrador activo al completar inscripción
+      if (activeDraftId) {
+        deleteDraft(activeDraftId)
+      }
+
       window.location.reload();
 
     } catch (error: any) {
@@ -274,8 +388,8 @@ export default function RegistrationForm() {
   };
 
 
-  
-  
+
+
 
   return (
     <div className="relative">
@@ -285,165 +399,180 @@ export default function RegistrationForm() {
         </div>
       )}
       <div className="container mx-auto max-w-6xl p-6">
-        <div className="mb-8">
+        <div className="mb-4">
           <h1 className="text-3xl font-bold text-primary mb-2">Ficha de Inscripción</h1>
           <Progress value={progress} className="h-2 w-full" />
         </div>
 
-      <Card className="border-2 border-muted shadow-md">
-        <CardContent className="p-6">
-          <Tabs value={activeTab} onValueChange={(v) => changeTab(v as TabId)}>
-            <TabsList className="mb-6 grid w-full grid-cols-2 md:grid-cols-5 bg-muted/30">
-              <TabsTrigger value="personal">Datos Personales</TabsTrigger>
-              <TabsTrigger value="laboral">Datos Laborales</TabsTrigger>
-              <TabsTrigger value="academico">Info. Académica</TabsTrigger>
-              <TabsTrigger value="financiero">Datos Financieros</TabsTrigger>
-              <TabsTrigger value="documentos">Documentos</TabsTrigger>
-            </TabsList>
+        {/* ── Panel de Borradores ─────────────────────────────────────── */}
+        <DraftManager
+          drafts={drafts}
+          activeDraftId={activeDraftId}
+          maxDrafts={maxDrafts}
+          synced={synced}
+          onSave={handleSaveDraft}
+          onLoad={handleLoadDraft}
+          onDelete={handleDeleteDraft}
+          onNewDraft={handleNewDraft}
+        />
 
-            <TabsContent value="personal">
-              <PersonalTab
-                datos={datosPersonales}
-                setDatos={setDatosPersonales}
-                openModal={() => setShowModal(true)}
-                goNext={() => changeTab("laboral")}
-                prospectoId={prospectoId}
-                onDuplicateSelect={handleDuplicateSelect}
-              />
-            </TabsContent>
+        <Card className="border-2 border-muted shadow-md">
+          <CardContent className="p-6">
+            <Tabs value={activeTab} onValueChange={(v) => changeTab(v as TabId)}>
+              <TabsList className="mb-6 grid w-full grid-cols-2 md:grid-cols-5 bg-muted/30">
+                <TabsTrigger value="personal">Datos Personales</TabsTrigger>
+                <TabsTrigger value="laboral">Datos Laborales</TabsTrigger>
+                <TabsTrigger value="academico">Info. Académica</TabsTrigger>
+                <TabsTrigger value="financiero">Datos Financieros</TabsTrigger>
+                <TabsTrigger value="documentos">Documentos</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="laboral">
-              <LaboralTab
-                datos={datosLaborales}
-                setDatos={setDatosLaborales}
-                goPrev={() => changeTab("personal")}
-                goNext={() => changeTab("academico")}
-              />
-            </TabsContent>
+              <TabsContent value="personal" forceMount className={activeTab !== "personal" ? "hidden" : ""}>
+                <PersonalTab
+                  datos={datosPersonales}
+                  setDatos={setDatosPersonales}
+                  openModal={() => setShowModal(true)}
+                  goNext={() => changeTab("laboral")}
+                  prospectoId={prospectoId}
+                  onDuplicateSelect={handleDuplicateSelect}
+                />
+              </TabsContent>
 
-            <TabsContent value="academico">
-              <AcademicoTab
-                datos={datosAcademicos}
-                setDatos={setDatosAcademicos}
-                goPrev={() => changeTab("laboral")}
-                goNext={() => changeTab("financiero")}
-              />
-            </TabsContent>
+              <TabsContent value="laboral" forceMount className={activeTab !== "laboral" ? "hidden" : ""}>
+                <LaboralTab
+                  datos={datosLaborales}
+                  setDatos={setDatosLaborales}
+                  goPrev={() => changeTab("personal")}
+                  goNext={() => changeTab("academico")}
+                />
+              </TabsContent>
 
-            <TabsContent value="financiero">
-              <FinancieroTab
-                datos={datosFinancieros}
-                setDatos={setDatosFinancieros}
-                goPrev={() => changeTab("academico")}
-                goNext={() => changeTab("documentos")}
-                programas={programasParaFinanciero}
-                studentName={datosPersonales.nombre}
-                telefono={datosPersonales.telefono}
-                email={datosPersonales.emailPersonal}
-                programa={datosAcademicos.programa}
-              />
-            </TabsContent>
+              <TabsContent value="academico" forceMount className={activeTab !== "academico" ? "hidden" : ""}>
+                <AcademicoTab
+                  datos={datosAcademicos}
+                  setDatos={setDatosAcademicos}
+                  goPrev={() => changeTab("laboral")}
+                  goNext={() => changeTab("financiero")}
+                />
+              </TabsContent>
 
-            <TabsContent value="documentos">
-              <DocumentosTab
-                documentos={documentos}
-                setDocumentos={setDocumentos}
-                goPrev={() => changeTab("financiero")}
-                onFinalizar={handleFinalizarInscripcion}
-                isFinalizing={isSubmitting}
-                prospectoId={prospectoId as number}
-                studentName={datosPersonales.nombre}
-                studentPhone={datosPersonales.telefono}
-                studentEmail={datosPersonales.emailPersonal}
-                programa={datosAcademicos.programa}
-                inscripcion={datosFinancieros.inscripcion}
-                cuotaMensual={datosFinancieros.cuotaMensual}
-                cantidadMeses={datosFinancieros.cantidadMeses}
-                inversionTotal={datosFinancieros.inversionTotal}
-                formaPago={datosFinancieros.formaPago}
-                fechaInicioEspecifica={datosAcademicos.fechaInicioEspecifica}
-                diaEstudio={datosAcademicos.diaEstudio}
-                duracionCarrera={datosAcademicos.duracion}
-                titulo1={datosAcademicos.titulo1}
-                titulo2={datosAcademicos.titulo2}
-                titulo3={datosAcademicos.titulo3}
-              />
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+              <TabsContent value="financiero" forceMount className={activeTab !== "financiero" ? "hidden" : ""}>
+                <FinancieroTab
+                  datos={datosFinancieros}
+                  setDatos={setDatosFinancieros}
+                  goPrev={() => changeTab("academico")}
+                  goNext={() => changeTab("documentos")}
+                  programas={programasParaFinanciero}
+                  studentName={datosPersonales.nombre}
+                  nit={datosPersonales.dpi}
+                  telefono={datosPersonales.telefono}
+                  email={datosPersonales.emailPersonal}
+                  programa={datosAcademicos.programa}
+                />
+              </TabsContent>
 
-      <ProspectSearchModal
-        open={showModal}
-        onOpenChange={setShowModal}
-        onSelect={(p) => {
-          setProspectoId(p.id)
-          
-          // Cargar datos personales
-          setDatosPersonales(prev => ({
-            ...prev,
-            nombre: p.nombreCompleto,
-            paisOrigen: p.paisOrigen || "",
-            paisResidencia: p.paisResidencia || "",
-            telefono: p.telefono,
-            dpi: p.dpi || "",
-            emailPersonal: p.emailPersonal,
-            emailCorporativo: p.emailCorporativo || "",
-            fechaNacimiento: p.fechaNacimiento ? new Date(p.fechaNacimiento).toISOString().split('T')[0] : "",
-            direccion: p.direccion || "",
-          }))
+              <TabsContent value="documentos" forceMount className={activeTab !== "documentos" ? "hidden" : ""}>
+                <DocumentosTab
+                  documentos={documentos}
+                  setDocumentos={setDocumentos}
+                  goPrev={() => changeTab("financiero")}
+                  onFinalizar={handleFinalizarInscripcion}
+                  isFinalizing={isSubmitting}
+                  prospectoId={prospectoId as number}
+                  montoInscripcion={parseFloat(datosFinancieros.inscripcion?.replace(/,/g, "") || "0") || 1000}
+                  descuentoInscripcion={!!datosFinancieros.descuentoInscripcion}
+                  studentName={datosPersonales.nombre}
+                  studentPhone={datosPersonales.telefono}
+                  studentEmail={datosPersonales.emailPersonal}
+                  programa={datosAcademicos.programa}
+                  inscripcion={datosFinancieros.inscripcion}
+                  cuotaMensual={datosFinancieros.cuotaMensual}
+                  cantidadMeses={datosFinancieros.cantidadMeses}
+                  inversionTotal={datosFinancieros.inversionTotal}
+                  formaPago={datosFinancieros.formaPago}
+                  fechaInicioEspecifica={datosAcademicos.fechaInicioEspecifica}
+                  diaEstudio={datosAcademicos.diaEstudio}
+                  duracionCarrera={datosAcademicos.duracion}
+                  titulo1={datosAcademicos.titulo1}
+                  titulo2={datosAcademicos.titulo2}
+                  titulo3={datosAcademicos.titulo3}
+                />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
 
-          // Cargar datos laborales
-          setDatosLaborales(prev => ({
-            ...prev,
-            empresa: p.empresa || "",
-            puesto: p.puesto || "",
-            telefonoCorporativo: p.telefonoCorporativo || "",
-            departamento: p.departamento || "",
-            direccionEmpresa: p.direccionEmpresa || "",
-            sectorEmpresa: "",
-          }))
+        <ProspectSearchModal
+          open={showModal}
+          onOpenChange={setShowModal}
+          onSelect={(p) => {
+            setProspectoId(p.id)
 
-          // 🎓 Cargar datos académicos automáticamente
-          setDatosAcademicos(prev => ({
-            ...prev,
-            programa: p.programaInteres || "",
-            ultimoTitulo: (p.ultimoTitulo as DatosAcademicos["ultimoTitulo"]) || "licenciatura",
-            institucionAnterior: p.institucionTitulo || "",
-            añoGraduacion: p.anioGraduacion || "",
-            modalidad: (p.modalidad as "sincronica") || "sincronica",
-            fechaInicioEspecifica: p.fechaInicioEspecifica
-              ? p.fechaInicioEspecifica.split("T")[0] || p.fechaInicioEspecifica.split(" ")[0]
-              : "",            
-            fechaTallerInduccion: p.fechaTallerReduccion
-              ? p.fechaTallerReduccion.split("T")[0] || p.fechaTallerReduccion.split(" ")[0]
-              : "",
+            // Cargar datos personales
+            setDatosPersonales(prev => ({
+              ...prev,
+              nombre: p.nombreCompleto,
+              paisOrigen: p.paisOrigen || "",
+              paisResidencia: p.paisResidencia || "",
+              telefono: p.telefono,
+              dpi: p.dpi || "",
+              emailPersonal: p.emailPersonal,
+              emailCorporativo: p.emailCorporativo || "",
+              fechaNacimiento: p.fechaNacimiento ? new Date(p.fechaNacimiento).toISOString().split('T')[0] : "",
+              direccion: p.direccion || "",
+            }))
+
+            // Cargar datos laborales
+            setDatosLaborales(prev => ({
+              ...prev,
+              empresa: p.empresa || "",
+              puesto: p.puesto || "",
+              telefonoCorporativo: p.telefonoCorporativo || "",
+              departamento: p.departamento || "",
+              direccionEmpresa: p.direccionEmpresa || "",
+              sectorEmpresa: "",
+            }))
+
+            // 🎓 Cargar datos académicos automáticamente
+            setDatosAcademicos(prev => ({
+              ...prev,
+              programa: p.programaInteres || "",
+              ultimoTitulo: (p.ultimoTitulo as DatosAcademicos["ultimoTitulo"]) || "licenciatura",
+              institucionAnterior: p.institucionTitulo || "",
+              añoGraduacion: p.anioGraduacion || "",
+              modalidad: (p.modalidad as "sincronica") || "sincronica",
+              fechaInicioEspecifica: p.fechaInicioEspecifica
+                ? p.fechaInicioEspecifica.split("T")[0] || p.fechaInicioEspecifica.split(" ")[0]
+                : "",
+              fechaTallerInduccion: p.fechaTallerReduccion
+                ? p.fechaTallerReduccion.split("T")[0] || p.fechaTallerReduccion.split(" ")[0]
+                : "",
               fechaTallerIntegracion: p.fechaTallerIntegracion
                 ? p.fechaTallerIntegracion.split("T")[0] || p.fechaTallerIntegracion.split(" ")[0]
-                : "",            
-            medioConocio: (p.medioConocimiento as DatosAcademicos["medioConocio"]) || "redes",
-            cursosAprobados: p.cursosAprobados || "",
-            diaEstudio: (p.diaEstudio as DatosAcademicos["diaEstudio"]) || "jueves",
-            observaciones: p.observaciones || "",
-            // Los programas se cargarán cuando se cargue la lista de programas disponibles
-            titulo1: p.programaInteres || "",
-            titulo1_duracion: "", // Se calculará automáticamente
-          }))
-
-          // 💰 Cargar datos financieros si existen
-          if (p.montoInscripcion || p.metodoPago || p.convenioId) {
-            setDatosFinancieros(prev => ({
-              ...prev,
-              inscripcion: p.montoInscripcion || prev.inscripcion,
-              formaPago: (p.metodoPago as DatosFinancieros["formaPago"]) || prev.formaPago,
-              convenioId: p.convenioId || undefined,
-              tieneConvenio: !!p.convenioId,
+                : "",
+              medioConocio: (p.medioConocio ?? p.medioConocimiento ?? "") as DatosAcademicos["medioConocio"],
+              cursosAprobados: p.cursosAprobados || "",
+              diaEstudio: (p.diaEstudio as DatosAcademicos["diaEstudio"]) || "jueves",
+              observaciones: p.observaciones || "",
+              // Los programas se cargarán cuando se cargue la lista de programas disponibles
+              titulo1: p.programaInteres || "",
+              titulo1_duracion: "", // Se calculará automáticamente
             }))
-          }
 
-          setShowModal(false)
-        }}
-      />
+            // 💰 Cargar datos financieros si existen
+            if (p.montoInscripcion || p.metodoPago || p.convenioId) {
+              setDatosFinancieros(prev => ({
+                ...prev,
+                inscripcion: p.montoInscripcion || prev.inscripcion,
+                formaPago: (p.metodoPago as DatosFinancieros["formaPago"]) || prev.formaPago,
+                convenioId: p.convenioId || undefined,
+                tieneConvenio: !!p.convenioId,
+              }))
+            }
+
+            setShowModal(false)
+          }}
+        />
 
       </div>
     </div>

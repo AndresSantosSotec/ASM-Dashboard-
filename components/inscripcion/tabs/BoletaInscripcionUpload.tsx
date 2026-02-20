@@ -25,6 +25,7 @@ interface Props {
   prospectoId: number
   estudianteProgramaId?: number
   montoInscripcion: number
+  descuentoInscripcion?: boolean
   onBoletaSubida?: () => void
 }
 
@@ -46,6 +47,7 @@ export default function BoletaInscripcionUpload({
   prospectoId,
   estudianteProgramaId,
   montoInscripcion,
+  descuentoInscripcion = false,
   onBoletaSubida
 }: Props) {
   const [datos, setDatos] = useState<BoletaInscripcionData>({
@@ -68,8 +70,12 @@ export default function BoletaInscripcionUpload({
     if (!file) return
 
     // Validar tamaño (máx 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      Swal.fire("Error", "El archivo no debe superar los 5MB", "error")
+    if (file.size > 100 * 1024 * 1024) {
+      Swal.fire({
+        icon: "error",
+        title: "Archivo muy grande",
+        text: "El archivo no debe superar los 100MB"
+      })
       e.target.value = "" // Limpiar input
       return
     }
@@ -94,7 +100,7 @@ export default function BoletaInscripcionUpload({
       setPreviewUrl(reader.result as string)
     }
     reader.readAsDataURL(file)
-    
+
     // Limpiar el input para permitir seleccionar el mismo archivo nuevamente
     e.target.value = ""
   }
@@ -103,7 +109,7 @@ export default function BoletaInscripcionUpload({
     archivoRef.current = null
     setDatos(prev => ({ ...prev, archivo: null }))
     setPreviewUrl(null)
-    
+
     // Limpiar también el input file
     const inputElement = document.getElementById("comprobante") as HTMLInputElement
     if (inputElement) {
@@ -159,32 +165,35 @@ export default function BoletaInscripcionUpload({
       formData.append("prospecto_id", prospectoId.toString())
       formData.append("tipo_documento", "inscripcion")
       formData.append("file", archivoRef.current)
-      
+
       // Guardar datos de la boleta como metadata
       formData.append("metadata", JSON.stringify({
         numero_boleta: datos.numeroBoleta.trim(),
         banco: datos.banco,
         monto: datos.monto,
         fecha_recibo: datos.fechaRecibo,
-        metodo_pago: "transferencia"
+        metodo_pago: "transferencia",
+        descuento_inscripcion: descuentoInscripcion
       }))
 
       console.log("📤 Guardando boleta como documento:", archivoRef.current.name)
 
+      const token = localStorage.getItem("token") || sessionStorage.getItem("token")
       const response = await axios.post(
         `${API_BASE_URL}/api/documentos`,
         formData,
         {
           headers: {
-            "Content-Type": "multipart/form-data"
+            "Content-Type": "multipart/form-data",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           }
         }
       )
-      
+
       console.log("✅ Documento guardado:", response.data)
 
       setBoletaSubida(true)
-      
+
       await Swal.fire({
         icon: "success",
         title: "Boleta guardada",
@@ -197,7 +206,7 @@ export default function BoletaInscripcionUpload({
         timer: 3000,
         showConfirmButton: true
       })
-      
+
       if (onBoletaSubida) onBoletaSubida()
     } catch (error: any) {
       console.error("Error al subir boleta:", error)
@@ -224,7 +233,7 @@ export default function BoletaInscripcionUpload({
   return (
     <div className="space-y-6">
       <div className="space-y-4">
-        
+
         {/* Comprobante */}
         <div className="space-y-2">
           <Label>Comprobante de Pago <span className="text-red-500">*</span></Label>
@@ -321,10 +330,26 @@ export default function BoletaInscripcionUpload({
             onChange={(e) => setDatos({ ...datos, monto: e.target.value })}
           />
 
-          {parseFloat(datos.monto) < montoInscripcion && parseFloat(datos.monto) > 0 && (
+          {parseFloat(datos.monto) < montoInscripcion && parseFloat(datos.monto) > 0 && !descuentoInscripcion && (
             <Alert className="mt-2">
               <AlertDescription>
                 ⚠️ Pago parcial — Pendiente: Q{(montoInscripcion - parseFloat(datos.monto)).toFixed(2)}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {descuentoInscripcion && parseFloat(datos.monto) > 0 && parseFloat(datos.monto) >= montoInscripcion && (
+            <Alert className="mt-2 bg-green-50 border-green-200">
+              <AlertDescription className="text-green-800">
+                ✅ Inscripción con descuento — Pago completo
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {descuentoInscripcion && parseFloat(datos.monto) > 0 && parseFloat(datos.monto) < montoInscripcion && (
+            <Alert className="mt-2">
+              <AlertDescription>
+                ⚠️ El monto es menor al precio con descuento (Q{montoInscripcion.toFixed(2)}) — Pendiente: Q{(montoInscripcion - parseFloat(datos.monto)).toFixed(2)}
               </AlertDescription>
             </Alert>
           )}

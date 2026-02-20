@@ -27,6 +27,7 @@ export interface Prospecto {
   fechaTallerReduccion?: string;
   fechaTallerIntegracion?: string;
   medioConocimiento?: string;
+  medioConocio?: string;
   cursosAprobados?: string;
   diaEstudio?: string;
   observaciones?: string;
@@ -72,7 +73,7 @@ export interface DatosAcademicos {
   institucionAnterior: string;
   añoGraduacion: string;
   carrera?: string;
-  medioConocio: "redes" | "amigo" | "empresa" | "evento" | "busqueda" | "otros";
+  medioConocio: "facebook" | "instagram" | "linkedin" | "referido" | "whatsapp_corporativo" | "pagina_web" | "actividades_escritorio" | "meeting" | "otros" | "";
   observaciones: string;
   cursosAprobados: string;
   titulo1: string;
@@ -104,6 +105,8 @@ export interface DatosFinancieros {
   convenioId?: number;
   /** Nombre del convenio asociado, si aplica */
   convenioNombre?: string;
+  /** Indica si la inscripción tiene descuento (monto < estándar Q1,000) */
+  descuentoInscripcion?: boolean;
 }
 
 export interface Documento {

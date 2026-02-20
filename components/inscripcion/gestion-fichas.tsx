@@ -69,9 +69,15 @@ export function GestionFichas() {
   useEffect(() => {
     async function fetchFichas() {
       try {
+        const token = localStorage.getItem("token")
         const res = await fetch(
-          `${API_URL}/prospectos/fichas/pendientes-public`,
-          { headers: { Accept: "application/json" } }
+          `${API_URL}/prospectos/fichas/pendientes`,
+          {
+            headers: {
+              Authorization: token ? `Bearer ${token}` : "",
+              Accept: "application/json",
+            },
+          }
         )
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const { data } = await res.json()
@@ -102,7 +108,7 @@ export function GestionFichas() {
     const token = localStorage.getItem("token")
     try {
       const res = await fetch(
-        `${API_URL}/documentos/prospecto/${f.id}?latest_iteration=1`,
+        `${API_URL}/documentos/prospecto/${f.id}`,
         {
           headers: {
             Authorization: token ? `Bearer ${token}` : "",
@@ -188,11 +194,11 @@ export function GestionFichas() {
         body: JSON.stringify({ status: "Pendiente de Aprobación Académica" }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      
+
       setFichas(prev => prev.filter(f => f.id !== selectedFicha.id))
       setDetalleModalOpen(false)
       setSelectedFicha(null)
-      
+
       await Swal.fire({
         icon: "success",
         title: "Ficha aprobada",
@@ -236,15 +242,15 @@ export function GestionFichas() {
           "Content-Type": "application/json",
           Authorization: token ? `Bearer ${token}` : "",
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           estado_destino: "Preinscripción",
           comentario: comentario.trim(),
         }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      
+
       setFichas(prev => prev.filter(f => f.id !== ficha.id))
-      
+
       await Swal.fire({
         icon: "success",
         title: "Ficha retrocedida",
@@ -285,9 +291,9 @@ export function GestionFichas() {
         body: JSON.stringify({ status: "Pendiente de Aprobación Académica" }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      
+
       setFichas(prev => prev.filter(f => f.id !== ficha.id))
-      
+
       await Swal.fire({
         icon: "success",
         title: "Ficha aprobada",
@@ -305,7 +311,7 @@ export function GestionFichas() {
 
   const handleRetrocederFicha = async () => {
     if (!selectedFicha) return
-    
+
     const { value: comentario } = await Swal.fire({
       title: "Retroceder a Preinscripción",
       input: "textarea",
@@ -331,17 +337,17 @@ export function GestionFichas() {
           "Content-Type": "application/json",
           Authorization: token ? `Bearer ${token}` : "",
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           estado_destino: "Preinscripción",
           comentario: comentario.trim(),
         }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      
+
       setFichas(prev => prev.filter(f => f.id !== selectedFicha.id))
       setDetalleModalOpen(false)
       setSelectedFicha(null)
-      
+
       await Swal.fire({
         icon: "success",
         title: "Ficha retrocedida",

@@ -37,6 +37,9 @@ const nextConfig = {
     ];
   },
 
+  // Turbopack config (evita warning en Next.js 16+)
+  turbopack: {},
+
   // Configuración de webpack para optimizar bundle
   webpack: (config, { isServer }) => {
     if (!isServer) {

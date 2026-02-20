@@ -404,7 +404,7 @@ export default function ProfileView() {
             <div className="text-center sm:text-left sm:ml-6">
               <CardTitle className="text-2xl">{perfilData?.prospecto?.nombre_completo || "Usuario"}</CardTitle>
               <CardDescription>
-                <div className="flex flex-wrap gap-2 mt-2">
+                <span className="flex flex-wrap gap-2 mt-2">
                   {perfilData?.programa && (
                     <>
                       <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
@@ -420,7 +420,7 @@ export default function ProfileView() {
                       Carnet: {perfilData.prospecto.carnet}
                     </Badge>
                   )}
-                </div>
+                </span>
               </CardDescription>
             </div>
             <div className="sm:ml-auto mt-4 sm:mt-0">

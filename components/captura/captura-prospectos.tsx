@@ -132,6 +132,11 @@ export default function CapturaProspectos() {
   const [showOtherCompany, setShowOtherCompany] = useState(false);
   const [showOtherOrigin, setShowOtherOrigin] = useState(false);
 
+  // Estados para selector de asesor
+  const [asesores, setAsesores] = useState<{ id: number; nombre: string }[]>([])
+  const [selectedAsesorId, setSelectedAsesorId] = useState<string>("")
+  const [currentUser, setCurrentUser] = useState<{ id: number; rol: string; nombre: string } | null>(null)
+
   // Estados para la sección de tareas
   const [showTareaSection, setShowTareaSection] = useState(false);
   const [tareaData, setTareaData] = useState({
@@ -151,7 +156,7 @@ export default function CapturaProspectos() {
       nombreCompleto: "",
       telefono: "",
       correoElectronico: "",
-      genero: "",
+      genero: "masculino",
       empresaDondeLaboraActualmente: "",
       puesto: "",
       Origen: "",
@@ -195,6 +200,40 @@ export default function CapturaProspectos() {
     fetchEmpresas()
   }, [])
 
+  // Cargar usuario actual y lista de asesores
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem("user")
+      if (storedUser) {
+        const user = JSON.parse(storedUser)
+        const nombre = user.full_name ?? (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.username ?? "—")
+        setCurrentUser({ id: user.id, rol: user.rol || "", nombre })
+        if ((user.rol || "").toLowerCase() === "asesor") {
+          setSelectedAsesorId(String(user.id))
+        }
+      }
+    } catch (e) {
+      console.error("Error parsing user:", e)
+    }
+
+    const token = localStorage.getItem("token")
+    fetch(`${API_BASE_URL}/api/users/role/7`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => r.json())
+      .then(json => {
+        const users: any[] = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : []
+        setAsesores(
+          users.map(u => ({
+            id: u.id,
+            nombre:
+              u.full_name ??
+              (u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username ?? "—"),
+          }))
+        )
+      })
+      .catch(() => setAsesores([]))
+  }, [])
 
   // Cargar países al montar el componente
   useEffect(() => {
@@ -486,6 +525,8 @@ export default function CapturaProspectos() {
         departamentoNombre: departamentoSeleccionado?.name || '',
         municipio: data.municipio,
         municipioNombre: municipioSeleccionado?.name || '',
+        // Asesor asignado (solo admin puede asignar a otro)
+        ...(selectedAsesorId ? { asesor_id: Number(selectedAsesorId) } : {}),
       }
       
       await axios.post(`${API_BASE_URL}/api/prospectos`, payload, {
@@ -797,14 +838,14 @@ export default function CapturaProspectos() {
                           <SelectItem value="instagram">Instagram</SelectItem>
                           <SelectItem value="linkedin">LinkedIn</SelectItem>
                           <SelectItem value="referido">Referido</SelectItem>
-                          <SelectItem value="whatsapp Corporativo">
+                          <SelectItem value="whatsapp_corporativo">
                             WhatsApp Corporativo
                           </SelectItem>
                           <SelectItem value="pagina_web">Página Web</SelectItem>
-                          <SelectItem value="escritorio">
+                          <SelectItem value="actividades_escritorio">
                             Actividades de Escritorio
                           </SelectItem>
-                          <SelectItem value="Meeting">Meeting</SelectItem>
+                          <SelectItem value="meeting">Meeting</SelectItem>
                           <SelectItem value="otros">Otros</SelectItem>
                         </SelectContent>
                       </Select>

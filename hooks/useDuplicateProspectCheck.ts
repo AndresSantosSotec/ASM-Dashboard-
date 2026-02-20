@@ -13,6 +13,7 @@ export interface DuplicateProspect {
   status: string
   pais_origen: string
   pais_residencia: string
+  pais_nombre?: string
   fecha_nacimiento: string
   direccion_residencia: string
   empresa_donde_labora_actualmente: string

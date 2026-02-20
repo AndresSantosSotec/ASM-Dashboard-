@@ -5,13 +5,13 @@ import axios from "axios"
 import Swal from "sweetalert2"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {Table,TableBody,TableCell,TableHead,TableHeader,TableRow,} from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import {Card,CardContent,CardHeader,CardTitle,CardDescription,} from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Edit, Search, UserPlus, Users, Shield, Save, X, XCircle, CheckCircle } from "lucide-react"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, } from "@/components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -159,9 +159,9 @@ export default function GestionUsuarios() {
     rowsPerPage === 0
       ? filteredUsuarios
       : filteredUsuarios.slice(
-          (currentPage - 1) * rowsPerPage,
-          currentPage * rowsPerPage
-        )
+        (currentPage - 1) * rowsPerPage,
+        currentPage * rowsPerPage
+      )
 
   // Función para crear usuario
   const handleUserSubmit = async (data: Usuario) => {
@@ -491,8 +491,8 @@ export default function GestionUsuarios() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos</SelectItem>
-              {roles.map((role) => (
-                <SelectItem key={role.id} value={String(role.name ?? role.slug ?? role.id)}>
+              {roles.map((role, index) => (
+                <SelectItem key={role?.id ?? `role-${index}`} value={String(role.name ?? role.slug ?? role.id)}>
                   {role.name ?? role.slug ?? role.id}
                 </SelectItem>
               ))}
@@ -567,8 +567,8 @@ export default function GestionUsuarios() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {displayedUsuarios.map((usuario) => (
-                <TableRow key={usuario.id}>
+              {displayedUsuarios.map((usuario, index) => (
+                <TableRow key={usuario?.id ?? `user-${index}`}>
                   <TableCell>
                     <input
                       type="checkbox"

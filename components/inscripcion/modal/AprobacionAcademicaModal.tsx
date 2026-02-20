@@ -88,6 +88,7 @@ export default function AprobacionAcademicaModal({
     ["Empresa", laborales.empresa],
     ["Puesto", laborales.puesto],
     ["Teléfono corp.", laborales.telefonoCorporativo],
+    ["Departamento", laborales.departamento],
     ["Dirección empresa", laborales.direccionEmpresa],
   ]
 
@@ -301,44 +302,46 @@ export default function AprobacionAcademicaModal({
   // Carga inicial
   useEffect(() => {
     if (!isOpen) return
-    ;(async () => {
-      try {
-        const data = await fetchFicha(ficha.id)
-
-        const fromFicha = Array.isArray((data as any)?.documentos)
-          ? (data as any).documentos
-          : []
-
-        let fromRevision: any[] = []
+      ; (async () => {
         try {
-          const res = await fetchDocumentosRevision(ficha.id)
-          fromRevision = Array.isArray(res) ? res : []
-        } catch {
-          fromRevision = []
+          const data = await fetchFicha(ficha.id)
+
+          const fromFicha = Array.isArray((data as any)?.documentos)
+            ? (data as any).documentos
+            : []
+
+          let fromRevision: any[] = []
+          try {
+            // Ya no filtramos por iteración para asegurar visibilidad total
+            const res = await fetchDocumentosRevision(ficha.id, false)
+            fromRevision = Array.isArray(res) ? res : []
+          } catch {
+            fromRevision = []
+          }
+
+          const byId = new Map<number, any>()
+          for (const d of fromFicha) byId.set(d.id, d)
+          for (const d of fromRevision) {
+            const existing = byId.get(d.id)
+            byId.set(d.id, existing ? pickMostRecent(existing, d) : d)
+          }
+          const merged = Array.from(byId.values())
+          const latestByType = dedupeLatestByType(merged)
+
+          setPersonales(data.personales || {})
+          setLaborales(data.laborales || {})
+          setAcademicos(data.academicos || {})
+          setFinancieros(data.financieros || {})
+          setProgramasInscritos(data.programas || [])
+          setDocumentos(latestByType)
+          setAsesoria(data.asesoria || null)
+
+          // Cargar información de contratos
+          await cargarInfoContratos()
+        } catch (err) {
+          console.error("Error al cargar detalle de ficha académica:", err)
         }
-
-        const byId = new Map<number, any>()
-        for (const d of fromFicha) byId.set(d.id, d)
-        for (const d of fromRevision) {
-          const existing = byId.get(d.id)
-          byId.set(d.id, existing ? pickMostRecent(existing, d) : d)
-        }
-        const merged = Array.from(byId.values())
-
-        setPersonales(data.personales || {})
-        setLaborales(data.laborales || {})
-        setAcademicos(data.academicos || {})
-        setFinancieros(data.financieros || {})
-        setProgramasInscritos(data.programas || [])
-        setDocumentos(merged)
-        setAsesoria(data.asesoria || null)
-
-        // Cargar información de contratos
-        await cargarInfoContratos()
-      } catch (err) {
-        console.error("Error al cargar detalle de ficha académica:", err)
-      }
-    })()
+      })()
   }, [isOpen, ficha.id])
 
   const handleDescargarPDF = async () => {
@@ -350,7 +353,7 @@ export default function AprobacionAcademicaModal({
         },
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      
+
       const blob = await res.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -416,9 +419,9 @@ export default function AprobacionAcademicaModal({
               </Button>
               {/* ✅ Renderizado condicional - solo muestra si hay contrato válido */}
               {contratoInfo?.ambasFirmas && (
-                <Button 
+                <Button
                   variant="default"
-                  size="sm" 
+                  size="sm"
                   onClick={handleDescargarContrato}
                 >
                   <Download className="mr-2 h-4 w-4" />
@@ -640,8 +643,8 @@ export default function AprobacionAcademicaModal({
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-green-800">
-                  {nuevosFirmados === 1 
-                    ? "¡Nuevo contrato firmado!" 
+                  {nuevosFirmados === 1
+                    ? "¡Nuevo contrato firmado!"
                     : `¡${nuevosFirmados} nuevos contratos firmados!`}
                 </p>
                 <p className="text-xs text-green-600">
@@ -699,7 +702,7 @@ export default function AprobacionAcademicaModal({
 
             <Button onClick={onAprobar} className="bg-green-600 hover:bg-green-700">
               <CheckCircle2 className="mr-2 h-4 w-4" />
-              Aprobar 
+              Aprobar
             </Button>
           </div>
         </div>

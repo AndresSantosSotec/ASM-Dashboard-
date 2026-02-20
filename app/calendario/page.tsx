@@ -1,20 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, parseISO, isToday, setYear, setMonth as setMonthFn,} from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, parseISO, isToday, setYear, setMonth as setMonthFn, } from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle,} from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,} from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {  Select,  SelectContent,  SelectItem,  SelectTrigger,  SelectValue,} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Clock, Plus, Trash2, Edit, CalendarIcon, Bell,} from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Plus, Trash2, Edit, CalendarIcon, Bell, CheckCircle2, } from "lucide-react";
 
-import {api} from "@/services/api"; 
+import { api } from "@/services/api";
 import Swal from "sweetalert2";
 
 interface Tarea {
@@ -32,6 +33,7 @@ interface Cita {
   id: string;
   datecita: string;
   descricita: string;
+  estado: "pendiente" | "completada" | "cancelada";
   nombre_prospecto?: string;
   email_prospecto?: string;
   telefono_prospecto?: string;
@@ -67,7 +69,7 @@ export default function CalendarioPage() {
   const [token, setToken] = useState<string | null>(null);
   const [loadingTareas, setLoadingTareas] = useState(true);
   const [loadingCitas, setLoadingCitas] = useState(true);
-  const [upcomingAlerts, setUpcomingAlerts] = useState<Array<{id: string; titulo: string; fecha: string; horaInicio: string; tipo: string}>>([]);
+  const [upcomingAlerts, setUpcomingAlerts] = useState<Array<{ id: string; titulo: string; fecha: string; horaInicio: string; tipo: string }>>([]);
   const [showAlerts, setShowAlerts] = useState(false);
 
   const colorTipoTarea = {
@@ -146,6 +148,7 @@ export default function CalendarioPage() {
     });
 
     citas.forEach((c) => {
+      if (c.estado === "completada") return; // No alertar citas ya completadas
       const citaDate = parseISO(c.datecita);
       if (citaDate >= now && citaDate <= in24h) {
         upcoming.push({ id: c.id, titulo: c.descricita, fecha: c.datecita, horaInicio: format(citaDate, "HH:mm"), tipo: "cita" });
@@ -156,10 +159,10 @@ export default function CalendarioPage() {
 
     // Mostrar notificación si hay eventos próximos (solo la primera vez)
     if (upcoming.length > 0) {
-      const eventList = upcoming.slice(0, 5).map(e => 
+      const eventList = upcoming.slice(0, 5).map(e =>
         `• ${e.horaInicio} - ${e.titulo}`
       ).join("\n");
-      
+
       Swal.fire({
         icon: "info",
         title: `🔔 ${upcoming.length} evento(s) próximo(s)`,
@@ -293,10 +296,22 @@ export default function CalendarioPage() {
   const toggleComplete = async (id: string) => {
     const t = tareas.find((x) => x.id === id);
     if (!t || !token) return;
+
+    // Preparar payload completo para evitar errores de validación en PUT
+    const payload = {
+      titulo: t.titulo,
+      descripcion: t.descripcion,
+      fecha: t.fecha,
+      hora_inicio: t.horaInicio,
+      hora_fin: t.horaFin,
+      tipo: t.tipo,
+      completada: !t.completada,
+    };
+
     try {
       const res = await api.put(
         `/tareas/${id}`,
-        { completada: !t.completada },
+        payload,
         {
           headers: {
             "Content-Type": "application/json",
@@ -304,11 +319,70 @@ export default function CalendarioPage() {
           withCredentials: true,
         }
       );
+
+      // Intentar obtener la tarea actualizada de la respuesta
+      let updatedTask: Tarea;
+      if (res.data && res.data.data) {
+        updatedTask = normalizeTarea(res.data.data);
+      } else if (res.data && res.data.id) {
+        // Si la respuesta es el objeto directo
+        updatedTask = normalizeTarea(res.data);
+      } else {
+        // Si no se devuelve la tarea, usar la local con el estado invertido
+        updatedTask = { ...t, completada: !t.completada };
+      }
+
+      // Update global list
       setTareas((prev) =>
-        prev.map((x) => (x.id === id ? normalizeTarea(res.data.data) : x))
+        prev.map((x) => (x.id === id ? updatedTask : x))
       );
+
+      // Update selectedTarea if it's the one being modified
+      if (selectedTarea && selectedTarea.id === id) {
+        setSelectedTarea(updatedTask);
+      }
+
+      // Update selectedDayActivities if open
+      if (selectedDayActivities) {
+        setSelectedDayActivities((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            items: prev.items.map((item) => {
+              if (item.kind === 'tarea' && (item.item as Tarea).id === id) {
+                return { ...item, item: updatedTask };
+              }
+              return item;
+            })
+          };
+        });
+      }
+
+      // Feedback visual opcional
+      const Toast = Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 1500,
+        timerProgressBar: true,
+      });
+
+      Toast.fire({
+        icon: 'success',
+        title: updatedTask.completada ? 'Tarea completada' : 'Tarea pendiente'
+      });
+
     } catch (err) {
       console.error(err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo actualizar el estado de la tarea',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000
+      });
     }
   };
 
@@ -320,6 +394,89 @@ export default function CalendarioPage() {
       setCitaModalOpen(false);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const toggleCitaComplete = async (id: string) => {
+    const c = citas.find((x) => x.id === id);
+    if (!c || !token) return;
+
+    const nuevoEstado = c.estado === "completada" ? "pendiente" : "completada";
+
+    // Optimistic update — UI reacts instantly
+    const optimisticCita: Cita = { ...c, estado: nuevoEstado };
+    setCitas((prev) => prev.map((x) => (x.id === id ? optimisticCita : x)));
+    if (selectedCita && selectedCita.id === id) setSelectedCita(optimisticCita);
+    if (selectedDayActivities) {
+      setSelectedDayActivities((prev) => {
+        if (!prev) return null;
+        return { ...prev, items: prev.items.map((it) => it.kind === "cita" && (it.item as Cita).id === id ? { ...it, item: optimisticCita } : it) };
+      });
+    }
+
+    try {
+      const res = await api.put(`/citas/${id}`, { estado: nuevoEstado });
+
+      const updated = res.data?.data ?? res.data;
+      const updatedCita: Cita = {
+        ...c,
+        estado: updated?.estado ?? nuevoEstado,
+      };
+
+      setCitas((prev) => prev.map((x) => (x.id === id ? updatedCita : x)));
+
+      if (selectedCita && selectedCita.id === id) {
+        setSelectedCita(updatedCita);
+      }
+
+      // Actualizar modal de actividades del día si está abierto
+      if (selectedDayActivities) {
+        setSelectedDayActivities((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            items: prev.items.map((item) => {
+              if (item.kind === "cita" && (item.item as Cita).id === id) {
+                return { ...item, item: updatedCita };
+              }
+              return item;
+            }),
+          };
+        });
+      }
+
+      const Toast = Swal.mixin({
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 1500,
+        timerProgressBar: true,
+      });
+
+      Toast.fire({
+        icon: "success",
+        title: nuevoEstado === "completada" ? "Cita completada" : "Cita marcada como pendiente",
+      });
+    } catch (err) {
+      console.error(err);
+      // Rollback optimistic update
+      setCitas((prev) => prev.map((x) => (x.id === id ? c : x)));
+      if (selectedCita && selectedCita.id === id) setSelectedCita(c);
+      if (selectedDayActivities) {
+        setSelectedDayActivities((prev) => {
+          if (!prev) return null;
+          return { ...prev, items: prev.items.map((it) => it.kind === "cita" && (it.item as Cita).id === id ? { ...it, item: c } : it) };
+        });
+      }
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se pudo actualizar el estado de la cita",
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 3000,
+      });
     }
   };
 
@@ -395,8 +552,8 @@ export default function CalendarioPage() {
           </div>
           {/* Selectores de mes y año */}
           <div className="mt-4 flex items-center gap-3">
-            <Select 
-              value={currentDate.getMonth().toString()} 
+            <Select
+              value={currentDate.getMonth().toString()}
               onValueChange={(v) => setCurrentDate(setMonthFn(currentDate, parseInt(v)))}
             >
               <SelectTrigger className="w-[140px] bg-white/10 text-white border-white/20">
@@ -408,8 +565,8 @@ export default function CalendarioPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select 
-              value={currentDate.getFullYear().toString()} 
+            <Select
+              value={currentDate.getFullYear().toString()}
               onValueChange={(v) => setCurrentDate(setYear(currentDate, parseInt(v)))}
             >
               <SelectTrigger className="w-[100px] bg-white/10 text-white border-white/20">
@@ -449,104 +606,101 @@ export default function CalendarioPage() {
               ))}
             </div>
           ) : (
-          <div className="grid grid-cols-7 gap-1">
-            {Array.from({ length: monthStart.getDay() }).map((_, i) => (
-              <div key={i} className="h-32 p-1 bg-gray-50 rounded-md" />
-            ))}
-            {monthDays.map((day) => {
-              const dayT = getTareasForDate(day);
-              const dayC = getCitasForDate(day);
-              const items = [
-                ...dayT.map((t) => ({ kind: "tarea" as const, item: t })),
-                ...dayC.map((c) => ({ kind: "cita" as const, item: c })),
-              ];
-              const toShow = items.slice(0, 3);
-              const isCurr = isSameMonth(day, currentDate);
-              const isTod = isToday(day);
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: monthStart.getDay() }).map((_, i) => (
+                <div key={i} className="h-32 p-1 bg-gray-50 rounded-md" />
+              ))}
+              {monthDays.map((day) => {
+                const dayT = getTareasForDate(day);
+                const dayC = getCitasForDate(day);
+                const items = [
+                  ...dayT.map((t) => ({ kind: "tarea" as const, item: t })),
+                  ...dayC.map((c) => ({ kind: "cita" as const, item: c })),
+                ];
+                const toShow = items.slice(0, 3);
+                const isCurr = isSameMonth(day, currentDate);
+                const isTod = isToday(day);
 
-              return (
-                <div
-                  key={day.toString()}
-                  className={`h-32 p-1 rounded-md border transition-colors ${
-                    isCurr ? "bg-white hover:bg-gray-50" : "bg-gray-50 text-gray-400"
-                  } ${isTod ? "bg-blue-50" : ""} ${
-                    items.length > 0 ? "cursor-pointer" : ""
-                  }`}
-                  onClick={(e) => {
-                    // Solo abrir si se hace click en el fondo del día y hay items
-                    if (items.length > 0 && e.target === e.currentTarget) {
-                      openDayActivities(day, items);
-                    }
-                  }}
-                >
-                  <div className="flex justify-between items-start">
-                    <span
-                      className={`inline-block w-6 h-6 text-center rounded-full ${
-                        isTod ? "bg-[#1e3a8a] text-white" : ""
+                return (
+                  <div
+                    key={day.toString()}
+                    className={`h-32 p-1 rounded-md border transition-colors ${isCurr ? "bg-white hover:bg-gray-50" : "bg-gray-50 text-gray-400"
+                      } ${isTod ? "bg-blue-50" : ""} ${items.length > 0 ? "cursor-pointer" : ""
                       }`}
-                    >
-                      {format(day, "d")}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openNewTareaModal(day);
-                      }}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="mt-1 space-y-1 max-h-[80px] overflow-y-auto">
-                    {toShow.map(({ kind, item }) =>
-                      kind === "tarea" ? (
-                        <div
-                          key={item.id}
-                          className={`px-2 py-1 text-xs rounded-md cursor-pointer truncate ${
-                            colorTipoTarea[item.tipo]
-                          } ${item.completada ? "opacity-60 line-through" : ""}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openTareaDetails(item);
-                          }}
-                        >
-                          {item.horaInicio} - {item.titulo}
-                        </div>
-                      ) : (
-                        <div
-                          key={item.id}
-                          className="px-2 py-1 text-xs rounded-md cursor-pointer truncate bg-green-100 text-green-800 border-green-200"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openCitaDetails(item);
-                          }}
-                        >
-                          {format(parseISO(item.datecita), "HH:mm")} -{" "}
-                          {item.descricita}
-                        </div>
-                      )
-                    )}
-                    {items.length > 3 && (
-                      <div 
-                        className="text-xs text-center text-blue-600 hover:text-blue-800 cursor-pointer font-medium"
+                    onClick={(e) => {
+                      // Solo abrir si se hace click en el fondo del día y hay items
+                      if (items.length > 0 && e.target === e.currentTarget) {
+                        openDayActivities(day, items);
+                      }
+                    }}
+                  >
+                    <div className="flex justify-between items-start">
+                      <span
+                        className={`inline-block w-6 h-6 text-center rounded-full ${isTod ? "bg-[#1e3a8a] text-white" : ""
+                          }`}
+                      >
+                        {format(day, "d")}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
                         onClick={(e) => {
                           e.stopPropagation();
-                          openDayActivities(day, items);
+                          openNewTareaModal(day);
                         }}
                       >
-                        +{items.length - 3} más • Ver todas
-                      </div>
-                    )}
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="mt-1 space-y-1 max-h-[80px] overflow-y-auto">
+                      {toShow.map(({ kind, item }) =>
+                        kind === "tarea" ? (
+                          <div
+                            key={item.id}
+                            className={`px-2 py-1 text-xs rounded-md cursor-pointer truncate ${colorTipoTarea[item.tipo]
+                              } ${item.completada ? "opacity-60 line-through" : ""}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openTareaDetails(item);
+                            }}
+                          >
+                            {item.horaInicio} - {item.titulo}
+                          </div>
+                        ) : (
+                          <div
+                            key={item.id}
+                            className={`px-2 py-1 text-xs rounded-md cursor-pointer truncate bg-green-100 text-green-800 border-green-200 ${(item as Cita).estado === "completada" ? "opacity-60 line-through" : ""}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openCitaDetails(item);
+                            }}
+                          >
+                            {(item as Cita).estado === "completada" && "✓ "}
+                            {format(parseISO(item.datecita), "HH:mm")} -{" "}
+                            {item.descricita}
+                          </div>
+                        )
+                      )}
+                      {items.length > 3 && (
+                        <div
+                          className="text-xs text-center text-blue-600 hover:text-blue-800 cursor-pointer font-medium"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDayActivities(day, items);
+                          }}
+                        >
+                          +{items.length - 3} más • Ver todas
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-            {Array.from({ length: 6 - monthEnd.getDay() }).map((_, i) => (
-              <div key={i} className="h-32 p-1 bg-gray-50 rounded-md" />
-            ))}
-          </div>
+                );
+              })}
+              {Array.from({ length: 6 - monthEnd.getDay() }).map((_, i) => (
+                <div key={i} className="h-32 p-1 bg-gray-50 rounded-md" />
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -661,17 +815,15 @@ export default function CalendarioPage() {
             </div>
             {selectedTarea && (
               <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
+                <Switch
                   id="completada"
                   checked={nuevaTarea.completada}
-                  onChange={(e) =>
+                  onCheckedChange={(checked) =>
                     setNuevaTarea({
                       ...nuevaTarea,
-                      completada: e.target.checked,
+                      completada: checked,
                     })
                   }
-                  className="rounded border-gray-300"
                 />
                 <Label htmlFor="completada">Marcar como completada</Label>
               </div>
@@ -699,10 +851,10 @@ export default function CalendarioPage() {
                   {selectedTarea.tipo === "reunion"
                     ? "Reunión"
                     : selectedTarea.tipo === "llamada"
-                    ? "Llamada"
-                    : selectedTarea.tipo === "recordatorio"
-                    ? "Recordatorio"
-                    : "Tarea"}
+                      ? "Llamada"
+                      : selectedTarea.tipo === "recordatorio"
+                        ? "Recordatorio"
+                        : "Tarea"}
                 </Badge>
               </DialogTitle>
               <DialogDescription>
@@ -718,11 +870,9 @@ export default function CalendarioPage() {
               </div>
               <div className="mt-6 flex justify-between items-center">
                 <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
+                  <Switch
                     checked={selectedTarea.completada}
-                    onChange={() => toggleComplete(selectedTarea.id)}
-                    className="rounded border-gray-300"
+                    onCheckedChange={() => toggleComplete(selectedTarea.id)}
                   />
                   <Label>
                     {selectedTarea.completada ? "Completada" : "Marcar como completada"}
@@ -758,7 +908,7 @@ export default function CalendarioPage() {
       {/* Modal Detalles Cita */}
       <Dialog open={citaModalOpen} onOpenChange={() => setCitaModalOpen(false)}>
         {selectedCita && (
-          <DialogContent className="sm:max-w-[400px]">
+          <DialogContent className="sm:max-w-[480px] max-w-[95vw]">
             <DialogHeader>
               <DialogTitle>Detalles de Cita</DialogTitle>
               <DialogDescription>
@@ -780,16 +930,35 @@ export default function CalendarioPage() {
                 </div>
               )}
               <p className="text-gray-700">{selectedCita.descricita}</p>
+              {selectedCita.estado && (
+                <div className="mt-2">
+                  <Badge
+                    variant="outline"
+                    className={selectedCita.estado === "completada" ? "bg-green-100 text-green-800 border-green-300" : selectedCita.estado === "cancelada" ? "bg-red-100 text-red-800 border-red-300" : "bg-yellow-100 text-yellow-800 border-yellow-300"}
+                  >
+                    {selectedCita.estado === "completada" ? "✓ Completada" : selectedCita.estado === "cancelada" ? "✕ Cancelada" : "⏳ Pendiente"}
+                  </Badge>
+                </div>
+              )}
             </div>
-            <DialogFooter className="justify-end space-x-2">
-              <Button variant="outline" onClick={() => setCitaModalOpen(false)}>
+            <div className="flex flex-wrap gap-2 justify-end pt-2 border-t">
+              <Button variant="outline" size="sm" onClick={() => setCitaModalOpen(false)}>
                 Cerrar
               </Button>
-              <Button variant="destructive" onClick={() => deleteCita(selectedCita.id)}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Eliminar Cita
+              <Button
+                size="sm"
+                variant={selectedCita.estado === "completada" ? "outline" : "default"}
+                className={selectedCita.estado === "completada" ? "text-green-600 border-green-600 hover:bg-green-50" : "bg-green-600 hover:bg-green-700 text-white"}
+                onClick={() => toggleCitaComplete(selectedCita.id)}
+              >
+                <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                {selectedCita.estado === "completada" ? "Pendiente" : "Completada"}
               </Button>
-            </DialogFooter>
+              <Button size="sm" variant="destructive" onClick={() => deleteCita(selectedCita.id)}>
+                <Trash2 className="mr-1.5 h-4 w-4" />
+                Eliminar
+              </Button>
+            </div>
           </DialogContent>
         )}
       </Dialog>
@@ -817,9 +986,8 @@ export default function CalendarioPage() {
                     return (
                       <div
                         key={tarea.id}
-                        className={`p-4 rounded-lg border-2 cursor-pointer hover:shadow-md transition-shadow ${
-                          colorTipoTarea[tarea.tipo]
-                        } ${tarea.completada ? "opacity-60" : ""}`}
+                        className={`p-4 rounded-lg border-2 cursor-pointer hover:shadow-md transition-shadow ${colorTipoTarea[tarea.tipo]
+                          } ${tarea.completada ? "opacity-60" : ""}`}
                         onClick={() => {
                           setDayActivitiesModalOpen(false);
                           openTareaDetails(tarea);
@@ -832,10 +1000,10 @@ export default function CalendarioPage() {
                                 {tarea.tipo === "reunion"
                                   ? "Reunión"
                                   : tarea.tipo === "llamada"
-                                  ? "Llamada"
-                                  : tarea.tipo === "recordatorio"
-                                  ? "Recordatorio"
-                                  : "Tarea"}
+                                    ? "Llamada"
+                                    : tarea.tipo === "recordatorio"
+                                      ? "Recordatorio"
+                                      : "Tarea"}
                               </Badge>
                               {tarea.completada && (
                                 <Badge variant="outline" className="text-xs bg-green-50">
@@ -857,6 +1025,20 @@ export default function CalendarioPage() {
                             {tarea.descripcion}
                           </p>
                         )}
+                        {/* Botón para marcar como completada directamente */}
+                        <div className="mt-3 flex justify-end">
+                          <Button
+                            variant={tarea.completada ? "outline" : "default"}
+                            size="sm"
+                            className={tarea.completada ? "text-green-600 border-green-600 hover:bg-green-50" : "bg-blue-600 hover:bg-blue-700 text-white"}
+                            onClick={(e) => {
+                              e.stopPropagation(); // Evitar que se abra el modal de detalles
+                              toggleComplete(tarea.id);
+                            }}
+                          >
+                            {tarea.completada ? "Marcar como pendiente" : "Marcar como completada"}
+                          </Button>
+                        </div>
                       </div>
                     );
                   } else {
@@ -864,7 +1046,7 @@ export default function CalendarioPage() {
                     return (
                       <div
                         key={cita.id}
-                        className="p-4 rounded-lg border-2 cursor-pointer hover:shadow-md transition-shadow bg-green-50 border-green-200"
+                        className={`p-4 rounded-lg border-2 cursor-pointer hover:shadow-md transition-shadow bg-green-50 border-green-200 ${cita.estado === "completada" ? "opacity-60" : ""}`}
                         onClick={() => {
                           setDayActivitiesModalOpen(false);
                           openCitaDetails(cita);
@@ -872,10 +1054,17 @@ export default function CalendarioPage() {
                       >
                         <div className="flex justify-between items-start mb-2">
                           <div className="flex-1">
-                            <Badge variant="outline" className="text-xs bg-green-100 mb-2">
-                              📅 Cita
-                            </Badge>
-                            <h4 className="font-semibold text-green-900">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant="outline" className="text-xs bg-green-100">
+                                📅 Cita
+                              </Badge>
+                              {cita.estado === "completada" && (
+                                <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
+                                  ✓ Completada
+                                </Badge>
+                              )}
+                            </div>
+                            <h4 className={`font-semibold text-green-900 ${cita.estado === "completada" ? "line-through" : ""}`}>
                               {cita.descricita}
                             </h4>
                             {cita.nombre_prospecto && (
@@ -891,6 +1080,19 @@ export default function CalendarioPage() {
                           <Clock className="h-4 w-4" />
                           <span>{format(parseISO(cita.datecita), "HH:mm")}</span>
                         </div>
+                        <div className="mt-3 flex justify-end">
+                          <Button
+                            variant={cita.estado === "completada" ? "outline" : "default"}
+                            size="sm"
+                            className={cita.estado === "completada" ? "text-green-600 border-green-600 hover:bg-green-50" : "bg-green-600 hover:bg-green-700 text-white"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleCitaComplete(cita.id);
+                            }}
+                          >
+                            {cita.estado === "completada" ? "Marcar como pendiente" : "Marcar como completada"}
+                          </Button>
+                        </div>
                       </div>
                     );
                   }
@@ -903,8 +1105,8 @@ export default function CalendarioPage() {
                   {selectedDayActivities.items.length} {selectedDayActivities.items.length === 1 ? 'actividad' : 'actividades'} en total
                 </p>
                 <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => setDayActivitiesModalOpen(false)}
                   >
                     Cerrar
