@@ -48,7 +48,7 @@ export default function Duplicates() {
 
   // filtros UI
   const [searchTerm, setSearchTerm] = useState<string>("")
-  const [statusFilter, setStatusFilter] = useState<"all"|"pending"|"resolved">("all")
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "resolved">("all")
   const [minSim, setMinSim] = useState<number>(80)
   const [sortDesc, setSortDesc] = useState<boolean>(true)
   const [pageSize, setPageSize] = useState<number>(5)
@@ -114,6 +114,33 @@ export default function Duplicates() {
 
   const doBulkAction = async (action: string) => {
     if (selectedIds.length === 0) return
+
+    let dupsToDelete: Prospect[] = [];
+    if (action === "keep_original" || action === "delete_duplicate") {
+      dupsToDelete = allDups.filter(d => selectedIds.includes(d.id)).map(d => d.duplicateProspect);
+    } else if (action === "keep_duplicate") {
+      dupsToDelete = allDups.filter(d => selectedIds.includes(d.id)).map(d => d.originalProspect);
+    }
+
+    if (dupsToDelete.length > 0) {
+      const listHtml = dupsToDelete.slice(0, 5).map(p => `<li>${p.nombre_completo}</li>`).join('');
+      const moreHtml = dupsToDelete.length > 5 ? `<li class="text-gray-500">... y ${dupsToDelete.length - 5} más</li>` : '';
+
+      const confirm = await Swal.fire({
+        title: `¿Eliminar ${dupsToDelete.length} prospectos?`,
+        html: `Se eliminarán permanentemente los siguientes prospectos y sus registros:<br/>
+               <ul class="text-left mt-2 mb-2 bg-gray-50 p-3 rounded text-sm">${listHtml}${moreHtml}</ul>
+               ¿Deseas continuar?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+      });
+      if (!confirm.isConfirmed) return;
+    }
+
     setLoading(true)
     try {
 
@@ -143,10 +170,39 @@ export default function Duplicates() {
   }
 
   // 2) Acción sobre un duplicado
-  const doAction = async (id: number, action: string, silent = false) => {
+  const doAction = async (d: Duplicate, action: string, silent = false) => {
+    // Determine what is being deleted
+    let toDelete = null;
+    let actionText = "";
+    if (action === "keep_original" || action === "delete_duplicate") {
+      toDelete = d.duplicateProspect;
+      actionText = "el duplicado";
+    } else if (action === "keep_duplicate") {
+      toDelete = d.originalProspect;
+      actionText = "el original";
+    }
+
+    if (toDelete) {
+      const confirm = await Swal.fire({
+        title: `¿Eliminar ${actionText}?`,
+        html: `Se eliminará PERMANENTEMENTE el siguiente prospecto y sus registros relacionados:<br/><br/>
+               <b>Nombre:</b> ${toDelete.nombre_completo}<br/>
+               <b>Email:</b> ${toDelete.correo_electronico || 'N/A'}<br/>
+               <b>Teléfono:</b> ${toDelete.telefono || 'N/A'}<br/><br/>
+               ¿Deseas continuar?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+      });
+      if (!confirm.isConfirmed) return;
+    }
+
     try {
       const token = localStorage.getItem("token") || ""
-      const res = await fetch(`${API_URL}/duplicates/${id}/action`, {
+      const res = await fetch(`${API_URL}/duplicates/${d.id}/action`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -379,8 +435,8 @@ export default function Duplicates() {
                               variant={d.similarity_score >= 90
                                 ? "destructive"
                                 : d.similarity_score >= 80
-                                ? "secondary"
-                                : "outline"
+                                  ? "secondary"
+                                  : "outline"
                               }
                               className="min-w-[50px] text-center"
                             >
@@ -394,25 +450,25 @@ export default function Duplicates() {
                           </TableCell>
                           <TableCell>
                             <div className="grid gap-2">
-                              <Button 
-                                size="sm" 
+                              <Button
+                                size="sm"
                                 className="bg-green-600 hover:bg-green-700"
-                                onClick={() => doAction(d.id,"keep_original")}
+                                onClick={() => doAction(d, "keep_original")}
                               >Mantener original</Button>
-                              <Button 
-                                size="sm" 
+                              <Button
+                                size="sm"
                                 variant="outline"
-                                onClick={() => doAction(d.id,"keep_duplicate")}
+                                onClick={() => doAction(d, "keep_duplicate")}
                               >Mantener duplicado</Button>
-                              <Button 
-                                size="sm" 
+                              <Button
+                                size="sm"
                                 variant="destructive"
-                                onClick={() => doAction(d.id,"delete_duplicate")}
+                                onClick={() => doAction(d, "delete_duplicate")}
                               >Eliminar duplicado</Button>
-                              <Button 
-                                size="sm" 
+                              <Button
+                                size="sm"
                                 variant="outline"
-                                onClick={() => doAction(d.id,"mark_reviewed")}
+                                onClick={() => doAction(d, "mark_reviewed")}
                               >Marcar revisado</Button>
                             </div>
                           </TableCell>
@@ -427,8 +483,8 @@ export default function Duplicates() {
                         </TableCell>
                       </TableRow>
                     )}
-                 </TableBody>
-               </Table>
+                  </TableBody>
+                </Table>
               </div>
 
               {selectedIds.length > 0 && (
