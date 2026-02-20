@@ -50,10 +50,10 @@ const BANCOS = [
   "Otro"
 ]
 
-export default function BoletaInscripcionModal({ 
+export default function BoletaInscripcionModal({
   isOpen,
   onClose,
-  prospectoId, 
+  prospectoId,
   estudianteProgramaId,
   montoInscripcion,
   onBoletaRegistrada
@@ -65,7 +65,7 @@ export default function BoletaInscripcionModal({
     fechaRecibo: "",
     archivo: null
   })
-  
+
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
 
@@ -74,11 +74,11 @@ export default function BoletaInscripcionModal({
     if (!file) return
 
     // Validar tamaño (máx 5MB)
-    if (file.size > 5 * 1024 * 1024) {
+    if (file.size > 100 * 1024 * 1024) {
       Swal.fire({
         icon: "error",
-        title: "Archivo muy grande",
-        text: "El archivo no debe superar los 5MB"
+        title: "Archivo demasiado grande",
+        text: "El archivo excede el límite de 100MB.",
       })
       return
     }
@@ -160,7 +160,7 @@ export default function BoletaInscripcionModal({
         `${API_BASE_URL}/api/pagos/boleta-inscripcion`,
         formData,
         {
-          headers: { 
+          headers: {
             "Content-Type": "multipart/form-data",
             "Authorization": `Bearer ${localStorage.getItem("token")}`
           }
@@ -286,7 +286,7 @@ export default function BoletaInscripcionModal({
             <Label htmlFor="comprobante">
               Comprobante de Pago <span className="text-red-500">*</span>
             </Label>
-            
+
             {!datos.archivo ? (
               <div className="border-2 border-dashed rounded-lg p-6 text-center">
                 <Upload className="mx-auto h-12 w-12 text-gray-400" />
@@ -349,9 +349,9 @@ export default function BoletaInscripcionModal({
                 {/* Vista previa de imagen */}
                 {previewUrl && (
                   <div className="mt-3">
-                    <img 
-                      src={previewUrl} 
-                      alt="Vista previa" 
+                    <img
+                      src={previewUrl}
+                      alt="Vista previa"
                       className="max-h-48 mx-auto rounded border"
                     />
                   </div>
@@ -363,8 +363,8 @@ export default function BoletaInscripcionModal({
           {/* Procesamiento Automático */}
           <Alert className="bg-blue-50 border-blue-200">
             <AlertDescription className="text-sm">
-              <strong>Procesamiento Automático:</strong> Su pago será procesado automáticamente 
-              una vez que suba el comprobante. La cuota de inscripción se marcará como pagada 
+              <strong>Procesamiento Automático:</strong> Su pago será procesado automáticamente
+              una vez que suba el comprobante. La cuota de inscripción se marcará como pagada
               inmediatamente si el monto coincide.
             </AlertDescription>
           </Alert>

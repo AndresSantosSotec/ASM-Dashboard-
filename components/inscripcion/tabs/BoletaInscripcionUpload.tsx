@@ -70,8 +70,12 @@ export default function BoletaInscripcionUpload({
     if (!file) return
 
     // Validar tamaño (máx 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      Swal.fire("Error", "El archivo no debe superar los 5MB", "error")
+    if (file.size > 100 * 1024 * 1024) {
+      Swal.fire({
+        icon: "error",
+        title: "Archivo muy grande",
+        text: "El archivo no debe superar los 100MB"
+      })
       e.target.value = "" // Limpiar input
       return
     }
@@ -96,7 +100,7 @@ export default function BoletaInscripcionUpload({
       setPreviewUrl(reader.result as string)
     }
     reader.readAsDataURL(file)
-    
+
     // Limpiar el input para permitir seleccionar el mismo archivo nuevamente
     e.target.value = ""
   }
@@ -105,7 +109,7 @@ export default function BoletaInscripcionUpload({
     archivoRef.current = null
     setDatos(prev => ({ ...prev, archivo: null }))
     setPreviewUrl(null)
-    
+
     // Limpiar también el input file
     const inputElement = document.getElementById("comprobante") as HTMLInputElement
     if (inputElement) {
@@ -161,7 +165,7 @@ export default function BoletaInscripcionUpload({
       formData.append("prospecto_id", prospectoId.toString())
       formData.append("tipo_documento", "inscripcion")
       formData.append("file", archivoRef.current)
-      
+
       // Guardar datos de la boleta como metadata
       formData.append("metadata", JSON.stringify({
         numero_boleta: datos.numeroBoleta.trim(),
@@ -185,11 +189,11 @@ export default function BoletaInscripcionUpload({
           }
         }
       )
-      
+
       console.log("✅ Documento guardado:", response.data)
 
       setBoletaSubida(true)
-      
+
       await Swal.fire({
         icon: "success",
         title: "Boleta guardada",
@@ -202,7 +206,7 @@ export default function BoletaInscripcionUpload({
         timer: 3000,
         showConfirmButton: true
       })
-      
+
       if (onBoletaSubida) onBoletaSubida()
     } catch (error: any) {
       console.error("Error al subir boleta:", error)
@@ -229,7 +233,7 @@ export default function BoletaInscripcionUpload({
   return (
     <div className="space-y-6">
       <div className="space-y-4">
-        
+
         {/* Comprobante */}
         <div className="space-y-2">
           <Label>Comprobante de Pago <span className="text-red-500">*</span></Label>
