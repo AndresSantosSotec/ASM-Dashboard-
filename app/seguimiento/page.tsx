@@ -4,6 +4,16 @@ import { useState, useEffect, useMemo } from "react";
 import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import Swal from "sweetalert2";
+
+// 🔧 Configurar Swal con z-index muy alto para que aparezca sobre el modal
+Swal.mixin({
+  didOpen: (instance: any) => {
+    const swalContainer = instance.getHtmlContainer?.()?.parentElement as HTMLElement;
+    if (swalContainer) {
+      swalContainer.style.zIndex = "9999";
+    }
+  },
+});
 import { Button } from "@/components/ui/button";
 import { SimpleDatePicker } from "@/components/ui/simple-date-picker";
 import {
@@ -15,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -688,7 +698,9 @@ export default function SeguimientoPage() {
 
       <Dialog open={!!selectedProspecto} onOpenChange={() => setSelectedProspecto(null)}>
         {/* Ajuste general del modal para que no exceda el 80% del alto de la ventana */}
-        <DialogContent className="max-w-4xl">
+        {/* z-index en el DialogContent ya es z-[1001] en dialog.tsx */}
+        <DialogContent aria-describedby={undefined} className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogTitle className="sr-only">Detalles del prospecto</DialogTitle>
           <div className="max-h-[80vh] overflow-y-auto p-4">
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-6">

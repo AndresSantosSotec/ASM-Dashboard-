@@ -28,7 +28,7 @@ interface SimpleDatePickerProps {
 }
 
 export function SimpleDatePicker({ value, onChange, placeholder = "Seleccionar fecha" }: SimpleDatePickerProps) {
-  
+
   // Validación segura del valor recibido
   const parsed = value ? new Date(value + "T00:00:00") : null
   const selectedDate =
@@ -48,10 +48,13 @@ export function SimpleDatePicker({ value, onChange, placeholder = "Seleccionar f
   // 🔧 FIX: Sincronizar currentMonth cuando cambia el prop value
   // Esto permite que al editar una fecha, el calendario muestre el mes correcto
   useEffect(() => {
-    if (value && selectedDate && !isNaN(selectedDate.getTime())) {
-      setCurrentMonth(selectedDate)
+    if (value) {
+      const d = new Date(value + "T00:00:00")
+      if (!isNaN(d.getTime())) {
+        setCurrentMonth(d)
+      }
     }
-  }, [value, selectedDate])
+  }, [value])
 
   // Cálculos del mes
   const monthStart = startOfMonth(currentMonth)
@@ -82,7 +85,12 @@ export function SimpleDatePicker({ value, onChange, placeholder = "Seleccionar f
     setCurrentMonth(newDate)
   }
 
-  const handleSelectDate = (day: Date) => {
+  const handleSelectDate = (day: Date, e?: React.MouseEvent) => {
+    // 💡 FIX EVENT BUBBLING: Evitar que el click se propague al Dialog padre y cause cierres/comportamientos anómalos
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
     const formatted = format(day, "yyyy-MM-dd")
     onChange(formatted)
     setOpen(false)
@@ -93,9 +101,11 @@ export function SimpleDatePicker({ value, onChange, placeholder = "Seleccionar f
     : placeholder
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    // 💡 FIX PORTAL: `modal={true}` asegura que el Popover controle su propio Focus Trap y z-index context, aislando el comportamiento del Dialog padre
+    <Popover open={open} onOpenChange={setOpen} modal={true}>
       <PopoverTrigger asChild>
         <Button
+          type="button" // Previene submit de formularios
           variant="outline"
           className="w-full justify-start text-left font-normal"
         >
@@ -104,7 +114,14 @@ export function SimpleDatePicker({ value, onChange, placeholder = "Seleccionar f
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-auto p-0" align="start">
+      {/* 💡 FIX Z-INDEX: Asignar un z-index extremadamente alto para garantizar que renderice sobre el Dialog modal */}
+      <PopoverContent className="w-auto p-0 z-[9999]" align="start" onInteractOutside={(e) => {
+        // Allow clicks on Select popups inside this date picker without closing it
+        const target = e.target as HTMLElement
+        if (target.closest('[role="listbox"]') || target.closest('[role="option"]')) {
+          e.preventDefault()
+        }
+      }}>
         <div className="p-3">
 
           {/* Selectores de mes y año */}
@@ -113,7 +130,8 @@ export function SimpleDatePicker({ value, onChange, placeholder = "Seleccionar f
               <SelectTrigger className="w-[140px]">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              {/* 💡 FIX Z-INDEX: Elevar los dropdowns interiores por encima del Popover Content */}
+              <SelectContent className="z-[10000]">
                 {months.map((month, idx) => (
                   <SelectItem key={idx} value={idx.toString()}>
                     {month}
@@ -126,7 +144,7 @@ export function SimpleDatePicker({ value, onChange, placeholder = "Seleccionar f
               <SelectTrigger className="w-[100px]">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="max-h-[200px]">
+              <SelectContent className="max-h-[200px] z-[10000]">
                 {years.map((year) => (
                   <SelectItem key={year} value={year.toString()}>
                     {year}
@@ -138,13 +156,13 @@ export function SimpleDatePicker({ value, onChange, placeholder = "Seleccionar f
 
           {/* Header navegación */}
           <div className="flex justify-between items-center mb-3">
-            <Button variant="outline" size="icon" onClick={prevMonth} className="h-7 w-7">
+            <Button type="button" variant="outline" size="icon" onClick={prevMonth} className="h-7 w-7">
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <div className="font-semibold text-sm">
               {format(currentMonth, "MMMM yyyy", { locale: es })}
             </div>
-            <Button variant="outline" size="icon" onClick={nextMonth} className="h-7 w-7">
+            <Button type="button" variant="outline" size="icon" onClick={nextMonth} className="h-7 w-7">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
@@ -173,14 +191,14 @@ export function SimpleDatePicker({ value, onChange, placeholder = "Seleccionar f
 
               return (
                 <Button
+                  type="button"
                   key={day.toString()}
                   variant="ghost"
-                  className={`h-9 w-9 p-0 font-normal ${
-                    !isCurr ? "text-gray-400" : ""
-                  } ${isTod ? "bg-blue-100 text-blue-900" : ""} ${
-                    isSelected ? "bg-blue-600 text-white hover:bg-blue-700" : ""
-                  }`}
-                  onClick={() => handleSelectDate(day)}
+                  className={`h-9 w-9 p-0 font-normal ${!isCurr ? "text-gray-400" : ""
+                    } ${isTod ? "bg-blue-100 text-blue-900" : ""} ${isSelected ? "bg-blue-600 text-white hover:bg-blue-700" : ""
+                    }`}
+                  // 💡 FIX EVENT BUBBLING: Pasar el evento e
+                  onClick={(e) => handleSelectDate(day, e)}
                 >
                   {format(day, "d")}
                 </Button>
@@ -191,10 +209,12 @@ export function SimpleDatePicker({ value, onChange, placeholder = "Seleccionar f
           {/* Botón Hoy */}
           <div className="mt-3 pt-3 border-t">
             <Button
+              type="button"
               variant="outline"
               className="w-full"
               size="sm"
-              onClick={() => handleSelectDate(new Date())}
+              // 💡 FIX EVENT BUBBLING: Pasar el evento e aquí también
+              onClick={(e) => handleSelectDate(new Date(), e)}
             >
               Hoy
             </Button>
