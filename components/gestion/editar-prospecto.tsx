@@ -108,6 +108,9 @@ export default function EditarProspecto({ prospecto, onClose, onUpdate }: Editar
         onUpdate(updatedProspecto);
       }
 
+      // Esperar a que React desmonte el Dialog (evita que el focus-trap bloquee el SweetAlert)
+      await new Promise(resolve => setTimeout(resolve, 300))
+
       await Swal.fire({
         icon: "success",
         title: "¡Listo!",

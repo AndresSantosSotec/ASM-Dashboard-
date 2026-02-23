@@ -51,7 +51,10 @@ export default function CambiarEstado({ prospecto, onClose }: CambiarEstadoProps
       // 1) Cierro el modal
       onClose()
 
-      // 2) Muestro SweetAlert sin el modal encima
+      // 2) Esperar a que React desmonte el Dialog (evita que el focus-trap bloquee el SweetAlert)
+      await new Promise(resolve => setTimeout(resolve, 300))
+
+      // 3) Muestro SweetAlert sin el modal encima
       await Swal.fire({
         icon: "success",
         title: "¡Estado actualizado!",
@@ -59,7 +62,7 @@ export default function CambiarEstado({ prospecto, onClose }: CambiarEstadoProps
         confirmButtonText: "Aceptar"
       })
 
-      // 3) Recargo la página
+      // 4) Recargo la página
       window.location.reload()
 
     } catch (err: any) {
