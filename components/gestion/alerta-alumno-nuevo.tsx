@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -215,6 +215,44 @@ export default function AlertaAlumnoNuevo({
       }
     }
   }, [formData.programa_id, programasAcademicos])
+
+  // Faltantes "efectivos": excluir los que ya están cubiertos por prospecto/programa o por el formulario (para que al llenar DPI u otros en el modal se reconozcan sin tener que guardar antes)
+  const effectiveFaltantes = useMemo(() => {
+    return datosFaltantes.filter((f) => {
+      if (f === "Nombre completo") {
+        return !(prospectoData?.nombre_completo?.trim() || formData.nombre_completo?.trim())
+      }
+      if (f === "Carnet") {
+        return !tieneCarnet
+      }
+      if (f === "Correo electrónico") {
+        return !(prospectoData?.correo_electronico?.trim() || formData.correo_electronico?.trim())
+      }
+      if (f === "DPI") {
+        const dpiProspecto = prospectoData?.numero_identificacion?.trim()
+        const dpiForm = formData.numero_identificacion?.trim()
+        return !(dpiProspecto || (dpiForm && dpiForm.length >= 5))
+      }
+      if (f === "Teléfono") {
+        return !(prospectoData?.telefono?.trim() || formData.telefono?.trim())
+      }
+      if (f === "Modalidad") {
+        return !(prospectoData?.modalidad?.trim() || formData.modalidad?.trim())
+      }
+      if (f === "Fecha de inicio del programa") {
+        return !(prospectoData?.fecha_inicio_especifica || formData.fecha_inicio_especifica?.trim())
+      }
+      if (f === "Plan Académico") {
+        const tienePrograma = programaData?.programa?.nombre_del_programa || formData.programa_id
+        return !tienePrograma
+      }
+      if (f === "Duración del Plan") {
+        const duracion = programaData?.duracion_meses || programaData?.programa?.meses || formData.duracion_meses?.trim()
+        return !(duracion && Number(duracion) > 0)
+      }
+      return true
+    })
+  }, [datosFaltantes, prospectoData, formData, programaData, tieneCarnet])
 
   const validarDatosMinimos = async () => {
     try {
@@ -880,11 +918,10 @@ export default function AlertaAlumnoNuevo({
 
   const puedeAvanzar = () => {
     if (activeTab === "validacion") {
-      return datosFaltantes.length === 0 && tieneCarnet
+      return effectiveFaltantes.length === 0 && tieneCarnet
     }
     if (activeTab === "datos") {
-      // Verificar que todos los campos requeridos estén llenos
-      const camposRequeridos = datosFaltantes.filter(f =>
+      const camposRequeridos = effectiveFaltantes.filter(f =>
         f === "Nombre completo" || f === "DPI" || f === "Correo electrónico"
       )
       return camposRequeridos.length === 0
@@ -1010,16 +1047,18 @@ export default function AlertaAlumnoNuevo({
                     </div>
                   </div>
 
-                  {/* DPI */}
+                  {/* DPI - considerar también el valor del formulario (Completar Datos) para que se reconozca al llenar */}
                   <div className="flex items-center justify-between py-2 border-b">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">DPI</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {prospectoData?.numero_identificacion ? (
+                      {(prospectoData?.numero_identificacion?.trim() || (formData.numero_identificacion?.trim() && formData.numero_identificacion.trim().length >= 5)) ? (
                         <>
                           <CheckCircle className="h-5 w-5 text-green-600" />
-                          <span className="text-sm text-gray-600">{prospectoData.numero_identificacion}</span>
+                          <span className="text-sm text-gray-600">
+                            {prospectoData?.numero_identificacion?.trim() || formData.numero_identificacion}
+                          </span>
                         </>
                       ) : (
                         <>
@@ -1078,17 +1117,17 @@ export default function AlertaAlumnoNuevo({
               </div>
 
               {/* Resumen de datos faltantes */}
-              {datosFaltantes.length > 0 && (
+              {effectiveFaltantes.length > 0 && (
                 <Alert className="bg-red-50 border-red-200">
                   <XCircle className="h-4 w-4 text-red-600" />
                   <AlertDescription className="text-red-800">
-                    <strong>Datos básicos faltantes:</strong> {datosFaltantes.length} campo(s) requerido(s) deben ser completados antes de crear la alerta.
+                    <strong>Datos básicos faltantes:</strong> {effectiveFaltantes.length} campo(s) requerido(s) deben ser completados antes de crear la alerta.
                   </AlertDescription>
                 </Alert>
               )}
 
               {/* Mensaje cuando los datos básicos están completos */}
-              {datosFaltantes.length === 0 && tieneCarnet && (
+              {effectiveFaltantes.length === 0 && tieneCarnet && (
                 <Alert className="bg-green-50 border-green-200 mt-6">
                   <CheckCircle className="h-4 w-4 text-green-600" />
                   <AlertDescription className="text-green-800">
