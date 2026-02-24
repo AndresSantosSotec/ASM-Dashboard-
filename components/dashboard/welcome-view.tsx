@@ -45,6 +45,8 @@ interface WelcomeData {
     alertas_alumno_nuevo?: number
     alertas_urgentes?: number
     alertas_expiradas?: number
+    prospectos_en_aprobacion?: number
+    prospectos_aprobacion_urgentes?: number
     
     // Estadísticas de finanzas (Rol 5)
     pagos_procesados_mes?: number
@@ -99,6 +101,24 @@ interface WelcomeData {
     dias_atraso: number
     fecha_limite: string
     fecha_creacion: string
+  }>
+  prospectos_aprobacion?: Array<{
+    id: number
+    prospecto_id: number
+    prospecto_nombre: string
+    prospecto_correo: string
+    prospecto_telefono: string
+    prospecto_carnet: string | null
+    asesor_id: number
+    asesor_nombre: string
+    fase_aprobacion: string
+    estado_fase: string
+    porcentaje_avance: number
+    fecha_ingreso: string
+    fecha_limite_fase: string | null
+    observaciones: string | null
+    dias_en_fase: number
+    prioridad: string
   }>
 }
 
@@ -190,6 +210,7 @@ export default function WelcomeView() {
   const [welcomeData, setWelcomeData] = useState<WelcomeData | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [currentPage, setCurrentPage] = useState(1)
+  const [paginaAprobacion, setPaginaAprobacion] = useState(1)
   const itemsPerPage = 10
 
   useEffect(() => {
@@ -244,6 +265,21 @@ export default function WelcomeView() {
           quickAccess: dashboardData.quickAccess || [],
           alertas_detalle: dashboardData.alertas_detalle || []
         })
+        
+        try {
+          const aprobacionData = await dashboardService.fetchProspectosAprobacion()
+          setWelcomeData(prev => prev ? {
+            ...prev,
+            prospectos_aprobacion: aprobacionData.prospectos_aprobacion || [],
+            stats: {
+              ...prev.stats,
+              prospectos_en_aprobacion: aprobacionData.stats?.total ?? 0,
+              prospectos_aprobacion_urgentes: aprobacionData.stats?.urgentes ?? 0
+            }
+          } : prev)
+        } catch (e) {
+          console.warn('No se pudieron cargar prospectos en aprobación', e)
+        }
         
         // Debug: verificar alertas
         console.log('📊 Dashboard Data recibido:', dashboardData)
@@ -957,6 +993,30 @@ export default function WelcomeView() {
             </CardContent>
           </Card>
         )}
+
+        {/* Prospectos en Aprobación - Para Admin y Asesores */}
+        {welcomeData.stats.prospectos_en_aprobacion !== undefined && welcomeData.stats.prospectos_en_aprobacion > 0 && (
+          <Card className="hover:shadow-lg transition-shadow border-purple-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                En Aprobación
+                {welcomeData.stats.prospectos_aprobacion_urgentes !== undefined && welcomeData.stats.prospectos_aprobacion_urgentes > 0 && (
+                  <Badge variant="destructive" className="text-xs">
+                    {welcomeData.stats.prospectos_aprobacion_urgentes} urgente{welcomeData.stats.prospectos_aprobacion_urgentes > 1 ? 's' : ''}
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-purple-600">
+                  {welcomeData.stats.prospectos_en_aprobacion}
+                </div>
+                <CheckCircle2 className="h-8 w-8 text-purple-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Notificaciones de Inscripción */}
@@ -1203,6 +1263,155 @@ export default function WelcomeView() {
               <div className="text-center py-8 text-muted-foreground">
                 <AlertCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
                 <p className="text-sm">No hay alertas de alumno nuevo activas</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Mis Prospectos en Aprobación / Todos los Prospectos en Aprobación - Solo Admin y Asesor */}
+      {(welcomeData.user.rol === 'Administrador' || welcomeData.user.rol === 'Asesor') && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-purple-500" />
+              {welcomeData.user.rol === 'Administrador'
+                ? 'Todos los Prospectos en Aprobación'
+                : 'Mis Prospectos en Aprobación'}
+            </CardTitle>
+            <CardDescription>
+              {welcomeData.user.rol === 'Administrador'
+                ? 'Vista global de todos los prospectos en proceso de aprobación (Comercial → Académica → Financiera → Credenciales)'
+                : 'Prospectos bajo tu gestión que están en proceso de aprobación'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {welcomeData.prospectos_aprobacion && welcomeData.prospectos_aprobacion.length > 0 ? (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2 font-semibold">Prospecto</th>
+                        <th className="text-left p-2 font-semibold">Carnet</th>
+                        {welcomeData.user.rol === 'Administrador' && (
+                          <th className="text-left p-2 font-semibold">Asesor</th>
+                        )}
+                        <th className="text-left p-2 font-semibold">Fase Actual</th>
+                        <th className="text-left p-2 font-semibold">Progreso</th>
+                        <th className="text-center p-2 font-semibold">Estado</th>
+                        <th className="text-center p-2 font-semibold">Días en Fase</th>
+                        <th className="text-center p-2 font-semibold">Fecha Límite</th>
+                        <th className="text-center p-2 font-semibold">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {welcomeData.prospectos_aprobacion
+                        .slice((paginaAprobacion - 1) * itemsPerPage, paginaAprobacion * itemsPerPage)
+                        .map((item) => {
+                          const estadoBg =
+                            item.estado_fase === 'rechazado' ? 'bg-red-50' :
+                            item.estado_fase === 'aprobado' ? 'bg-green-50' :
+                            item.estado_fase === 'en_revision' ? 'bg-blue-50' :
+                            'bg-yellow-50'
+                          const faseBadgeClass =
+                            item.fase_aprobacion === 'Credenciales' ? 'bg-emerald-100 text-emerald-800' :
+                            item.fase_aprobacion === 'Financiera' ? 'bg-purple-100 text-purple-800' :
+                            item.fase_aprobacion === 'Académica' ? 'bg-blue-100 text-blue-800' :
+                            'bg-slate-100 text-slate-800'
+                          const porcentaje = item.porcentaje_avance ?? 0
+                          const progressColor =
+                            porcentaje >= 75 ? 'bg-green-500' :
+                            porcentaje >= 50 ? 'bg-blue-500' :
+                            porcentaje >= 25 ? 'bg-yellow-500' :
+                            'bg-red-500'
+                          return (
+                            <tr key={item.id} className={`border-b hover:bg-muted/50 ${estadoBg}`}>
+                              <td className="p-2">
+                                <div>
+                                  <div className="font-medium">{item.prospecto_nombre}</div>
+                                  <div className="text-xs text-muted-foreground">{item.prospecto_correo}</div>
+                                </div>
+                              </td>
+                              <td className="p-2">
+                                {item.prospecto_carnet ? (
+                                  <Badge variant="outline" className="font-mono">{item.prospecto_carnet}</Badge>
+                                ) : (
+                                  <span className="text-muted-foreground text-xs">Sin carnet</span>
+                                )}
+                              </td>
+                              {welcomeData.user.rol === 'Administrador' && (
+                                <td className="p-2 text-sm">{item.asesor_nombre}</td>
+                              )}
+                              <td className="p-2">
+                                <Badge variant="secondary" className={faseBadgeClass}>
+                                  {item.fase_aprobacion}
+                                </Badge>
+                              </td>
+                              <td className="p-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-full max-w-[80px] bg-gray-200 rounded-full h-2">
+                                    <div
+                                      className={`h-2 rounded-full transition-all ${progressColor}`}
+                                      style={{ width: `${Math.min(100, Math.max(0, porcentaje))}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">{porcentaje}%</span>
+                                </div>
+                              </td>
+                              <td className="p-2 text-center">
+                                <Badge
+                                  variant={
+                                    item.estado_fase === 'rechazado' ? 'destructive' :
+                                    item.estado_fase === 'aprobado' ? 'default' : 'secondary'
+                                  }
+                                  className={
+                                    item.estado_fase === 'pendiente' ? 'bg-yellow-100 text-yellow-800' :
+                                    item.estado_fase === 'en_revision' ? 'bg-blue-100 text-blue-800' :
+                                    item.estado_fase === 'aprobado' ? 'bg-green-100 text-green-800' : ''
+                                  }
+                                >
+                                  {item.estado_fase === 'en_revision' ? 'En revisión' : item.estado_fase}
+                                </Badge>
+                              </td>
+                              <td className="p-2 text-center">
+                                <span className={item.dias_en_fase >= 7 ? 'font-semibold text-amber-600' : ''}>
+                                  {item.dias_en_fase} día{item.dias_en_fase !== 1 ? 's' : ''}
+                                </span>
+                              </td>
+                              <td className="p-2 text-center text-xs text-muted-foreground">
+                                {item.fecha_limite_fase
+                                  ? new Date(item.fecha_limite_fase).toLocaleDateString('es-GT')
+                                  : 'Sin límite'}
+                              </td>
+                              <td className="p-2 text-center">
+                                <button
+                                  onClick={() => {
+                                    window.location.href = `/gestion?prospectoId=${item.prospecto_id}`
+                                  }}
+                                  className="text-xs text-blue-600 hover:text-blue-800 underline"
+                                >
+                                  Ver Prospecto
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+                {welcomeData.prospectos_aprobacion.length > itemsPerPage && (
+                  <PaginationControls
+                    currentPage={paginaAprobacion}
+                    totalPages={Math.ceil(welcomeData.prospectos_aprobacion.length / itemsPerPage)}
+                    onPageChange={setPaginaAprobacion}
+                  />
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                <p className="text-sm">No hay prospectos en proceso de aprobación</p>
               </div>
             )}
           </CardContent>

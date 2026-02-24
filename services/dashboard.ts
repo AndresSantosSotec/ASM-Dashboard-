@@ -91,6 +91,36 @@ export const fetchDashboardData = async (): Promise<UserDashboardData> => {
   }
 }
 
+export const fetchProspectosAprobacion = async (): Promise<{
+  prospectos_aprobacion: Array<{
+    id: number
+    prospecto_id: number
+    prospecto_nombre: string
+    prospecto_correo: string
+    prospecto_telefono: string
+    prospecto_carnet: string | null
+    asesor_id: number
+    asesor_nombre: string
+    fase_aprobacion: string
+    estado_fase: string
+    porcentaje_avance: number
+    fecha_ingreso: string
+    fecha_limite_fase: string | null
+    observaciones: string | null
+    dias_en_fase: number
+    prioridad: string
+  }>
+  stats: { total: number; urgentes: number; por_fase: Record<string, number> }
+}> => {
+  try {
+    const response = await api.get('/dashboard/prospectos-aprobacion')
+    return response.data
+  } catch (error) {
+    console.error('Error fetching prospectos aprobación:', error)
+    throw error
+  }
+}
+
 export const fetchCurrentUserInfo = async (): Promise<any> => {
   try {
     const response = await api.get('/user')
@@ -103,5 +133,6 @@ export const fetchCurrentUserInfo = async (): Promise<any> => {
 
 export default {
   fetchDashboardData,
+  fetchProspectosAprobacion,
   fetchCurrentUserInfo
 }
