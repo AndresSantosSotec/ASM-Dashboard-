@@ -26,6 +26,7 @@ interface ProspectoCompleto {
   telefono: string | null
   correo_electronico: string | null
   genero: string
+  numero_identificacion: string | null
   empresa_donde_labora_actualmente: string | null
   puesto: string | null
   notas_generales: string | null
@@ -70,6 +71,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
     telefono: "",
     correo_electronico: "",
     genero: "",
+    numero_identificacion: "",
     empresa_donde_labora_actualmente: "",
     puesto: "",
     notas_generales: "",
@@ -139,6 +141,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           telefono: data.telefono || "",
           correo_electronico: data.correo_electronico || "",
           genero: normalizeGenero(data.genero),
+          numero_identificacion: data.numero_identificacion || "",
           empresa_donde_labora_actualmente: data.empresa_donde_labora_actualmente || "",
           puesto: data.puesto || "",
           notas_generales: data.notas_generales || "",
@@ -440,6 +443,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
         telefono: formData.telefono || null,
         correoElectronico: formData.correo_electronico || null,
         genero: formData.genero,
+        dpi: formData.numero_identificacion || null,
         empresaDondeLaboraActualmente: formData.empresa_donde_labora_actualmente || null,
         puesto: formData.puesto || null,
         notasGenerales: formData.notas_generales || null,
@@ -871,6 +875,30 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                       onChange={(e) => handleChange("puesto", e.target.value)}
                       placeholder="Cargo o puesto"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      DPI / Identificación
+                      <span className="text-xs text-gray-500 ml-2">(13 dígitos para Guatemala)</span>
+                    </label>
+                    <Input
+                      value={formData.numero_identificacion || ""}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        // Solo permitir números y limitar a 13 caracteres
+                        if (value === "" || /^\d{0,13}$/.test(value)) {
+                          handleChange("numero_identificacion", value)
+                        }
+                      }}
+                      placeholder="Número de identificación"
+                      maxLength={13}
+                    />
+                    {formData.numero_identificacion && formData.numero_identificacion.length !== 13 && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        ⚠️ El DPI debe tener exactamente 13 dígitos
+                      </p>
+                    )}
                   </div>
 
                   <div className="md:col-span-2">
