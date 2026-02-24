@@ -247,8 +247,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
           )}
         </div>
 
-        {/* Inscripción (expandible) */}
-        {(userRole === "Administrador" || userRole === "Asesor") && (
+        {/* Inscripción (expandible) - visible para Administrador, Asesor y Administrativo (ej. quien aprueba académicamente) */}
+        {(userRole === "Administrador" || userRole === "Asesor" || userRole === "Administrativo") && (
           <div className="mb-1">
             <button
               onClick={() => toggleSection("inscripcion")}

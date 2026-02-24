@@ -408,7 +408,7 @@ export default function AprobacionAcademicaModal({
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Aprobación Académica - Ficha #{ficha.id}</span>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button variant="outline" size="sm" onClick={handleDescargarPlanPagos}>
                 <FileText className="mr-2 h-4 w-4" />
                 Plan de Pagos
@@ -417,17 +417,17 @@ export default function AprobacionAcademicaModal({
                 <FileText className="mr-2 h-4 w-4" />
                 Descargar Ficha
               </Button>
-              {/* ✅ Renderizado condicional - solo muestra si hay contrato válido */}
-              {contratoInfo?.ambasFirmas && (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleDescargarContrato}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Descargar Contrato
-                </Button>
-              )}
+              {/* Descargar Contrato: siempre visible; habilitado solo cuando hay contrato con ambas firmas */}
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleDescargarContrato}
+                disabled={!contratoInfo?.ultimo || !contratoInfo?.ambasFirmas}
+                title={!contratoInfo?.ambasFirmas ? "Disponible cuando el contrato tenga firma del asesor y del estudiante" : undefined}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Descargar Contrato
+              </Button>
             </div>
           </DialogTitle>
           <DialogDescription>
