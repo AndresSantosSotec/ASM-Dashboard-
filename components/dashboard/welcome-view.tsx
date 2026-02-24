@@ -1003,8 +1003,11 @@ export default function WelcomeView() {
           </Card>
         )}
 
-        {/* Prospectos en Aprobación - Para Admin y Asesores */}
-        {welcomeData.stats.prospectos_en_aprobacion !== undefined && welcomeData.stats.prospectos_en_aprobacion > 0 && (
+        {/* Prospectos en Aprobación - Para Admin, Asesor o quien tenga permiso y tenga datos */}
+        {welcomeData.stats.prospectos_en_aprobacion !== undefined &&
+          (welcomeData.stats.prospectos_en_aprobacion > 0 ||
+            (welcomeData.puede_ver_seccion_aprobacion &&
+              ((welcomeData.stats.proximos_hacia_academica ?? 0) + (welcomeData.stats.proximos_hacia_financiera ?? 0) + (welcomeData.stats.proximos_hacia_credenciales ?? 0) > 0))) && (
           <Card className="hover:shadow-lg transition-shadow border-purple-200">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -1018,8 +1021,16 @@ export default function WelcomeView() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">
-                <div className="text-3xl font-bold text-purple-600">
-                  {welcomeData.stats.prospectos_en_aprobacion}
+                <div>
+                  <div className="text-3xl font-bold text-purple-600">
+                    {welcomeData.stats.prospectos_en_aprobacion}
+                  </div>
+                  {welcomeData.stats.prospectos_en_aprobacion === 0 &&
+                    ((welcomeData.stats.proximos_hacia_academica ?? 0) + (welcomeData.stats.proximos_hacia_financiera ?? 0) + (welcomeData.stats.proximos_hacia_credenciales ?? 0)) > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {(welcomeData.stats.proximos_hacia_academica ?? 0) + (welcomeData.stats.proximos_hacia_financiera ?? 0) + (welcomeData.stats.proximos_hacia_credenciales ?? 0)} próximo{(welcomeData.stats.proximos_hacia_academica ?? 0) + (welcomeData.stats.proximos_hacia_financiera ?? 0) + (welcomeData.stats.proximos_hacia_credenciales ?? 0) !== 1 ? 's' : ''} a tu aprobación
+                    </p>
+                  )}
                 </div>
                 <CheckCircle2 className="h-8 w-8 text-purple-500 opacity-50" />
               </div>
@@ -1278,23 +1289,41 @@ export default function WelcomeView() {
         </Card>
       )}
 
-      {/* Mis Prospectos en Aprobación / Todos los Prospectos en Aprobación - Solo Admin y Asesor */}
-      {(welcomeData.user.rol === 'Administrador' || welcomeData.user.rol === 'Asesor') && (
+      {/* Mis Prospectos en Aprobación / Todos los Prospectos en Aprobación - Admin, Asesor o quien tenga permiso en algún módulo de aprobación */}
+      {(welcomeData.user.rol === 'Administrador' || welcomeData.user.rol === 'Asesor' || welcomeData.puede_ver_seccion_aprobacion) && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-purple-500" />
               {welcomeData.user.rol === 'Administrador'
                 ? 'Todos los Prospectos en Aprobación'
-                : 'Mis Prospectos en Aprobación'}
+                : welcomeData.user.rol === 'Asesor'
+                  ? 'Mis Prospectos en Aprobación'
+                  : 'Prospectos en Aprobación'}
             </CardTitle>
             <CardDescription>
               {welcomeData.user.rol === 'Administrador'
                 ? 'Vista global de todos los prospectos en proceso de aprobación (Comercial → Académica → Financiera → Credenciales)'
-                : 'Prospectos bajo tu gestión que están en proceso de aprobación'}
+                : welcomeData.user.rol === 'Asesor'
+                  ? 'Prospectos bajo tu gestión que están en proceso de aprobación'
+                  : 'Prospectos que pronto podrían llegar a tu módulo de aprobación o están pendientes de tu revisión'}
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {((welcomeData.stats.proximos_hacia_academica ?? 0) + (welcomeData.stats.proximos_hacia_financiera ?? 0) + (welcomeData.stats.proximos_hacia_credenciales ?? 0)) > 0 && (
+              <div className="mb-4 p-3 rounded-lg bg-muted/60 border border-purple-200 dark:border-purple-800/50 text-sm">
+                <span className="font-medium text-purple-700 dark:text-purple-300">Pronto tendrás a aprobar: </span>
+                {(welcomeData.stats.proximos_hacia_academica ?? 0) > 0 && (
+                  <span className="mr-3">{welcomeData.stats.proximos_hacia_academica} en Aprobación Académica</span>
+                )}
+                {(welcomeData.stats.proximos_hacia_financiera ?? 0) > 0 && (
+                  <span className="mr-3">{welcomeData.stats.proximos_hacia_financiera} en Aprobación Financiera</span>
+                )}
+                {(welcomeData.stats.proximos_hacia_credenciales ?? 0) > 0 && (
+                  <span>{welcomeData.stats.proximos_hacia_credenciales} en Credenciales</span>
+                )}
+              </div>
+            )}
             {welcomeData.prospectos_aprobacion && welcomeData.prospectos_aprobacion.length > 0 ? (
               <>
                 <div className="overflow-x-auto">
