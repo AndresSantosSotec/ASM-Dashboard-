@@ -92,6 +92,7 @@ export const fetchDashboardData = async (): Promise<UserDashboardData> => {
 }
 
 export const fetchProspectosAprobacion = async (): Promise<{
+  puede_ver_seccion_aprobacion?: boolean
   prospectos_aprobacion: Array<{
     id: number
     prospecto_id: number
@@ -110,7 +111,12 @@ export const fetchProspectosAprobacion = async (): Promise<{
     dias_en_fase: number
     prioridad: string
   }>
-  stats: { total: number; urgentes: number; por_fase: Record<string, number> }
+  stats: {
+    total: number
+    urgentes: number
+    por_fase: Record<string, number>
+    proximos?: { hacia_academica?: number; hacia_financiera?: number; hacia_credenciales?: number }
+  }
 }> => {
   try {
     const response = await api.get('/dashboard/prospectos-aprobacion')

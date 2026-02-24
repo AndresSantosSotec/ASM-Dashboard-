@@ -47,6 +47,9 @@ interface WelcomeData {
     alertas_expiradas?: number
     prospectos_en_aprobacion?: number
     prospectos_aprobacion_urgentes?: number
+    proximos_hacia_academica?: number
+    proximos_hacia_financiera?: number
+    proximos_hacia_credenciales?: number
     
     // Estadísticas de finanzas (Rol 5)
     pagos_procesados_mes?: number
@@ -86,6 +89,8 @@ interface WelcomeData {
     path: string
     icon: string
   }[]
+  /** Si tiene permiso en algún módulo de aprobación (académica/financiera/credenciales) y puede ver la sección */
+  puede_ver_seccion_aprobacion?: boolean
   alertas_detalle?: Array<{
     id: number
     prospecto_id: number
@@ -270,11 +275,15 @@ export default function WelcomeView() {
           const aprobacionData = await dashboardService.fetchProspectosAprobacion()
           setWelcomeData(prev => prev ? {
             ...prev,
+            puede_ver_seccion_aprobacion: aprobacionData.puede_ver_seccion_aprobacion ?? false,
             prospectos_aprobacion: aprobacionData.prospectos_aprobacion || [],
             stats: {
               ...prev.stats,
               prospectos_en_aprobacion: aprobacionData.stats?.total ?? 0,
-              prospectos_aprobacion_urgentes: aprobacionData.stats?.urgentes ?? 0
+              prospectos_aprobacion_urgentes: aprobacionData.stats?.urgentes ?? 0,
+              proximos_hacia_academica: aprobacionData.stats?.proximos?.hacia_academica ?? 0,
+              proximos_hacia_financiera: aprobacionData.stats?.proximos?.hacia_financiera ?? 0,
+              proximos_hacia_credenciales: aprobacionData.stats?.proximos?.hacia_credenciales ?? 0,
             }
           } : prev)
         } catch (e) {
