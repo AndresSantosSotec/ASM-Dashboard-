@@ -461,7 +461,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
         anioGraduacion: datosAcademicos.añoGraduacion || null,
         cantidadCursosAprobados: datosAcademicos.cursosAprobados || null,
         diaEstudio: datosAcademicos.diaEstudio || null,
-        // Datos financieros
+        // Datos financieros del prospecto (solo método de pago y convenio van a prospectos)
         metodoPago: datosFinancieros.formaPago || null,
         convenioId: datosFinancieros.convenioId || null,
         // Datos laborales
@@ -484,6 +484,53 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
       if (!res.ok) {
         const errorMsg = body.messages?.correoElectronico?.[0] || body.message || `Error ${res.status}`
         throw new Error(errorMsg)
+      }
+
+      // 🆕 Actualizar datos financieros en estudiante_programa si existe
+      if (estudiantePrograma && datosAcademicos.programa) {
+        try {
+          // Calcular fecha_fin basada en fecha_inicio + duracion_meses
+          const fechaInicio = datosAcademicos.fechaInicio || new Date().toISOString().split('T')[0]
+          const duracionMeses = parseInt(datosFinancieros.cantidadMeses || datosAcademicos.duracion || "12")
+          const fechaFin = new Date(fechaInicio)
+          fechaFin.setMonth(fechaFin.getMonth() + duracionMeses)
+          
+          const payloadFinanciero = {
+            programa_id: parseInt(datosAcademicos.programa),
+            duracion_meses: duracionMeses,
+            fecha_inicio: fechaInicio,
+            fecha_fin: fechaFin.toISOString().split('T')[0],
+            inscripcion: parseFloat(datosFinancieros.inscripcion || "0"),
+            cuota_mensual: parseFloat(datosFinancieros.cuotaMensual || "0"),
+            inversion_total: parseFloat(datosFinancieros.inversionTotal || "0"),
+            convenio_id: datosFinancieros.convenioId || null,
+          }
+
+          const resFinanciero = await fetch(`${API_URL}/estudiante-programa/${estudiantePrograma.id}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(payloadFinanciero),
+          })
+
+          if (!resFinanciero.ok) {
+            const errorData = await resFinanciero.json()
+            console.warn("⚠️ Error actualizando datos financieros:", errorData)
+            // No lanzar error, solo alertar que los datos del prospecto se guardaron pero no los financieros
+            await Swal.fire({
+              icon: "warning",
+              title: "Actualización parcial",
+              text: "Los datos del prospecto se guardaron, pero hubo un error al actualizar los datos financieros. Verifique e intente nuevamente.",
+            })
+          } else {
+            console.log("✅ Datos financieros actualizados correctamente")
+          }
+        } catch (errFinanciero: any) {
+          console.error("❌ Error actualizando datos financieros:", errFinanciero)
+          // No bloquear la actualización del prospecto
+        }
       }
       
       // Invalidar cachés

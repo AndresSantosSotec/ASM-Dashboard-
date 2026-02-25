@@ -218,8 +218,33 @@ export default function BoletaInscripcionUpload({
 
       if (onBoletaSubida) onBoletaSubida()
     } catch (error: any) {
-      console.error("Error al subir boleta:", error)
-      Swal.fire("Error", error.response?.data?.message || "Ocurrió un error al procesar la boleta", "error")
+      console.error("❌ Error al subir boleta:", error)
+      console.error("❌ Error completo:", error.response || error)
+      
+      let errorMessage = "Ocurrió un error al procesar la boleta"
+      
+      if (error.response) {
+        // Error del servidor
+        errorMessage = error.response.data?.message || error.response.data?.error || `Error del servidor: ${error.response.status}`
+        
+        // Si es error 413 (Payload Too Large) o 500, puede ser por tamaño de archivo
+        if (error.response.status === 413 || error.response.status === 500) {
+          errorMessage += "\n\nPosible causa: El archivo es muy grande o el servidor no puede procesarlo. Intente con un archivo más pequeño o en formato PDF comprimido."
+        }
+      } else if (error.request) {
+        // No hay respuesta del servidor
+        errorMessage = "No se pudo conectar con el servidor. Verifique su conexión a internet."
+      } else {
+        // Error al configurar la petición
+        errorMessage = error.message || errorMessage
+      }
+      
+      await Swal.fire({
+        icon: "error",
+        title: "Error al subir boleta",
+        html: `<p>${errorMessage}</p>`,
+        confirmButtonText: "Entendido"
+      })
     } finally {
       setIsUploading(false)
     }
@@ -254,7 +279,7 @@ export default function BoletaInscripcionUpload({
             >
               <Upload className="mx-auto h-16 w-16 text-blue-400" />
               <p className="mt-2 text-sm text-gray-600">Arrastra un archivo o haz clic para seleccionar</p>
-              <p className="text-xs text-gray-500 mt-1">PDF, JPG, PNG (máx. 5MB)</p>
+              <p className="text-xs text-gray-500 mt-1">PDF, JPG, PNG (máx. 100MB)</p>
 
               <input
                 id="comprobante"

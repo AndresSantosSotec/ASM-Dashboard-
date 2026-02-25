@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Swal from "sweetalert2"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle, RefreshCw, Download, MessageCircle } from "lucide-react"
+import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle, RefreshCw, Download, MessageCircle, Trash2, Settings2 } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -32,9 +32,23 @@ import EditarProspectoCompleto from "./editar-prospecto-completo"
 import CambiarEstado from "./cambiar-estado"
 import AlertaAlumnoNuevo from "./alerta-alumno-nuevo"
 import SeguimientoModalPanel from "@/components/seguimiento/seguimiento-modal-panel"
+import SelectorColumnasModal from "./selector-columnas-modal"
 import { API_BASE_URL } from "@/utils/apiConfig"
 
 const API_URL = `${API_BASE_URL}/api`
+
+interface Columna {
+  key: string
+  label: string
+  tipo: "base" | "extra"
+  visible: boolean
+  orden: number
+}
+
+interface ColumnasData {
+  base: Columna[]
+  extra: Columna[]
+}
 
 interface Prospecto {
   id: string
@@ -53,12 +67,33 @@ interface Prospecto {
   pais?: string
   fechaCaptura?: string
   asesor?: string
+  creador?: string
+  creadorId?: string
+  genero?: string
+  correo_corporativo?: string
+  telefono_corporativo?: string
+  modalidad?: string
+  nivel_academico?: string
+  ultimo_titulo_obtenido?: string
+  institucion_titulo?: string
+  carrera_ultimo_titulo?: string
+  anio_graduacion?: string
+  numero_identificacion?: string
+  fecha_nacimiento?: string
+  direccion_residencia?: string
+}
+
+interface Creator {
+  id: number
+  name: string
+  email: string
 }
 
 export default function GestionProspectos() {
   const [mounted, setMounted] = useState(false);
   const [prospectos, setProspectos] = useState<Prospecto[]>([]);
   const [statuses, setStatuses] = useState<string[]>([]);
+  const [creators, setCreators] = useState<Creator[]>([]);
   const [programas, setProgramas] = useState<Record<string, string>>({});
   const [programasLoaded, setProgramasLoaded] = useState(false);
   const [loading, setLoading] = useState(true)
@@ -68,6 +103,11 @@ export default function GestionProspectos() {
   const [showEstadoMenu, setShowEstadoMenu] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [descargandoReporte, setDescargandoReporte] = useState<string | null>(null)
+
+  // 📊 Estados para columnas dinámicas
+  const [columnasDisponibles, setColumnasDisponibles] = useState<ColumnasData | null>(null)
+  const [columnasSeleccionadas, setColumnasSeleccionadas] = useState<string[]>([])
+  const [mostrarSelectorColumnas, setMostrarSelectorColumnas] = useState(false)
 
   // Descargar reporte consolidado PDF de un prospecto
   const handleDescargarReporte = async (prospectoId: string) => {
@@ -115,6 +155,7 @@ export default function GestionProspectos() {
   const [departamentoFilter, setDepartamentoFilter] = useState<string>("todos")
   const [puestoFilter, setPuestoFilter] = useState<string>("todos")
   const [origenFilter, setOrigenFilter] = useState<string>("todos")
+  const [creadorFilter, setCreadorFilter] = useState<string>("todos")
   const [pageSize, setPageSize] = useState<string>("50")
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [totalProspectos, setTotalProspectos] = useState<number>(0)
@@ -195,7 +236,52 @@ export default function GestionProspectos() {
         console.error("Error cargando estados:", err)
       }
     }
+    
+    // Cargar creadores (usuarios que han creado prospectos)
+    const fetchCreators = async () => {
+      try {
+        const token = localStorage.getItem("token")
+        const res = await fetch(`${API_URL}/prospectos/creators`, {
+          headers: { Authorization: token ? `Bearer ${token}` : "" },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setCreators(data)
+        }
+      } catch (err) {
+        console.error("Error cargando creadores:", err)
+      }
+    }
+    
+    // 📊 Cargar columnas disponibles
+    const fetchColumnas = async () => {
+      try {
+        const token = localStorage.getItem("token")
+        const res = await fetch(`${API_URL}/prospectos/columnas-disponibles`, {
+          headers: { Authorization: token ? `Bearer ${token}` : "" },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setColumnasDisponibles(data.data)
+          
+          // Cargar columnas seleccionadas desde localStorage o usar defaults
+          const savedColumns = localStorage.getItem("gestion_prospectos_columnas")
+          if (savedColumns) {
+            setColumnasSeleccionadas(JSON.parse(savedColumns))
+          } else {
+            // Por defecto: solo columnas base
+            const baseKeys = data.data.base.map((c: Columna) => c.key)
+            setColumnasSeleccionadas(baseKeys)
+          }
+        }
+      } catch (err) {
+        console.error("Error cargando columnas:", err)
+      }
+    }
+    
     fetchStatuses()
+    fetchCreators()
+    fetchColumnas()
   }, []);
 
   // 📚 Cargar programas académicos
@@ -234,7 +320,8 @@ export default function GestionProspectos() {
 
     // Verificar caché solo si no hay filtros activos y no es refresh
     if (!resetCache && !debouncedSearchTerm && estadoFilter === "todos" &&
-      departamentoFilter === "todos" && puestoFilter === "todos" && origenFilter === "todos" && page === 1) {
+      departamentoFilter === "todos" && puestoFilter === "todos" && origenFilter === "todos" && 
+      creadorFilter === "todos" && page === 1) {
       if (typeof window !== "undefined") {
         const cached = localStorage.getItem("gestion_prospectos_cache");
         const cacheTime = localStorage.getItem("gestion_prospectos_cache_time");
@@ -272,6 +359,7 @@ export default function GestionProspectos() {
       if (departamentoFilter !== "todos") params.append("departamento", departamentoFilter)
       if (puestoFilter !== "todos") params.append("puesto", puestoFilter)
       if (origenFilter !== "todos") params.append("origen", origenFilter)
+      if (creadorFilter !== "todos") params.append("created_by", creadorFilter)
 
       const res = await fetch(`${API_URL}/prospectos?${params.toString()}`, {
         headers: {
@@ -313,6 +401,20 @@ export default function GestionProspectos() {
           pais: item.pais_nombre || item.pais || "—",
           fechaCaptura: item.created_at ?? "—",
           asesor: item.creator ? `${item.creator.first_name || ""} ${item.creator.last_name || ""}`.trim() : "Sin asignar",
+          creador: item.creator ? `${item.creator.first_name || ""} ${item.creator.last_name || ""}`.trim() : "Sin asignar",
+          creadorId: item.created_by ? String(item.created_by) : undefined,
+          genero: item.genero ?? "—",
+          correo_corporativo: item.correo_corporativo ?? "—",
+          telefono_corporativo: item.telefono_corporativo ?? "—",
+          modalidad: item.modalidad ?? "—",
+          nivel_academico: item.nivel_academico ?? "—",
+          ultimo_titulo_obtenido: item.ultimo_titulo_obtenido ?? "—",
+          institucion_titulo: item.institucion_titulo ?? "—",
+          carrera_ultimo_titulo: item.carrera_ultimo_titulo ?? "—",
+          anio_graduacion: item.anio_graduacion ? String(item.anio_graduacion) : "—",
+          numero_identificacion: item.numero_identificacion ?? "—",
+          fecha_nacimiento: item.fecha_nacimiento ?? "—",
+          direccion_residencia: item.direccion_residencia ?? "—",
         };
       })
 
@@ -326,7 +428,8 @@ export default function GestionProspectos() {
 
       // 💾 Guardar en caché solo si es primera página sin filtros
       if (page === 1 && !debouncedSearchTerm && estadoFilter === "todos" &&
-        departamentoFilter === "todos" && puestoFilter === "todos" && origenFilter === "todos") {
+        departamentoFilter === "todos" && puestoFilter === "todos" && origenFilter === "todos" &&
+        creadorFilter === "todos") {
         if (typeof window !== "undefined") {
           localStorage.setItem("gestion_prospectos_cache", JSON.stringify({
             items: list,
@@ -340,7 +443,7 @@ export default function GestionProspectos() {
     } finally {
       setLoading(false)
     }
-  }, [programasLoaded, debouncedSearchTerm, estadoFilter, departamentoFilter, puestoFilter, origenFilter, pageSize])
+  }, [programasLoaded, debouncedSearchTerm, estadoFilter, departamentoFilter, puestoFilter, origenFilter, creadorFilter, pageSize])
 
   // ⚡ Cargar prospectos cuando cambian los filtros
   useEffect(() => {
@@ -447,6 +550,76 @@ export default function GestionProspectos() {
     }
   }
 
+  // 📊 Handler para cambio de columnas
+  const handleColumnasChange = (columnas: string[]) => {
+    setColumnasSeleccionadas(columnas)
+    // Persistir en localStorage
+    localStorage.setItem("gestion_prospectos_columnas", JSON.stringify(columnas))
+  }
+
+  // 📊 Obtener label de columna
+  const getLabelColumna = (key: string): string => {
+    if (!columnasDisponibles) return key
+    
+    const columnaBase = columnasDisponibles.base.find(c => c.key === key)
+    if (columnaBase) return columnaBase.label
+    
+    const columnaExtra = columnasDisponibles.extra.find(c => c.key === key)
+    if (columnaExtra) return columnaExtra.label
+    
+    return key
+  }
+
+  // 📊 Renderizar celda dinámica
+  const renderCelda = (prospecto: Prospecto, columnaKey: string) => {
+    // Mapping de keys de columnas a propiedades del prospecto
+    const fieldMap: Record<string, keyof Prospecto | ((p: Prospecto) => any)> = {
+      'id': 'id',
+      'nombre_completo': 'nombre',
+      'correo_electronico': 'email',
+      'telefono': 'telefono',
+      'status': 'estado',
+      'created_by': 'creador',
+      'fecha': 'fechaCaptura',
+      'genero': 'genero',
+      'interes': 'programa',
+      'pais_residencia': 'pais',
+      'municipio_nombre': 'ciudad',
+      'empresa_donde_labora_actualmente': 'departamento',
+      'puesto': 'puesto',
+      'medio_conocimiento_institucion': 'origen',
+      'correo_corporativo': 'correo_corporativo',
+      'telefono_corporativo': 'telefono_corporativo',
+      'modalidad': 'modalidad',
+      'nivel_academico': 'nivel_academico',
+      'ultimo_titulo_obtenido': 'ultimo_titulo_obtenido',
+      'institucion_titulo': 'institucion_titulo',
+      'carrera_ultimo_titulo': 'carrera_ultimo_titulo',
+      'anio_graduacion': 'anio_graduacion',
+      'numero_identificacion': 'numero_identificacion',
+      'fecha_nacimiento': 'fecha_nacimiento',
+      'direccion_residencia': 'direccion_residencia',
+      'observaciones': 'observaciones',
+      'notas_generales': 'notasGenerales',
+    }
+
+    const fieldKey = fieldMap[columnaKey]
+    if (!fieldKey) return '—'
+
+    const valor = typeof fieldKey === 'function' ? fieldKey(prospecto) : prospecto[fieldKey]
+    
+    // Formateo especial para fechas
+    if (columnaKey.includes('fecha') && valor) {
+      try {
+        return new Date(valor as string).toLocaleDateString()
+      } catch {
+        return valor || '—'
+      }
+    }
+
+    return valor || '—'
+  }
+
   // ⚡ Invalidar caché cuando se actualiza un prospecto
   const handleUpdateProspecto = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -545,6 +718,44 @@ export default function GestionProspectos() {
     }
   };
 
+  // Eliminar prospecto (solo para administradores)
+  const handleDeleteProspecto = async (id: string) => {
+    const result = await Swal.fire({
+      title: '¿Eliminar prospecto?',
+      text: 'Esta acción no se puede deshacer. ¿Estás seguro?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/prospectos/${id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+
+      // Remover del estado local
+      setProspectos((ps) => ps.filter((p) => p.id !== id));
+      
+      // Invalidar caché
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("gestion_prospectos_cache");
+        localStorage.removeItem("gestion_prospectos_cache_time");
+      }
+      
+      Swal.fire('¡Eliminado!', 'El prospecto ha sido eliminado.', 'success');
+    } catch (err: any) {
+      Swal.fire('Error', err.message || 'No se pudo eliminar el prospecto', 'error');
+    }
+  };
+
 
   return (
     <div className="bg-white rounded-lg shadow">
@@ -639,6 +850,38 @@ export default function GestionProspectos() {
           </SelectContent>
         </Select>
 
+        {currentUser?.rol === "administrador" && (
+          <Select
+            value={creadorFilter}
+            onValueChange={(v) => {
+              setCreadorFilter(v)
+              setCurrentPage(1)
+            }}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Creado por" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              {creators.map((c) => (
+                <SelectItem key={c.id} value={String(c.id)}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        {/* 📊 Botón de configuración de columnas */}
+        <Button
+          variant="outline"
+          onClick={() => setMostrarSelectorColumnas(true)}
+          title="Configurar columnas visibles"
+        >
+          <Settings2 className="h-4 w-4 mr-2" />
+          Columnas
+        </Button>
+
         <Button variant="outline">
           <Filter className="h-4 w-4 mr-2" />
           Filtros
@@ -704,12 +947,11 @@ export default function GestionProspectos() {
                     onCheckedChange={(c) => handleSelectAll(c as boolean)}
                   />
                 </th>
-                <th className="py-3 px-4 text-left">Nombre</th>
-                <th className="py-3 px-4 text-left">Email</th>
-                <th className="py-3 px-4 text-left">Teléfono</th>
-                <th className="py-3 px-4 text-left">Empresa</th>
-                <th className="py-3 px-4 text-left">Puesto</th>
-                <th className="py-3 px-4 text-left">Origen</th>
+                {columnasSeleccionadas.map((columnaKey) => (
+                  <th key={columnaKey} className="py-3 px-4 text-left">
+                    {getLabelColumna(columnaKey)}
+                  </th>
+                ))}
                 <th className="py-3 px-4 text-left">Notas</th>
                 <th className="py-3 px-4 text-left">Estado</th>
                 <th className="py-3 px-4 text-left">Acciones</th>
@@ -724,12 +966,13 @@ export default function GestionProspectos() {
                       onCheckedChange={(c) => handleSelectOne(p.id, c as boolean)}
                     />
                   </td>
-                  <td className="py-3 px-4">{p.nombre}</td>
-                  <td className="py-3 px-4">{p.email}</td>
-                  <td className="py-3 px-4">{p.telefono}</td>
-                  <td className="py-3 px-4">{p.departamento}</td>
-                  <td className="py-3 px-4">{p.puesto}</td>
-                  <td className="py-3 px-4">{p.origen}</td>
+                  {/* Columnas dinámicas */}
+                  {columnasSeleccionadas.map((columnaKey) => (
+                    <td key={columnaKey} className="py-3 px-4">
+                      {renderCelda(p, columnaKey)}
+                    </td>
+                  ))}
+                  {/* Notas (siempre visible) */}
                   <td className="py-3 px-4">
                     <TooltipProvider>
                       <Tooltip>
@@ -764,6 +1007,7 @@ export default function GestionProspectos() {
                       </Tooltip>
                     </TooltipProvider>
                   </td>
+                  {/* Estado (siempre visible) */}
                   <td className="py-3 px-4">
                     <div className="flex flex-col">
                       <span
@@ -778,6 +1022,7 @@ export default function GestionProspectos() {
                       </span>
                     </div>
                   </td>
+                  {/* Acciones (siempre visible) */}
                   <td className="py-3 px-4">
                     <TooltipProvider>
                       <div className="flex items-center gap-2">
@@ -913,6 +1158,15 @@ export default function GestionProspectos() {
                                 <Download className="h-4 w-4 mr-2" />
                                 {descargandoReporte === p.id ? "Descargando..." : "Descargar Reporte PDF"}
                               </DropdownMenuItem>
+                              {currentUser?.rol === "administrador" && (
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteProspecto(p.id)}
+                                  className="text-red-600 focus:text-red-700"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Eliminar Prospecto
+                                </DropdownMenuItem>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                           <TooltipContent>Más acciones</TooltipContent>
@@ -924,7 +1178,7 @@ export default function GestionProspectos() {
               ))}
               {paginatedProspectos.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="py-4 text-center text-gray-500">
+                  <td colSpan={16} className="py-4 text-center text-gray-500">
                     No se encontraron prospectos.
                   </td>
                 </tr>
@@ -1033,6 +1287,15 @@ export default function GestionProspectos() {
           }}
         />
       )}
+
+      {/* 📊 Modal de Configuración de Columnas */}
+      <SelectorColumnasModal
+        open={mostrarSelectorColumnas}
+        onClose={() => setMostrarSelectorColumnas(false)}
+        columnasDisponibles={columnasDisponibles}
+        columnasSeleccionadas={columnasSeleccionadas}
+        onChange={handleColumnasChange}
+      />
     </div>
   )
 }

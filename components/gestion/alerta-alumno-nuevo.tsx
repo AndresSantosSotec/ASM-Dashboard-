@@ -177,6 +177,58 @@ export default function AlertaAlumnoNuevo({
             : "",
         }))
 
+        // 🆕 Cargar documentos del prospecto (especialmente boleta de inscripción)
+        try {
+          const resDocumentos = await fetch(`${API_URL}/documentos/prospecto/${prospectoId}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          })
+
+          if (resDocumentos.ok) {
+            const documentos = await resDocumentos.json()
+            
+            // Buscar documento de tipo "inscripcion"
+            const boletaInscripcion = documentos.find((doc: any) => 
+              doc.tipo_documento === "inscripcion" || doc.tipo_documento === "inscripción"
+            )
+
+            if (boletaInscripcion) {
+              console.log("✅ Boleta de inscripción encontrada:", boletaInscripcion)
+              
+              // Parsear metadata si existe
+              let metadata = null
+              if (boletaInscripcion.metadata) {
+                try {
+                  metadata = typeof boletaInscripcion.metadata === 'string' 
+                    ? JSON.parse(boletaInscripcion.metadata) 
+                    : boletaInscripcion.metadata
+                } catch (e) {
+                  console.warn("⚠️ No se pudo parsear metadata:", e)
+                }
+              }
+
+              // Cargar datos de la boleta en el estado
+              if (metadata) {
+                setBoletaData({
+                  numeroBoleta: metadata.numero_boleta || "",
+                  banco: metadata.banco || "",
+                  monto: metadata.monto || (montoInscripcion > 0 ? montoInscripcion.toString() : ""),
+                  fechaRecibo: metadata.fecha_recibo || "",
+                  archivo: null, // El archivo ya está subido
+                })
+                setBoletaSubida(true) // Marcar como ya subida
+                console.log("✅ Datos de boleta cargados desde documento existente")
+              }
+            } else {
+              console.log("ℹ️ No se encontró boleta de inscripción existente")
+            }
+          }
+        } catch (errDocs) {
+          console.warn("⚠️ Error cargando documentos (no crítico):", errDocs)
+          // No bloquear el flujo si falla la carga de documentos
+        }
+
         // Validar datos mínimos después de cargar los datos
         await validarDatosMinimos()
 
@@ -1501,13 +1553,45 @@ export default function AlertaAlumnoNuevo({
             </Alert>
 
             {boletaSubida ? (
-              <div className="bg-green-50 border-2 border-green-200 rounded-lg p-6">
+              <div className="bg-green-50 border-2 border-green-200 rounded-lg p-6 space-y-4">
                 <div className="flex items-center gap-3 text-green-700">
                   <CheckCircle className="h-6 w-6" />
                   <div>
                     <p className="font-semibold">Boleta de inscripción registrada</p>
                     <p className="text-sm">El comprobante fue guardado correctamente</p>
                   </div>
+                </div>
+                
+                {/* Mostrar datos de la boleta cargada */}
+                <div className="mt-4 grid grid-cols-2 gap-4 bg-white rounded-lg p-4">
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">Número de Boleta</p>
+                    <p className="text-sm font-semibold text-gray-800">{boletaData.numeroBoleta || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">Banco</p>
+                    <p className="text-sm font-semibold text-gray-800">{boletaData.banco || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">Monto</p>
+                    <p className="text-sm font-semibold text-gray-800">Q {boletaData.monto || montoInscripcion}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">Fecha del Recibo</p>
+                    <p className="text-sm font-semibold text-gray-800">{boletaData.fechaRecibo || "N/A"}</p>
+                  </div>
+                </div>
+                
+                <div className="mt-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setBoletaSubida(false)}
+                    className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Modificar boleta
+                  </Button>
                 </div>
               </div>
             ) : (
