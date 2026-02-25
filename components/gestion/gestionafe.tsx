@@ -81,8 +81,6 @@ interface Prospecto {
   numero_identificacion?: string
   fecha_nacimiento?: string
   direccion_residencia?: string
-  // ✨ Permitir cualquier propiedad adicional para columnas dinámicas
-  [key: string]: any
 }
 
 interface Creator {
@@ -377,7 +375,7 @@ export default function GestionProspectos() {
 
       const json = await res.json()
 
-      // ⚡ Mapear datos de forma DINÁMICA - Incluye TODOS los campos del backend
+      // ⚡ Mapear datos de forma optimizada
       const list: Prospecto[] = (json.data || []).map((item: any) => {
         let programaNombre = "—";
         if (item.interes && programas[item.interes]) {
@@ -386,10 +384,7 @@ export default function GestionProspectos() {
           programaNombre = `Programa ${item.interes}`;
         }
 
-        // ✨ Spread operator para incluir TODOS los campos del backend dinámicamente
-        const prospecto: Prospecto = {
-          ...item, // Incluye todos los campos del backend
-          // Mapeos específicos para compatibilidad con código existente
+        return {
           id: String(item.id),
           nombre: item.nombre_completo || "",
           email: item.correo_electronico || "",
@@ -408,9 +403,19 @@ export default function GestionProspectos() {
           asesor: item.creator ? `${item.creator.first_name || ""} ${item.creator.last_name || ""}`.trim() : "Sin asignar",
           creador: item.creator ? `${item.creator.first_name || ""} ${item.creator.last_name || ""}`.trim() : "Sin asignar",
           creadorId: item.created_by ? String(item.created_by) : undefined,
+          genero: item.genero ?? "—",
+          correo_corporativo: item.correo_corporativo ?? "—",
+          telefono_corporativo: item.telefono_corporativo ?? "—",
+          modalidad: item.modalidad ?? "—",
+          nivel_academico: item.nivel_academico ?? "—",
+          ultimo_titulo_obtenido: item.ultimo_titulo_obtenido ?? "—",
+          institucion_titulo: item.institucion_titulo ?? "—",
+          carrera_ultimo_titulo: item.carrera_ultimo_titulo ?? "—",
+          anio_graduacion: item.anio_graduacion ? String(item.anio_graduacion) : "—",
+          numero_identificacion: item.numero_identificacion ?? "—",
+          fecha_nacimiento: item.fecha_nacimiento ?? "—",
+          direccion_residencia: item.direccion_residencia ?? "—",
         };
-
-        return prospecto;
       })
 
       setProspectos(list)
@@ -565,58 +570,51 @@ export default function GestionProspectos() {
     return key
   }
 
-  // 📊 Renderizar celda dinámica - Soporta CUALQUIER columna del backend
+  // 📊 Renderizar celda dinámica
   const renderCelda = (prospecto: Prospecto, columnaKey: string) => {
-    // Mapeos especiales para campos con nombres diferentes en frontend vs backend
-    const fieldMap: Record<string, string> = {
+    // Mapping de keys de columnas a propiedades del prospecto
+    const fieldMap: Record<string, keyof Prospecto | ((p: Prospecto) => any)> = {
+      'id': 'id',
       'nombre_completo': 'nombre',
       'correo_electronico': 'email',
+      'telefono': 'telefono',
       'status': 'estado',
       'created_by': 'creador',
-      'medio_conocimiento_institucion': 'origen',
-      'empresa_donde_labora_actualmente': 'departamento',
-      'municipio_nombre': 'ciudad',
-      'pais_nombre': 'pais',
-      'pais_residencia': 'pais',
+      'fecha': 'fechaCaptura',
+      'genero': 'genero',
       'interes': 'programa',
+      'pais_residencia': 'pais',
+      'municipio_nombre': 'ciudad',
+      'empresa_donde_labora_actualmente': 'departamento',
+      'puesto': 'puesto',
+      'medio_conocimiento_institucion': 'origen',
+      'correo_corporativo': 'correo_corporativo',
+      'telefono_corporativo': 'telefono_corporativo',
+      'modalidad': 'modalidad',
+      'nivel_academico': 'nivel_academico',
+      'ultimo_titulo_obtenido': 'ultimo_titulo_obtenido',
+      'institucion_titulo': 'institucion_titulo',
+      'carrera_ultimo_titulo': 'carrera_ultimo_titulo',
+      'anio_graduacion': 'anio_graduacion',
+      'numero_identificacion': 'numero_identificacion',
+      'fecha_nacimiento': 'fecha_nacimiento',
+      'direccion_residencia': 'direccion_residencia',
+      'observaciones': 'observaciones',
       'notas_generales': 'notasGenerales',
     }
 
-    // Determinar el campo real a buscar
-    const campoReal = fieldMap[columnaKey] || columnaKey
-    
-    // Obtener valor del prospecto (primero intenta el mapeo, luego directamente)
-    let valor = prospecto[campoReal] !== undefined ? prospecto[campoReal] : prospecto[columnaKey]
-    
-    // Si aún no hay valor, intentar acceso directo por la key original
-    if (valor === undefined || valor === null) {
-      valor = '—'
-    }
+    const fieldKey = fieldMap[columnaKey]
+    if (!fieldKey) return '—'
+
+    const valor = typeof fieldKey === 'function' ? fieldKey(prospecto) : prospecto[fieldKey]
     
     // Formateo especial para fechas
-    if ((columnaKey.includes('fecha') || columnaKey.includes('_at')) && valor && valor !== '—') {
+    if (columnaKey.includes('fecha') && valor) {
       try {
-        const fecha = new Date(valor)
-        if (!isNaN(fecha.getTime())) {
-          return fecha.toLocaleDateString('es-GT', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-          })
-        }
+        return new Date(valor as string).toLocaleDateString()
       } catch {
-        return valor
+        return valor || '—'
       }
-    }
-
-    // Formateo especial para booleanos
-    if (typeof valor === 'boolean') {
-      return valor ? 'Sí' : 'No'
-    }
-
-    // Formateo especial para números
-    if (typeof valor === 'number') {
-      return valor.toString()
     }
 
     return valor || '—'
