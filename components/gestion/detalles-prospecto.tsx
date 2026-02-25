@@ -198,7 +198,7 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
         const carpetaDocs = zip.folder("Documentos")
         const descargas = documentos.map(async (doc: any, idx: number) => {
           try {
-            const resDoc = await fetch(`${API_URL}/documentos/documentos/${doc.id}/file`, { headers })
+            const resDoc = await fetch(`${API_URL}/documentos/${doc.id}/file`, { headers })
             if (resDoc.ok) {
               const blob = await resDoc.blob()
               const nombreArchivo = doc.ruta_archivo
@@ -249,7 +249,7 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
     setDescargandoDoc(doc.id)
     try {
       const token = localStorage.getItem("token")
-      const res = await fetch(`${API_URL}/documentos/documentos/${doc.id}/file`, {
+      const res = await fetch(`${API_URL}/documentos/${doc.id}/file`, {
         headers: { Authorization: token ? `Bearer ${token}` : "" },
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -748,7 +748,7 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
               <ServerFilePreviewModal
                 isOpen={!!previewDoc}
                 onClose={() => setPreviewDoc(null)}
-                fileUrl={previewDoc ? `${API_URL}/documentos/documentos/${previewDoc.id}/file` : null}
+                fileUrl={previewDoc ? `${API_URL}/documentos/${previewDoc.id}/file` : null}
                 fileName={previewDoc?.ruta_archivo?.split("/").pop() || `documento-${previewDoc?.id}`}
                 tipoDocumento={previewDoc?.tipo_documento}
                 estado={previewDoc?.estado}
