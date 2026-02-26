@@ -217,16 +217,21 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           
           setDatosAcademicos(academicosBase)
           
-          // Cargar datos financieros — asegurar tieneConvenio
-          // ✨ NO cargar precios antiguos - solo datos de convenio y forma de pago
+          // Cargar datos financieros — SI tiene ficha, cargar los datos guardados del estudiante
           if (fichaData.financieros) {
-            const { inscripcion, cuotaMensual, inversionTotal, cantidadMeses, ...finSinPrecios } = fichaData.financieros
+            const fin = { ...fichaData.financieros }
             // Derivar tieneConvenio de convenioId
-            if (finSinPrecios.convenioId && !finSinPrecios.tieneConvenio) {
-              finSinPrecios.tieneConvenio = true
+            if (fin.convenioId && !fin.tieneConvenio) {
+              fin.tieneConvenio = true
             }
-            // Los precios se calcularán automáticamente con el useEffect
-            setDatosFinancieros(finSinPrecios)
+            // ✅ Cargar los precios que el estudiante YA tiene registrados
+            console.log("📊 [CON FICHA] Cargando datos financieros del estudiante desde ficha:", {
+              inscripcion: fin.inscripcion,
+              cuotaMensual: fin.cuotaMensual,
+              inversionTotal: fin.inversionTotal,
+              cantidadMeses: fin.cantidadMeses,
+            })
+            setDatosFinancieros(fin)
           }
           
           // Cargar datos laborales
@@ -266,14 +271,27 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           
           setDatosAcademicos(academicosFromProspecto)
           
-          // Financieros del prospecto
+          // Financieros del prospecto - cargar datos del estudiante_programa si existen
           const finFromProspecto: Partial<DatosFinancieros> = {
             formaPago: data.metodo_pago || undefined,
             convenioId: data.convenio_pago_id || undefined,
             tieneConvenio: !!data.convenio_pago_id,
           }
-          // ✨ NO cargar precios antiguos - dejar que el useEffect calcule los precios actuales
-          // Los precios se calcularán automáticamente cuando estén disponibles programa y duración
+          // ✅ Si tiene programa inscrito, cargar los precios que YA pagó el estudiante
+          if (prospectoPrograms.length > 0) {
+            const ep0 = prospectoPrograms[0]
+            if (ep0.inscripcion) finFromProspecto.inscripcion = ep0.inscripcion
+            if (ep0.cuota_mensual) finFromProspecto.cuotaMensual = ep0.cuota_mensual
+            if (ep0.inversion_total) finFromProspecto.inversionTotal = ep0.inversion_total
+            if (ep0.duracion_meses) finFromProspecto.cantidadMeses = ep0.duracion_meses.toString()
+            
+            console.log("📊 [SIN FICHA] Cargando datos financieros del estudiante_programa:", {
+              inscripcion: finFromProspecto.inscripcion,
+              cuotaMensual: finFromProspecto.cuotaMensual,
+              inversionTotal: finFromProspecto.inversionTotal,
+              cantidadMeses: finFromProspecto.cantidadMeses,
+            })
+          }
           setDatosFinancieros(finFromProspecto)
           
           // Laborales del prospecto
@@ -635,8 +653,19 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
   }, [programas])
 
   // Calcular precios cuando cambia el programa académico
+  // ✅ Solo calcular si NO hay datos financieros guardados (inscripción y cuota mensual)
   useEffect(() => {
     if (!datosAcademicos.programa || !datosAcademicos.duracion) {
+      return
+    }
+
+    // ✅ Si ya tiene inscripción y cuota mensual guardadas, NO recalcular
+    // El usuario quiere ver los datos que YA pagó el estudiante
+    if (datosFinancieros.inscripcion && datosFinancieros.cuotaMensual) {
+      console.log("✅ El estudiante ya tiene precios guardados, NO se recalculan:", {
+        inscripcion: datosFinancieros.inscripcion,
+        cuotaMensual: datosFinancieros.cuotaMensual,
+      })
       return
     }
 

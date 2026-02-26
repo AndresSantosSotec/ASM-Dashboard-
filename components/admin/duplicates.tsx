@@ -169,6 +169,126 @@ export default function Duplicates() {
     }
   }
 
+  // 🔥 NUEVA FUNCIÓN: Eliminar TODOS los duplicados pendientes
+  const deleteAllDuplicates = async () => {
+    const pendingCount = allDups.filter(d => d.status === 'pending').length;
+    
+    if (pendingCount === 0) {
+      Swal.fire("Sin duplicados", "No hay duplicados pendientes para eliminar.", "info");
+      return;
+    }
+
+    // Confirmación paso 1: Advertencia general
+    const confirm1 = await Swal.fire({
+      title: `⚠️ ADVERTENCIA CRÍTICA`,
+      html: `
+        <div class="text-left space-y-3">
+          <p class="font-bold text-red-600">Esta acción es IRREVERSIBLE</p>
+          <p>Se eliminarán <strong>${pendingCount} prospectos duplicados</strong> y TODOS sus registros relacionados:</p>
+          <ul class="list-disc pl-5 text-sm bg-red-50 p-3 rounded">
+            <li>Cuotas de pago</li>
+            <li>Programas inscritos (estudiante_programa)</li>
+            <li>Documentos adjuntos</li>
+            <li>Relaciones con cursos</li>
+            <li>Registros de duplicados</li>
+          </ul>
+          <p class="text-sm text-gray-600 mt-3">Se mantendrá ÚNICAMENTE el registro original en cada caso.</p>
+        </div>
+      `,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sí, continuar',
+      cancelButtonText: 'Cancelar',
+      width: 600
+    });
+
+    if (!confirm1.isConfirmed) return;
+
+    // Confirmación paso 2: Escribir para confirmar
+    const confirm2 = await Swal.fire({
+      title: 'Confirmación final',
+      html: `
+        <p class="mb-4">Escribe <strong class="text-red-600">ELIMINAR TODO</strong> para confirmar:</p>
+        <input id="confirm-input" type="text" class="swal2-input" placeholder="ELIMINAR TODO" style="text-transform: uppercase;">
+      `,
+      icon: 'error',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Ejecutar eliminación',
+      cancelButtonText: 'Cancelar',
+      preConfirm: () => {
+        const input = (document.getElementById('confirm-input') as HTMLInputElement)?.value?.toUpperCase();
+        if (input !== 'ELIMINAR TODO') {
+          Swal.showValidationMessage('Debes escribir exactamente "ELIMINAR TODO"');
+          return false;
+        }
+        return true;
+      }
+    });
+
+    if (!confirm2.isConfirmed) return;
+
+    // Ejecutar eliminación
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token") || "";
+      const res = await fetch(`${API_URL}/duplicates/delete-all-duplicates`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.message || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+
+      await fetchDuplicates();
+      setCurrentPage(1);
+      setSelectedIds([]);
+
+      Swal.fire({
+        icon: "success",
+        title: "✅ Eliminación masiva completada",
+        html: `
+          <p class="text-lg font-bold text-green-600">${data.deleted} duplicados eliminados</p>
+          <p class="text-sm text-gray-600 mt-2">Los registros originales se han mantenido intactos.</p>
+        `,
+        confirmButtonText: "Entendido"
+      });
+    } catch (error: any) {
+      console.error("Error eliminando duplicados:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: error.message || "No se pudo completar la eliminación masiva",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Seleccionar todos los de la página actual
+  const selectCurrentPage = () => {
+    const pageIds = paginated.map(d => d.id);
+    setSelectedIds(prev => {
+      const newSet = new Set([...prev, ...pageIds]);
+      return Array.from(newSet);
+    });
+  };
+
+  // Deseleccionar todos
+  const clearSelection = () => {
+    setSelectedIds([]);
+  };
+
   // 2) Acción sobre un duplicado
   const doAction = async (d: Duplicate, action: string, silent = false) => {
     // Determine what is being deleted
@@ -270,11 +390,51 @@ export default function Duplicates() {
     return sorted.slice(start, start + pageSize)
   }, [sorted, pageSize, currentPage])
 
+  // Estadísticas
+  const totalDuplicates = allDups.length;
+  const pendingDuplicates = allDups.filter(d => d.status === 'pending').length;
+  const resolvedDuplicates = allDups.filter(d => d.status === 'resolved').length;
+
   return (
     <div className="space-y-6">
+      {/* Panel de estadísticas */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-blue-600">{totalDuplicates}</div>
+            <p className="text-xs text-muted-foreground">Total duplicados</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-orange-600">{pendingDuplicates}</div>
+            <p className="text-xs text-muted-foreground">Pendientes</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-green-600">{resolvedDuplicates}</div>
+            <p className="text-xs text-muted-foreground">Resueltos</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-purple-600">{filtered.length}</div>
+            <p className="text-xs text-muted-foreground">Filtrados</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card className="shadow">
         <CardHeader className="flex flex-wrap justify-between items-center gap-2">
-          <CardTitle>Registros duplicados</CardTitle>
+          <div className="flex items-center gap-3">
+            <CardTitle>Registros duplicados</CardTitle>
+            {pendingDuplicates > 0 && (
+              <Badge variant="destructive" className="text-xs">
+                {pendingDuplicates} pendientes
+              </Badge>
+            )}
+          </div>
 
           <div className="flex flex-wrap gap-2">
             {/* Buscador libre */}
@@ -362,6 +522,18 @@ export default function Duplicates() {
             <Button variant="outline" onClick={detectDuplicates} disabled={loading}>
               <RefreshCw className="mr-2 h-4 w-4" /> Buscar duplicados
             </Button>
+
+            {/* Botón de eliminación masiva total */}
+            {pendingDuplicates > 0 && (
+              <Button 
+                variant="destructive" 
+                onClick={deleteAllDuplicates} 
+                disabled={loading}
+                className="border-2 border-red-600 font-bold"
+              >
+                🗑️ Eliminar TODOS ({pendingDuplicates})
+              </Button>
+            )}
           </div>
         </CardHeader>
 
@@ -487,15 +659,70 @@ export default function Duplicates() {
                 </Table>
               </div>
 
-              {selectedIds.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 p-4">
-                  <span className="text-sm mr-2">{selectedIds.length} seleccionados</span>
-                  <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => doBulkAction('keep_original')}>Mantener originales</Button>
-                  <Button size="sm" variant="outline" onClick={() => doBulkAction('keep_duplicate')}>Mantener duplicados</Button>
-                  <Button size="sm" variant="destructive" onClick={() => doBulkAction('delete_duplicate')}>Eliminar duplicados</Button>
-                  <Button size="sm" variant="outline" onClick={() => doBulkAction('mark_reviewed')}>Marcar revisados</Button>
+              {/* Barra de acciones masivas */}
+              <div className="flex flex-wrap items-center justify-between gap-2 p-4 bg-gray-50 border-t">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium">
+                    {selectedIds.length > 0 ? (
+                      <Badge variant="secondary" className="text-sm px-3 py-1">
+                        {selectedIds.length} seleccionados
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">Ninguno seleccionado</span>
+                    )}
+                  </span>
+                  
+                  {/* Botones de selección */}
+                  <div className="flex gap-1 ml-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={selectCurrentPage}
+                      disabled={paginated.length === 0}
+                      title="Seleccionar todos los de esta página"
+                    >
+                      Seleccionar página
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={toggleSelectAll}
+                      disabled={filtered.length === 0}
+                      title="Seleccionar/deseleccionar todos los filtrados"
+                    >
+                      {filtered.length > 0 && filtered.every(d => selectedIds.includes(d.id)) ? 'Deseleccionar' : 'Seleccionar'} filtrados ({filtered.length})
+                    </Button>
+                    {selectedIds.length > 0 && (
+                      <Button 
+                        size="sm" 
+                        variant="ghost"
+                        onClick={clearSelection}
+                        title="Limpiar selección"
+                      >
+                        ✕ Limpiar
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              )}
+
+                {/* Acciones masivas */}
+                {selectedIds.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => doBulkAction('keep_original')}>
+                      ✓ Mantener originales
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => doBulkAction('keep_duplicate')}>
+                      Mantener duplicados
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => doBulkAction('delete_duplicate')}>
+                      🗑️ Eliminar duplicados
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => doBulkAction('mark_reviewed')}>
+                      👁️ Marcar revisados
+                    </Button>
+                  </div>
+                )}
+              </div>
 
               {/* Paginación */}
               {pageSize !== 0 && (
