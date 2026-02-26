@@ -127,7 +127,7 @@ export default function ContratoPreviewPage() {
     pendiente: { color: "bg-gray-500", texto: "Pendiente", icon: Clock },
     firmado_asesor: { color: "bg-yellow-500", texto: "Firmado por Asesor", icon: Clock },
     firmado_completo: { color: "bg-green-500", texto: "Firmado Completo", icon: CheckCircle2 },
-  }[contrato.estado_firma] || { color: "bg-gray-500", texto: "Desconocido", icon: Clock }
+  }[contrato.estado_firma ?? ""] || { color: "bg-gray-500", texto: "Desconocido", icon: Clock }
 
   const IconEstado = estadoBadge.icon
 

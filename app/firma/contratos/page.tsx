@@ -101,12 +101,13 @@ export default function ContratosListPage() {
     router.push(`/firma/contratos/${id}`)
   }
 
-  const estadoBadge = (estado: string) => {
+  const estadoBadge = (estado: string | null | undefined) => {
+    const key = estado != null && typeof estado === "string" ? estado : ""
     const config = {
       pendiente: { color: "bg-gray-500", texto: "Pendiente", icon: Clock },
       firmado_asesor: { color: "bg-yellow-500", texto: "Firmado Asesor", icon: Clock },
       firmado_completo: { color: "bg-green-500", texto: "Completo", icon: CheckCircle2 },
-    }[estado] || { color: "bg-gray-500", texto: "Desconocido", icon: XCircle }
+    }[key] || { color: "bg-gray-500", texto: "Desconocido", icon: XCircle }
 
     const Icon = config.icon
 

@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Swal from "sweetalert2"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle, RefreshCw, Download, MessageCircle, Trash2, Settings2 } from "lucide-react"
+import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle, RefreshCw, Download, MessageCircle, Trash2, Settings2, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Search } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -17,8 +17,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
 import {
   Tooltip,
   TooltipContent,
@@ -33,6 +36,7 @@ import CambiarEstado from "./cambiar-estado"
 import AlertaAlumnoNuevo from "./alerta-alumno-nuevo"
 import SeguimientoModalPanel from "@/components/seguimiento/seguimiento-modal-panel"
 import SelectorColumnasModal from "./selector-columnas-modal"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { API_BASE_URL } from "@/utils/apiConfig"
 
 const API_URL = `${API_BASE_URL}/api`
@@ -153,15 +157,28 @@ export default function GestionProspectos() {
   // Filtros y paginación
   const [searchTerm, setSearchTerm] = useState<string>("")
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>("")
-  const [estadoFilter, setEstadoFilter] = useState<string>("todos")
-  const [departamentoFilter, setDepartamentoFilter] = useState<string>("todos")
-  const [puestoFilter, setPuestoFilter] = useState<string>("todos")
-  const [origenFilter, setOrigenFilter] = useState<string>("todos")
-  const [creadorFilter, setCreadorFilter] = useState<string>("todos")
+  const [estadoFilters, setEstadoFilters] = useState<string[]>([])
+  const [departamentoFilters, setDepartamentoFilters] = useState<string[]>([])
+  const [puestoFilters, setPuestoFilters] = useState<string[]>([])
+  const [origenFilters, setOrigenFilters] = useState<string[]>([])
+  const [creadorFilters, setCreadorFilters] = useState<string[]>([])
   const [pageSize, setPageSize] = useState<string>("50")
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [totalProspectos, setTotalProspectos] = useState<number>(0)
   const [totalPages, setTotalPages] = useState<number>(1)
+  // Ordenador
+  const [sortBy, setSortBy] = useState<string>("")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
+  // Buscador dentro de cada filtro multi-select
+  const [searchEstado, setSearchEstado] = useState<string>("")
+  const [searchDepartamento, setSearchDepartamento] = useState<string>("")
+  const [searchPuesto, setSearchPuesto] = useState<string>("")
+  const [searchOrigen, setSearchOrigen] = useState<string>("")
+  const [searchCreador, setSearchCreador] = useState<string>("")
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState<boolean>(true)
+  // Filtros dinámicos por columnas agregadas (key columna -> valores seleccionados)
+  const [dynamicFilters, setDynamicFilters] = useState<Record<string, string[]>>({})
+  const [searchDynamic, setSearchDynamic] = useState<Record<string, string>>({})
 
   // ⚡ Debouncing para búsqueda
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -213,26 +230,132 @@ export default function GestionProspectos() {
         new Set(
           prospectos
             .map((p) => p.origen)
-            .filter((o) => o && o.trim() !== "")
+            .filter((o) => o && o.trim() !== "" && o !== "—")
         )
-      ),
+      ).sort((a, b) => a.localeCompare(b)),
     [prospectos]
+  )
+
+  // Opciones filtradas por buscador (multi-select)
+  const departamentosFiltrados = useMemo(
+    () =>
+      searchDepartamento.trim()
+        ? departamentos.filter((d) =>
+            d != null && String(d).toLowerCase().includes(searchDepartamento.toLowerCase())
+          )
+        : departamentos,
+    [departamentos, searchDepartamento]
+  )
+  const puestosFiltrados = useMemo(
+    () =>
+      searchPuesto.trim()
+        ? puestos.filter((p) =>
+            p != null && String(p).toLowerCase().includes(searchPuesto.toLowerCase())
+          )
+        : puestos,
+    [puestos, searchPuesto]
+  )
+  const origenesFiltrados = useMemo(
+    () =>
+      searchOrigen.trim()
+        ? origenes.filter((o) =>
+            o != null && String(o).toLowerCase().includes(searchOrigen.toLowerCase())
+          )
+        : origenes,
+    [origenes, searchOrigen]
+  )
+  const creatorsFiltrados = useMemo(
+    () =>
+      searchCreador.trim()
+        ? creators.filter(
+            (c) =>
+              (c.name && c.name.toLowerCase().includes(searchCreador.toLowerCase())) ||
+              (c.email && c.email.toLowerCase().includes(searchCreador.toLowerCase()))
+          )
+        : creators,
+    [creators, searchCreador]
+  )
+
+  // Columnas extra seleccionadas (para filtros dinámicos con misma estructura)
+  const columnasExtraParaFiltros = useMemo(() => {
+    if (!columnasDisponibles) return []
+    const baseKeys = new Set(columnasDisponibles.base.map((c) => c.key))
+    return columnasSeleccionadas.filter((key) => !baseKeys.has(key))
+  }, [columnasDisponibles, columnasSeleccionadas])
+
+  // Valores distintos por columna extra (desde datos actuales)
+  const getValorColumna = useCallback((p: Prospecto, columnaKey: string): string => {
+    const fieldMap: Record<string, string> = {
+      nombre_completo: "nombre",
+      correo_electronico: "email",
+      status: "estado",
+      created_by: "creador",
+      medio_conocimiento_institucion: "origen",
+      empresa_donde_labora_actualmente: "departamento",
+      municipio_nombre: "ciudad",
+      pais_nombre: "pais",
+      interes: "programa",
+      notas_generales: "notasGenerales",
+    }
+    const campo = fieldMap[columnaKey] || columnaKey
+    let v = p[campo] ?? p[columnaKey]
+    if (v === undefined || v === null) return ""
+    if (typeof v === "object") return ""
+    return String(v).trim()
+  }, [])
+
+  const valoresPorColumnaExtra = useMemo(() => {
+    const out: Record<string, string[]> = {}
+    columnasExtraParaFiltros.forEach((key) => {
+      const vals = Array.from(
+        new Set(
+          prospectos
+            .map((p) => getValorColumna(p, key))
+            .filter((v) => v !== "" && v !== "—" && v !== "N/A")
+        )
+      ).sort((a, b) => a.localeCompare(b))
+      out[key] = vals
+    })
+    return out
+  }, [columnasExtraParaFiltros, prospectos, getValorColumna])
+
+  // Lista completa de estados: API + los que aparecen en los datos (por si el backend limita por paginación)
+  const statusesCompletos = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...statuses,
+          ...prospectos.map((p) => p.estado).filter((e): e is string => !!e && e.trim() !== ""),
+        ])
+      ).sort((a, b) => a.localeCompare(b)),
+    [statuses, prospectos]
+  )
+
+  // Estados filtrados por buscador (para el selector múltiple)
+  const statusesFiltrados = useMemo(
+    () =>
+      searchEstado.trim()
+        ? statusesCompletos.filter((s) =>
+            s != null && String(s).toLowerCase().includes(searchEstado.toLowerCase())
+          )
+        : statusesCompletos,
+    [statusesCompletos, searchEstado]
   )
 
   // ⚙️ Control de montaje para evitar hidratación
   useEffect(() => {
     setMounted(true);
 
-    // Cargar estados dinámicos
+    // Cargar TODOS los estados (sin límite de paginación)
     const fetchStatuses = async () => {
       try {
         const token = localStorage.getItem("token")
-        const res = await fetch(`${API_URL}/prospectos/statuses`, {
+        const res = await fetch(`${API_URL}/prospectos/statuses?per_page=500`, {
           headers: { Authorization: token ? `Bearer ${token}` : "" },
         })
         if (res.ok) {
           const data = await res.json()
-          setStatuses(data)
+          setStatuses(Array.isArray(data) ? data : data.data ?? data.statuses ?? [])
         }
       } catch (err) {
         console.error("Error cargando estados:", err)
@@ -321,9 +444,14 @@ export default function GestionProspectos() {
     if (!programasLoaded) return;
 
     // Verificar caché solo si no hay filtros activos y no es refresh
-    if (!resetCache && !debouncedSearchTerm && estadoFilter === "todos" &&
-      departamentoFilter === "todos" && puestoFilter === "todos" && origenFilter === "todos" && 
-      creadorFilter === "todos" && page === 1) {
+    const sinFiltrosMulti =
+      estadoFilters.length === 0 &&
+      departamentoFilters.length === 0 &&
+      puestoFilters.length === 0 &&
+      origenFilters.length === 0 &&
+      creadorFilters.length === 0 &&
+      Object.keys(dynamicFilters).every((k) => dynamicFilters[k].length === 0)
+    if (!resetCache && !debouncedSearchTerm && sinFiltrosMulti && page === 1) {
       if (typeof window !== "undefined") {
         const cached = localStorage.getItem("gestion_prospectos_cache");
         const cacheTime = localStorage.getItem("gestion_prospectos_cache_time");
@@ -356,12 +484,23 @@ export default function GestionProspectos() {
         per_page: pageSize === "all" ? "200" : pageSize,
       })
 
-      if (debouncedSearchTerm) params.append("search", debouncedSearchTerm)
-      if (estadoFilter !== "todos") params.append("status", estadoFilter)
-      if (departamentoFilter !== "todos") params.append("departamento", departamentoFilter)
-      if (puestoFilter !== "todos") params.append("puesto", puestoFilter)
-      if (origenFilter !== "todos") params.append("origen", origenFilter)
-      if (creadorFilter !== "todos") params.append("created_by", creadorFilter)
+      if (debouncedSearchTerm) {
+        params.append("search", debouncedSearchTerm)
+        params.append("ignore_case", "1")
+      }
+      // Backend: con ignore_case=1 hacer búsqueda case-insensitive (ILIKE / LOWER(campo) LIKE LOWER(?))
+      if (estadoFilters.length > 0) params.append("status", estadoFilters.join(","))
+      if (departamentoFilters.length > 0) params.append("departamento", departamentoFilters.join(","))
+      if (puestoFilters.length > 0) params.append("puesto", puestoFilters.join(","))
+      if (origenFilters.length > 0) params.append("origen", origenFilters.join(","))
+      if (creadorFilters.length > 0) params.append("created_by", creadorFilters.join(","))
+      Object.entries(dynamicFilters).forEach(([key, vals]) => {
+        if (vals.length > 0) params.append(`filter[${key}]`, vals.join(","))
+      })
+      if (sortBy) {
+        params.append("sort_by", sortBy)
+        params.append("sort_order", sortOrder)
+      }
 
       const res = await fetch(`${API_URL}/prospectos?${params.toString()}`, {
         headers: {
@@ -422,9 +561,7 @@ export default function GestionProspectos() {
       }
 
       // 💾 Guardar en caché solo si es primera página sin filtros
-      if (page === 1 && !debouncedSearchTerm && estadoFilter === "todos" &&
-        departamentoFilter === "todos" && puestoFilter === "todos" && origenFilter === "todos" &&
-        creadorFilter === "todos") {
+      if (page === 1 && !debouncedSearchTerm && sinFiltrosMulti) {
         if (typeof window !== "undefined") {
           localStorage.setItem("gestion_prospectos_cache", JSON.stringify({
             items: list,
@@ -438,7 +575,7 @@ export default function GestionProspectos() {
     } finally {
       setLoading(false)
     }
-  }, [programasLoaded, debouncedSearchTerm, estadoFilter, departamentoFilter, puestoFilter, origenFilter, creadorFilter, pageSize])
+  }, [programasLoaded, debouncedSearchTerm, estadoFilters, departamentoFilters, puestoFilters, origenFilters, creadorFilters, dynamicFilters, pageSize, sortBy, sortOrder])
 
   // ⚡ Cargar prospectos cuando cambian los filtros
   useEffect(() => {
@@ -500,6 +637,7 @@ export default function GestionProspectos() {
 
   // Helpers
   const getEstadoColor = (estado: string) => {
+    if (estado == null || typeof estado !== "string") return "bg-gray-100 text-gray-800"
     switch (estado.toLowerCase()) {
       case "no contactado":
         return "bg-gray-100 text-gray-800"
@@ -545,11 +683,22 @@ export default function GestionProspectos() {
     }
   }
 
-  // 📊 Handler para cambio de columnas
+  // 📊 Handler para cambio de columnas + hot refresh con filtros actuales
   const handleColumnasChange = (columnas: string[]) => {
     setColumnasSeleccionadas(columnas)
-    // Persistir en localStorage
     localStorage.setItem("gestion_prospectos_columnas", JSON.stringify(columnas))
+    fetchProspectos(currentPage, true)
+  }
+
+  // 📊 Ordenar por columna (alterna asc/desc)
+  const handleSort = (columnaKey: string) => {
+    if (sortBy === columnaKey) {
+      setSortOrder((o) => (o === "asc" ? "desc" : "asc"))
+    } else {
+      setSortBy(columnaKey)
+      setSortOrder("asc")
+    }
+    setCurrentPage(1)
   }
 
   // 📊 Obtener label de columna
@@ -761,8 +910,27 @@ export default function GestionProspectos() {
 
   return (
     <div className="bg-white rounded-lg shadow">
-      {/* Filtros */}
-      <div className="p-4 border-b flex flex-wrap gap-4">
+      {/* Panel de Filtros (colapsable) */}
+      <div className="p-4 border-b">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setFiltrosAbiertos((v) => !v)}
+            className="gap-2"
+          >
+            <Filter className="h-4 w-4" />
+            Filtros
+            {filtrosAbiertos ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+          {(estadoFilters.length > 0 || departamentoFilters.length > 0 || puestoFilters.length > 0 || origenFilters.length > 0 || creadorFilters.length > 0 || Object.values(dynamicFilters).some((arr) => arr.length > 0)) && (
+            <Badge variant="secondary">
+              Filtros activos
+            </Badge>
+          )}
+        </div>
+        {filtrosAbiertos && (
+        <div className="flex flex-wrap gap-4">
         <Input
           placeholder="Buscar prospectos..."
           className="max-w-xs"
@@ -773,106 +941,191 @@ export default function GestionProspectos() {
           }}
         />
 
-        <Select
-          value={estadoFilter}
-          onValueChange={(v) => {
-            setEstadoFilter(v)
-            setCurrentPage(1)
-          }}
-        >
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Estado" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos</SelectItem>
-            {statuses.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Selector múltiple de Estados con buscador */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="w-[200px] justify-between">
+              <span className="truncate">
+                {estadoFilters.length === 0
+                  ? "Todos los estados"
+                  : `Estados (${estadoFilters.length})`}
+              </span>
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-[240px] p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
+            <div className="p-2 border-b">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar estado..."
+                  className="pl-8 h-9"
+                  value={searchEstado}
+                  onChange={(e) => setSearchEstado(e.target.value)}
+                  onKeyDown={(e) => e.stopPropagation()}
+                />
+              </div>
+            </div>
+            <DropdownMenuSeparator />
+            <ScrollArea className="h-[280px]">
+              {statusesFiltrados.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">Sin resultados</p>
+              ) : (
+                statusesFiltrados.map((s) => (
+                  <DropdownMenuCheckboxItem
+                    key={s}
+                    checked={estadoFilters.includes(s)}
+                    onCheckedChange={(checked) => {
+                      setEstadoFilters((prev) =>
+                        checked ? [...prev, s] : prev.filter((x) => x !== s)
+                      )
+                      setCurrentPage(1)
+                    }}
+                  >
+                    {s}
+                  </DropdownMenuCheckboxItem>
+                ))
+              )}
+            </ScrollArea>
+            {estadoFilters.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <div className="p-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-xs"
+                    onClick={() => {
+                      setEstadoFilters([])
+                      setCurrentPage(1)
+                    }}
+                  >
+                    Limpiar selección
+                  </Button>
+                </div>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
-        <Select
-          value={departamentoFilter}
-          onValueChange={(v) => {
-            setDepartamentoFilter(v)
-            setCurrentPage(1)
-          }}
-        >
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Departamento" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos</SelectItem>
-            {departamentos.filter(d => d && d.trim() !== "").map((d) => (
-              <SelectItem key={d} value={d}>
-                {d}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Departamento: multi-select con buscador */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="w-[200px] justify-between">
+              <span className="truncate">
+                {departamentoFilters.length === 0 ? "Todos departamentos" : `Depart. (${departamentoFilters.length})`}
+              </span>
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-[240px] p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
+            <div className="p-2 border-b">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Buscar..." className="pl-8 h-9" value={searchDepartamento} onChange={(e) => setSearchDepartamento(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
+              </div>
+            </div>
+            <DropdownMenuSeparator />
+            <ScrollArea className="h-[220px]">
+              {departamentosFiltrados.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">Sin resultados</p> : departamentosFiltrados.map((d) => (
+                <DropdownMenuCheckboxItem key={d} checked={departamentoFilters.includes(d)} onCheckedChange={(checked) => { setDepartamentoFilters((prev) => (checked ? [...prev, d] : prev.filter((x) => x !== d))); setCurrentPage(1) }}>{d}</DropdownMenuCheckboxItem>
+              ))}
+            </ScrollArea>
+            {departamentoFilters.length > 0 && (
+              <div className="p-2 border-t"><Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setDepartamentoFilters([]); setCurrentPage(1) }}>Limpiar</Button></div>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
-        <Select
-          value={puestoFilter}
-          onValueChange={(v) => {
-            setPuestoFilter(v)
-            setCurrentPage(1)
-          }}
-        >
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Puesto" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos</SelectItem>
-            {puestos.filter(p => p && p.trim() !== "" && p !== "N/A").map((p) => (
-              <SelectItem key={p} value={p}>
-                {p}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={origenFilter}
-          onValueChange={(v) => {
-            setOrigenFilter(v)
-            setCurrentPage(1)
-          }}
-        >
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Origen" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos</SelectItem>
-            {origenes.filter(o => o && o.trim() !== "" && o !== "—").map((o) => (
-              <SelectItem key={o} value={o}>
-                {o}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Puesto: multi-select con buscador */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="w-[200px] justify-between">
+              <span className="truncate">{puestoFilters.length === 0 ? "Todos puestos" : `Puestos (${puestoFilters.length})`}</span>
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-[240px] p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
+            <div className="p-2 border-b"><div className="relative"><Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Buscar..." className="pl-8 h-9" value={searchPuesto} onChange={(e) => setSearchPuesto(e.target.value)} onKeyDown={(e) => e.stopPropagation()} /></div></div>
+            <DropdownMenuSeparator />
+            <ScrollArea className="h-[220px]">
+              {puestosFiltrados.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">Sin resultados</p> : puestosFiltrados.map((p) => (
+                <DropdownMenuCheckboxItem key={p} checked={puestoFilters.includes(p)} onCheckedChange={(checked) => { setPuestoFilters((prev) => (checked ? [...prev, p] : prev.filter((x) => x !== p))); setCurrentPage(1) }}>{p}</DropdownMenuCheckboxItem>
+              ))}
+            </ScrollArea>
+            {puestoFilters.length > 0 && <div className="p-2 border-t"><Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setPuestoFilters([]); setCurrentPage(1) }}>Limpiar</Button></div>}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Origen: multi-select con buscador */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="w-[200px] justify-between">
+              <span className="truncate">{origenFilters.length === 0 ? "Todos orígenes" : `Orígenes (${origenFilters.length})`}</span>
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-[240px] p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
+            <div className="p-2 border-b"><div className="relative"><Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Buscar..." className="pl-8 h-9" value={searchOrigen} onChange={(e) => setSearchOrigen(e.target.value)} onKeyDown={(e) => e.stopPropagation()} /></div></div>
+            <DropdownMenuSeparator />
+            <ScrollArea className="h-[220px]">
+              {origenesFiltrados.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">Sin resultados</p> : origenesFiltrados.map((o) => (
+                <DropdownMenuCheckboxItem key={o} checked={origenFilters.includes(o)} onCheckedChange={(checked) => { setOrigenFilters((prev) => (checked ? [...prev, o] : prev.filter((x) => x !== o))); setCurrentPage(1) }}>{o}</DropdownMenuCheckboxItem>
+              ))}
+            </ScrollArea>
+            {origenFilters.length > 0 && <div className="p-2 border-t"><Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setOrigenFilters([]); setCurrentPage(1) }}>Limpiar</Button></div>}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {currentUser?.rol === "administrador" && (
-          <Select
-            value={creadorFilter}
-            onValueChange={(v) => {
-              setCreadorFilter(v)
-              setCurrentPage(1)
-            }}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Creado por" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos</SelectItem>
-              {creators.map((c) => (
-                <SelectItem key={c.id} value={String(c.id)}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="w-[200px] justify-between">
+                <span className="truncate">{creadorFilters.length === 0 ? "Todos creadores" : `Creadores (${creadorFilters.length})`}</span>
+                <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[240px] p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
+              <div className="p-2 border-b"><div className="relative"><Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Buscar..." className="pl-8 h-9" value={searchCreador} onChange={(e) => setSearchCreador(e.target.value)} onKeyDown={(e) => e.stopPropagation()} /></div></div>
+              <DropdownMenuSeparator />
+              <ScrollArea className="h-[220px]">
+                {creatorsFiltrados.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">Sin resultados</p> : creatorsFiltrados.map((c) => (
+                  <DropdownMenuCheckboxItem key={c.id} checked={creadorFilters.includes(String(c.id))} onCheckedChange={(checked) => { setCreadorFilters((prev) => (checked ? [...prev, String(c.id)] : prev.filter((x) => x !== String(c.id)))); setCurrentPage(1) }}>{c.name}</DropdownMenuCheckboxItem>
+                ))}
+              </ScrollArea>
+              {creadorFilters.length > 0 && <div className="p-2 border-t"><Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setCreadorFilters([]); setCurrentPage(1) }}>Limpiar</Button></div>}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
+
+        {/* Filtros dinámicos por columnas agregadas */}
+        {columnasExtraParaFiltros.map((colKey) => {
+          const opts = valoresPorColumnaExtra[colKey] ?? []
+          const selected = dynamicFilters[colKey] ?? []
+          const searchVal = searchDynamic[colKey] ?? ""
+          const setSearchVal = (v: string) => setSearchDynamic((prev) => ({ ...prev, [colKey]: v }))
+          const filtrados = searchVal.trim() ? opts.filter((o) => (o != null && String(o).toLowerCase().includes(searchVal.toLowerCase()))) : opts
+          return (
+            <DropdownMenu key={colKey}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-[180px] justify-between">
+                  <span className="truncate">{selected.length === 0 ? getLabelColumna(colKey) : `${getLabelColumna(colKey)} (${selected.length})`}</span>
+                  <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[240px] p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
+                <div className="p-2 border-b"><div className="relative"><Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Buscar..." className="pl-8 h-9" value={searchVal} onChange={(e) => setSearchVal(e.target.value)} onKeyDown={(e) => e.stopPropagation()} /></div></div>
+                <DropdownMenuSeparator />
+                <ScrollArea className="h-[200px]">
+                  {filtrados.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">Sin opciones</p> : filtrados.map((val) => (
+                    <DropdownMenuCheckboxItem key={val} checked={selected.includes(val)} onCheckedChange={(checked) => { setDynamicFilters((prev) => ({ ...prev, [colKey]: checked ? [...(prev[colKey] ?? []), val] : (prev[colKey] ?? []).filter((x) => x !== val) })); setCurrentPage(1) }}>{val}</DropdownMenuCheckboxItem>
+                  ))}
+                </ScrollArea>
+                {selected.length > 0 && <div className="p-2 border-t"><Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setDynamicFilters((prev) => ({ ...prev, [colKey]: [] })); setCurrentPage(1) }}>Limpiar</Button></div>}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        })}
 
         {/* 📊 Botón de configuración de columnas */}
         <Button
@@ -882,11 +1135,6 @@ export default function GestionProspectos() {
         >
           <Settings2 className="h-4 w-4 mr-2" />
           Columnas
-        </Button>
-
-        <Button variant="outline">
-          <Filter className="h-4 w-4 mr-2" />
-          Filtros
         </Button>
 
         <Button
@@ -913,6 +1161,8 @@ export default function GestionProspectos() {
           Inscribir seleccionados ({selectedIds.length})
         </Button>
 
+        </div>
+        )}
       </div>
 
       {(!mounted || loading) && (
@@ -951,11 +1201,35 @@ export default function GestionProspectos() {
                 </th>
                 {columnasSeleccionadas.map((columnaKey) => (
                   <th key={columnaKey} className="py-3 px-4 text-left">
-                    {getLabelColumna(columnaKey)}
+                    <button
+                      type="button"
+                      onClick={() => handleSort(columnaKey)}
+                      className="flex items-center gap-1 hover:text-gray-900 font-medium"
+                    >
+                      {getLabelColumna(columnaKey)}
+                      {sortBy === columnaKey ? (
+                        sortOrder === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+                      ) : (
+                        <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
+                      )}
+                    </button>
                   </th>
                 ))}
                 <th className="py-3 px-4 text-left">Notas</th>
-                <th className="py-3 px-4 text-left">Estado</th>
+                <th className="py-3 px-4 text-left">
+                  <button
+                    type="button"
+                    onClick={() => handleSort("status")}
+                    className="flex items-center gap-1 hover:text-gray-900 font-medium"
+                  >
+                    Estado
+                    {sortBy === "status" ? (
+                      sortOrder === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
+                    )}
+                  </button>
+                </th>
                 <th className="py-3 px-4 text-left">Acciones</th>
               </tr>
             </thead>

@@ -121,7 +121,19 @@ export const fetchProspectosAprobacion = async (): Promise<{
   try {
     const response = await api.get('/dashboard/prospectos-aprobacion')
     return response.data
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.response?.status === 404) {
+      return {
+        puede_ver_seccion_aprobacion: false,
+        prospectos_aprobacion: [],
+        stats: {
+          total: 0,
+          urgentes: 0,
+          por_fase: {},
+          proximos: { hacia_academica: 0, hacia_financiera: 0, hacia_credenciales: 0 }
+        }
+      }
+    }
     console.error('Error fetching prospectos aprobación:', error)
     throw error
   }

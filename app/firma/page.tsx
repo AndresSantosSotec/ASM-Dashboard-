@@ -47,13 +47,13 @@ interface ContactoEnviado {
   resultado: string
   estado_firma?: string
   fecha_firma_estudiante?: string
-  prospecto: { nombre_completo: string }
+  prospecto: { nombre_completo: string | null }
 }
 
 interface Prospecto {
   id: number
-  nombre_completo: string
-  correo_electronico: string
+  nombre_completo: string | null
+  correo_electronico: string | null
   status: string
 }
 
@@ -209,7 +209,7 @@ export default function FirmaPage() {
         <CardHeader className="p-4 flex flex-wrap gap-2 justify-between items-start sm:items-center">
           <div>
             <CardTitle className="text-base">
-              {env.prospecto.nombre_completo}
+              {env.prospecto.nombre_completo || 'Sin nombre'}
             </CardTitle>
             <CardDescription>
               Enviado:{" "}
@@ -258,7 +258,7 @@ export default function FirmaPage() {
               variant="outline"
               size="sm"
               className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-              onClick={() => handleDescargarContrato(env.id, env.prospecto.nombre_completo)}
+              onClick={() => handleDescargarContrato(env.id, env.prospecto.nombre_completo || 'Sin_nombre')}
             >
               <Download className="h-4 w-4 mr-1" /> Descargar PDF
             </Button>
@@ -516,8 +516,8 @@ function ProspectosPendientes() {
   const filtered = useMemo(() => {
     const term = searchTerm.toLowerCase()
     return prospectos.filter(p =>
-      p.nombre_completo.toLowerCase().includes(term) ||
-      p.correo_electronico.toLowerCase().includes(term)
+      (p.nombre_completo?.toLowerCase() ?? '').includes(term) ||
+      (p.correo_electronico?.toLowerCase() ?? '').includes(term)
     )
   }, [prospectos, searchTerm])
 
@@ -581,8 +581,8 @@ function ProspectosPendientes() {
                         onCheckedChange={() => toggle(p.id)}
                       />
                     </TableCell>
-                    <TableCell>{p.nombre_completo}</TableCell>
-                    <TableCell>{p.correo_electronico}</TableCell>
+                    <TableCell>{p.nombre_completo || 'Sin nombre'}</TableCell>
+                    <TableCell>{p.correo_electronico || 'Sin correo'}</TableCell>
                     <TableCell>
                       <Badge 
                         variant="outline"

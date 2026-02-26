@@ -218,13 +218,15 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           setDatosAcademicos(academicosBase)
           
           // Cargar datos financieros — asegurar tieneConvenio
+          // ✨ NO cargar precios antiguos - solo datos de convenio y forma de pago
           if (fichaData.financieros) {
-            const fin = { ...fichaData.financieros }
+            const { inscripcion, cuotaMensual, inversionTotal, cantidadMeses, ...finSinPrecios } = fichaData.financieros
             // Derivar tieneConvenio de convenioId
-            if (fin.convenioId && !fin.tieneConvenio) {
-              fin.tieneConvenio = true
+            if (finSinPrecios.convenioId && !finSinPrecios.tieneConvenio) {
+              finSinPrecios.tieneConvenio = true
             }
-            setDatosFinancieros(fin)
+            // Los precios se calcularán automáticamente con el useEffect
+            setDatosFinancieros(finSinPrecios)
           }
           
           // Cargar datos laborales
@@ -270,12 +272,8 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
             convenioId: data.convenio_pago_id || undefined,
             tieneConvenio: !!data.convenio_pago_id,
           }
-          if (prospectoPrograms.length > 0) {
-            const ep0 = prospectoPrograms[0]
-            if (ep0.inscripcion) finFromProspecto.inscripcion = ep0.inscripcion
-            if (ep0.cuota_mensual) finFromProspecto.cuotaMensual = ep0.cuota_mensual
-            if (ep0.inversion_total) finFromProspecto.inversionTotal = ep0.inversion_total
-          }
+          // ✨ NO cargar precios antiguos - dejar que el useEffect calcule los precios actuales
+          // Los precios se calcularán automáticamente cuando estén disponibles programa y duración
           setDatosFinancieros(finFromProspecto)
           
           // Laborales del prospecto

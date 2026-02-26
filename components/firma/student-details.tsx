@@ -102,7 +102,7 @@ export function StudentDetails() {
           console.log("Prospecto recibido:", json.data)
           setStudent({
             id: String(json.data.id),
-            name: json.data.nombre_completo,
+            name: json.data.nombre_completo || 'Sin nombre',
             email:
               json.data.correo_electronico ||
               json.data.correo ||
