@@ -174,6 +174,7 @@ export default function GestionProspectos() {
   const [puestoFilters, setPuestoFilters] = useState<string[]>([])
   const [origenFilters, setOrigenFilters] = useState<string[]>([])
   const [creadorFilters, setCreadorFilters] = useState<string[]>([])
+  const [campaniaFilters, setCampaniaFilters] = useState<string[]>([])
   // 📅 Filtros de fecha
   const [createdDesde, setCreatedDesde] = useState<string>("")
   const [createdHasta, setCreatedHasta] = useState<string>("")
@@ -192,6 +193,7 @@ export default function GestionProspectos() {
   const [searchPuesto, setSearchPuesto] = useState<string>("")
   const [searchOrigen, setSearchOrigen] = useState<string>("")
   const [searchCreador, setSearchCreador] = useState<string>("")
+  const [searchCampania, setSearchCampania] = useState<string>("")
   const [filtrosAbiertos, setFiltrosAbiertos] = useState<boolean>(true)
   // Filtros dinámicos por columnas agregadas (key columna -> valores seleccionados)
   const [dynamicFilters, setDynamicFilters] = useState<Record<string, string[]>>({})
@@ -229,6 +231,10 @@ export default function GestionProspectos() {
   )
   const origenes = useMemo(
     () => opcionesFiltros?.origenes || [],
+    [opcionesFiltros]
+  )
+  const campanias = useMemo(
+    () => opcionesFiltros?.campanias || [],
     [opcionesFiltros]
   )
 
@@ -281,6 +287,15 @@ export default function GestionProspectos() {
           )
         : creators,
     [creators, searchCreador]
+  )
+  const campaniasFiltradas = useMemo(
+    () =>
+      searchCampania.trim()
+        ? campanias.filter((c) =>
+            c != null && String(c).toLowerCase().includes(searchCampania.toLowerCase())
+          )
+        : campanias,
+    [campanias, searchCampania]
   )
 
   // Columnas extra seleccionadas (para filtros dinámicos con misma estructura)
@@ -441,6 +456,7 @@ export default function GestionProspectos() {
       puestoFilters.length === 0 &&
       origenFilters.length === 0 &&
       creadorFilters.length === 0 &&
+      campaniaFilters.length === 0 &&
       !createdDesde && !createdHasta &&
       !fechaDesde && !fechaHasta &&
       Object.keys(dynamicFilters).every((k) => dynamicFilters[k].length === 0)
@@ -487,6 +503,7 @@ export default function GestionProspectos() {
       if (puestoFilters.length > 0) params.append("puesto", puestoFilters.join(","))
       if (origenFilters.length > 0) params.append("origen", origenFilters.join(","))
       if (creadorFilters.length > 0) params.append("created_by", creadorFilters.join(","))
+      if (campaniaFilters.length > 0) params.append("campania", campaniaFilters.join(","))
       
       // 📅 Filtros de fecha
       if (createdDesde) params.append("created_desde", createdDesde)
@@ -575,7 +592,7 @@ export default function GestionProspectos() {
     } finally {
       setLoading(false)
     }
-  }, [programasLoaded, debouncedSearchTerm, estadoFilters, departamentoFilters, puestoFilters, origenFilters, creadorFilters, createdDesde, createdHasta, fechaDesde, fechaHasta, dynamicFilters, pageSize, sortBy, sortOrder])
+  }, [programasLoaded, debouncedSearchTerm, estadoFilters, departamentoFilters, puestoFilters, origenFilters, creadorFilters, campaniaFilters, createdDesde, createdHasta, fechaDesde, fechaHasta, dynamicFilters, pageSize, sortBy, sortOrder])
 
   // ⚡ Cargar prospectos cuando cambian los filtros
   useEffect(() => {
@@ -825,6 +842,7 @@ export default function GestionProspectos() {
     if (puestoFilters.length > 0) params.append("puesto", puestoFilters.join(","))
     if (origenFilters.length > 0) params.append("origen", origenFilters.join(","))
     if (creadorFilters.length > 0) params.append("created_by", creadorFilters.join(","))
+    if (campaniaFilters.length > 0) params.append("campania", campaniaFilters.join(","))
     if (createdDesde) params.append("created_desde", createdDesde)
     if (createdHasta) params.append("created_hasta", createdHasta)
     if (fechaDesde) params.append("fecha_desde", fechaDesde)
@@ -872,7 +890,7 @@ export default function GestionProspectos() {
     } catch (err: unknown) {
       Swal.fire("Error", err instanceof Error ? err.message : "No se pudo descargar el CSV", "error")
     }
-  }, [debouncedSearchTerm, estadoFilters, departamentoFilters, puestoFilters, origenFilters, creadorFilters, createdDesde, createdHasta, fechaDesde, fechaHasta, dynamicFilters, sortBy, sortOrder, columnasSeleccionadas])
+  }, [debouncedSearchTerm, estadoFilters, departamentoFilters, puestoFilters, origenFilters, creadorFilters, campaniaFilters, createdDesde, createdHasta, fechaDesde, fechaHasta, dynamicFilters, sortBy, sortOrder, columnasSeleccionadas])
 
   // ⚡ Invalidar caché cuando se actualiza un prospecto
   const handleUpdateProspecto = useCallback(() => {
@@ -1026,7 +1044,7 @@ export default function GestionProspectos() {
             Filtros
             {filtrosAbiertos ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
-          {(estadoFilters.length > 0 || departamentoFilters.length > 0 || puestoFilters.length > 0 || origenFilters.length > 0 || creadorFilters.length > 0 || createdDesde || createdHasta || fechaDesde || fechaHasta || Object.values(dynamicFilters).some((arr) => arr.length > 0)) && (
+          {(estadoFilters.length > 0 || departamentoFilters.length > 0 || puestoFilters.length > 0 || origenFilters.length > 0 || creadorFilters.length > 0 || campaniaFilters.length > 0 || createdDesde || createdHasta || fechaDesde || fechaHasta || Object.values(dynamicFilters).some((arr) => arr.length > 0)) && (
             <Badge variant="secondary">
               Filtros activos
             </Badge>
@@ -1200,6 +1218,26 @@ export default function GestionProspectos() {
             </DropdownMenuContent>
           </DropdownMenu>
         )}
+
+        {/* Campaña: multi-select con buscador */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="w-[200px] justify-between">
+              <span className="truncate">{campaniaFilters.length === 0 ? "Todas campañas" : `Campañas (${campaniaFilters.length})`}</span>
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-[240px] p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
+            <div className="p-2 border-b"><div className="relative"><Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Buscar..." className="pl-8 h-9" value={searchCampania} onChange={(e) => setSearchCampania(e.target.value)} onKeyDown={(e) => e.stopPropagation()} /></div></div>
+            <DropdownMenuSeparator />
+            <ScrollArea className="h-[220px]">
+              {campaniasFiltradas.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">Sin resultados</p> : campaniasFiltradas.map((c) => (
+                <DropdownMenuCheckboxItem key={c} checked={campaniaFilters.includes(c)} onCheckedChange={(checked) => { setCampaniaFilters((prev) => (checked ? [...prev, c] : prev.filter((x) => x !== c))); setCurrentPage(1) }}>{c}</DropdownMenuCheckboxItem>
+              ))}
+            </ScrollArea>
+            {campaniaFilters.length > 0 && <div className="p-2 border-t"><Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setCampaniaFilters([]); setCurrentPage(1) }}>Limpiar</Button></div>}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* 📅 Filtro de fecha de creación (created_at) */}
         <div className="w-[280px]">
