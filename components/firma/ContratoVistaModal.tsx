@@ -114,7 +114,7 @@ export default function ContratoVistaModal({
         ) : contrato ? (
           <div className="space-y-6">
             {/* Estado del contrato */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
               <div>
                 <p className="text-sm text-gray-600">Estado del contrato</p>
                 <div className="flex items-center gap-2 mt-1">
@@ -182,7 +182,7 @@ export default function ContratoVistaModal({
             </div>
 
             {/* Contenido del contrato */}
-            <div className="border rounded-lg p-6 bg-white">
+            <div className="border rounded-lg p-6 bg-card">
               <h2 className="text-xl font-bold text-center mb-6">
                 CONTRATO DE CONFIDENCIALIDAD Y COMPROMISO DE ESTUDIANTE
               </h2>
@@ -306,7 +306,7 @@ export default function ContratoVistaModal({
               <div className="border rounded-lg p-4">
                 <p className="text-sm font-semibold text-gray-700 mb-2">Firma del Estudiante</p>
                 {contrato.firma_estudiante ? (
-                  <div className="border rounded bg-gray-50 p-2">
+                  <div className="border rounded bg-muted p-2">
                     <img
                       src={contrato.firma_estudiante}
                       alt="Firma del estudiante"
@@ -321,7 +321,7 @@ export default function ContratoVistaModal({
                     />
                   </div>
                 ) : (
-                  <div className="border rounded bg-gray-50 p-2 h-32 flex items-center justify-center text-gray-400">
+                  <div className="border rounded bg-muted p-2 h-32 flex items-center justify-center text-gray-400">
                     Pendiente de firma
                   </div>
                 )}
@@ -332,7 +332,7 @@ export default function ContratoVistaModal({
               <div className="border rounded-lg p-4">
                 <p className="text-sm font-semibold text-gray-700 mb-2">Firma del Asesor</p>
                 {contrato.firma_asesor ? (
-                  <div className="border rounded bg-gray-50 p-2">
+                  <div className="border rounded bg-muted p-2">
                     <img
                       src={contrato.firma_asesor}
                       alt="Firma del asesor"
@@ -347,7 +347,7 @@ export default function ContratoVistaModal({
                     />
                   </div>
                 ) : (
-                  <div className="border rounded bg-gray-50 p-2 h-32 flex items-center justify-center text-gray-400">
+                  <div className="border rounded bg-muted p-2 h-32 flex items-center justify-center text-gray-400">
                     Sin firma
                   </div>
                 )}

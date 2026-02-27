@@ -3,6 +3,8 @@ import { jsPDF } from "jspdf"
 import React, { useState, useRef, useEffect } from "react"
 import axios from "axios"
 import { API_BASE_URL } from "@/utils/apiConfig"
+import { useCustomization } from "@/contexts/CustomizationContext"
+import { mergeInstitutionalInfo } from "@/lib/institutional-info"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -128,6 +130,8 @@ export default function ReciboPagoGenerator({
   formaPago, cuotaMensual, cantidadMeses, inversionTotal, convenioNombre,
   programa, telefono, email,
 }: Props) {
+  const { customization } = useCustomization()
+  const instInfo = mergeInstitutionalInfo(customization)
   const today = new Date().toISOString().split("T")[0]
   const printRef = useRef<HTMLDivElement>(null)
   const [generandoNumero, setGenerandoNumero] = useState(false)
@@ -270,83 +274,10 @@ export default function ReciboPagoGenerator({
     }
   }
 
-  // Helper para resolver rutas de assets (public) con el prefix de Next.js
-  const resolveAssetUrl = (path: string) => {
-    if (path.startsWith("http")) return path
-
-    const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost"
-    const prefix = "/webpanel"
-
-    if (isLocal && !path.startsWith(prefix)) {
-      return path
-    }
-
-    if (path.startsWith(prefix)) return path
-    return `${prefix}${path.startsWith("/") ? "" : "/"}${path}`
-  }
-
-  // Optimize image loading: use JPEG for smaller size where transparency isn't needed or resizing
-  const toBase64 = async (url: string, format: "image/png" | "image/jpeg" = "image/png", quality = 0.7): Promise<string> => {
-    const loadImg = (src: string): Promise<string> => {
-      return new Promise((resolve) => {
-        const img = new Image()
-        img.crossOrigin = "anonymous"
-        img.onload = () => {
-          try {
-            const canvas = document.createElement("canvas")
-            // Resize if too large (e.g. max width 1000px)
-            let width = img.width
-            let height = img.height
-            const MAX_WIDTH = 800
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width
-              width = MAX_WIDTH
-            }
-
-            canvas.width = width
-            canvas.height = height
-            const ctx = canvas.getContext("2d")
-            if (ctx) {
-              // White background for JPEGs to avoid black transparency
-              if (format === "image/jpeg") {
-                ctx.fillStyle = "#FFFFFF";
-                ctx.fillRect(0, 0, width, height);
-              }
-              ctx.drawImage(img, 0, 0, width, height)
-              resolve(canvas.toDataURL(format, quality))
-            } else {
-              resolve("")
-            }
-          } catch {
-            resolve("")
-          }
-        }
-        img.onerror = () => resolve("")
-        img.src = src
-      })
-    }
-
-    let b64 = await loadImg(resolveAssetUrl(url))
-    if (b64) return b64
-
-    if (!url.startsWith("http")) {
-      const rootUrl = url.startsWith("/") ? url : `/${url}`
-      b64 = await loadImg(rootUrl)
-      if (b64) return b64
-    }
-    return ""
-  }
-
   const handleDownloadPDF = async () => {
     setIsPrinting(true)
     try {
       await registrarRecibo()
-
-      // Use JPEG with 0.7 quality for logos to save space
-      const [headerLogoB64, footerLogoB64] = await Promise.all([
-        toBase64('/recursos/Logos-02.png', "image/jpeg", 0.7),
-        toBase64('/recursos/Logos_Mesa.png', "image/png", 0.7)
-      ])
 
       const doc = new jsPDF({
         orientation: 'portrait',
@@ -359,26 +290,24 @@ export default function ReciboPagoGenerator({
       doc.setFont("helvetica", "normal")
       doc.setFontSize(10)
 
-      // --- Header ---
-      if (headerLogoB64) {
-        doc.addImage(headerLogoB64, 'JPEG', 40, 30, 100, 40, undefined, 'FAST')
-      }
+      doc.setFillColor(14, 43, 73)
+      doc.rect(0, 0, doc.internal.pageSize.getWidth(), 50, 'F')
+      doc.setFillColor(126, 22, 43)
+      doc.rect(0, 47, doc.internal.pageSize.getWidth(), 3, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(14)
+      doc.text(instInfo.organizationName, 40, 32)
 
-      // Información Institucional (Centrado)
+      // Información Institucional (centrado)
       doc.setFont("helvetica", "bold")
       doc.setFontSize(16)
-      doc.text("AMERICAN", 306, 50, { align: "center" })
+      doc.text(instInfo.organizationName, 306, 58, { align: "center" })
 
       doc.setFont("helvetica", "normal")
       doc.setFontSize(9)
-      doc.text("S C H O O L   O F   M A N A G E M E N T", 306, 62, { align: "center" })
-
-      doc.setFont("helvetica", "bold")
-      doc.text("American School of Management", 306, 75, { align: "center" })
-
-      doc.setFont("helvetica", "normal")
-      doc.text("Torre Tigo, Km. 9.5 Carretera al Salvador, Oficina 6C", 306, 87, { align: "center" })
-      doc.text("Cel. 5486-2301", 306, 99, { align: "center" })
+      doc.text(instInfo.address, 306, 72, { align: "center" })
+      doc.text(instInfo.phone, 306, 84, { align: "center" })
 
       // --- Info Section ---
       const startY = 130
@@ -532,10 +461,6 @@ export default function ReciboPagoGenerator({
       doc.setFont("helvetica", "normal")
       doc.text("Firma y nombre de quien recibe", 450, footerY + 12, { align: "center" })
 
-      if (footerLogoB64) {
-        doc.addImage(footerLogoB64, 'PNG', 260, footerY + 30, 100, 30, undefined, 'FAST')
-      }
-
       doc.save(`Recibo-${recibo.reciboNo}.pdf`)
 
     } catch (e) {
@@ -548,16 +473,8 @@ export default function ReciboPagoGenerator({
   const handlePrint = async () => {
     await registrarRecibo()
 
-    const [headerLogoB64, footerLogoB64] = await Promise.all([
-      toBase64('/recursos/Logos-02.png', "image/jpeg"),
-      toBase64('/recursos/Logos_Mesa.png', "image/png")
-    ])
-
     const printWindow = window.open("", "_blank")
     if (!printWindow) return
-
-    const headerSrc = headerLogoB64 || resolveAssetUrl("/recursos/Logos-02.png")
-    const footerSrc = footerLogoB64 || resolveAssetUrl("/recursos/Logos_Mesa.png")
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -568,7 +485,7 @@ export default function ReciboPagoGenerator({
           @page { size: letter; margin: 1cm 1.5cm; }
           body { font-family: 'Arial', sans-serif; font-size: 10pt; color: #000; margin: 0; padding: 20px; }
           .header-container { position: relative; text-align: center; margin-bottom: 20px; }
-          .header-logo { position: absolute; left: 0; top: 0; height: 50px; }
+          .header-brand { font-size: 16pt; font-weight: bold; color: #0E2B49; margin-bottom: 4px; }
           .header-info h1 { font-size: 14pt; margin: 0; font-weight: bold; }
           .header-info p { margin: 1px 0; font-size: 8.5pt; }
           .data-line { margin: 4px 0; line-height: 1.4; }
@@ -582,8 +499,7 @@ export default function ReciboPagoGenerator({
           .payment-option.selected { background: #eee; font-weight: bold; }
           .signature-box { margin-top: 50px; text-align: right; }
           .signature-line { border-top: 1px solid #000; width: 220px; margin-left: auto; text-align: center; padding-top: 5px; font-size: 9pt; }
-          .footer-logos { margin-top: 40px; text-align: center; }
-          .footer-logos img { height: 35px; }
+          .footer-brand { margin-top: 40px; text-align: center; font-size: 10pt; color: #666; }
           .no-devolucion { font-size: 8pt; font-weight: bold; margin-top: 10px; }
           .observaciones { margin: 10px 0; font-size: 9pt; font-style: italic; }
           @media print {
@@ -592,16 +508,12 @@ export default function ReciboPagoGenerator({
         </style>
       </head>
       <body onload="setTimeout(function(){ window.print(); window.close(); }, 800)">
-        <div class="logo-bar">
-          <img src="${headerSrc}" alt="Gaia Business School" />
-        </div>
+        <div class="header-brand">${instInfo.organizationName}</div>
         <div class="gold-line"></div>
         <div class="header">
-          <h1>GAIA</h1>
-          <p style="font-size: 8pt; letter-spacing: 2px;">BUSINESS SCHOOL</p>
-          <p><strong>Gaia Business School</strong></p>
-          <p>Torre Tigo, Km. 9.5 Carretera al Salvador, Oficina 6C</p>
-          <p>Cel. 5486-2301</p>
+          <h1>${instInfo.organizationName}</h1>
+          <p>${instInfo.address}</p>
+          <p>${instInfo.phone}</p>
         </div>
         
         <div class="info-row">
@@ -656,9 +568,7 @@ export default function ReciboPagoGenerator({
           <div class="signature-line">Firma y nombre de quien recibe</div>
         </div>
 
-        <div class="footer-logos">
-          <img src="${footerSrc}" alt="Footer" />
-        </div>
+        <div class="footer-brand">${instInfo.organizationName}</div>
       </body>
       </html>
     `)
@@ -679,17 +589,9 @@ export default function ReciboPagoGenerator({
           {/* Vista Previa del Recibo (Visualización) */}
           <div className="border rounded-lg bg-white shadow-inner p-6 overflow-hidden hidden md:block select-none scale-[0.85] origin-top border-gray-200">
             <div className="relative text-center mb-6">
-              <img
-                src={resolveAssetUrl("/recursos/Logos-02.png")}
-                alt="ASM Logo"
-                className="absolute left-0 top-0 h-12 w-auto"
-                onError={(e) => (e.currentTarget.style.display = "none")}
-              />
-              <h2 className="text-xl font-bold m-0 leading-tight">AMERICAN</h2>
-              <p className="text-[9px] uppercase tracking-[0.2em] m-0 text-gray-500">School of Management</p>
-              <p className="text-[10px] font-bold mt-1">American School of Management</p>
-              <p className="text-[9px] text-gray-500">Torre Tigo, Km. 9.5 Carretera al Salvador, Oficina 6C</p>
-              <p className="text-[9px] text-gray-500">Cel. 5486-2301</p>
+              <h2 className="text-xl font-bold m-0 leading-tight">{instInfo.organizationName}</h2>
+              <p className="text-[9px] text-muted-foreground">{instInfo.address}</p>
+              <p className="text-[9px] text-muted-foreground">{instInfo.phone}</p>
             </div>
 
             <div className="space-y-1 mb-4">
@@ -732,13 +634,8 @@ export default function ReciboPagoGenerator({
               </div>
             )}
 
-            <div className="text-[10px] text-center pt-2">
-              <img
-                src={resolveAssetUrl("/recursos/Logos_Mesa.png")}
-                alt="Footer Logos"
-                className="h-8 w-auto mx-auto mb-1 opacity-80"
-                onError={(e) => (e.currentTarget.style.display = "none")}
-              />
+            <div className="text-[10px] text-center pt-2 text-muted-foreground font-medium">
+              {instInfo.organizationName}
             </div>
           </div>
           {/* Encabezado info */}

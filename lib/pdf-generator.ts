@@ -1,6 +1,9 @@
 import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import autoTable, { applyPlugin } from 'jspdf-autotable'
 import type { AccountData } from "@/services/estudiantes"
+
+// jspdf-autotable v5+ no extiende jsPDF automáticamente; aplicamos el plugin
+applyPlugin(jsPDF)
 
 // === Helpers de estilo ===
 type RGB = [number, number, number]
@@ -27,124 +30,25 @@ const RIGHT = 15
 const CONTENT_TOP = HEADER_HEIGHT + 10 // 60
 const CONTENT_WIDTH = 210 - LEFT - RIGHT // A4: 210mm
 
-// === Función auxiliar para intentar fetch de una sola ruta ===
-async function tryFetchImage(url: string): Promise<string | null> {
-  try {
-    const response = await fetch(url)
-    if (!response.ok) return null
 
-    const blob = await response.blob()
-    if (!blob.type.startsWith('image/')) return null
-
-    return new Promise((resolve) => {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        const result = reader.result as string
-        resolve(result && result.length > 0 ? result : null)
-      }
-      reader.onerror = () => resolve(null)
-      reader.readAsDataURL(blob)
-    })
-  } catch {
-    return null
-  }
-}
-
-// === Función para cargar imagen (compatible con producción y local) ===
-async function loadImageAsBase64(imagePath: string): Promise<string | null> {
-  try {
-    // Si la imagen ya está en base64, retornarla
-    if (imagePath.startsWith('data:')) {
-      return imagePath
-    }
-
-    // Construir lista de rutas candidatas para probar
-    // En producción el sitio está bajo /webpanel/, en local bajo /
-    const candidates: string[] = []
-
-    if (imagePath.startsWith('/webpanel/')) {
-      // Ya viene con prefijo de producción: probar primero así, luego sin prefijo
-      candidates.push(imagePath)
-      candidates.push(imagePath.replace('/webpanel/', '/'))
-    } else {
-      // Ruta sin prefijo: probar primero con /webpanel/ (producción), luego sin él (local)
-      const cleanPath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`
-      candidates.push(`/webpanel${cleanPath}`)
-      candidates.push(cleanPath)
-    }
-
-    // Intentar cada ruta hasta encontrar una que funcione
-    for (const candidate of candidates) {
-      const result = await tryFetchImage(candidate)
-      if (result) {
-        return result
-      }
-    }
-
-    console.warn(`Logo no encontrado en ninguna ruta: ${candidates.join(', ')}`)
-    return null
-  } catch (error) {
-    console.warn('Error cargando imagen:', error)
-    return null
-  }
-}
-
-// === Header/Footer con imagen ===
-function drawHeaderFooter(doc: jsPDF, headerImage?: string | null, footerImage?: string | null) {
+// Header y footer sin logos - solo texto Gaia
+function drawHeaderFooter(doc: jsPDF) {
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
 
-  // Header: fondo azul institucional + logo superpuesto
-  doc.setFillColor(14, 43, 73) // #0E2B49 - Azul institucional Gaia
+  doc.setFillColor(14, 43, 73) // #0E2B49 - Azul Gaia
   doc.rect(0, 0, pageWidth, HEADER_HEIGHT, 'F')
-  // Línea decorativa
-  doc.setFillColor(126, 22, 43) // #7E162B - Rojo tinto Gaia
+  doc.setFillColor(126, 22, 43) // #7E162B - Rojo Gaia
   doc.rect(0, HEADER_HEIGHT - 3, pageWidth, 3, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(11)
+  doc.setFont('helvetica', 'bold')
+  doc.text('GAIA BUSINESS SCHOOL', 15, HEADER_HEIGHT / 2 + 1)
 
-  if (headerImage && headerImage.length > 0) {
-    try {
-      if (headerImage.startsWith('data:image/')) {
-        // Logo proporcionado dentro del header azul
-        const logoHeight = 12
-        const logoWidth = logoHeight * 3.2
-        const logoY = (HEADER_HEIGHT - 3 - logoHeight) / 2
-        doc.addImage(headerImage, 'PNG', 12, logoY, logoWidth, logoHeight)
-      }
-    } catch (error) {
-      // Si falla el logo, mostrar texto
-      doc.setTextColor(255, 255, 255)
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'bold')
-      doc.text('GAIA BUSINESS SCHOOL', 15, HEADER_HEIGHT / 2 + 1)
-    }
-  } else {
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(11)
-    doc.setFont('helvetica', 'bold')
-    doc.text('GAIA BUSINESS SCHOOL', 15, HEADER_HEIGHT / 2 + 1)
-  }
-
-  // Footer con logos
   doc.setFillColor(30, 38, 77)
   doc.rect(0, pageHeight - FOOTER_HEIGHT, pageWidth, FOOTER_HEIGHT, 'F')
-  // Línea dorada arriba del footer
   doc.setFillColor(176, 139, 79)
   doc.rect(0, pageHeight - FOOTER_HEIGHT, pageWidth, 2, 'F')
-  
-  if (footerImage && footerImage.length > 0) {
-    try {
-      if (footerImage.startsWith('data:image/')) {
-        // Footer con logos centrados - tamaño proporcional
-        const fLogoHeight = 7
-        const fLogoWidth = fLogoHeight * 3.5
-        const fLogoX = (pageWidth - fLogoWidth) / 2
-        const fLogoY = pageHeight - FOOTER_HEIGHT + 3
-        doc.addImage(footerImage, 'PNG', fLogoX, fLogoY, fLogoWidth, fLogoHeight)
-      }
-    } catch (error) {
-      // Silenciar error del footer
-    }
-  }
 
   // Información adicional en el footer
   doc.setTextColor(255, 255, 255)
@@ -168,23 +72,15 @@ function ensureSpace(doc: jsPDF, cursorY: number, needed: number): number {
   return cursorY
 }
 
-// === Generador principal con imágenes ===
-export const generateDetailedAccountStatePDF = async (
-  data: AccountData,
-  headerImagePath: string = '/recursos/Logos-02.png',
-  footerImagePath: string = '/recursos/Logos_Mesa.png'
-) => {
+// === Generador principal (sin logos) ===
+export const generateDetailedAccountStatePDF = async (data: AccountData) => {
   const doc = new jsPDF()
 
-  // Cargar imágenes con rutas por defecto
-  const headerImage = await loadImageAsBase64(headerImagePath)
-  const footerImage = await loadImageAsBase64(footerImagePath)
-
-  // Defaults para TODAS las tablas
-  ;(doc as any).autoTableSetDefaults({
+  // Defaults para TODAS las tablas (requiere applyPlugin previo)
+  doc.autoTableSetDefaults({
     margin: { top: CONTENT_TOP, bottom: FOOTER_HEIGHT + 8, left: LEFT, right: RIGHT },
     styles: { font: 'helvetica', fontSize: 10 },
-    didDrawPage: () => drawHeaderFooter(doc, headerImage, footerImage),
+    didDrawPage: () => drawHeaderFooter(doc),
     pageBreak: 'auto',
   })
 
@@ -663,17 +559,9 @@ interface StudentReportData {
   }>
 }
 
-export async function generateStudentReport(
-  data: StudentReportData,
-  headerImagePath: string = '/recursos/Logos-02.png',
-  footerImagePath: string = '/recursos/Logos_Mesa.png'
-) {
+export async function generateStudentReport(data: StudentReportData) {
   const doc = new jsPDF()
-  
-  // Cargar imágenes con logos institucionales
-  const headerImage = await loadImageAsBase64(headerImagePath)
-  const footerImage = await loadImageAsBase64(footerImagePath)
-  
+
   const primaryColor: RGB = [37, 99, 235]
   const secondaryColor: RGB = [139, 92, 246]
   const successColor: RGB = [22, 163, 74]
@@ -683,29 +571,14 @@ export async function generateStudentReport(
   
   let yPosition = CONTENT_TOP
 
-  // HEADER: fondo azul institucional + logo
   doc.setFillColor(30, 38, 77)
   doc.rect(0, 0, 210, HEADER_HEIGHT, 'F')
   doc.setFillColor(176, 139, 79)
   doc.rect(0, HEADER_HEIGHT - 3, 210, 3, 'F')
-  if (headerImage) {
-    try {
-      const logoHeight = 12
-      const logoWidth = logoHeight * 3.2
-      const logoY = (HEADER_HEIGHT - 3 - logoHeight) / 2
-      doc.addImage(headerImage, 'PNG', 12, logoY, logoWidth, logoHeight)
-    } catch (e) {
-      doc.setTextColor(255, 255, 255)
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'bold')
-      doc.text('GAIA BUSINESS SCHOOL', 15, HEADER_HEIGHT / 2 + 1)
-    }
-  } else {
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(11)
-    doc.setFont('helvetica', 'bold')
-    doc.text('GAIA BUSINESS SCHOOL', 15, HEADER_HEIGHT / 2 + 1)
-  }
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(11)
+  doc.setFont('helvetica', 'bold')
+  doc.text('GAIA BUSINESS SCHOOL', 15, HEADER_HEIGHT / 2 + 1)
 
   // INFORMACIÓN DEL ESTUDIANTE
   doc.setFillColor(243, 244, 246)
@@ -827,18 +700,15 @@ export async function generateStudentReport(
       margin: { top: CONTENT_TOP, bottom: FOOTER_HEIGHT + 10, left: 10, right: 10 },
       pageBreak: 'auto',
       didDrawPage: function(hookData) {
-        // Redibujar header en páginas nuevas
         if (hookData.pageNumber > 1) {
           doc.setFillColor(30, 38, 77)
           doc.rect(0, 0, 210, HEADER_HEIGHT, 'F')
           doc.setFillColor(176, 139, 79)
           doc.rect(0, HEADER_HEIGHT - 3, 210, 3, 'F')
-          if (headerImage) {
-            try {
-              const lh = 12, lw = lh * 3.2
-              doc.addImage(headerImage, 'PNG', 12, (HEADER_HEIGHT - 3 - lh) / 2, lw, lh)
-            } catch(e) {}
-          }
+          doc.setTextColor(255, 255, 255)
+          doc.setFontSize(11)
+          doc.setFont('helvetica', 'bold')
+          doc.text('GAIA BUSINESS SCHOOL', 15, HEADER_HEIGHT / 2 + 1)
         }
       },
       headStyles: {
@@ -880,28 +750,13 @@ export async function generateStudentReport(
     yPosition += 20
   }
 
-  // FOOTER con logos institucionales
   const pageCount = doc.getNumberOfPages()
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i)
-    // Fondo azul del footer
     doc.setFillColor(30, 38, 77)
     doc.rect(0, 297 - FOOTER_HEIGHT, 210, FOOTER_HEIGHT, 'F')
-    // Línea dorada
     doc.setFillColor(176, 139, 79)
     doc.rect(0, 297 - FOOTER_HEIGHT, 210, 2, 'F')
-    
-    if (footerImage) {
-      try {
-        const fLogoHeight = 7
-        const fLogoWidth = fLogoHeight * 3.5
-        const fLogoX = (210 - fLogoWidth) / 2
-        const fLogoY = 297 - FOOTER_HEIGHT + 3
-        doc.addImage(footerImage, 'PNG', fLogoX, fLogoY, fLogoWidth, fLogoHeight)
-      } catch (e) {
-        // Silenciar
-      }
-    }
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(7)
     doc.text(

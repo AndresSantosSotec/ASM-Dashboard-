@@ -102,7 +102,7 @@ export default function LogsAuditoria() {
             <Filter className="mr-2 h-4 w-4" />
             Filtros Avanzados
           </Button>
-          <Button className="bg-blue-600 hover:bg-blue-700">
+          <Button className="bg-gaia-wine hover:bg-gaia-wine-dark text-white">
             <Download className="mr-2 h-4 w-4" />
             Exportar Logs
           </Button>
@@ -139,7 +139,7 @@ export default function LogsAuditoria() {
           </TabsList>
         </Tabs>
         <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
             placeholder="Buscar logs..."
@@ -163,7 +163,7 @@ export default function LogsAuditoria() {
               <span>{error}</span>
             </div>
           ) : logs.length === 0 ? (
-            <div className="flex justify-center items-center py-12 text-gray-500">
+            <div className="flex justify-center items-center py-12 text-muted-foreground">
               <FileText className="h-8 w-8 mr-2" />
               <span>No se encontraron logs</span>
             </div>
@@ -188,18 +188,18 @@ export default function LogsAuditoria() {
                     <TableRow key={log.id}>
                       <TableCell className="font-medium">
                         <div>{log.usuario}</div>
-                        <div className="text-xs text-gray-500">{log.email}</div>
+                        <div className="text-xs text-muted-foreground">{log.email}</div>
                       </TableCell>
                       <TableCell>{log.accion}</TableCell>
                       <TableCell>{log.modulo}</TableCell>
                       <TableCell>{log.fecha}</TableCell>
                       <TableCell>
                         <div className="flex items-center">
-                          <Clock className="h-3 w-3 mr-1 text-gray-500" />
+                          <Clock className="h-3 w-3 mr-1 text-muted-foreground" />
                           {log.hora}
                         </div>
                       </TableCell>
-                      <TableCell className="text-xs text-gray-600">{log.ip || "-"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{log.ip || "-"}</TableCell>
                       <TableCell>
                         <Badge variant={getNivelBadgeVariant(log.nivel)}>
                           {log.nivel}
@@ -217,7 +217,7 @@ export default function LogsAuditoria() {
               </Table>
               
               <div className="flex items-center justify-between px-6 py-4 border-t">
-                <div className="text-sm text-gray-500">
+                <div className="text-sm text-muted-foreground">
                   Mostrando {from} - {to} de {pagination.total.toLocaleString()} logs
                 </div>
                 <div className="flex gap-2">

@@ -1498,7 +1498,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                                   {tipo === "inscripcion" ? "Boleta de Inscripción" : 
                                    tipo === "dpi" ? "DPI (ambos lados)" :
                                    tipo === "recibo" ? "Recibo de luz o teléfono" :
-                                   tipo === "american" ? "Recibo de American" :
+                                   tipo === "american" ? "Recibo Gaia / Institucional" :
                                    tipo === "foto" ? "Fotografía reciente" :
                                    tipo === "titulo" ? "Título o Diploma" :
                                    tipo === "cierrePensum" ? "Cierre de Pénsum" :
@@ -1620,7 +1620,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                           <SelectContent>
                             <SelectItem value="dpi">DPI (ambos lados)</SelectItem>
                             <SelectItem value="recibo">Recibo de luz o teléfono</SelectItem>
-                            <SelectItem value="american">Recibo de American</SelectItem>
+                            <SelectItem value="american">Recibo Gaia / Institucional</SelectItem>
                             <SelectItem value="foto">Fotografía reciente</SelectItem>
                             <SelectItem value="titulo">Título o Diploma</SelectItem>
                             <SelectItem value="cierrePensum">Cierre de Pénsum</SelectItem>

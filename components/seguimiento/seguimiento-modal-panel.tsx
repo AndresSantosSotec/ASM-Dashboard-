@@ -31,7 +31,7 @@ const Swal = SwalOriginal.mixin({
 
 // 💀 Componente Skeleton para estados de carga
 const Skeleton = ({ className = "" }: { className?: string }) => (
-  <div className={`animate-pulse bg-gray-200 rounded ${className}`} />
+  <div className={`animate-pulse bg-muted rounded ${className}`} />
 );
 
 const InteractionsSkeleton = () => (
@@ -397,9 +397,9 @@ export default function SeguimientoModalPanel({ prospecto, onClose }: Seguimient
       case "Interesado":
         return "bg-green-100 text-green-800";
       case "En proceso":
-        return "bg-blue-100 text-blue-800";
+        return "bg-primary/15 text-primary";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-muted text-foreground";
     }
   };
 
@@ -424,14 +424,14 @@ export default function SeguimientoModalPanel({ prospecto, onClose }: Seguimient
                 </h2>
                 <div className="mt-4 space-y-2">
                   <p className="text-lg font-medium">{prospecto.nombre}</p>
-                  <p className="text-gray-500">{prospecto.email}</p>
-                  <p className="text-gray-500">{prospecto.telefono}</p>
+                  <p className="text-muted-foreground">{prospecto.email}</p>
+                  <p className="text-muted-foreground">{prospecto.telefono}</p>
                 </div>
               </div>
               <div>
                 {(prospecto.notasGenerales || prospecto.observaciones) && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                    <h3 className="text-md font-semibold text-blue-900 flex items-center gap-2">
+                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-3">
+                    <h3 className="text-md font-semibold text-primary flex items-center gap-2">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
                         <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
@@ -440,14 +440,14 @@ export default function SeguimientoModalPanel({ prospecto, onClose }: Seguimient
                     </h3>
                     {prospecto.notasGenerales && (
                       <div>
-                        <p className="text-xs font-semibold text-blue-700 mb-1">Notas Generales:</p>
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{prospecto.notasGenerales}</p>
+                        <p className="text-xs font-semibold text-primary/80 mb-1">Notas Generales:</p>
+                        <p className="text-sm text-foreground whitespace-pre-wrap">{prospecto.notasGenerales}</p>
                       </div>
                     )}
                     {prospecto.observaciones && (
                       <div>
-                        <p className="text-xs font-semibold text-blue-700 mb-1">Observaciones:</p>
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{prospecto.observaciones}</p>
+                        <p className="text-xs font-semibold text-primary/80 mb-1">Observaciones:</p>
+                        <p className="text-sm text-foreground whitespace-pre-wrap">{prospecto.observaciones}</p>
                       </div>
                     )}
                   </div>
@@ -460,12 +460,12 @@ export default function SeguimientoModalPanel({ prospecto, onClose }: Seguimient
                     <InteractionsSkeleton />
                   ) : Array.isArray(interacciones) && interacciones.length > 0 ? (
                     interacciones.map((actividad, index) => (
-                      <div key={index} className={`border rounded p-3 relative group transition-colors ${editingInteractionId === actividad.id ? 'border-blue-500 bg-blue-50/50' : ''}`}>
+                      <div key={index} className={`border rounded p-3 relative group transition-colors ${editingInteractionId === actividad.id ? 'border-primary bg-primary/5' : ''}`}>
                         <Button
                           variant="ghost"
                           size="icon"
                           disabled={editingInteractionId === actividad.id}
-                          className="absolute top-2 right-10 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:text-blue-700 hover:bg-blue-100"
+                          className="absolute top-2 right-10 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-primary hover:text-primary/80 hover:bg-primary/10"
                           onClick={() => handleEditInteraction(actividad)}
                         >
                           <Edit2 className="h-4 w-4" />
@@ -484,17 +484,17 @@ export default function SeguimientoModalPanel({ prospecto, onClose }: Seguimient
                             {actividades.find((act) => act.id === actividad.id_actividades)?.nombre ||
                               actividad.id_actividades}
                           </span>
-                          <span className="text-gray-500">{actividad.fecha}</span>
+                          <span className="text-muted-foreground">{actividad.fecha}</span>
                         </div>
                         <p className="text-sm mt-1">{actividad.notas}</p>
-                        <div className="flex justify-between text-sm mt-2 text-gray-500">
+                        <div className="flex justify-between text-sm mt-2 text-muted-foreground">
                           <span>Duración: {actividad.duracion} min</span>
                           <span>{actividad.asesor || "Tú"}</span>
                         </div>
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-gray-500">No hay interacciones registradas.</p>
+                    <p className="text-sm text-muted-foreground">No hay interacciones registradas.</p>
                   )}
                 </div>
               </div>
@@ -568,8 +568,8 @@ export default function SeguimientoModalPanel({ prospecto, onClose }: Seguimient
               </div>
               <div>
                 <h3 className="text-md font-semibold mb-4">Fecha y Cita</h3>
-                <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg mb-3">
-                  <p className="text-xs text-blue-700">
+                <div className="p-2 bg-primary/5 border border-primary/20 rounded-lg mb-3">
+                  <p className="text-xs text-primary/80">
                     📋 Cita para: <strong>{prospecto.nombre}</strong>
                     {prospecto.email && ` • ${prospecto.email}`}
                     {prospecto.telefono && ` • ${prospecto.telefono}`}
@@ -619,7 +619,7 @@ export default function SeguimientoModalPanel({ prospecto, onClose }: Seguimient
                           className="border rounded-lg p-3 space-y-1"
                         >
                           {cita.nombre_prospecto && (
-                            <p className="text-xs text-blue-700 bg-blue-50 rounded px-2 py-1">
+                            <p className="text-xs text-primary/80 bg-primary/10 rounded px-2 py-1">
                               📋 {cita.nombre_prospecto}
                               {cita.email_prospecto && ` • ${cita.email_prospecto}`}
                               {cita.telefono_prospecto && ` • ${cita.telefono_prospecto}`}
@@ -627,7 +627,7 @@ export default function SeguimientoModalPanel({ prospecto, onClose }: Seguimient
                           )}
                           <div className="flex justify-between items-center text-sm">
                             <span className="font-medium">{formatDate(cita.datecita)}</span>
-                            <span className="text-gray-600">{cita.descricita}</span>
+                            <span className="text-muted-foreground">{cita.descricita}</span>
                           </div>
                         </div>
                       ))

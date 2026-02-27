@@ -131,7 +131,7 @@ export default function ContratoPreviewPage() {
   const IconEstado = estadoBadge.icon
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
+    <div className="min-h-screen bg-background py-8 px-4">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
@@ -255,7 +255,7 @@ export default function ContratoPreviewPage() {
                     <CheckCircle2 className="h-4 w-4 text-green-600" />
                   )}
                 </h4>
-                <div className="border rounded-lg p-4 bg-gray-50 min-h-[150px] flex items-center justify-center">
+                <div className="border rounded-lg p-4 bg-muted min-h-[150px] flex items-center justify-center">
                   {contrato.firma_asesor ? (
                     <div className="text-center">
                       <img
@@ -281,7 +281,7 @@ export default function ContratoPreviewPage() {
                     <CheckCircle2 className="h-4 w-4 text-green-600" />
                   )}
                 </h4>
-                <div className="border rounded-lg p-4 bg-gray-50 min-h-[150px] flex items-center justify-center">
+                <div className="border rounded-lg p-4 bg-muted min-h-[150px] flex items-center justify-center">
                   {contrato.firma_estudiante ? (
                     <div className="text-center">
                       <img

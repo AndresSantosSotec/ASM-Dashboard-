@@ -121,17 +121,14 @@ export default function Sidebar({ open, className }: SidebarProps) {
     <div
       className={`${open ? "w-64" : "w-0 -translate-x-full"} transition-all duration-300 gaia-sidebar-bg border-r border-gaia-wine/30 flex flex-col h-full overflow-y-auto ${cn("pb-12", className)}`}
     >
+      {/* LOGO COMENTADO - Ya no se usará
       <div className="p-4 border-b border-gaia-wine/30 flex justify-center">
-        <Link href="/" className="flex justify-center">
-          {/* Ruta con /webpanel/ para producción - descomentar la línea correcta según ambiente */}
-          <img 
-            src="/webpanel/recursos/Logos-02.png" 
-            alt="Gaia Logo"
-            className="h-28 w-auto object-contain cursor-pointer hover:opacity-90 transition-opacity"
-          />
-          {/* Local: src="/recursos/Logos-02.png" */}
+        <Link href="/" className="flex flex-col items-center gap-1 hover:opacity-90 transition-opacity">
+          <Shield className="h-10 w-10 text-gaia-light" />
+          <span className="text-gaia-light font-bold text-sm text-center">Gaia Business School</span>
         </Link>
       </div>
+      */}
 
       <div className="flex-1 py-4 overflow-y-auto px-3">
         <Link

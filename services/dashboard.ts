@@ -79,6 +79,12 @@ export interface UserDashboardData {
     fecha_limite: string
     fecha_creacion: string
   }>
+  /** Configuración del layout por rol (orden de secciones, columnas, espaciado) */
+  dashboard_config?: {
+    section_order: string[]
+    stats_columns: 2 | 3 | 4
+    spacing: "normal" | "compact"
+  }
 }
 
 export const fetchDashboardData = async (): Promise<UserDashboardData> => {

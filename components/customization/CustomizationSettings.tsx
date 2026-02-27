@@ -263,7 +263,7 @@ export function CustomizationSettings() {
               <div>
                 <Label className="mb-2 block">Logo</Label>
                 {customization?.logo_url && (
-                  <div className="mb-4 p-4 bg-gray-100 rounded">
+                  <div className="mb-4 p-4 bg-muted rounded">
                     <img src={customization.logo_url} alt="Logo" className="h-16 object-contain" />
                   </div>
                 )}
@@ -283,7 +283,7 @@ export function CustomizationSettings() {
               <div>
                 <Label className="mb-2 block">Favicon</Label>
                 {customization?.favicon_url && (
-                  <div className="mb-4 p-4 bg-gray-100 rounded">
+                  <div className="mb-4 p-4 bg-muted rounded">
                     <img src={customization.favicon_url} alt="Favicon" className="h-8 w-8" />
                   </div>
                 )}
@@ -303,7 +303,7 @@ export function CustomizationSettings() {
               <div>
                 <Label className="mb-2 block">Imagen del Sidebar</Label>
                 {customization?.sidebar_image_url && (
-                  <div className="mb-4 p-4 bg-gray-100 rounded">
+                  <div className="mb-4 p-4 bg-muted rounded">
                     <img src={customization.sidebar_image_url} alt="Sidebar" className="h-32 w-full object-cover rounded" />
                   </div>
                 )}

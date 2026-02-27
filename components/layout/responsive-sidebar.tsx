@@ -38,7 +38,7 @@ export default function ResponsiveSidebar() {
         <Button
           variant="ghost"
           size="icon"
-          className="fixed top-4 left-4 z-50 bg-white dark:bg-gaia-navy shadow-md"
+          className="fixed top-4 left-4 z-50 bg-card dark:bg-gaia-navy shadow-md border border-border"
           onClick={() => setIsOpen(!isOpen)}
         >
           <Menu className="h-5 w-5 text-gaia-navy dark:text-gaia-light" />

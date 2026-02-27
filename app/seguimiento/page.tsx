@@ -288,7 +288,7 @@ export default function SeguimientoPage() {
       case "En proceso":
         return "bg-blue-100 text-blue-800";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-secondary/30 text-secondary-foreground";
     }
   };
 
@@ -644,7 +644,7 @@ export default function SeguimientoPage() {
 
         {error && <p className="text-red-500">{error}</p>}
 
-        <div className="bg-white p-6 rounded-lg shadow-sm">
+        <div className="bg-card p-6 rounded-lg shadow-sm border border-border">
           <h2 className="text-lg font-semibold mb-4">Lista de Prospectos</h2>
           <div className="border rounded-lg">
             <Table>
@@ -713,14 +713,14 @@ export default function SeguimientoPage() {
                   </h2>
                   <div className="mt-4 space-y-2">
                     <p className="text-lg font-medium">{selectedProspecto?.nombre}</p>
-                    <p className="text-gray-500">{selectedProspecto?.email}</p>
-                    <p className="text-gray-500">{selectedProspecto?.telefono}</p>
+                    <p className="text-muted-foreground">{selectedProspecto?.email}</p>
+                    <p className="text-muted-foreground">{selectedProspecto?.telefono}</p>
                   </div>
                 </div>
                 <div>
                   {(selectedProspecto?.notasGenerales || selectedProspecto?.observaciones) && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                      <h3 className="text-md font-semibold text-blue-900 flex items-center gap-2">
+                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-3">
+                      <h3 className="text-md font-semibold text-primary flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                           <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
                           <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
@@ -729,13 +729,13 @@ export default function SeguimientoPage() {
                       </h3>
                       {selectedProspecto?.notasGenerales && (
                         <div>
-                          <p className="text-xs font-semibold text-blue-700 mb-1">Notas Generales:</p>
+                          <p className="text-xs font-semibold text-primary/80 mb-1">Notas Generales:</p>
                           <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedProspecto.notasGenerales}</p>
                         </div>
                       )}
                       {selectedProspecto?.observaciones && (
                         <div>
-                          <p className="text-xs font-semibold text-blue-700 mb-1">Observaciones:</p>
+                          <p className="text-xs font-semibold text-primary/80 mb-1">Observaciones:</p>
                           <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedProspecto.observaciones}</p>
                         </div>
                       )}

@@ -18,7 +18,7 @@ export default function Header({ sidebarOpen, setSidebarOpen, isMobile }: Header
   }, [])
 
   return (
-    <header className="sticky top-0 z-10 h-16 flex items-center justify-between px-4 bg-white dark:bg-gaia-navy border-b border-gaia-wine/20 shadow-sm">
+    <header className="sticky top-0 z-10 h-16 flex items-center justify-between px-4 bg-card dark:bg-gaia-navy border-b border-gaia-wine/20 shadow-sm">
       <div className="flex items-center">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -36,11 +36,11 @@ export default function Header({ sidebarOpen, setSidebarOpen, isMobile }: Header
       </div>
 
       <div className="hidden md:flex items-center relative max-w-md w-full mx-4">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={18} />
         <input
           type="text"
           placeholder="Buscar..."
-          className="w-full pl-10 pr-4 py-2 rounded-md border border-gaia-wine/30 focus:outline-none focus:ring-2 focus:ring-gaia-wine/50 bg-white dark:bg-gaia-navy/50 text-gaia-navy dark:text-gaia-light"
+          className="w-full pl-10 pr-4 py-2 rounded-md border border-gaia-wine/30 focus:outline-none focus:ring-2 focus:ring-gaia-wine/50 bg-background dark:bg-gaia-navy/50 text-foreground dark:text-gaia-light"
         />
       </div>
 

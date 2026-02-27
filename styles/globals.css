@@ -12,6 +12,16 @@ body {
   }
 }
 
+.dashboard-bg {
+  background-color: #f8fafc;
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    #e2e8f0 1px,
+    transparent 0
+  );
+  background-size: 32px 32px;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -91,4 +101,26 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Login split screen — gradiente animado panel izquierdo */
+@keyframes gradientShift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.login-gradient-bg {
+  background: linear-gradient(
+    135deg,
+    #0f2744 0%,
+    #1a3a5c 40%,
+    #8b1a2b 100%
+  );
+  background-size: 200% 200%;
+  animation: gradientShift 8s ease infinite;
 }

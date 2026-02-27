@@ -10,13 +10,13 @@ import { Toaster } from "@/components/ui/toaster"
 
 
 export const metadata: Metadata = {
-  title: "Gaia Business School",
+  title: "Gaia",
   description: "Sistema de Gestión Académica",
   icons: {
     icon: [
-      { url: "/webpanel/icons/favicon.ico" },
+      { url: "/favicon.ico" },
     ],
-    shortcut: "/webpanel/icons/favicon.ico",
+    shortcut: "/favicon.ico",
   },
 }
 

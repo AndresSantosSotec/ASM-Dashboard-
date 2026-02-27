@@ -56,30 +56,27 @@ export function CustomizationProvider({ children }: { children: ReactNode }) {
   };
 
   // Aplicar estilos de personalización al DOM
+  // No se aplican colores custom: se usa solo el tema predefinido Gaia para evitar colores inconsistentes.
   const applyCustomizationStyles = (data: CustomizationData) => {
     const root = document.documentElement;
 
-    // Setear colores como CSS variables
-    root.style.setProperty("--primary-color", data.primary_color);
-    root.style.setProperty("--secondary-color", data.secondary_color);
-    root.style.setProperty("--accent-color", data.accent_color);
+    // No sobrescribir colores: el tema predefinido (Gaia en globals.css) se mantiene siempre.
+    // root.style.setProperty("--primary-color", ...) etc. deshabilitado a propósito.
 
     // Setear favicon
     if (data.favicon_url) {
       updateFaviconInDOM(data.favicon_url);
     }
 
-    // Setear dark mode
+    // Setear dark mode (opcional; si se desea forzar solo tema claro, se puede ignorar)
     if (data.dark_mode_enabled) {
       document.documentElement.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
     }
 
-    // Aplicar CSS personalizado
-    if (data.custom_css) {
-      applyCustomCSS(data.custom_css);
-    }
+    // No aplicar CSS personalizado: se mantiene solo el tema predefinido Gaia.
+    // if (data.custom_css) applyCustomCSS(data.custom_css);
 
     // Guardar en localStorage para acceso rápido
     localStorage.setItem("customization", JSON.stringify(data));

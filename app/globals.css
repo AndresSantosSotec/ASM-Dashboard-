@@ -18,28 +18,30 @@ body {
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    /* Gaia: primario azul, secundario rojo, acento blanco. Fondo suave (no blanco puro). */
+    --background: 211 25% 97%;
+    /* off-white con tinte azul suave */
     --foreground: 211 68% 17%;
     /* #0E2B49 - Gaia navy */
-    --card: 0 0% 100%;
+    --card: 211 20% 98%;
+    /* Suave, no blanco puro */
     --card-foreground: 211 68% 17%;
-    /* #0E2B49 */
     --popover: 0 0% 100%;
     --popover-foreground: 211 68% 17%;
-    /* #0E2B49 */
     --primary: 211 68% 17%;
     /* #0E2B49 - Azul Marino */
-    --primary-foreground: 0 0% 95%;
-    /* #F2F2F2 - Gris Claro */
-    --secondary: 0 0% 95%;
-    /* #F2F2F2 - Gris Claro */
-    --secondary-foreground: 211 68% 17%;
-    --muted: 0 0% 96%;
-    /* light gray muted */
+    --primary-foreground: 0 0% 100%;
+    /* blanco sobre azul */
+    --secondary: 348 70% 29%;
+    /* #7E162B - Rojo (secundario Gaia) */
+    --secondary-foreground: 0 0% 100%;
+    /* blanco sobre rojo */
+    --muted: 211 20% 95%;
     --muted-foreground: 211 40% 40%;
-    --accent: 348 70% 29%;
-    /* #7E162B - Rojo Tinto */
-    --accent-foreground: 0 0% 100%;
+    --accent: 0 0% 100%;
+    /* blanco (acento Gaia) */
+    --accent-foreground: 211 68% 17%;
+    /* navy sobre blanco */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 211 20% 80%;
@@ -47,9 +49,8 @@ body {
     --input: 211 20% 80%;
     /* subtle navy-tinted input border */
     --ring: 211 68% 17%;
-    /* #0E2B49 - navy ring */
     --chart-1: 348 70% 29%;
-    /* #7E162B - Rojo Tinto */
+    /* #7E162B */
     --chart-2: 211 68% 17%;
     /* #0E2B49 - Navy */
     --chart-3: 211 50% 40%;

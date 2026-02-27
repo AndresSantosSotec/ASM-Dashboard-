@@ -207,7 +207,7 @@ export default function NuevoContratoPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-gray-500" />
       </div>
     )
@@ -215,7 +215,7 @@ export default function NuevoContratoPage() {
 
   if (error && !prospecto) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <div className="min-h-screen bg-background py-8 px-4">
         <div className="max-w-md mx-auto">
           <Card>
             <CardHeader>
@@ -238,7 +238,7 @@ export default function NuevoContratoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
+    <div className="min-h-screen bg-background py-8 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="mb-6 flex items-center gap-4">
           <Button variant="outline" onClick={() => router.push("/firma/contratos")}>
@@ -282,7 +282,7 @@ export default function NuevoContratoPage() {
                 />
               </div>
               {firmaBase64 && (
-                <div className="border rounded-lg p-4 bg-gray-50 inline-block">
+                <div className="border rounded-lg p-4 bg-background inline-block">
                   <img src={firmaBase64} alt="Vista previa firma" className="max-h-24 object-contain" />
                 </div>
               )}

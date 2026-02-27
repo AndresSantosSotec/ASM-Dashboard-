@@ -62,7 +62,7 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }: NavbarProps) {
   const profileRoute = isEstudiante ? "/estudiantes/perfil" : "/mi-perfil"
 
   return (
-    <div className="h-16 border-b border-gaia-wine/20 bg-white dark:bg-gaia-navy-dark flex items-center px-4 sticky top-0 z-30">
+    <div className="h-16 border-b border-gaia-wine/20 bg-card dark:bg-gaia-navy-dark flex items-center px-4 sticky top-0 z-30">
       <div className="flex items-center gap-4 w-full">
         <Button
           variant="ghost"
@@ -80,7 +80,7 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }: NavbarProps) {
             <Input
               type="search"
               placeholder="Buscar..."
-              className="w-full pl-9 bg-gray-50 border-gaia-wine/20 focus-visible:ring-gaia-wine dark:bg-gaia-navy/20 dark:border-gaia-wine/30 dark:placeholder:text-gaia-light/50"
+              className="w-full pl-9 bg-muted/50 border-gaia-wine/20 focus-visible:ring-gaia-wine dark:bg-gaia-navy/20 dark:border-gaia-wine/30 dark:placeholder:text-gaia-light/50"
             />
           </div>
         )}

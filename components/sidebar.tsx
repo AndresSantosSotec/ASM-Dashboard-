@@ -83,16 +83,10 @@ export default function Sidebar({ open, className }: SidebarProps) {
         className
       )}`}
     >
-      {/* Logo */}
       <div className="p-4 border-b border-gaia-wine/30">
-        <Link href="/" className="flex justify-center">
-          {/* Ruta con /webpanel/ para producción - descomentar la línea correcta según ambiente */}
-          <img 
-            src="/webpanel/recursos/Logos-02.png" 
-            alt="Gaia Logo"
-            className="h-28 w-auto object-contain cursor-pointer hover:opacity-90 transition-opacity"
-          />
-          {/* Local: src="/recursos/Logos-02.png" */}
+        <Link href="/" className="flex flex-col items-center gap-1 hover:opacity-90 transition-opacity">
+          <Shield size={32} className="text-gaia-light" />
+          <span className="text-gaia-light font-bold text-sm text-center">Gaia Business School</span>
         </Link>
       </div>
 

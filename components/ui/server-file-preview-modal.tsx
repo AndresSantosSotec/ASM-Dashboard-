@@ -108,7 +108,7 @@ export function ServerFilePreviewModal({
     const labels: Record<string, string> = {
       dpi: "DPI (ambos lados)",
       recibo: "Recibo de luz o teléfono",
-      american: "Recibo de American",
+      american: "Recibo de gaia",
       inscripcion: "Boleta de Inscripción",
       foto: "Fotografía reciente",
       titulo: "Título o Diploma",
