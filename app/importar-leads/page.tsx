@@ -666,7 +666,7 @@ export default function CargaMasivaProspectos() {
 
   // Importar leads. El backend debe detectar duplicados por: correo_electronico, numero_identificacion (DPI), nombre_completo.
   // Si hay duplicados: devolver status "duplicates", skipped, duplicates[] y NO importar. Si no hay duplicados (o confirm=true): importar y devolver inserted, skipped, duplicates[] en el éxito.
-  const handleImport = (confirm: boolean = false) => {
+  const handleImport = (confirm: boolean = false, action: string | null = null) => {
     if (!file) {
       Swal.fire({
         icon: "error",
@@ -686,6 +686,7 @@ export default function CargaMasivaProspectos() {
     const formData = new FormData();
     formData.append("file", file);
     if (confirm) formData.append("confirm", "true");
+    if (action) formData.append("action", action);
     if (selectedAsesorId) formData.append("asesor_id", selectedAsesorId);
     formData.append("check_duplicates", "correo,dpi,nombre");
 
@@ -719,34 +720,68 @@ export default function CargaMasivaProspectos() {
         const data = JSON.parse(xhr.responseText);
         console.log("[Import] JSON recibido:", data);
 
-        // Si el backend detectó duplicados: NUNCA se importan; siempre notificar
-        if (data.status === "duplicates" && !confirm) {
+        // Si el backend detectó duplicados y aún no seleccionaron una acción
+        if (data.status === "duplicates" && !action) {
           const duplicatesHtml = (data.duplicates || [])
+            .slice(0, 10)
             .map((d: any) => {
-              const correo = d.correo_electronico ?? d.correo ?? "—";
-              const dpi = d.numero_identificacion ?? d.dpi ?? "—";
-              const nombre = d.nombre_completo ?? d.nombre ?? "—";
-              return `<li><strong>${nombre}</strong> | ${correo} | DPI: ${dpi} — ${d.count ?? 1} duplicado(s)</li>`;
+              const parts = [];
+              if (d.correo_electronico) parts.push(`Correo: ${d.correo_electronico}`);
+              if (d.numero_identificacion) parts.push(`DPI: ${d.numero_identificacion}`);
+              if (d.nombre_completo) parts.push(`Nombre: ${d.nombre_completo}`);
+              return `<li class="text-sm">${parts.join(' | ')}</li>`;
             })
             .join("");
 
+          const moreCount = (data.skipped ?? (data.duplicates || []).length) - 10;
+
           Swal.fire({
-            title: 'Duplicados detectados — no se importó ningún registro',
+            title: '¡Duplicados encontrados!',
             html: `
-                <p class="text-left font-medium text-amber-800 mb-2">Se detectaron registros duplicados según <strong>Correo, DPI y Nombre</strong>. Ninguna fila fue importada.</p>
-                <p class="text-left text-sm mb-2">Duplicados encontrados: <strong>${data.skipped ?? (data.duplicates || []).length}</strong></p>
-                <ul class="text-left text-sm list-disc pl-5 max-h-48 overflow-y-auto border p-2 rounded bg-gray-50 mb-4">${duplicatesHtml || "<li>No se devolvió detalle</li>"}</ul>
-                <p class="text-left text-sm">Elimina o corrige las filas duplicadas en tu archivo (o quita las que ya subiste antes) y vuelve a importar.</p>
+                <div class="text-left">
+                  <p class="mb-2"><strong>Total de registros:</strong> ${data.total_rows}</p>
+                  <p class="mb-2"><strong>Nuevos por insertar:</strong> ${data.insertable}</p>
+                  <p class="mb-4"><strong>Duplicados detectados:</strong> ${data.skipped}</p>
+                  <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4">
+                    <p class="text-sm font-semibold mb-2">Primeros duplicados encontrados:</p>
+                    <ul class="list-disc pl-5 max-h-32 overflow-y-auto">${duplicatesHtml}</ul>
+                    ${moreCount > 0 ? `<p class="text-xs text-gray-600 mt-2">... y ${moreCount} duplicados más</p>` : ''}
+                  </div>
+                  <p class="text-sm font-medium text-gray-700 mb-2">¿Qué desea hacer?</p>
+                </div>
               `,
             icon: 'warning',
-            confirmButtonText: 'Entendido',
-            width: 620,
+            showDenyButton: true,
+            showCancelButton: true,
+            confirmButtonText: `<i class="fas fa-filter"></i> Omitir duplicados (${data.insertable} nuevos)`,
+            denyButtonText: `<i class="fas fa-exclamation-triangle"></i> Forzar todos (${data.total_rows})`,
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#3085d6',
+            denyButtonColor: '#f59e0b',
+            cancelButtonColor: '#71717a',
+            width: 700,
+          }).then((result) => {
+            if (result.isConfirmed) {
+              // Omitir duplicados - importar solo nuevos
+              handleImport(false, 'skip_duplicates');
+            } else if (result.isDenied) {
+              // Forzar importación de todos
+              Swal.fire({
+                title: '¿Está seguro?',
+                text: `Se importarán ${data.total_rows} registros incluyendo ${data.skipped} duplicados. Esto puede crear datos redundantes.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, importar todo',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#d33',
+              }).then((confirmResult) => {
+                if (confirmResult.isConfirmed) {
+                  handleImport(false, 'force_all');
+                }
+              });
+            }
           });
-          toast({
-            title: "Duplicados detectados",
-            description: `${data.skipped ?? 0} registros no importados (correo, DPI o nombre ya existen). Corrige el archivo e intenta de nuevo.`,
-            variant: "destructive",
-          });
+
           return;
         }
 
