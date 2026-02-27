@@ -99,7 +99,7 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
   }
 
   // Función para importar leads: se envía el archivo mediante FormData al endpoint /api/import.
-  const handleImport = (confirm: boolean = false) => {
+  const handleImport = (confirm: boolean = false, action: string | null = null) => {
     if (!file) {
       Swal.fire({
         icon: "error",
@@ -131,6 +131,7 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
     const formData = new FormData();
     formData.append("file", file);
     if (confirm) formData.append("confirm", "true");
+    if (action) formData.append("action", action);
 
     const token = localStorage.getItem("token");
 
@@ -151,22 +152,65 @@ export default function CargaMasivaProspectos({ onImportSuccess }: CargaMasivaPr
         console.log("[Import] JSON recibido:", data);
 
         // Si el backend detectó duplicados y aún no confirmamos
-        if (data.status === "duplicates" && !confirm) {
+        if (data.status === "duplicates" && !action) {
           const duplicatesHtml = data.duplicates
-            .map((d: any) => `<li>${d.correo_electronico}: ${d.count} duplicado(s)</li>`)
+            .slice(0, 10)
+            .map((d: any) => {
+              const parts = [];
+              if (d.correo_electronico) parts.push(`Correo: ${d.correo_electronico}`);
+              if (d.numero_identificacion) parts.push(`DPI: ${d.numero_identificacion}`);
+              if (d.nombre_completo) parts.push(`Nombre: ${d.nombre_completo}`);
+              return `<li class="text-sm">${parts.join(' | ')}</li>`;
+            })
             .join("");
+
+          const moreCount = data.skipped - 10;
 
           Swal.fire({
             title: '¡Duplicados encontrados!',
             html: `
-                <p>Nuevos por insertar: ${data.insertable}</p>
-                <p>Duplicados detectados: ${data.skipped}</p>
-                <ul style="text-align:left;">${duplicatesHtml}</ul>
-                <p>Por favor corrige tu archivo Excel y vuelve a intentarlo.</p>
+                <div class="text-left">
+                  <p class="mb-2"><strong>Total de registros:</strong> ${data.total_rows}</p>
+                  <p class="mb-2"><strong>Nuevos por insertar:</strong> ${data.insertable}</p>
+                  <p class="mb-4"><strong>Duplicados detectados:</strong> ${data.skipped}</p>
+                  <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4">
+                    <p class="text-sm font-semibold mb-2">Primeros duplicados encontrados:</p>
+                    <ul class="list-disc pl-5 max-h-32 overflow-y-auto">${duplicatesHtml}</ul>
+                    ${moreCount > 0 ? `<p class="text-xs text-gray-600 mt-2">... y ${moreCount} duplicados más</p>` : ''}
+                  </div>
+                  <p class="text-sm font-medium text-gray-700 mb-2">¿Qué desea hacer?</p>
+                </div>
               `,
             icon: 'warning',
-            confirmButtonText: 'Entendido',
-            width: 600,
+            showDenyButton: true,
+            showCancelButton: true,
+            confirmButtonText: `<i class="fas fa-filter"></i> Omitir duplicados (${data.insertable} nuevos)`,
+            denyButtonText: `<i class="fas fa-exclamation-triangle"></i> Forzar todos (${data.total_rows})`,
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#3085d6',
+            denyButtonColor: '#f59e0b',
+            cancelButtonColor: '#71717a',
+            width: 700,
+          }).then((result) => {
+            if (result.isConfirmed) {
+              // Omitir duplicados - importar solo nuevos
+              handleImport(false, 'skip_duplicates');
+            } else if (result.isDenied) {
+              // Forzar importación de todos
+              Swal.fire({
+                title: '¿Está seguro?',
+                text: `Se importarán ${data.total_rows} registros incluyendo ${data.skipped} duplicados. Esto puede crear datos redundantes.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, importar todo',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#d33',
+              }).then((confirmResult) => {
+                if (confirmResult.isConfirmed) {
+                  handleImport(false, 'force_all');
+                }
+              });
+            }
           });
 
           return;
