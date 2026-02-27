@@ -18,7 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ArrowLeft, Plus, Info, Download } from "lucide-react"
+import { ArrowLeft, Plus, Info, Download, ShieldAlert } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
@@ -663,7 +664,8 @@ export default function CargaMasivaProspectos() {
     }
   }
 
-  // Función para importar leads: se envía el archivo mediante FormData al endpoint /api/import.
+  // Importar leads. El backend debe detectar duplicados por: correo_electronico, numero_identificacion (DPI), nombre_completo.
+  // Si hay duplicados: devolver status "duplicates", skipped, duplicates[] y NO importar. Si no hay duplicados (o confirm=true): importar y devolver inserted, skipped, duplicates[] en el éxito.
   const handleImport = (confirm: boolean = false) => {
     if (!file) {
       Swal.fire({
@@ -684,8 +686,8 @@ export default function CargaMasivaProspectos() {
     const formData = new FormData();
     formData.append("file", file);
     if (confirm) formData.append("confirm", "true");
-    // Enviar asesor_id si se seleccionó uno
     if (selectedAsesorId) formData.append("asesor_id", selectedAsesorId);
+    formData.append("check_duplicates", "correo,dpi,nombre");
 
     const token = localStorage.getItem("token");
     console.log("[Import] headers y body preparados", {
@@ -706,6 +708,7 @@ export default function CargaMasivaProspectos() {
     };
 
     xhr.onload = () => {
+      setProgress(0);
       console.log("[Import] respuesta xhr:", xhr.status);
       if (xhr.status < 200 || xhr.status >= 300) {
         handleError(new Error(`HTTP error: ${xhr.status}`));
@@ -716,23 +719,33 @@ export default function CargaMasivaProspectos() {
         const data = JSON.parse(xhr.responseText);
         console.log("[Import] JSON recibido:", data);
 
-        // Si el backend detectó duplicados
+        // Si el backend detectó duplicados: NUNCA se importan; siempre notificar
         if (data.status === "duplicates" && !confirm) {
-          const duplicatesHtml = data.duplicates
-            .map((d: any) => `<li>${d.correo_electronico}: ${d.count} duplicado(s)</li>`)
+          const duplicatesHtml = (data.duplicates || [])
+            .map((d: any) => {
+              const correo = d.correo_electronico ?? d.correo ?? "—";
+              const dpi = d.numero_identificacion ?? d.dpi ?? "—";
+              const nombre = d.nombre_completo ?? d.nombre ?? "—";
+              return `<li><strong>${nombre}</strong> | ${correo} | DPI: ${dpi} — ${d.count ?? 1} duplicado(s)</li>`;
+            })
             .join("");
 
           Swal.fire({
-            title: '¡Duplicados encontrados!',
+            title: 'Duplicados detectados — no se importó ningún registro',
             html: `
-                <p>Total filas enviadas: ${data.inserted}</p>
-                <p>Duplicados detectados: ${data.skipped}</p>
-                <ul style="text-align:left;">${duplicatesHtml}</ul>
-                <p>Por favor corrige tu archivo Excel y vuelve a intentarlo.</p>
+                <p class="text-left font-medium text-amber-800 mb-2">Se detectaron registros duplicados según <strong>Correo, DPI y Nombre</strong>. Ninguna fila fue importada.</p>
+                <p class="text-left text-sm mb-2">Duplicados encontrados: <strong>${data.skipped ?? (data.duplicates || []).length}</strong></p>
+                <ul class="text-left text-sm list-disc pl-5 max-h-48 overflow-y-auto border p-2 rounded bg-gray-50 mb-4">${duplicatesHtml || "<li>No se devolvió detalle</li>"}</ul>
+                <p class="text-left text-sm">Elimina o corrige las filas duplicadas en tu archivo (o quita las que ya subiste antes) y vuelve a importar.</p>
               `,
             icon: 'warning',
             confirmButtonText: 'Entendido',
-            width: 600,
+            width: 620,
+          });
+          toast({
+            title: "Duplicados detectados",
+            description: `${data.skipped ?? 0} registros no importados (correo, DPI o nombre ya existen). Corrige el archivo e intenta de nuevo.`,
+            variant: "destructive",
           });
           return;
         }
@@ -769,20 +782,38 @@ export default function CargaMasivaProspectos() {
           return;
         }
 
-        // Flujo final: éxito (sin duplicados o tras confirmación)
+        // Flujo final: éxito — SIEMPRE mostrar resumen (importados y omitidos por duplicado)
+        const imported = data.inserted ?? data.imported ?? 0;
+        const skipped = data.skipped ?? 0;
+        const duplicatesList = data.duplicates ?? [];
+        const duplicatesHtml = duplicatesList.length > 0
+          ? duplicatesList
+              .map((d: any) => {
+                const correo = d.correo_electronico ?? d.correo ?? "—";
+                const dpi = d.numero_identificacion ?? d.dpi ?? "—";
+                const nombre = d.nombre_completo ?? d.nombre ?? "—";
+                return `<li><strong>${nombre}</strong> | ${correo} | DPI: ${dpi}</li>`;
+              })
+              .join("")
+          : "";
+
         Swal.fire({
           icon: "success",
           title: "Importación completada",
           html: `
-            ${data.skipped > 0
-              ? `<p>Duplicados importados: ${data.skipped}</p>`
-              : ''
-            }
+            <p class="text-left font-medium">Registros importados: <strong>${imported}</strong></p>
+            ${skipped > 0 ? `
+              <p class="text-left font-medium text-amber-700 mt-2">Registros omitidos por duplicado (correo, DPI o nombre): <strong>${skipped}</strong></p>
+              ${duplicatesHtml ? `<ul class="text-left text-sm list-disc pl-5 max-h-32 overflow-y-auto border p-2 rounded bg-gray-50 mt-2">${duplicatesHtml}</ul>` : ""}
+            ` : ""}
           `,
+          width: 560,
         });
         toast({
           title: "Importación completada",
-          description: data.message,
+          description: skipped > 0
+            ? `${imported} importados. ${skipped} omitidos por duplicado (correo, DPI, nombre).`
+            : (data.message || `${imported} registros importados.`),
         });
         router.refresh();
       } catch (error: any) {
@@ -791,6 +822,7 @@ export default function CargaMasivaProspectos() {
     };
 
     xhr.onerror = () => {
+      setProgress(0);
       handleError(new Error("Network error"));
     };
 
@@ -845,6 +877,14 @@ export default function CargaMasivaProspectos() {
             Volver al inicio
           </Button>
         </div>
+
+        {/* Aviso: criterios de duplicados (correo, DPI, nombre) */}
+        <Alert className="bg-amber-50 border-amber-200">
+          <ShieldAlert className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-900">
+            <strong>Evitar duplicados:</strong> Los registros se consideran duplicados si ya existe uno con el mismo <strong>Correo</strong>, <strong>DPI (número de identificación)</strong> o <strong>Nombre completo</strong>. Esos registros <strong>nunca se importarán</strong> y se mostrarán en el resumen después de subir el archivo. Revisa tu archivo y quita filas ya subidas en cargas anteriores.
+          </AlertDescription>
+        </Alert>
 
         {/* Card de acciones principales */}
         <div className="space-y-6 bg-white p-6 rounded-lg shadow-sm">

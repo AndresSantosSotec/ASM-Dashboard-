@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Eye, Loader2, Search, CheckCircle2, Clock, XCircle } from "lucide-react"
+import { Eye, Loader2, Search, CheckCircle2, Clock, XCircle, FileSignature } from "lucide-react"
 import { API_BASE_URL } from '@/utils/apiConfig'
 
 interface Contrato {
@@ -43,6 +43,8 @@ interface Contrato {
 
 export default function ContratosListPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const prospectoIdFromUrl = searchParams.get("prospecto_id")
 
   const [contratos, setContratos] = useState<Contrato[]>([])
   const [loading, setLoading] = useState(true)
@@ -101,12 +103,13 @@ export default function ContratosListPage() {
     router.push(`/firma/contratos/${id}`)
   }
 
-  const estadoBadge = (estado: string) => {
+  const estadoBadge = (estado: string | null | undefined) => {
+    const key = estado != null && typeof estado === "string" ? estado : ""
     const config = {
       pendiente: { color: "bg-gray-500", texto: "Pendiente", icon: Clock },
       firmado_asesor: { color: "bg-yellow-500", texto: "Firmado Asesor", icon: Clock },
       firmado_completo: { color: "bg-green-500", texto: "Completo", icon: CheckCircle2 },
-    }[estado] || { color: "bg-gray-500", texto: "Desconocido", icon: XCircle }
+    }[key] || { color: "bg-gray-500", texto: "Desconocido", icon: XCircle }
 
     const Icon = config.icon
 
@@ -130,6 +133,29 @@ export default function ContratosListPage() {
             Gestión y visualización de contratos firmados
           </p>
         </div>
+
+        {/* Generar contrato para prospecto (misma lógica que Gestión / Alerta) */}
+        {prospectoIdFromUrl && (
+          <Card className="mb-6 border-orange-200 bg-orange-50/50">
+            <CardContent className="pt-6">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-semibold text-orange-800">Generar contrato para este prospecto</h3>
+                  <p className="text-sm text-orange-700/90 mt-1">
+                    Crear contrato y enlace de firma digital con la misma lógica del módulo de firma.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => router.push(`/firma/student-details/${prospectoIdFromUrl}`)}
+                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                  <FileSignature className="h-4 w-4 mr-2" />
+                  Generar contrato y firma
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Filtros */}
         <Card className="mb-6">

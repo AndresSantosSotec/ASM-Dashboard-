@@ -52,7 +52,7 @@ export default function FinancieroTab({
   const formas = ["deposito", "debito", "transferencia", "tarjeta"]
   const [convenios, setConvenios] = useState<Convenio[]>([])
   const [sugeridos, setSugeridos] = useState({ inscripcion: "", cuota: "" })
-  const [serviciosElectronicos, setServiciosElectronicos] = useState<Array<{curso: string, transfer: string, otro: string}>>([])
+  const [serviciosElectronicos, setServiciosElectronicos] = useState<Array<{ curso: string, transfer: string, otro: string }>>([])
   const [showRecibo, setShowRecibo] = useState(false)
 
   // ——— Validación de campos obligatorios ———
@@ -285,26 +285,31 @@ export default function FinancieroTab({
             placeholder={sugeridos.inscripcion}
             onChange={(v) => setDatos((d) => ({ ...d, inscripcion: v }))}
           />
-          {/* Toggle de descuento: visible cuando inscripción < 1000 */}
-          {parseFloat(datos.inscripcion?.replace(/,/g, "") || "0") > 0 &&
-            parseFloat(datos.inscripcion?.replace(/,/g, "") || "0") < 1000 && (
-            <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={!!datos.descuentoInscripcion}
-                onChange={(e) => setDatos(d => ({ ...d, descuentoInscripcion: e.target.checked }))}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm text-blue-700 font-medium">Descuento en inscripción</span>
-            </label>
-          )}
-          {!!datos.descuentoInscripcion &&
-            parseFloat(datos.inscripcion?.replace(/,/g, "") || "0") > 0 &&
-            parseFloat(datos.inscripcion?.replace(/,/g, "") || "0") < 1000 && (
-            <p className="text-xs text-green-700 mt-1">
-              Se aplicará como pago completo de inscripción (descuento de Q{(1000 - parseFloat(datos.inscripcion?.replace(/,/g, "") || "0")).toFixed(2)})
-            </p>
-          )}
+          {/* Toggle de descuento: visible cuando inscripción < precio sugerido del API */}
+          {(() => {
+            const precioBase = parseFloat(sugeridos.inscripcion) || 0
+            const montoActual = parseFloat(datos.inscripcion?.replace(/,/g, "") || "0")
+            return precioBase > 0 && montoActual > 0 && montoActual < precioBase ? (
+              <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={!!datos.descuentoInscripcion}
+                  onChange={(e) => setDatos(d => ({ ...d, descuentoInscripcion: e.target.checked }))}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-blue-700 font-medium">Descuento en inscripción</span>
+              </label>
+            ) : null
+          })()}
+          {(() => {
+            const precioBase = parseFloat(sugeridos.inscripcion) || 0
+            const montoActual = parseFloat(datos.inscripcion?.replace(/,/g, "") || "0")
+            return !!datos.descuentoInscripcion && precioBase > 0 && montoActual > 0 && montoActual < precioBase ? (
+              <p className="text-xs text-green-700 mt-1">
+                Se aplicará como pago completo de inscripción (descuento de Q{(precioBase - montoActual).toFixed(2)})
+              </p>
+            ) : null
+          })()}
         </div>
         <InputWithLabel
           id="cuo"
@@ -376,7 +381,29 @@ export default function FinancieroTab({
           titulo="Servicios electrónicos"
           className="mt-4"
           head={["", "Transferencia / Depósito", "Otro método"]}
-          rows={serviciosElectronicos.map(s => [`Programa de ${s.curso} cursos`, s.transfer, s.otro])}
+          rows={(() => {
+            const standardDurations = [8, 9, 12, 18, 21, 24, 32];
+            const duracion = parseInt(datos.cantidadMeses) || 0;
+
+            // Filtrar para mostrar solo los estandares o el seleccionado
+            const mostrar = serviciosElectronicos.filter(s => {
+              const c = parseInt(s.curso);
+              return standardDurations.includes(c) || c === duracion;
+            });
+
+            // Si el seleccionado no está en la lista mostrada y es mayor a 0, lo agregamos
+            if (duracion > 0 && !mostrar.some(s => parseInt(s.curso) === duracion)) {
+              mostrar.push({
+                curso: duracion.toString(),
+                transfer: `Q${(duracion * 70).toFixed(2)}`,
+                otro: `Q${(duracion * 77).toFixed(2)}`
+              });
+              // Ordenar numéricamente para que se vea bien
+              mostrar.sort((a, b) => parseInt(a.curso) - parseInt(b.curso));
+            }
+
+            return mostrar.map(s => [`Programa de ${s.curso} cursos`, s.transfer, s.otro]);
+          })()}
         />
         <SmallPrint />
       </div>

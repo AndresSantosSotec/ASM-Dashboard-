@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -10,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SimpleDatePicker } from "@/components/ui/simple-date-picker"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, XCircle, AlertCircle, Upload, FileText, Loader2, Eye, X } from "lucide-react"
+import { CheckCircle, XCircle, AlertCircle, Upload, FileText, Loader2, Eye, X, FileSignature } from "lucide-react"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import Swal from "sweetalert2"
 import axios from "axios"
@@ -45,6 +46,7 @@ export default function AlertaAlumnoNuevo({
   onClose,
   onSuccess,
 }: AlertaAlumnoNuevoProps) {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState("validacion")
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
@@ -177,6 +179,58 @@ export default function AlertaAlumnoNuevo({
             : "",
         }))
 
+        // 🆕 Cargar documentos del prospecto (especialmente boleta de inscripción)
+        try {
+          const resDocumentos = await fetch(`${API_URL}/documentos/prospecto/${prospectoId}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          })
+
+          if (resDocumentos.ok) {
+            const documentos = await resDocumentos.json()
+            
+            // Buscar documento de tipo "inscripcion"
+            const boletaInscripcion = documentos.find((doc: any) => 
+              doc.tipo_documento === "inscripcion" || doc.tipo_documento === "inscripción"
+            )
+
+            if (boletaInscripcion) {
+              console.log("✅ Boleta de inscripción encontrada:", boletaInscripcion)
+              
+              // Parsear metadata si existe
+              let metadata = null
+              if (boletaInscripcion.metadata) {
+                try {
+                  metadata = typeof boletaInscripcion.metadata === 'string' 
+                    ? JSON.parse(boletaInscripcion.metadata) 
+                    : boletaInscripcion.metadata
+                } catch (e) {
+                  console.warn("⚠️ No se pudo parsear metadata:", e)
+                }
+              }
+
+              // Cargar datos de la boleta en el estado
+              if (metadata) {
+                setBoletaData({
+                  numeroBoleta: metadata.numero_boleta || "",
+                  banco: metadata.banco || "",
+                  monto: metadata.monto || (montoInscripcion > 0 ? montoInscripcion.toString() : ""),
+                  fechaRecibo: metadata.fecha_recibo || "",
+                  archivo: null, // El archivo ya está subido
+                })
+                setBoletaSubida(true) // Marcar como ya subida
+                console.log("✅ Datos de boleta cargados desde documento existente")
+              }
+            } else {
+              console.log("ℹ️ No se encontró boleta de inscripción existente")
+            }
+          }
+        } catch (errDocs) {
+          console.warn("⚠️ Error cargando documentos (no crítico):", errDocs)
+          // No bloquear el flujo si falla la carga de documentos
+        }
+
         // Validar datos mínimos después de cargar los datos
         await validarDatosMinimos()
 
@@ -215,6 +269,44 @@ export default function AlertaAlumnoNuevo({
       }
     }
   }, [formData.programa_id, programasAcademicos])
+
+  // Faltantes "efectivos": excluir los que ya están cubiertos por prospecto/programa o por el formulario (para que al llenar DPI u otros en el modal se reconozcan sin tener que guardar antes)
+  const effectiveFaltantes = useMemo(() => {
+    return datosFaltantes.filter((f) => {
+      if (f === "Nombre completo") {
+        return !(prospectoData?.nombre_completo?.trim() || formData.nombre_completo?.trim())
+      }
+      if (f === "Carnet") {
+        return !tieneCarnet
+      }
+      if (f === "Correo electrónico") {
+        return !(prospectoData?.correo_electronico?.trim() || formData.correo_electronico?.trim())
+      }
+      if (f === "DPI") {
+        const dpiProspecto = prospectoData?.numero_identificacion?.trim()
+        const dpiForm = formData.numero_identificacion?.trim()
+        return !(dpiProspecto || (dpiForm && dpiForm.length >= 5))
+      }
+      if (f === "Teléfono") {
+        return !(prospectoData?.telefono?.trim() || formData.telefono?.trim())
+      }
+      if (f === "Modalidad") {
+        return !(prospectoData?.modalidad?.trim() || formData.modalidad?.trim())
+      }
+      if (f === "Fecha de inicio del programa") {
+        return !(prospectoData?.fecha_inicio_especifica || formData.fecha_inicio_especifica?.trim())
+      }
+      if (f === "Plan Académico") {
+        const tienePrograma = programaData?.programa?.nombre_del_programa || formData.programa_id
+        return !tienePrograma
+      }
+      if (f === "Duración del Plan") {
+        const duracion = programaData?.duracion_meses || programaData?.programa?.meses || formData.duracion_meses?.trim()
+        return !(duracion && Number(duracion) > 0)
+      }
+      return true
+    })
+  }, [datosFaltantes, prospectoData, formData, programaData, tieneCarnet])
 
   const validarDatosMinimos = async () => {
     try {
@@ -880,11 +972,10 @@ export default function AlertaAlumnoNuevo({
 
   const puedeAvanzar = () => {
     if (activeTab === "validacion") {
-      return datosFaltantes.length === 0 && tieneCarnet
+      return effectiveFaltantes.length === 0 && tieneCarnet
     }
     if (activeTab === "datos") {
-      // Verificar que todos los campos requeridos estén llenos
-      const camposRequeridos = datosFaltantes.filter(f =>
+      const camposRequeridos = effectiveFaltantes.filter(f =>
         f === "Nombre completo" || f === "DPI" || f === "Correo electrónico"
       )
       return camposRequeridos.length === 0
@@ -1010,16 +1101,18 @@ export default function AlertaAlumnoNuevo({
                     </div>
                   </div>
 
-                  {/* DPI */}
+                  {/* DPI - considerar también el valor del formulario (Completar Datos) para que se reconozca al llenar */}
                   <div className="flex items-center justify-between py-2 border-b">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">DPI</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {prospectoData?.numero_identificacion ? (
+                      {(prospectoData?.numero_identificacion?.trim() || (formData.numero_identificacion?.trim() && formData.numero_identificacion.trim().length >= 5)) ? (
                         <>
                           <CheckCircle className="h-5 w-5 text-green-600" />
-                          <span className="text-sm text-gray-600">{prospectoData.numero_identificacion}</span>
+                          <span className="text-sm text-gray-600">
+                            {prospectoData?.numero_identificacion?.trim() || formData.numero_identificacion}
+                          </span>
                         </>
                       ) : (
                         <>
@@ -1078,17 +1171,17 @@ export default function AlertaAlumnoNuevo({
               </div>
 
               {/* Resumen de datos faltantes */}
-              {datosFaltantes.length > 0 && (
+              {effectiveFaltantes.length > 0 && (
                 <Alert className="bg-red-50 border-red-200">
                   <XCircle className="h-4 w-4 text-red-600" />
                   <AlertDescription className="text-red-800">
-                    <strong>Datos básicos faltantes:</strong> {datosFaltantes.length} campo(s) requerido(s) deben ser completados antes de crear la alerta.
+                    <strong>Datos básicos faltantes:</strong> {effectiveFaltantes.length} campo(s) requerido(s) deben ser completados antes de crear la alerta.
                   </AlertDescription>
                 </Alert>
               )}
 
               {/* Mensaje cuando los datos básicos están completos */}
-              {datosFaltantes.length === 0 && tieneCarnet && (
+              {effectiveFaltantes.length === 0 && tieneCarnet && (
                 <Alert className="bg-green-50 border-green-200 mt-6">
                   <CheckCircle className="h-4 w-4 text-green-600" />
                   <AlertDescription className="text-green-800">
@@ -1100,6 +1193,23 @@ export default function AlertaAlumnoNuevo({
                   </AlertDescription>
                 </Alert>
               )}
+            </div>
+
+            {/* Acciones: Firma digital / Generar contrato (misma lógica que Gestión) */}
+            <div className="border rounded-lg p-4 mt-4 bg-gray-50">
+              <h3 className="font-semibold mb-2">Acciones</h3>
+              <p className="text-sm text-gray-600 mb-3">Generar contrato y enviar enlace de firma digital al estudiante.</p>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  onClose()
+                  router.push(`/firma/student-details/${prospectoId}`)
+                }}
+                className="text-orange-600 border-orange-200 hover:bg-orange-50"
+              >
+                <FileSignature className="h-4 w-4 mr-2" />
+                Firma digital / Generar contrato
+              </Button>
             </div>
 
             <div className="flex justify-end gap-2 pt-4 border-t">
@@ -1462,13 +1572,45 @@ export default function AlertaAlumnoNuevo({
             </Alert>
 
             {boletaSubida ? (
-              <div className="bg-green-50 border-2 border-green-200 rounded-lg p-6">
+              <div className="bg-green-50 border-2 border-green-200 rounded-lg p-6 space-y-4">
                 <div className="flex items-center gap-3 text-green-700">
                   <CheckCircle className="h-6 w-6" />
                   <div>
                     <p className="font-semibold">Boleta de inscripción registrada</p>
                     <p className="text-sm">El comprobante fue guardado correctamente</p>
                   </div>
+                </div>
+                
+                {/* Mostrar datos de la boleta cargada */}
+                <div className="mt-4 grid grid-cols-2 gap-4 bg-white rounded-lg p-4">
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">Número de Boleta</p>
+                    <p className="text-sm font-semibold text-gray-800">{boletaData.numeroBoleta || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">Banco</p>
+                    <p className="text-sm font-semibold text-gray-800">{boletaData.banco || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">Monto</p>
+                    <p className="text-sm font-semibold text-gray-800">Q {boletaData.monto || montoInscripcion}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">Fecha del Recibo</p>
+                    <p className="text-sm font-semibold text-gray-800">{boletaData.fechaRecibo || "N/A"}</p>
+                  </div>
+                </div>
+                
+                <div className="mt-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setBoletaSubida(false)}
+                    className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Modificar boleta
+                  </Button>
                 </div>
               </div>
             ) : (

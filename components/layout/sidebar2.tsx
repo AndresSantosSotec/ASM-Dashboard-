@@ -247,7 +247,7 @@ export default function Sidebar({ open, className }: SidebarProps) {
           )}
         </div>
 
-        {/* Inscripción (expandible) */}
+        {/* Inscripción (expandible) - visible para Administrador, Asesor y Administrativo (ej. quien aprueba académicamente) */}
         {(userRole === "Administrador" || userRole === "Asesor") && (
           <div className="mb-1">
             <button
@@ -266,8 +266,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/inscripcion/ficha"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/ficha"
-                      ? "bg-gaia-wine text-white"
-                      : "text-gaia-light hover:bg-gaia-wine/20"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <FileText size={16} className="mr-2" />
@@ -276,8 +276,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/inscripcion/revision"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/revision"
-                      ? "bg-gaia-wine text-white"
-                      : "text-gaia-light hover:bg-gaia-wine/20"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <FileText size={16} className="mr-2" />
@@ -286,8 +286,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/firma"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/firma" || pathname.startsWith("/firma/")
-                      ? "bg-gaia-wine text-white"
-                      : "text-gaia-light hover:bg-gaia-wine/20"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <FileSignature size={16} className="mr-2" />
@@ -300,8 +300,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/inscripcion/aprobacion-academica"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/aprobacion-academica"
-                      ? "bg-gaia-wine text-white"
-                      : "text-gaia-light hover:bg-gaia-wine/20"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <CheckCircle size={16} className="mr-2" />
@@ -310,8 +310,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/inscripcion/aprobacion-financiera"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/aprobacion-financiera"
-                      ? "bg-gaia-wine text-white"
-                      : "text-gaia-light hover:bg-gaia-wine/20"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <DollarSign size={16} className="mr-2" />
@@ -320,8 +320,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/inscripcion/gen-credenciales"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/gen-credenciales"
-                      ? "bg-gaia-wine text-white"
-                      : "text-gaia-light hover:bg-gaia-wine/20"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <IdCard size={16} className="mr-2" />
@@ -334,8 +334,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/documentos"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/documentos"
-                      ? "bg-gaia-wine text-white"
-                      : "text-gaia-light hover:bg-gaia-wine/20"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <FileText size={16} className="mr-2" />
@@ -348,8 +348,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/inscripcion/admin/periodos"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/admin/periodos"
-                      ? "bg-gaia-wine text-white"
-                      : "text-gaia-light hover:bg-gaia-wine/20"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <Calendar size={16} className="mr-2" />
@@ -358,8 +358,8 @@ export default function Sidebar({ open, className }: SidebarProps) {
                 <Link
                   href="/inscripcion/admin/flujos"
                   className={`flex items-center px-4 py-1.5 rounded-md ${pathname === "/inscripcion/admin/flujos"
-                      ? "bg-gaia-wine text-white"
-                      : "text-gaia-light hover:bg-gaia-wine/20"
+                      ? "bg-asm-medium-gold text-white"
+                      : "text-asm-light-gold hover:bg-asm-medium-gold/20"
                     } transition-colors duration-200`}
                 >
                   <Activity size={16} className="mr-2" />

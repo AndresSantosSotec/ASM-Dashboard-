@@ -479,7 +479,7 @@ export default function RegistrationForm() {
                   onFinalizar={handleFinalizarInscripcion}
                   isFinalizing={isSubmitting}
                   prospectoId={prospectoId as number}
-                  montoInscripcion={parseFloat(datosFinancieros.inscripcion?.replace(/,/g, "") || "0") || 1000}
+                  montoInscripcion={parseFloat(datosFinancieros.inscripcion?.replace(/,/g, "") || "0")}
                   descuentoInscripcion={!!datosFinancieros.descuentoInscripcion}
                   studentName={datosPersonales.nombre}
                   studentPhone={datosPersonales.telefono}

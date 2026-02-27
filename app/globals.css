@@ -566,7 +566,7 @@ body {
 }
 
 /* ============================================
-   SWAL z-index fix
+   SWAL z-index fix + Radix UI Dialog compatibility
    ============================================ */
 
 .swal-retroceder-container {
@@ -575,10 +575,27 @@ body {
 
 .swal2-container {
   z-index: 99999 !important;
+  pointer-events: auto !important;
 }
 
 .swal2-popup {
   z-index: 99999 !important;
+}
+
+/*
+  FIX CRÍTICO: Cuando SweetAlert2 está visible, desactivar la captura de
+  eventos (focus-trap + pointer capture) de los portales de Radix UI.
+  SweetAlert2 agrega la clase 'swal2-shown' al <body> mientras se muestra.
+  Sin esta regla, el overlay del Dialog intercepta los clics y el usuario
+  no puede presionar "Aceptar" en el SweetAlert.
+*/
+body.swal2-shown [data-radix-portal] {
+  pointer-events: none !important;
+}
+
+/* Asegurar que el backdrop de SweetAlert también reciba eventos */
+body.swal2-shown .swal2-container * {
+  pointer-events: auto !important;
 }
 
 /* ============================================

@@ -16,11 +16,11 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table"
-import { 
-  Download, 
-  Upload, 
-  Send, 
-  CheckCircle2, 
+import {
+  Download,
+  Upload,
+  Send,
+  CheckCircle2,
   AlertCircle,
   ChevronRight,
   IdCard,
@@ -31,8 +31,10 @@ import {
   MessageCircle,
   User,
   UserCheck,
-  AlertTriangle
+  AlertTriangle,
+  Pencil
 } from "lucide-react"
+import { ModalEditarCarnetProspecto, type ProspectoCarnetRow } from "@/components/academico/ModalEditarCarnetProspecto"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import {
@@ -148,6 +150,7 @@ export function GeneracionCredenciales() {
   const [resumenComisiones, setResumenComisiones] = useState<any>(null)
   const [mesResumen, setMesResumen] = useState(new Date().getMonth() + 1)
   const [anioResumen, setAnioResumen] = useState(new Date().getFullYear())
+  const [editarCarnetProspecto, setEditarCarnetProspecto] = useState<ProspectoCarnetRow | null>(null)
 
   useEffect(() => {
     cargarProspectos()
@@ -785,6 +788,7 @@ export function GeneracionCredenciales() {
                       <TableHead>Email</TableHead>
                       <TableHead>Programa</TableHead>
                       <TableHead>Asesor</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -819,6 +823,22 @@ export function GeneracionCredenciales() {
                           ) : 'Sin programa'}
                         </TableCell>
                         <TableCell>{prospecto.asesor || 'Sin asignar'}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setEditarCarnetProspecto({
+                                id: prospecto.id,
+                                nombre_completo: prospecto.nombre_completo || `${prospecto.nombres} ${prospecto.apellidos}`.trim() || 'Estudiante',
+                                carnet: prospecto.carnet || '',
+                              })
+                            }
+                          >
+                            <Pencil className="h-4 w-4 mr-1" />
+                            Editar Carnet
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1266,6 +1286,19 @@ export function GeneracionCredenciales() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ModalEditarCarnetProspecto
+        open={!!editarCarnetProspecto}
+        onClose={() => setEditarCarnetProspecto(null)}
+        prospecto={
+          editarCarnetProspecto ?? {
+            id: 0,
+            nombre_completo: "",
+            carnet: "",
+          }
+        }
+        onSuccess={cargarProspectos}
+      />
     </div>
   )
 }

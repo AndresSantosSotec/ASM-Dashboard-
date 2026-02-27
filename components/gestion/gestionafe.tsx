@@ -1,11 +1,10 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
-import { useRouter } from "next/navigation"
 import Swal from "sweetalert2"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle, RefreshCw, Download, MessageCircle, Trash2, Settings2, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Search, FileSignature } from "lucide-react"
+import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle, RefreshCw, Download, MessageCircle, Trash2, Settings2 } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -18,11 +17,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuCheckboxItem,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from "@/components/ui/badge"
 import {
   Tooltip,
   TooltipContent,
@@ -37,8 +33,6 @@ import CambiarEstado from "./cambiar-estado"
 import AlertaAlumnoNuevo from "./alerta-alumno-nuevo"
 import SeguimientoModalPanel from "@/components/seguimiento/seguimiento-modal-panel"
 import SelectorColumnasModal from "./selector-columnas-modal"
-import FiltroFechaRango from "./filtro-fecha-rango"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { API_BASE_URL } from "@/utils/apiConfig"
 
 const API_URL = `${API_BASE_URL}/api`
@@ -87,8 +81,6 @@ interface Prospecto {
   numero_identificacion?: string
   fecha_nacimiento?: string
   direccion_residencia?: string
-  // ✨ Permitir cualquier propiedad adicional para columnas dinámicas
-  [key: string]: any
 }
 
 interface Creator {
@@ -98,20 +90,10 @@ interface Creator {
 }
 
 export default function GestionProspectos() {
-  const router = useRouter()
   const [mounted, setMounted] = useState(false);
   const [prospectos, setProspectos] = useState<Prospecto[]>([]);
   const [statuses, setStatuses] = useState<string[]>([]);
   const [creators, setCreators] = useState<Creator[]>([]);
-  // 🔹 Opciones de filtros dinámicas desde backend
-  const [opcionesFiltros, setOpcionesFiltros] = useState<{
-    estados: string[]
-    departamentos: string[]
-    puestos: string[]
-    origenes: string[]
-    campanias: string[]
-    creadores?: any[]
-  } | null>(null)
   const [programas, setProgramas] = useState<Record<string, string>>({});
   const [programasLoaded, setProgramasLoaded] = useState(false);
   const [loading, setLoading] = useState(true)
@@ -169,33 +151,15 @@ export default function GestionProspectos() {
   // Filtros y paginación
   const [searchTerm, setSearchTerm] = useState<string>("")
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>("")
-  const [estadoFilters, setEstadoFilters] = useState<string[]>([])
-  const [departamentoFilters, setDepartamentoFilters] = useState<string[]>([])
-  const [puestoFilters, setPuestoFilters] = useState<string[]>([])
-  const [origenFilters, setOrigenFilters] = useState<string[]>([])
-  const [creadorFilters, setCreadorFilters] = useState<string[]>([])
-  // 📅 Filtros de fecha
-  const [createdDesde, setCreatedDesde] = useState<string>("")
-  const [createdHasta, setCreatedHasta] = useState<string>("")
-  const [fechaDesde, setFechaDesde] = useState<string>("")
-  const [fechaHasta, setFechaHasta] = useState<string>("")
+  const [estadoFilter, setEstadoFilter] = useState<string>("todos")
+  const [departamentoFilter, setDepartamentoFilter] = useState<string>("todos")
+  const [puestoFilter, setPuestoFilter] = useState<string>("todos")
+  const [origenFilter, setOrigenFilter] = useState<string>("todos")
+  const [creadorFilter, setCreadorFilter] = useState<string>("todos")
   const [pageSize, setPageSize] = useState<string>("50")
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [totalProspectos, setTotalProspectos] = useState<number>(0)
   const [totalPages, setTotalPages] = useState<number>(1)
-  // Ordenador
-  const [sortBy, setSortBy] = useState<string>("")
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
-  // Buscador dentro de cada filtro multi-select
-  const [searchEstado, setSearchEstado] = useState<string>("")
-  const [searchDepartamento, setSearchDepartamento] = useState<string>("")
-  const [searchPuesto, setSearchPuesto] = useState<string>("")
-  const [searchOrigen, setSearchOrigen] = useState<string>("")
-  const [searchCreador, setSearchCreador] = useState<string>("")
-  const [filtrosAbiertos, setFiltrosAbiertos] = useState<boolean>(true)
-  // Filtros dinámicos por columnas agregadas (key columna -> valores seleccionados)
-  const [dynamicFilters, setDynamicFilters] = useState<Record<string, string[]>>({})
-  const [searchDynamic, setSearchDynamic] = useState<Record<string, string>>({})
 
   // ⚡ Debouncing para búsqueda
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -218,155 +182,74 @@ export default function GestionProspectos() {
 
   const [currentUser, setCurrentUser] = useState<any>(null)
 
-  // 🔹 Datos únicos para filtros desde backend (con fallback a datos locales)
+  // Datos únicos para filtros dinámicos
   const departamentos = useMemo(
-    () => opcionesFiltros?.departamentos || [],
-    [opcionesFiltros]
-  )
-  const puestos = useMemo(
-    () => opcionesFiltros?.puestos || [],
-    [opcionesFiltros]
-  )
-  const origenes = useMemo(
-    () => opcionesFiltros?.origenes || [],
-    [opcionesFiltros]
-  )
-
-  // Estados filtrados (usamos 'statuses' que ya está poblado desde opcionesFiltros)
-  const statusesFiltrados = useMemo(
     () =>
-      searchEstado.trim()
-        ? statuses.filter((s) =>
-            s != null && String(s).toLowerCase().includes(searchEstado.toLowerCase())
-          )
-        : statuses,
-    [statuses, searchEstado]
-  )
-
-  // Opciones filtradas por buscador (multi-select)
-  const departamentosFiltrados = useMemo(
-    () =>
-      searchDepartamento.trim()
-        ? departamentos.filter((d) =>
-            d != null && String(d).toLowerCase().includes(searchDepartamento.toLowerCase())
-          )
-        : departamentos,
-    [departamentos, searchDepartamento]
-  )
-  const puestosFiltrados = useMemo(
-    () =>
-      searchPuesto.trim()
-        ? puestos.filter((p) =>
-            p != null && String(p).toLowerCase().includes(searchPuesto.toLowerCase())
-          )
-        : puestos,
-    [puestos, searchPuesto]
-  )
-  const origenesFiltrados = useMemo(
-    () =>
-      searchOrigen.trim()
-        ? origenes.filter((o) =>
-            o != null && String(o).toLowerCase().includes(searchOrigen.toLowerCase())
-          )
-        : origenes,
-    [origenes, searchOrigen]
-  )
-  const creatorsFiltrados = useMemo(
-    () =>
-      searchCreador.trim()
-        ? creators.filter(
-            (c) =>
-              (c.name && c.name.toLowerCase().includes(searchCreador.toLowerCase())) ||
-              (c.email && c.email.toLowerCase().includes(searchCreador.toLowerCase()))
-          )
-        : creators,
-    [creators, searchCreador]
-  )
-
-  // Columnas extra seleccionadas (para filtros dinámicos con misma estructura)
-  const columnasExtraParaFiltros = useMemo(() => {
-    if (!columnasDisponibles) return []
-    const baseKeys = new Set(columnasDisponibles.base.map((c) => c.key))
-    return columnasSeleccionadas.filter((key) => !baseKeys.has(key))
-  }, [columnasDisponibles, columnasSeleccionadas])
-
-  // Valores distintos por columna extra (desde datos actuales)
-  const getValorColumna = useCallback((p: Prospecto, columnaKey: string): string => {
-    const fieldMap: Record<string, string> = {
-      nombre_completo: "nombre",
-      correo_electronico: "email",
-      status: "estado",
-      created_by: "creador",
-      medio_conocimiento_institucion: "origen",
-      empresa_donde_labora_actualmente: "departamento",
-      municipio_nombre: "ciudad",
-      pais_nombre: "pais",
-      interes: "programa",
-      notas_generales: "notasGenerales",
-    }
-    const campo = fieldMap[columnaKey] || columnaKey
-    let v = p[campo] ?? p[columnaKey]
-    if (v === undefined || v === null) return ""
-    if (typeof v === "object") return ""
-    return String(v).trim()
-  }, [])
-
-  const valoresPorColumnaExtra = useMemo(() => {
-    const out: Record<string, string[]> = {}
-    columnasExtraParaFiltros.forEach((key) => {
-      const vals = Array.from(
+      Array.from(
         new Set(
           prospectos
-            .map((p) => getValorColumna(p, key))
-            .filter((v) => v !== "" && v !== "—" && v !== "N/A")
+            .map((p) => p.departamento)
+            .filter((d) => d && d.trim() !== "")
         )
-      ).sort((a, b) => a.localeCompare(b))
-      out[key] = vals
-    })
-    return out
-  }, [columnasExtraParaFiltros, prospectos, getValorColumna])
+      ),
+    [prospectos]
+  )
+  const puestos = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          prospectos
+            .map((p) => p.puesto)
+            .filter((p) => p && p.trim() !== "")
+        )
+      ),
+    [prospectos]
+  )
+  const origenes = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          prospectos
+            .map((p) => p.origen)
+            .filter((o) => o && o.trim() !== "")
+        )
+      ),
+    [prospectos]
+  )
 
   // ⚙️ Control de montaje para evitar hidratación
   useEffect(() => {
     setMounted(true);
 
-    // 🔹 Cargar opciones de filtros dinámicas desde backend
-    const fetchOpcionesFiltros = async () => {
+    // Cargar estados dinámicos
+    const fetchStatuses = async () => {
       try {
         const token = localStorage.getItem("token")
-        const res = await fetch(`${API_URL}/prospectos/opciones-filtros`, {
+        const res = await fetch(`${API_URL}/prospectos/statuses`, {
           headers: { Authorization: token ? `Bearer ${token}` : "" },
         })
         if (res.ok) {
-          const json = await res.json()
-          setOpcionesFiltros(json.data)
-          
-          // Mantener compatibilidad con código existente
-          setStatuses(json.data.estados || [])
-          if (json.data.creadores) {
-            setCreators(json.data.creadores.map((c: any) => ({
-              id: c.id,
-              name: c.nombre,
-              email: c.email
-            })))
-          }
+          const data = await res.json()
+          setStatuses(data)
         }
       } catch (err) {
-        console.error("Error cargando opciones de filtros:", err)
-        
-        // Fallback: Cargar estados de forma individual (compatibilidad)
-        try {
-          const token = localStorage.getItem("token")
-          const res = await fetch(`${API_URL}/prospectos/statuses?per_page=500`, {
-            headers: { Authorization: token ? `Bearer ${token}` : "" },
-          })
-          if (res.ok) {
-            const data = await res.json()
-            setStatuses(Array.isArray(data) ? data : data.data ?? data.statuses ?? [])
-          }
-        } catch (err2) {
-          console.error("Error cargando estados (fallback):", err2)
+        console.error("Error cargando estados:", err)
+      }
+    }
+    
+    // Cargar creadores (usuarios que han creado prospectos)
+    const fetchCreators = async () => {
+      try {
+        const token = localStorage.getItem("token")
+        const res = await fetch(`${API_URL}/prospectos/creators`, {
+          headers: { Authorization: token ? `Bearer ${token}` : "" },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setCreators(data)
         }
+      } catch (err) {
+        console.error("Error cargando creadores:", err)
       }
     }
     
@@ -396,7 +279,8 @@ export default function GestionProspectos() {
       }
     }
     
-    fetchOpcionesFiltros()
+    fetchStatuses()
+    fetchCreators()
     fetchColumnas()
   }, []);
 
@@ -435,16 +319,9 @@ export default function GestionProspectos() {
     if (!programasLoaded) return;
 
     // Verificar caché solo si no hay filtros activos y no es refresh
-    const sinFiltrosMulti =
-      estadoFilters.length === 0 &&
-      departamentoFilters.length === 0 &&
-      puestoFilters.length === 0 &&
-      origenFilters.length === 0 &&
-      creadorFilters.length === 0 &&
-      !createdDesde && !createdHasta &&
-      !fechaDesde && !fechaHasta &&
-      Object.keys(dynamicFilters).every((k) => dynamicFilters[k].length === 0)
-    if (!resetCache && !debouncedSearchTerm && sinFiltrosMulti && page === 1) {
+    if (!resetCache && !debouncedSearchTerm && estadoFilter === "todos" &&
+      departamentoFilter === "todos" && puestoFilter === "todos" && origenFilter === "todos" && 
+      creadorFilter === "todos" && page === 1) {
       if (typeof window !== "undefined") {
         const cached = localStorage.getItem("gestion_prospectos_cache");
         const cacheTime = localStorage.getItem("gestion_prospectos_cache_time");
@@ -477,30 +354,12 @@ export default function GestionProspectos() {
         per_page: pageSize === "all" ? "200" : pageSize,
       })
 
-      if (debouncedSearchTerm) {
-        params.append("search", debouncedSearchTerm)
-        params.append("ignore_case", "1")
-      }
-      // Backend: con ignore_case=1 hacer búsqueda case-insensitive (ILIKE / LOWER(campo) LIKE LOWER(?))
-      if (estadoFilters.length > 0) params.append("status", estadoFilters.join(","))
-      if (departamentoFilters.length > 0) params.append("departamento", departamentoFilters.join(","))
-      if (puestoFilters.length > 0) params.append("puesto", puestoFilters.join(","))
-      if (origenFilters.length > 0) params.append("origen", origenFilters.join(","))
-      if (creadorFilters.length > 0) params.append("created_by", creadorFilters.join(","))
-      
-      // 📅 Filtros de fecha
-      if (createdDesde) params.append("created_desde", createdDesde)
-      if (createdHasta) params.append("created_hasta", createdHasta)
-      if (fechaDesde) params.append("fecha_desde", fechaDesde)
-      if (fechaHasta) params.append("fecha_hasta", fechaHasta)
-      
-      Object.entries(dynamicFilters).forEach(([key, vals]) => {
-        if (vals.length > 0) params.append(`filter[${key}]`, vals.join(","))
-      })
-      if (sortBy) {
-        params.append("sort_by", sortBy)
-        params.append("sort_order", sortOrder)
-      }
+      if (debouncedSearchTerm) params.append("search", debouncedSearchTerm)
+      if (estadoFilter !== "todos") params.append("status", estadoFilter)
+      if (departamentoFilter !== "todos") params.append("departamento", departamentoFilter)
+      if (puestoFilter !== "todos") params.append("puesto", puestoFilter)
+      if (origenFilter !== "todos") params.append("origen", origenFilter)
+      if (creadorFilter !== "todos") params.append("created_by", creadorFilter)
 
       const res = await fetch(`${API_URL}/prospectos?${params.toString()}`, {
         headers: {
@@ -516,7 +375,7 @@ export default function GestionProspectos() {
 
       const json = await res.json()
 
-      // ⚡ Mapear datos de forma DINÁMICA - Incluye TODOS los campos del backend
+      // ⚡ Mapear datos de forma optimizada
       const list: Prospecto[] = (json.data || []).map((item: any) => {
         let programaNombre = "—";
         if (item.interes && programas[item.interes]) {
@@ -525,10 +384,7 @@ export default function GestionProspectos() {
           programaNombre = `Programa ${item.interes}`;
         }
 
-        // ✨ Spread operator para incluir TODOS los campos del backend dinámicamente
-        const prospecto: Prospecto = {
-          ...item, // Incluye todos los campos del backend
-          // Mapeos específicos para compatibilidad con código existente
+        return {
           id: String(item.id),
           nombre: item.nombre_completo || "",
           email: item.correo_electronico || "",
@@ -547,9 +403,19 @@ export default function GestionProspectos() {
           asesor: item.creator ? `${item.creator.first_name || ""} ${item.creator.last_name || ""}`.trim() : "Sin asignar",
           creador: item.creator ? `${item.creator.first_name || ""} ${item.creator.last_name || ""}`.trim() : "Sin asignar",
           creadorId: item.created_by ? String(item.created_by) : undefined,
+          genero: item.genero ?? "—",
+          correo_corporativo: item.correo_corporativo ?? "—",
+          telefono_corporativo: item.telefono_corporativo ?? "—",
+          modalidad: item.modalidad ?? "—",
+          nivel_academico: item.nivel_academico ?? "—",
+          ultimo_titulo_obtenido: item.ultimo_titulo_obtenido ?? "—",
+          institucion_titulo: item.institucion_titulo ?? "—",
+          carrera_ultimo_titulo: item.carrera_ultimo_titulo ?? "—",
+          anio_graduacion: item.anio_graduacion ? String(item.anio_graduacion) : "—",
+          numero_identificacion: item.numero_identificacion ?? "—",
+          fecha_nacimiento: item.fecha_nacimiento ?? "—",
+          direccion_residencia: item.direccion_residencia ?? "—",
         };
-
-        return prospecto;
       })
 
       setProspectos(list)
@@ -561,7 +427,9 @@ export default function GestionProspectos() {
       }
 
       // 💾 Guardar en caché solo si es primera página sin filtros
-      if (page === 1 && !debouncedSearchTerm && sinFiltrosMulti) {
+      if (page === 1 && !debouncedSearchTerm && estadoFilter === "todos" &&
+        departamentoFilter === "todos" && puestoFilter === "todos" && origenFilter === "todos" &&
+        creadorFilter === "todos") {
         if (typeof window !== "undefined") {
           localStorage.setItem("gestion_prospectos_cache", JSON.stringify({
             items: list,
@@ -575,7 +443,7 @@ export default function GestionProspectos() {
     } finally {
       setLoading(false)
     }
-  }, [programasLoaded, debouncedSearchTerm, estadoFilters, departamentoFilters, puestoFilters, origenFilters, creadorFilters, createdDesde, createdHasta, fechaDesde, fechaHasta, dynamicFilters, pageSize, sortBy, sortOrder])
+  }, [programasLoaded, debouncedSearchTerm, estadoFilter, departamentoFilter, puestoFilter, origenFilter, creadorFilter, pageSize])
 
   // ⚡ Cargar prospectos cuando cambian los filtros
   useEffect(() => {
@@ -637,7 +505,6 @@ export default function GestionProspectos() {
 
   // Helpers
   const getEstadoColor = (estado: string) => {
-    if (estado == null || typeof estado !== "string") return "bg-gray-100 text-gray-800"
     switch (estado.toLowerCase()) {
       case "no contactado":
         return "bg-gray-100 text-gray-800"
@@ -683,22 +550,11 @@ export default function GestionProspectos() {
     }
   }
 
-  // 📊 Handler para cambio de columnas + hot refresh con filtros actuales
+  // 📊 Handler para cambio de columnas
   const handleColumnasChange = (columnas: string[]) => {
     setColumnasSeleccionadas(columnas)
+    // Persistir en localStorage
     localStorage.setItem("gestion_prospectos_columnas", JSON.stringify(columnas))
-    fetchProspectos(currentPage, true)
-  }
-
-  // 📊 Ordenar por columna (alterna asc/desc)
-  const handleSort = (columnaKey: string) => {
-    if (sortBy === columnaKey) {
-      setSortOrder((o) => (o === "asc" ? "desc" : "asc"))
-    } else {
-      setSortBy(columnaKey)
-      setSortOrder("asc")
-    }
-    setCurrentPage(1)
   }
 
   // 📊 Obtener label de columna
@@ -714,165 +570,55 @@ export default function GestionProspectos() {
     return key
   }
 
-  // 📊 Renderizar celda dinámica - Soporta CUALQUIER columna del backend
+  // 📊 Renderizar celda dinámica
   const renderCelda = (prospecto: Prospecto, columnaKey: string) => {
-    // Mapeos especiales para campos con nombres diferentes en frontend vs backend
-    const fieldMap: Record<string, string> = {
+    // Mapping de keys de columnas a propiedades del prospecto
+    const fieldMap: Record<string, keyof Prospecto | ((p: Prospecto) => any)> = {
+      'id': 'id',
       'nombre_completo': 'nombre',
       'correo_electronico': 'email',
+      'telefono': 'telefono',
       'status': 'estado',
       'created_by': 'creador',
-      'medio_conocimiento_institucion': 'origen',
-      'empresa_donde_labora_actualmente': 'departamento',
-      'municipio_nombre': 'ciudad',
-      'pais_nombre': 'pais',
-      'pais_residencia': 'pais',
+      'fecha': 'fechaCaptura',
+      'genero': 'genero',
       'interes': 'programa',
+      'pais_residencia': 'pais',
+      'municipio_nombre': 'ciudad',
+      'empresa_donde_labora_actualmente': 'departamento',
+      'puesto': 'puesto',
+      'medio_conocimiento_institucion': 'origen',
+      'correo_corporativo': 'correo_corporativo',
+      'telefono_corporativo': 'telefono_corporativo',
+      'modalidad': 'modalidad',
+      'nivel_academico': 'nivel_academico',
+      'ultimo_titulo_obtenido': 'ultimo_titulo_obtenido',
+      'institucion_titulo': 'institucion_titulo',
+      'carrera_ultimo_titulo': 'carrera_ultimo_titulo',
+      'anio_graduacion': 'anio_graduacion',
+      'numero_identificacion': 'numero_identificacion',
+      'fecha_nacimiento': 'fecha_nacimiento',
+      'direccion_residencia': 'direccion_residencia',
+      'observaciones': 'observaciones',
       'notas_generales': 'notasGenerales',
     }
 
-    // Determinar el campo real a buscar
-    const campoReal = fieldMap[columnaKey] || columnaKey
-    
-    // Obtener valor del prospecto (primero intenta el mapeo, luego directamente)
-    let valor = prospecto[campoReal] !== undefined ? prospecto[campoReal] : prospecto[columnaKey]
-    
-    // Si aún no hay valor, intentar acceso directo por la key original
-    if (valor === undefined || valor === null) {
-      valor = '—'
-    }
+    const fieldKey = fieldMap[columnaKey]
+    if (!fieldKey) return '—'
+
+    const valor = typeof fieldKey === 'function' ? fieldKey(prospecto) : prospecto[fieldKey]
     
     // Formateo especial para fechas
-    if ((columnaKey.includes('fecha') || columnaKey.includes('_at')) && valor && valor !== '—') {
+    if (columnaKey.includes('fecha') && valor) {
       try {
-        const fecha = new Date(valor)
-        if (!isNaN(fecha.getTime())) {
-          return fecha.toLocaleDateString('es-GT', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-          })
-        }
+        return new Date(valor as string).toLocaleDateString()
       } catch {
-        return valor
+        return valor || '—'
       }
-    }
-
-    // Formateo especial para booleanos
-    if (typeof valor === 'boolean') {
-      return valor ? 'Sí' : 'No'
-    }
-
-    // Formateo especial para números
-    if (typeof valor === 'number') {
-      return valor.toString()
     }
 
     return valor || '—'
   }
-
-  /** Valor de celda para CSV (misma lógica que renderCelda, texto plano) */
-  const getValorCeldaCSV = (prospecto: Prospecto, columnaKey: string): string => {
-    const fieldMap: Record<string, string> = {
-      'nombre_completo': 'nombre',
-      'correo_electronico': 'email',
-      'status': 'estado',
-      'created_by': 'creador',
-      'medio_conocimiento_institucion': 'origen',
-      'empresa_donde_labora_actualmente': 'departamento',
-      'municipio_nombre': 'ciudad',
-      'pais_nombre': 'pais',
-      'pais_residencia': 'pais',
-      'interes': 'programa',
-      'notas_generales': 'notasGenerales',
-    }
-    const campoReal = fieldMap[columnaKey] || columnaKey
-    let valor: unknown = prospecto[campoReal as keyof Prospecto] ?? prospecto[columnaKey as keyof Prospecto]
-    if (valor === undefined || valor === null) valor = '—'
-    if ((columnaKey.includes('fecha') || columnaKey.includes('_at')) && valor && valor !== '—') {
-      try {
-        const fecha = new Date(valor as string)
-        if (!isNaN(fecha.getTime())) return fecha.toLocaleDateString('es-GT', { year: 'numeric', month: '2-digit', day: '2-digit' })
-      } catch { /* ignore */ }
-    }
-    if (typeof valor === 'boolean') return valor ? 'Sí' : 'No'
-    if (typeof valor === 'number') return String(valor)
-    return String(valor || '—')
-  }
-
-  /** Escapar campo para CSV (comillas si contiene coma, salto de línea o comilla) */
-  const escaparCSV = (valor: string): string => {
-    const s = String(valor)
-    if (/[,\r\n"]/.test(s)) return `"${s.replace(/"/g, '""')}"`
-    return s
-  }
-
-  /** Descargar prospectos filtrados como CSV con los mismos filtros actuales */
-  const handleDescargarCSVFiltrado = useCallback(async () => {
-    const token = localStorage.getItem("token")
-    if (!token) return
-
-    const params = new URLSearchParams({
-      page: "1",
-      per_page: "10000",
-    })
-    if (debouncedSearchTerm) {
-      params.append("search", debouncedSearchTerm)
-      params.append("ignore_case", "1")
-    }
-    if (estadoFilters.length > 0) params.append("status", estadoFilters.join(","))
-    if (departamentoFilters.length > 0) params.append("departamento", departamentoFilters.join(","))
-    if (puestoFilters.length > 0) params.append("puesto", puestoFilters.join(","))
-    if (origenFilters.length > 0) params.append("origen", origenFilters.join(","))
-    if (creadorFilters.length > 0) params.append("created_by", creadorFilters.join(","))
-    if (createdDesde) params.append("created_desde", createdDesde)
-    if (createdHasta) params.append("created_hasta", createdHasta)
-    if (fechaDesde) params.append("fecha_desde", fechaDesde)
-    if (fechaHasta) params.append("fecha_hasta", fechaHasta)
-    Object.entries(dynamicFilters).forEach(([key, vals]) => {
-      if (vals.length > 0) params.append(`filter[${key}]`, vals.join(","))
-    })
-    if (sortBy) {
-      params.append("sort_by", sortBy)
-      params.append("sort_order", sortOrder)
-    }
-
-    try {
-      const res = await fetch(`${API_URL}/prospectos?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      })
-      if (!res.ok) throw new Error(`Error ${res.status}`)
-      const json = await res.json()
-      const list: Prospecto[] = (json.data || []).map((item: any) => ({
-        ...item,
-        id: String(item.id),
-        nombre: item.nombre_completo || "",
-        email: item.correo_electronico || "",
-        telefono: item.telefono || "",
-        departamento: item.empresa_donde_labora_actualmente ?? "Sin Departamento",
-        puesto: item.puesto ?? "N/A",
-        estado: item.status || "No contactado",
-        origen: item.medio_conocimiento_institucion ?? "—",
-        observaciones: item.observaciones ?? "",
-        notasGenerales: item.notas_generales ?? "",
-        ultimoCambio: item.updated_at ?? "N/A",
-      }))
-
-      const columnas = columnasSeleccionadas.length > 0 ? columnasSeleccionadas : ["nombre_completo", "correo_electronico", "telefono", "status", "empresa_donde_labora_actualmente", "puesto", "medio_conocimiento_institucion"]
-      const headers = columnas.map((k) => escaparCSV(getLabelColumna(k)))
-      const filas = list.map((p) => columnas.map((col) => escaparCSV(getValorCeldaCSV(p, col))).join(","))
-      const csv = "\uFEFF" + [headers.join(","), ...filas].join("\r\n")
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `prospectos_filtrados_${new Date().toISOString().slice(0, 10)}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch (err: unknown) {
-      Swal.fire("Error", err instanceof Error ? err.message : "No se pudo descargar el CSV", "error")
-    }
-  }, [debouncedSearchTerm, estadoFilters, departamentoFilters, puestoFilters, origenFilters, creadorFilters, createdDesde, createdHasta, fechaDesde, fechaHasta, dynamicFilters, sortBy, sortOrder, columnasSeleccionadas])
 
   // ⚡ Invalidar caché cuando se actualiza un prospecto
   const handleUpdateProspecto = useCallback(() => {
@@ -1013,27 +759,8 @@ export default function GestionProspectos() {
 
   return (
     <div className="bg-white rounded-lg shadow">
-      {/* Panel de Filtros (colapsable) */}
-      <div className="p-4 border-b">
-        <div className="flex flex-wrap items-center gap-2 mb-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setFiltrosAbiertos((v) => !v)}
-            className="gap-2"
-          >
-            <Filter className="h-4 w-4" />
-            Filtros
-            {filtrosAbiertos ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </Button>
-          {(estadoFilters.length > 0 || departamentoFilters.length > 0 || puestoFilters.length > 0 || origenFilters.length > 0 || creadorFilters.length > 0 || createdDesde || createdHasta || fechaDesde || fechaHasta || Object.values(dynamicFilters).some((arr) => arr.length > 0)) && (
-            <Badge variant="secondary">
-              Filtros activos
-            </Badge>
-          )}
-        </div>
-        {filtrosAbiertos && (
-        <div className="flex flex-wrap gap-4">
+      {/* Filtros */}
+      <div className="p-4 border-b flex flex-wrap gap-4">
         <Input
           placeholder="Buscar prospectos..."
           className="max-w-xs"
@@ -1044,215 +771,106 @@ export default function GestionProspectos() {
           }}
         />
 
-        {/* Selector múltiple de Estados con buscador */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-[200px] justify-between">
-              <span className="truncate">
-                {estadoFilters.length === 0
-                  ? "Todos los estados"
-                  : `Estados (${estadoFilters.length})`}
-              </span>
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-[240px] p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
-            <div className="p-2 border-b">
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar estado..."
-                  className="pl-8 h-9"
-                  value={searchEstado}
-                  onChange={(e) => setSearchEstado(e.target.value)}
-                  onKeyDown={(e) => e.stopPropagation()}
-                />
-              </div>
-            </div>
-            <DropdownMenuSeparator />
-            <ScrollArea className="h-[280px]">
-              {statusesFiltrados.length === 0 ? (
-                <p className="py-4 text-center text-sm text-muted-foreground">Sin resultados</p>
-              ) : (
-                statusesFiltrados.map((s) => (
-                  <DropdownMenuCheckboxItem
-                    key={s}
-                    checked={estadoFilters.includes(s)}
-                    onCheckedChange={(checked) => {
-                      setEstadoFilters((prev) =>
-                        checked ? [...prev, s] : prev.filter((x) => x !== s)
-                      )
-                      setCurrentPage(1)
-                    }}
-                  >
-                    {s}
-                  </DropdownMenuCheckboxItem>
-                ))
-              )}
-            </ScrollArea>
-            {estadoFilters.length > 0 && (
-              <>
-                <DropdownMenuSeparator />
-                <div className="p-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full text-xs"
-                    onClick={() => {
-                      setEstadoFilters([])
-                      setCurrentPage(1)
-                    }}
-                  >
-                    Limpiar selección
-                  </Button>
-                </div>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Select
+          value={estadoFilter}
+          onValueChange={(v) => {
+            setEstadoFilter(v)
+            setCurrentPage(1)
+          }}
+        >
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos</SelectItem>
+            {statuses.map((s) => (
+              <SelectItem key={s} value={s}>
+                {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        {/* Departamento: multi-select con buscador */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-[200px] justify-between">
-              <span className="truncate">
-                {departamentoFilters.length === 0 ? "Todos departamentos" : `Depart. (${departamentoFilters.length})`}
-              </span>
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-[240px] p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
-            <div className="p-2 border-b">
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Buscar..." className="pl-8 h-9" value={searchDepartamento} onChange={(e) => setSearchDepartamento(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
-              </div>
-            </div>
-            <DropdownMenuSeparator />
-            <ScrollArea className="h-[220px]">
-              {departamentosFiltrados.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">Sin resultados</p> : departamentosFiltrados.map((d) => (
-                <DropdownMenuCheckboxItem key={d} checked={departamentoFilters.includes(d)} onCheckedChange={(checked) => { setDepartamentoFilters((prev) => (checked ? [...prev, d] : prev.filter((x) => x !== d))); setCurrentPage(1) }}>{d}</DropdownMenuCheckboxItem>
-              ))}
-            </ScrollArea>
-            {departamentoFilters.length > 0 && (
-              <div className="p-2 border-t"><Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setDepartamentoFilters([]); setCurrentPage(1) }}>Limpiar</Button></div>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Select
+          value={departamentoFilter}
+          onValueChange={(v) => {
+            setDepartamentoFilter(v)
+            setCurrentPage(1)
+          }}
+        >
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Departamento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos</SelectItem>
+            {departamentos.filter(d => d && d.trim() !== "").map((d) => (
+              <SelectItem key={d} value={d}>
+                {d}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        {/* Puesto: multi-select con buscador */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-[200px] justify-between">
-              <span className="truncate">{puestoFilters.length === 0 ? "Todos puestos" : `Puestos (${puestoFilters.length})`}</span>
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-[240px] p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
-            <div className="p-2 border-b"><div className="relative"><Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Buscar..." className="pl-8 h-9" value={searchPuesto} onChange={(e) => setSearchPuesto(e.target.value)} onKeyDown={(e) => e.stopPropagation()} /></div></div>
-            <DropdownMenuSeparator />
-            <ScrollArea className="h-[220px]">
-              {puestosFiltrados.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">Sin resultados</p> : puestosFiltrados.map((p) => (
-                <DropdownMenuCheckboxItem key={p} checked={puestoFilters.includes(p)} onCheckedChange={(checked) => { setPuestoFilters((prev) => (checked ? [...prev, p] : prev.filter((x) => x !== p))); setCurrentPage(1) }}>{p}</DropdownMenuCheckboxItem>
-              ))}
-            </ScrollArea>
-            {puestoFilters.length > 0 && <div className="p-2 border-t"><Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setPuestoFilters([]); setCurrentPage(1) }}>Limpiar</Button></div>}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Origen: multi-select con buscador */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-[200px] justify-between">
-              <span className="truncate">{origenFilters.length === 0 ? "Todos orígenes" : `Orígenes (${origenFilters.length})`}</span>
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-[240px] p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
-            <div className="p-2 border-b"><div className="relative"><Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Buscar..." className="pl-8 h-9" value={searchOrigen} onChange={(e) => setSearchOrigen(e.target.value)} onKeyDown={(e) => e.stopPropagation()} /></div></div>
-            <DropdownMenuSeparator />
-            <ScrollArea className="h-[220px]">
-              {origenesFiltrados.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">Sin resultados</p> : origenesFiltrados.map((o) => (
-                <DropdownMenuCheckboxItem key={o} checked={origenFilters.includes(o)} onCheckedChange={(checked) => { setOrigenFilters((prev) => (checked ? [...prev, o] : prev.filter((x) => x !== o))); setCurrentPage(1) }}>{o}</DropdownMenuCheckboxItem>
-              ))}
-            </ScrollArea>
-            {origenFilters.length > 0 && <div className="p-2 border-t"><Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setOrigenFilters([]); setCurrentPage(1) }}>Limpiar</Button></div>}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Select
+          value={puestoFilter}
+          onValueChange={(v) => {
+            setPuestoFilter(v)
+            setCurrentPage(1)
+          }}
+        >
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Puesto" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos</SelectItem>
+            {puestos.filter(p => p && p.trim() !== "" && p !== "N/A").map((p) => (
+              <SelectItem key={p} value={p}>
+                {p}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={origenFilter}
+          onValueChange={(v) => {
+            setOrigenFilter(v)
+            setCurrentPage(1)
+          }}
+        >
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Origen" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos</SelectItem>
+            {origenes.filter(o => o && o.trim() !== "" && o !== "—").map((o) => (
+              <SelectItem key={o} value={o}>
+                {o}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         {currentUser?.rol === "administrador" && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="w-[200px] justify-between">
-                <span className="truncate">{creadorFilters.length === 0 ? "Todos creadores" : `Creadores (${creadorFilters.length})`}</span>
-                <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[240px] p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
-              <div className="p-2 border-b"><div className="relative"><Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Buscar..." className="pl-8 h-9" value={searchCreador} onChange={(e) => setSearchCreador(e.target.value)} onKeyDown={(e) => e.stopPropagation()} /></div></div>
-              <DropdownMenuSeparator />
-              <ScrollArea className="h-[220px]">
-                {creatorsFiltrados.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">Sin resultados</p> : creatorsFiltrados.map((c) => (
-                  <DropdownMenuCheckboxItem key={c.id} checked={creadorFilters.includes(String(c.id))} onCheckedChange={(checked) => { setCreadorFilters((prev) => (checked ? [...prev, String(c.id)] : prev.filter((x) => x !== String(c.id)))); setCurrentPage(1) }}>{c.name}</DropdownMenuCheckboxItem>
-                ))}
-              </ScrollArea>
-              {creadorFilters.length > 0 && <div className="p-2 border-t"><Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setCreadorFilters([]); setCurrentPage(1) }}>Limpiar</Button></div>}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Select
+            value={creadorFilter}
+            onValueChange={(v) => {
+              setCreadorFilter(v)
+              setCurrentPage(1)
+            }}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Creado por" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              {creators.map((c) => (
+                <SelectItem key={c.id} value={String(c.id)}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
-
-        {/* 📅 Filtro de fecha de creación (created_at) */}
-        <div className="w-[280px]">
-          <FiltroFechaRango
-            label="Fecha Creación BD"
-            valueDesde={createdDesde}
-            valueHasta={createdHasta}
-            onChangeDesde={(v) => { setCreatedDesde(v); setCurrentPage(1) }}
-            onChangeHasta={(v) => { setCreatedHasta(v); setCurrentPage(1) }}
-            onClear={() => setCurrentPage(1)}
-          />
-        </div>
-
-        {/* 📅 Filtro de campo fecha del prospecto */}
-        <div className="w-[280px]">
-          <FiltroFechaRango
-            label="Fecha Prospecto"
-            valueDesde={fechaDesde}
-            valueHasta={fechaHasta}
-            onChangeDesde={(v) => { setFechaDesde(v); setCurrentPage(1) }}
-            onChangeHasta={(v) => { setFechaHasta(v); setCurrentPage(1) }}
-            onClear={() => setCurrentPage(1)}
-          />
-        </div>
-
-        {/* Filtros dinámicos por columnas agregadas */}
-        {columnasExtraParaFiltros.map((colKey) => {
-          const opts = valoresPorColumnaExtra[colKey] ?? []
-          const selected = dynamicFilters[colKey] ?? []
-          const searchVal = searchDynamic[colKey] ?? ""
-          const setSearchVal = (v: string) => setSearchDynamic((prev) => ({ ...prev, [colKey]: v }))
-          const filtrados = searchVal.trim() ? opts.filter((o) => (o != null && String(o).toLowerCase().includes(searchVal.toLowerCase()))) : opts
-          return (
-            <DropdownMenu key={colKey}>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-[180px] justify-between">
-                  <span className="truncate">{selected.length === 0 ? getLabelColumna(colKey) : `${getLabelColumna(colKey)} (${selected.length})`}</span>
-                  <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-[240px] p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
-                <div className="p-2 border-b"><div className="relative"><Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Buscar..." className="pl-8 h-9" value={searchVal} onChange={(e) => setSearchVal(e.target.value)} onKeyDown={(e) => e.stopPropagation()} /></div></div>
-                <DropdownMenuSeparator />
-                <ScrollArea className="h-[200px]">
-                  {filtrados.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">Sin opciones</p> : filtrados.map((val) => (
-                    <DropdownMenuCheckboxItem key={val} checked={selected.includes(val)} onCheckedChange={(checked) => { setDynamicFilters((prev) => ({ ...prev, [colKey]: checked ? [...(prev[colKey] ?? []), val] : (prev[colKey] ?? []).filter((x) => x !== val) })); setCurrentPage(1) }}>{val}</DropdownMenuCheckboxItem>
-                  ))}
-                </ScrollArea>
-                {selected.length > 0 && <div className="p-2 border-t"><Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setDynamicFilters((prev) => ({ ...prev, [colKey]: [] })); setCurrentPage(1) }}>Limpiar</Button></div>}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )
-        })}
 
         {/* 📊 Botón de configuración de columnas */}
         <Button
@@ -1262,6 +880,11 @@ export default function GestionProspectos() {
         >
           <Settings2 className="h-4 w-4 mr-2" />
           Columnas
+        </Button>
+
+        <Button variant="outline">
+          <Filter className="h-4 w-4 mr-2" />
+          Filtros
         </Button>
 
         <Button
@@ -1282,24 +905,12 @@ export default function GestionProspectos() {
 
         <Button
           variant="outline"
-          onClick={handleDescargarCSVFiltrado}
-          disabled={loading}
-          title="Descargar los prospectos filtrados en CSV"
-        >
-          <Download className="h-4 w-4 mr-2" />
-          Descargar CSV (filtrado)
-        </Button>
-
-        <Button
-          variant="outline"
           disabled={selectedIds.length === 0}
           onClick={handleBulkInscribir}
         >
           Inscribir seleccionados ({selectedIds.length})
         </Button>
 
-        </div>
-        )}
       </div>
 
       {(!mounted || loading) && (
@@ -1338,35 +949,11 @@ export default function GestionProspectos() {
                 </th>
                 {columnasSeleccionadas.map((columnaKey) => (
                   <th key={columnaKey} className="py-3 px-4 text-left">
-                    <button
-                      type="button"
-                      onClick={() => handleSort(columnaKey)}
-                      className="flex items-center gap-1 hover:text-gray-900 font-medium"
-                    >
-                      {getLabelColumna(columnaKey)}
-                      {sortBy === columnaKey ? (
-                        sortOrder === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
-                      ) : (
-                        <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
-                      )}
-                    </button>
+                    {getLabelColumna(columnaKey)}
                   </th>
                 ))}
                 <th className="py-3 px-4 text-left">Notas</th>
-                <th className="py-3 px-4 text-left">
-                  <button
-                    type="button"
-                    onClick={() => handleSort("status")}
-                    className="flex items-center gap-1 hover:text-gray-900 font-medium"
-                  >
-                    Estado
-                    {sortBy === "status" ? (
-                      sortOrder === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
-                    ) : (
-                      <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
-                    )}
-                  </button>
-                </th>
+                <th className="py-3 px-4 text-left">Estado</th>
                 <th className="py-3 px-4 text-left">Acciones</th>
               </tr>
             </thead>
@@ -1570,12 +1157,6 @@ export default function GestionProspectos() {
                               >
                                 <Download className="h-4 w-4 mr-2" />
                                 {descargandoReporte === p.id ? "Descargando..." : "Descargar Reporte PDF"}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => router.push(`/firma/student-details/${p.id}`)}
-                              >
-                                <FileSignature className="h-4 w-4 mr-2" />
-                                Firma digital / Generar contrato
                               </DropdownMenuItem>
                               {currentUser?.rol === "administrador" && (
                                 <DropdownMenuItem

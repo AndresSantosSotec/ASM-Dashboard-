@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -53,10 +53,19 @@ export default function BoletaInscripcionUpload({
   const [datos, setDatos] = useState<BoletaInscripcionData>({
     numeroBoleta: "",
     banco: "",
-    monto: montoInscripcion.toString(),
+    monto: montoInscripcion > 0 ? montoInscripcion.toString() : "",
     fechaRecibo: "",
     archivo: null
   })
+
+  // Sincronizar monto cuando cambia el prop montoInscripcion (e.g. al cargar precios del API)
+  const prevMontoRef = useRef(montoInscripcion)
+  useEffect(() => {
+    if (montoInscripcion !== prevMontoRef.current && montoInscripcion > 0) {
+      setDatos(prev => ({ ...prev, monto: montoInscripcion.toString() }))
+      prevMontoRef.current = montoInscripcion
+    }
+  }, [montoInscripcion])
 
   const archivoRef = useRef<File | null>(null) // 🔥 Evita el doble upload
 
@@ -130,7 +139,7 @@ export default function BoletaInscripcionUpload({
       Swal.fire("Error", "Ingrese un monto válido", "error")
       return
     }
-    if (parseFloat(datos.monto) > montoInscripcion) {
+    if (montoInscripcion > 0 && parseFloat(datos.monto) > montoInscripcion) {
       await Swal.fire({
         icon: "warning",
         title: "Monto mayor al esperado",
@@ -209,8 +218,33 @@ export default function BoletaInscripcionUpload({
 
       if (onBoletaSubida) onBoletaSubida()
     } catch (error: any) {
-      console.error("Error al subir boleta:", error)
-      Swal.fire("Error", error.response?.data?.message || "Ocurrió un error al procesar la boleta", "error")
+      console.error("❌ Error al subir boleta:", error)
+      console.error("❌ Error completo:", error.response || error)
+      
+      let errorMessage = "Ocurrió un error al procesar la boleta"
+      
+      if (error.response) {
+        // Error del servidor
+        errorMessage = error.response.data?.message || error.response.data?.error || `Error del servidor: ${error.response.status}`
+        
+        // Si es error 413 (Payload Too Large) o 500, puede ser por tamaño de archivo
+        if (error.response.status === 413 || error.response.status === 500) {
+          errorMessage += "\n\nPosible causa: El archivo es muy grande o el servidor no puede procesarlo. Intente con un archivo más pequeño o en formato PDF comprimido."
+        }
+      } else if (error.request) {
+        // No hay respuesta del servidor
+        errorMessage = "No se pudo conectar con el servidor. Verifique su conexión a internet."
+      } else {
+        // Error al configurar la petición
+        errorMessage = error.message || errorMessage
+      }
+      
+      await Swal.fire({
+        icon: "error",
+        title: "Error al subir boleta",
+        html: `<p>${errorMessage}</p>`,
+        confirmButtonText: "Entendido"
+      })
     } finally {
       setIsUploading(false)
     }
@@ -245,7 +279,7 @@ export default function BoletaInscripcionUpload({
             >
               <Upload className="mx-auto h-16 w-16 text-blue-400" />
               <p className="mt-2 text-sm text-gray-600">Arrastra un archivo o haz clic para seleccionar</p>
-              <p className="text-xs text-gray-500 mt-1">PDF, JPG, PNG (máx. 5MB)</p>
+              <p className="text-xs text-gray-500 mt-1">PDF, JPG, PNG (máx. 100MB)</p>
 
               <input
                 id="comprobante"
@@ -325,12 +359,12 @@ export default function BoletaInscripcionUpload({
           <Input
             type="number"
             min="0"
-            max={montoInscripcion}
+            max={montoInscripcion > 0 ? montoInscripcion : undefined}
             value={datos.monto}
             onChange={(e) => setDatos({ ...datos, monto: e.target.value })}
           />
 
-          {parseFloat(datos.monto) < montoInscripcion && parseFloat(datos.monto) > 0 && !descuentoInscripcion && (
+          {montoInscripcion > 0 && parseFloat(datos.monto) < montoInscripcion && parseFloat(datos.monto) > 0 && !descuentoInscripcion && (
             <Alert className="mt-2">
               <AlertDescription>
                 ⚠️ Pago parcial — Pendiente: Q{(montoInscripcion - parseFloat(datos.monto)).toFixed(2)}
@@ -338,7 +372,7 @@ export default function BoletaInscripcionUpload({
             </Alert>
           )}
 
-          {descuentoInscripcion && parseFloat(datos.monto) > 0 && parseFloat(datos.monto) >= montoInscripcion && (
+          {descuentoInscripcion && parseFloat(datos.monto) > 0 && montoInscripcion > 0 && parseFloat(datos.monto) >= montoInscripcion && (
             <Alert className="mt-2 bg-green-50 border-green-200">
               <AlertDescription className="text-green-800">
                 ✅ Inscripción con descuento — Pago completo
@@ -346,7 +380,7 @@ export default function BoletaInscripcionUpload({
             </Alert>
           )}
 
-          {descuentoInscripcion && parseFloat(datos.monto) > 0 && parseFloat(datos.monto) < montoInscripcion && (
+          {descuentoInscripcion && parseFloat(datos.monto) > 0 && montoInscripcion > 0 && parseFloat(datos.monto) < montoInscripcion && (
             <Alert className="mt-2">
               <AlertDescription>
                 ⚠️ El monto es menor al precio con descuento (Q{montoInscripcion.toFixed(2)}) — Pendiente: Q{(montoInscripcion - parseFloat(datos.monto)).toFixed(2)}

@@ -26,6 +26,7 @@ interface ProspectoCompleto {
   telefono: string | null
   correo_electronico: string | null
   genero: string
+  numero_identificacion: string | null
   empresa_donde_labora_actualmente: string | null
   puesto: string | null
   notas_generales: string | null
@@ -70,6 +71,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
     telefono: "",
     correo_electronico: "",
     genero: "",
+    numero_identificacion: "",
     empresa_donde_labora_actualmente: "",
     puesto: "",
     notas_generales: "",
@@ -139,6 +141,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           telefono: data.telefono || "",
           correo_electronico: data.correo_electronico || "",
           genero: normalizeGenero(data.genero),
+          numero_identificacion: data.numero_identificacion || "",
           empresa_donde_labora_actualmente: data.empresa_donde_labora_actualmente || "",
           puesto: data.puesto || "",
           notas_generales: data.notas_generales || "",
@@ -214,13 +217,20 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           
           setDatosAcademicos(academicosBase)
           
-          // Cargar datos financieros — asegurar tieneConvenio
+          // Cargar datos financieros — SI tiene ficha, cargar los datos guardados del estudiante
           if (fichaData.financieros) {
             const fin = { ...fichaData.financieros }
             // Derivar tieneConvenio de convenioId
             if (fin.convenioId && !fin.tieneConvenio) {
               fin.tieneConvenio = true
             }
+            // ✅ Cargar los precios que el estudiante YA tiene registrados
+            console.log("📊 [CON FICHA] Cargando datos financieros del estudiante desde ficha:", {
+              inscripcion: fin.inscripcion,
+              cuotaMensual: fin.cuotaMensual,
+              inversionTotal: fin.inversionTotal,
+              cantidadMeses: fin.cantidadMeses,
+            })
             setDatosFinancieros(fin)
           }
           
@@ -261,17 +271,26 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           
           setDatosAcademicos(academicosFromProspecto)
           
-          // Financieros del prospecto
+          // Financieros del prospecto - cargar datos del estudiante_programa si existen
           const finFromProspecto: Partial<DatosFinancieros> = {
             formaPago: data.metodo_pago || undefined,
             convenioId: data.convenio_pago_id || undefined,
             tieneConvenio: !!data.convenio_pago_id,
           }
+          // ✅ Si tiene programa inscrito, cargar los precios que YA pagó el estudiante
           if (prospectoPrograms.length > 0) {
             const ep0 = prospectoPrograms[0]
             if (ep0.inscripcion) finFromProspecto.inscripcion = ep0.inscripcion
             if (ep0.cuota_mensual) finFromProspecto.cuotaMensual = ep0.cuota_mensual
             if (ep0.inversion_total) finFromProspecto.inversionTotal = ep0.inversion_total
+            if (ep0.duracion_meses) finFromProspecto.cantidadMeses = ep0.duracion_meses.toString()
+            
+            console.log("📊 [SIN FICHA] Cargando datos financieros del estudiante_programa:", {
+              inscripcion: finFromProspecto.inscripcion,
+              cuotaMensual: finFromProspecto.cuotaMensual,
+              inversionTotal: finFromProspecto.inversionTotal,
+              cantidadMeses: finFromProspecto.cantidadMeses,
+            })
           }
           setDatosFinancieros(finFromProspecto)
           
@@ -440,6 +459,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
         telefono: formData.telefono || null,
         correoElectronico: formData.correo_electronico || null,
         genero: formData.genero,
+        dpi: formData.numero_identificacion || null,
         empresaDondeLaboraActualmente: formData.empresa_donde_labora_actualmente || null,
         puesto: formData.puesto || null,
         notasGenerales: formData.notas_generales || null,
@@ -457,7 +477,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
         anioGraduacion: datosAcademicos.añoGraduacion || null,
         cantidadCursosAprobados: datosAcademicos.cursosAprobados || null,
         diaEstudio: datosAcademicos.diaEstudio || null,
-        // Datos financieros
+        // Datos financieros del prospecto (solo método de pago y convenio van a prospectos)
         metodoPago: datosFinancieros.formaPago || null,
         convenioId: datosFinancieros.convenioId || null,
         // Datos laborales
@@ -481,6 +501,53 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
         const errorMsg = body.messages?.correoElectronico?.[0] || body.message || `Error ${res.status}`
         throw new Error(errorMsg)
       }
+
+      // 🆕 Actualizar datos financieros en estudiante_programa si existe
+      if (estudiantePrograma && datosAcademicos.programa) {
+        try {
+          // Calcular fecha_fin basada en fecha_inicio + duracion_meses
+          const fechaInicio = datosAcademicos.fechaInicio || new Date().toISOString().split('T')[0]
+          const duracionMeses = parseInt(datosFinancieros.cantidadMeses || datosAcademicos.duracion || "12")
+          const fechaFin = new Date(fechaInicio)
+          fechaFin.setMonth(fechaFin.getMonth() + duracionMeses)
+          
+          const payloadFinanciero = {
+            programa_id: parseInt(datosAcademicos.programa),
+            duracion_meses: duracionMeses,
+            fecha_inicio: fechaInicio,
+            fecha_fin: fechaFin.toISOString().split('T')[0],
+            inscripcion: parseFloat(datosFinancieros.inscripcion || "0"),
+            cuota_mensual: parseFloat(datosFinancieros.cuotaMensual || "0"),
+            inversion_total: parseFloat(datosFinancieros.inversionTotal || "0"),
+            convenio_id: datosFinancieros.convenioId || null,
+          }
+
+          const resFinanciero = await fetch(`${API_URL}/estudiante-programa/${estudiantePrograma.id}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(payloadFinanciero),
+          })
+
+          if (!resFinanciero.ok) {
+            const errorData = await resFinanciero.json()
+            console.warn("⚠️ Error actualizando datos financieros:", errorData)
+            // No lanzar error, solo alertar que los datos del prospecto se guardaron pero no los financieros
+            await Swal.fire({
+              icon: "warning",
+              title: "Actualización parcial",
+              text: "Los datos del prospecto se guardaron, pero hubo un error al actualizar los datos financieros. Verifique e intente nuevamente.",
+            })
+          } else {
+            console.log("✅ Datos financieros actualizados correctamente")
+          }
+        } catch (errFinanciero: any) {
+          console.error("❌ Error actualizando datos financieros:", errFinanciero)
+          // No bloquear la actualización del prospecto
+        }
+      }
       
       // Invalidar cachés
       localStorage.removeItem("gestion_prospectos_cache")
@@ -498,6 +565,9 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
       if (onUpdate) {
         onUpdate()
       }
+
+      // Esperar a que React desmonte el Dialog (evita que el focus-trap bloquee el SweetAlert)
+      await new Promise(resolve => setTimeout(resolve, 300))
       
       await Swal.fire({
         icon: "success",
@@ -583,8 +653,19 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
   }, [programas])
 
   // Calcular precios cuando cambia el programa académico
+  // ✅ Solo calcular si NO hay datos financieros guardados (inscripción y cuota mensual)
   useEffect(() => {
     if (!datosAcademicos.programa || !datosAcademicos.duracion) {
+      return
+    }
+
+    // ✅ Si ya tiene inscripción y cuota mensual guardadas, NO recalcular
+    // El usuario quiere ver los datos que YA pagó el estudiante
+    if (datosFinancieros.inscripcion && datosFinancieros.cuotaMensual) {
+      console.log("✅ El estudiante ya tiene precios guardados, NO se recalculan:", {
+        inscripcion: datosFinancieros.inscripcion,
+        cuotaMensual: datosFinancieros.cuotaMensual,
+      })
       return
     }
 
@@ -868,6 +949,30 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                       onChange={(e) => handleChange("puesto", e.target.value)}
                       placeholder="Cargo o puesto"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      DPI / Identificación
+                      <span className="text-xs text-gray-500 ml-2">(13 dígitos para Guatemala)</span>
+                    </label>
+                    <Input
+                      value={formData.numero_identificacion || ""}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        // Solo permitir números y limitar a 13 caracteres
+                        if (value === "" || /^\d{0,13}$/.test(value)) {
+                          handleChange("numero_identificacion", value)
+                        }
+                      }}
+                      placeholder="Número de identificación"
+                      maxLength={13}
+                    />
+                    {formData.numero_identificacion && formData.numero_identificacion.length !== 13 && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        ⚠️ El DPI debe tener exactamente 13 dígitos
+                      </p>
+                    )}
                   </div>
 
                   <div className="md:col-span-2">

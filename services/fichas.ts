@@ -121,6 +121,7 @@ async function buildFromProspecto(
     (prospecto.monto_inscripcion > 0 ? prospecto.monto_inscripcion : undefined)
   const cuotaMensual = programa0?.cuota_mensual
   const inversionTotal = programa0?.inversion_total
+  const cantidadMeses = programa0?.duracion_meses?.toString()
 
   const asesoria = buildAsesoria(prospecto)
 
@@ -179,6 +180,7 @@ async function buildFromProspecto(
       inscripcion,
       cuotaMensual,
       inversionTotal,
+      cantidadMeses,
     },
     programas: prospecto.programas || [],
     documentos,
