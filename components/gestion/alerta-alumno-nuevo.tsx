@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -10,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SimpleDatePicker } from "@/components/ui/simple-date-picker"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, XCircle, AlertCircle, Upload, FileText, Loader2, Eye, X } from "lucide-react"
+import { CheckCircle, XCircle, AlertCircle, Upload, FileText, Loader2, Eye, X, FileSignature } from "lucide-react"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import Swal from "sweetalert2"
 import axios from "axios"
@@ -45,6 +46,7 @@ export default function AlertaAlumnoNuevo({
   onClose,
   onSuccess,
 }: AlertaAlumnoNuevoProps) {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState("validacion")
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
@@ -1191,6 +1193,23 @@ export default function AlertaAlumnoNuevo({
                   </AlertDescription>
                 </Alert>
               )}
+            </div>
+
+            {/* Acciones: Firma digital / Generar contrato (misma lógica que Gestión) */}
+            <div className="border rounded-lg p-4 mt-4 bg-gray-50">
+              <h3 className="font-semibold mb-2">Acciones</h3>
+              <p className="text-sm text-gray-600 mb-3">Generar contrato y enviar enlace de firma digital al estudiante.</p>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  onClose()
+                  router.push(`/firma/student-details/${prospectoId}`)
+                }}
+                className="text-orange-600 border-orange-200 hover:bg-orange-50"
+              >
+                <FileSignature className="h-4 w-4 mr-2" />
+                Firma digital / Generar contrato
+              </Button>
             </div>
 
             <div className="flex justify-end gap-2 pt-4 border-t">

@@ -8,7 +8,6 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, CheckCircle2, Clock, Loader2, XCircle } from "lucide-react"
 import { API_BASE_URL } from '@/utils/apiConfig'
-import Image from "next/image"
 
 interface DatosContrato {
   prospecto: string
@@ -259,12 +258,12 @@ export default function ContratoPreviewPage() {
                 <div className="border rounded-lg p-4 bg-gray-50 min-h-[150px] flex items-center justify-center">
                   {contrato.firma_asesor ? (
                     <div className="text-center">
-                      <Image
+                      <img
                         src={contrato.firma_asesor_url || contrato.firma_asesor}
                         alt="Firma del asesor"
                         width={300}
                         height={150}
-                        className="mx-auto"
+                        className="mx-auto max-h-[150px] w-auto object-contain"
                       />
                       <p className="text-xs text-gray-600 mt-2">{datos.asesor}</p>
                     </div>
@@ -285,12 +284,12 @@ export default function ContratoPreviewPage() {
                 <div className="border rounded-lg p-4 bg-gray-50 min-h-[150px] flex items-center justify-center">
                   {contrato.firma_estudiante ? (
                     <div className="text-center">
-                      <Image
+                      <img
                         src={contrato.firma_estudiante_url || contrato.firma_estudiante}
                         alt="Firma del estudiante"
                         width={300}
                         height={150}
-                        className="mx-auto"
+                        className="mx-auto max-h-[150px] w-auto object-contain"
                       />
                       <p className="text-xs text-gray-600 mt-2">{prospecto.nombre}</p>
                     </div>

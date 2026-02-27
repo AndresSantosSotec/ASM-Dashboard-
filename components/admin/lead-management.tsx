@@ -3,8 +3,10 @@
 import { useState, useEffect, useMemo } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Filter, MoreHorizontal } from "lucide-react"
+import { Filter, MoreHorizontal, ChevronDown, Search } from "lucide-react"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, } from "@/components/ui/select"
+import { DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -44,7 +46,8 @@ export default function GestionProspectos() {
   // filtros
   const [searchTerm, setSearchTerm] = useState("")
   const [estadoFilter, setEstadoFilter] = useState("todos")
-  const [asesorFilter, setAsesorFilter] = useState("")
+  const [asesorFilterIds, setAsesorFilterIds] = useState<number[]>([])
+  const [searchAsesor, setSearchAsesor] = useState("")
   const [pageSize, setPageSize] = useState("50")
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -211,20 +214,21 @@ export default function GestionProspectos() {
     }
   }
 
-  // filtrado
+  // filtrado: búsqueda por nombre, correo o teléfono; asesor multi-select
   const filteredProspectos = useMemo(() => {
-    const term = searchTerm.toLowerCase()
-    const asesorTerm = asesorFilter.toLowerCase()
+    const term = (searchTerm || "").trim().toLowerCase()
     return prospectos.filter(p => {
       const matchesText =
+        !term ||
         (p.nombre || "").toLowerCase().includes(term) ||
         (p.email || "").toLowerCase().includes(term) ||
         (p.telefono || "").toLowerCase().includes(term)
       const matchesAsesor =
-        !asesorTerm || (p.asesor?.nombre || "").toLowerCase().includes(asesorTerm)
+        asesorFilterIds.length === 0 ||
+        (p.asesor_id != null && asesorFilterIds.includes(p.asesor_id))
       return matchesText && matchesAsesor
     })
-  }, [prospectos, searchTerm, asesorFilter])
+  }, [prospectos, searchTerm, asesorFilterIds])
 
   // paginación
   const paginatedProspectos = useMemo(() => {
@@ -244,7 +248,7 @@ export default function GestionProspectos() {
       {/* FILTROS */}
       <div className="p-4 border-b flex flex-wrap gap-4">
         <Input
-          placeholder="Buscar prospectos..."
+          placeholder="Buscar por nombre, correo o teléfono..."
           className="max-w-xs"
           value={searchTerm}
           onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1) }}
@@ -268,18 +272,80 @@ export default function GestionProspectos() {
           </SelectContent>
         </Select>
 
-        <Input
-          placeholder="Filtrar por asesor..."
-          list="asesores-filter-list"
-          className="max-w-xs"
-          value={asesorFilter}
-          onChange={e => { setAsesorFilter(e.target.value); setCurrentPage(1) }}
-        />
-        <datalist id="asesores-filter-list">
-          {asesores.map(a => (
-            <option key={a.id} value={a.nombre} />
-          ))}
-        </datalist>
+        {/* Asesor: selector múltiple con buscador */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="w-[200px] justify-between">
+              <span className="truncate">
+                {asesorFilterIds.length === 0
+                  ? "Todos los asesores"
+                  : `Asesor${asesorFilterIds.length > 1 ? "es" : ""} (${asesorFilterIds.length})`}
+              </span>
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-[260px] p-0" onCloseAutoFocus={e => e.preventDefault()}>
+            <div className="p-2 border-b">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar asesor..."
+                  className="pl-8 h-9"
+                  value={searchAsesor}
+                  onChange={e => setSearchAsesor(e.target.value)}
+                  onKeyDown={e => e.stopPropagation()}
+                />
+              </div>
+            </div>
+            <DropdownMenuCheckboxItem
+              checked={asesorFilterIds.length === 0}
+              onCheckedChange={checked => {
+                if (checked) {
+                  setAsesorFilterIds([])
+                  setCurrentPage(1)
+                }
+              }}
+            >
+              Todos los asesores
+            </DropdownMenuCheckboxItem>
+            <ScrollArea className="h-[220px]">
+              {asesores
+                .filter(a =>
+                  !searchAsesor.trim() ||
+                  (a.nombre || "").toLowerCase().includes(searchAsesor.trim().toLowerCase())
+                )
+                .map(a => (
+                  <DropdownMenuCheckboxItem
+                    key={a.id}
+                    checked={asesorFilterIds.includes(a.id)}
+                    onCheckedChange={checked => {
+                      setAsesorFilterIds(prev =>
+                        checked ? [...prev, a.id] : prev.filter(id => id !== a.id)
+                      )
+                      setCurrentPage(1)
+                    }}
+                  >
+                    {a.nombre}
+                  </DropdownMenuCheckboxItem>
+                ))}
+            </ScrollArea>
+            {asesorFilterIds.length > 0 && (
+              <div className="p-2 border-t">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs"
+                  onClick={() => {
+                    setAsesorFilterIds([])
+                    setCurrentPage(1)
+                  }}
+                >
+                  Limpiar
+                </Button>
+              </div>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <Button variant="outline">
           <Filter className="h-4 w-4 mr-2" />

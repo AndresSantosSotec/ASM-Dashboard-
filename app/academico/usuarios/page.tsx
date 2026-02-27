@@ -8,7 +8,7 @@ export default function GestionUsuarios() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Gestión de Usuarios Académicos</h1>
         <p className="text-muted-foreground mt-2">
-          Genera credenciales y carnets para estudiantes aprobados
+          Estudiantes en estado <strong>gen_credentials</strong>. Genera carnets y edítalos desde la tabla del Paso 1.
         </p>
       </div>
       <GeneracionCredenciales />

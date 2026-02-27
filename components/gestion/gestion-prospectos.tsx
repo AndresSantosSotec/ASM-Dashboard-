@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
+import { useRouter } from "next/navigation"
 import Swal from "sweetalert2"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle, RefreshCw, Download, MessageCircle, Trash2, Settings2, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Search } from "lucide-react"
+import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle, RefreshCw, Download, MessageCircle, Trash2, Settings2, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Search, FileSignature } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -97,6 +98,7 @@ interface Creator {
 }
 
 export default function GestionProspectos() {
+  const router = useRouter()
   const [mounted, setMounted] = useState(false);
   const [prospectos, setProspectos] = useState<Prospecto[]>([]);
   const [statuses, setStatuses] = useState<string[]>([]);
@@ -786,6 +788,110 @@ export default function GestionProspectos() {
     return valor || '—'
   }
 
+  /** Valor de celda para CSV (misma lógica que renderCelda, texto plano) */
+  const getValorCeldaCSV = (prospecto: Prospecto, columnaKey: string): string => {
+    const fieldMap: Record<string, string> = {
+      'nombre_completo': 'nombre',
+      'correo_electronico': 'email',
+      'status': 'estado',
+      'created_by': 'creador',
+      'medio_conocimiento_institucion': 'origen',
+      'empresa_donde_labora_actualmente': 'departamento',
+      'municipio_nombre': 'ciudad',
+      'pais_nombre': 'pais',
+      'pais_residencia': 'pais',
+      'interes': 'programa',
+      'notas_generales': 'notasGenerales',
+    }
+    const campoReal = fieldMap[columnaKey] || columnaKey
+    let valor: unknown = prospecto[campoReal as keyof Prospecto] ?? prospecto[columnaKey as keyof Prospecto]
+    if (valor === undefined || valor === null) valor = '—'
+    if ((columnaKey.includes('fecha') || columnaKey.includes('_at')) && valor && valor !== '—') {
+      try {
+        const fecha = new Date(valor as string)
+        if (!isNaN(fecha.getTime())) return fecha.toLocaleDateString('es-GT', { year: 'numeric', month: '2-digit', day: '2-digit' })
+      } catch { /* ignore */ }
+    }
+    if (typeof valor === 'boolean') return valor ? 'Sí' : 'No'
+    if (typeof valor === 'number') return String(valor)
+    return String(valor || '—')
+  }
+
+  /** Escapar campo para CSV (comillas si contiene coma, salto de línea o comilla) */
+  const escaparCSV = (valor: string): string => {
+    const s = String(valor)
+    if (/[,\r\n"]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+    return s
+  }
+
+  /** Descargar prospectos filtrados como CSV con los mismos filtros actuales */
+  const handleDescargarCSVFiltrado = useCallback(async () => {
+    const token = localStorage.getItem("token")
+    if (!token) return
+
+    const params = new URLSearchParams({
+      page: "1",
+      per_page: "10000",
+    })
+    if (debouncedSearchTerm) {
+      params.append("search", debouncedSearchTerm)
+      params.append("ignore_case", "1")
+    }
+    if (estadoFilters.length > 0) params.append("status", estadoFilters.join(","))
+    if (departamentoFilters.length > 0) params.append("departamento", departamentoFilters.join(","))
+    if (puestoFilters.length > 0) params.append("puesto", puestoFilters.join(","))
+    if (origenFilters.length > 0) params.append("origen", origenFilters.join(","))
+    if (creadorFilters.length > 0) params.append("created_by", creadorFilters.join(","))
+    if (campaniaFilters.length > 0) params.append("campania", campaniaFilters.join(","))
+    if (createdDesde) params.append("created_desde", createdDesde)
+    if (createdHasta) params.append("created_hasta", createdHasta)
+    if (fechaDesde) params.append("fecha_desde", fechaDesde)
+    if (fechaHasta) params.append("fecha_hasta", fechaHasta)
+    Object.entries(dynamicFilters).forEach(([key, vals]) => {
+      if (vals.length > 0) params.append(`filter[${key}]`, vals.join(","))
+    })
+    if (sortBy) {
+      params.append("sort_by", sortBy)
+      params.append("sort_order", sortOrder)
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/prospectos?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      })
+      if (!res.ok) throw new Error(`Error ${res.status}`)
+      const json = await res.json()
+      const list: Prospecto[] = (json.data || []).map((item: any) => ({
+        ...item,
+        id: String(item.id),
+        nombre: item.nombre_completo || "",
+        email: item.correo_electronico || "",
+        telefono: item.telefono || "",
+        departamento: item.empresa_donde_labora_actualmente ?? "Sin Departamento",
+        puesto: item.puesto ?? "N/A",
+        estado: item.status || "No contactado",
+        origen: item.medio_conocimiento_institucion ?? "—",
+        observaciones: item.observaciones ?? "",
+        notasGenerales: item.notas_generales ?? "",
+        ultimoCambio: item.updated_at ?? "N/A",
+      }))
+
+      const columnas = columnasSeleccionadas.length > 0 ? columnasSeleccionadas : ["nombre_completo", "correo_electronico", "telefono", "status", "empresa_donde_labora_actualmente", "puesto", "medio_conocimiento_institucion"]
+      const headers = columnas.map((k) => escaparCSV(getLabelColumna(k)))
+      const filas = list.map((p) => columnas.map((col) => escaparCSV(getValorCeldaCSV(p, col))).join(","))
+      const csv = "\uFEFF" + [headers.join(","), ...filas].join("\r\n")
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `prospectos_filtrados_${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err: unknown) {
+      Swal.fire("Error", err instanceof Error ? err.message : "No se pudo descargar el CSV", "error")
+    }
+  }, [debouncedSearchTerm, estadoFilters, departamentoFilters, puestoFilters, origenFilters, creadorFilters, campaniaFilters, createdDesde, createdHasta, fechaDesde, fechaHasta, dynamicFilters, sortBy, sortOrder, columnasSeleccionadas])
+
   // ⚡ Invalidar caché cuando se actualiza un prospecto
   const handleUpdateProspecto = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -1214,6 +1320,16 @@ export default function GestionProspectos() {
 
         <Button
           variant="outline"
+          onClick={handleDescargarCSVFiltrado}
+          disabled={loading}
+          title="Descargar los prospectos filtrados en CSV"
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Descargar CSV (filtrado)
+        </Button>
+
+        <Button
+          variant="outline"
           disabled={selectedIds.length === 0}
           onClick={handleBulkInscribir}
         >
@@ -1492,6 +1608,12 @@ export default function GestionProspectos() {
                               >
                                 <Download className="h-4 w-4 mr-2" />
                                 {descargandoReporte === p.id ? "Descargando..." : "Descargar Reporte PDF"}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => router.push(`/firma/student-details/${p.id}`)}
+                              >
+                                <FileSignature className="h-4 w-4 mr-2" />
+                                Firma digital / Generar contrato
                               </DropdownMenuItem>
                               {currentUser?.rol === "administrador" && (
                                 <DropdownMenuItem
