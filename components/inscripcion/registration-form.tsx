@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
+import { useSearchParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
@@ -61,12 +62,19 @@ const INITIAL_FINANCIERO: DatosFinancieros = {
 }
 
 export default function RegistrationForm() {
+  const searchParams = useSearchParams()
+  const prospectoIdFromUrl = searchParams.get("prospectoId")
+  const prospectFromUrlLoadedRef = useRef<string | null>(null)
+
   const [activeTab, setActiveTab] = useState<TabId>("personal")
   const [progress, setProgress] = useState(20)
   const [showModal, setShowModal] = useState(false)
   const [prospectoId, setProspectoId] = useState<number | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [estudianteProgramaIds, setEstudianteProgramaIds] = useState<number[]>([])
+  const [loadingProspectFromUrl, setLoadingProspectFromUrl] = useState(false)
+  /** Evitar que FinancieroTab sobrescriba con precios por defecto cuando los datos vienen del prospecto (Alerta) */
+  const [preserveFinancialFromProspect, setPreserveFinancialFromProspect] = useState(false)
 
   const [datosPersonales, setDatosPersonales] = useState<DatosPersonales>({ ...INITIAL_PERSONAL })
 
@@ -97,6 +105,138 @@ export default function RegistrationForm() {
     setActiveDraftId,
     maxDrafts,
   } = useDraftCache({ maxDrafts: 3, autoSaveInterval: 30_000 })
+
+  // Cargar prospecto desde URL (ej. /inscripcion/ficha?prospectoId=3202) y rellenar formulario; en Info. Académica usar programa de interés si no tiene programas inscritos
+  useEffect(() => {
+    const id = prospectoIdFromUrl ? parseInt(prospectoIdFromUrl, 10) : null
+    if (!id || !Number.isFinite(id) || prospectFromUrlLoadedRef.current === prospectoIdFromUrl) return
+
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
+    if (!token) return
+
+    prospectFromUrlLoadedRef.current = prospectoIdFromUrl
+    setLoadingProspectFromUrl(true)
+
+    fetch(`${API_BASE_URL}/api/prospectos/${id}`, {
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Prospecto no encontrado")
+        return res.json()
+      })
+      .then((json: { data?: any }) => {
+        const data = json.data || json
+        setProspectoId(data.id)
+
+        setDatosPersonales((prev) => ({
+          ...prev,
+          nombre: data.nombre_completo || "",
+          paisOrigen: data.pais_nombre || data.pais_origen || "",
+          paisResidencia: data.pais_nombre || data.pais_residencia || "",
+          telefono: data.telefono || "",
+          dpi: data.numero_identificacion || "",
+          emailPersonal: data.correo_electronico || "",
+          emailCorporativo: data.correo_corporativo || "",
+          fechaNacimiento: data.fecha_nacimiento
+            ? new Date(data.fecha_nacimiento).toISOString().split("T")[0]
+            : "",
+          direccion: data.direccion_residencia || "",
+        }))
+
+        setDatosLaborales((prev) => ({
+          ...prev,
+          empresa: data.empresa_donde_labora_actualmente || "",
+          puesto: data.puesto || "",
+          telefonoCorporativo: data.telefono_corporativo || "",
+          departamento: data.departamento || "",
+          direccionEmpresa: data.direccion_empresa || "",
+          sectorEmpresa: data.sector_empresa || "",
+        }))
+
+        const programas = Array.isArray(data.programas) ? data.programas : []
+        const primerPrograma = programas[0]
+        const p2 = programas[1]
+        const p3 = programas[2]
+        const programaPrincipal =
+          primerPrograma?.programa_id != null
+            ? String(primerPrograma.programa_id)
+            : data.interes
+              ? String(data.interes)
+              : ""
+        const duracionPrincipal =
+          primerPrograma?.duracion_meses != null
+            ? String(primerPrograma.duracion_meses)
+            : primerPrograma?.programa?.meses != null
+              ? String(primerPrograma.programa.meses)
+              : ""
+        const titulo2 = p2?.programa_id != null ? String(p2.programa_id) : ""
+        const titulo2Dur = p2?.duracion_meses != null ? String(p2.duracion_meses) : p2?.programa?.meses != null ? String(p2.programa.meses) : ""
+        const titulo3 = p3?.programa_id != null ? String(p3.programa_id) : ""
+        const titulo3Dur = p3?.duracion_meses != null ? String(p3.duracion_meses) : p3?.programa?.meses != null ? String(p3.programa.meses) : ""
+
+        setDatosAcademicos((prev) => ({
+          ...prev,
+          programa: programaPrincipal,
+          duracion: duracionPrincipal,
+          titulo1: programaPrincipal,
+          titulo1_duracion: duracionPrincipal,
+          titulo2,
+          titulo2_duracion: titulo2Dur,
+          titulo3,
+          titulo3_duracion: titulo3Dur,
+          ultimoTitulo: (data.ultimo_titulo_obtenido as DatosAcademicos["ultimoTitulo"]) || "licenciatura",
+          institucionAnterior: data.institucion_titulo || "",
+          añoGraduacion: data.anio_graduacion?.toString() || "",
+          modalidad: (data.modalidad as "sincronica") || "sincronica",
+          fechaInicioEspecifica: data.fecha_inicio_especifica
+            ? (data.fecha_inicio_especifica.split?.("T")[0] || data.fecha_inicio_especifica.split?.(" ")[0] || "")
+            : "",
+          fechaTallerInduccion: data.fecha_taller_reduccion
+            ? (data.fecha_taller_reduccion.split?.("T")[0] || data.fecha_taller_reduccion.split?.(" ")[0] || "")
+            : "",
+          fechaTallerIntegracion: data.fecha_taller_integracion
+            ? (data.fecha_taller_integracion.split?.("T")[0] || data.fecha_taller_integracion.split?.(" ")[0] || "")
+            : "",
+          medioConocio: (data.medio_conocimiento_institucion as DatosAcademicos["medioConocio"]) || "",
+          cursosAprobados: data.cantidad_cursos_aprobados?.toString() || "",
+          diaEstudio: (data.dia_estudio as DatosAcademicos["diaEstudio"]) || "jueves",
+          observaciones: data.observaciones || "",
+        }))
+
+        // Siempre traer datos financieros del programa principal (lo integrado en Alerta Alumno Nuevo)
+        setDatosFinancieros((prev) => ({
+          ...prev,
+          inscripcion:
+            primerPrograma != null && primerPrograma.inscripcion != null && String(primerPrograma.inscripcion).trim() !== ""
+              ? String(primerPrograma.inscripcion)
+              : data.monto_inscripcion != null && String(data.monto_inscripcion).trim() !== ""
+                ? String(data.monto_inscripcion)
+                : prev.inscripcion,
+          cuotaMensual:
+            primerPrograma != null && primerPrograma.cuota_mensual != null && String(primerPrograma.cuota_mensual).trim() !== ""
+              ? String(primerPrograma.cuota_mensual)
+              : prev.cuotaMensual,
+          inversionTotal:
+            primerPrograma != null && primerPrograma.inversion_total != null && String(primerPrograma.inversion_total).trim() !== ""
+              ? String(primerPrograma.inversion_total)
+              : prev.inversionTotal,
+          cantidadMeses:
+            primerPrograma != null && primerPrograma.duracion_meses != null
+              ? String(primerPrograma.duracion_meses)
+              : prev.cantidadMeses,
+          formaPago: (data.metodo_pago as DatosFinancieros["formaPago"]) || prev.formaPago,
+          convenioId: data.convenio_pago_id ?? prev.convenioId,
+          tieneConvenio: !!data.convenio_pago_id || prev.tieneConvenio,
+        }))
+        setPreserveFinancialFromProspect(true)
+      })
+      .catch(() => {
+        prospectFromUrlLoadedRef.current = null
+      })
+      .finally(() => {
+        setLoadingProspectFromUrl(false)
+      })
+  }, [prospectoIdFromUrl])
 
   /** Construye el payload serializable del formulario */
   const buildPayload = useCallback(() => ({
@@ -398,6 +538,12 @@ export default function RegistrationForm() {
           <Loader2 className="mr-2 h-6 w-6 animate-spin" /> Procesando...
         </div>
       )}
+      {loadingProspectFromUrl && (
+        <div className="mb-4 flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Cargando datos del prospecto...
+        </div>
+      )}
       <div className="container mx-auto max-w-6xl p-6">
         <div className="mb-4">
           <h1 className="text-3xl font-bold text-primary mb-2">Ficha de Inscripción</h1>
@@ -468,6 +614,8 @@ export default function RegistrationForm() {
                   telefono={datosPersonales.telefono}
                   email={datosPersonales.emailPersonal}
                   programa={datosAcademicos.programa}
+                  preserveFinancialFromProspect={preserveFinancialFromProspect}
+                  onPreserveFinancialApplied={() => setPreserveFinancialFromProspect(false)}
                 />
               </TabsContent>
 

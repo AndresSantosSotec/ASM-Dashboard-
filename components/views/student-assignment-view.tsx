@@ -35,6 +35,7 @@ import {
   User,
   X,
   Download,
+  Clock,
 } from "lucide-react";
 
 // 🧹 Limpiar nombre de curso eliminando prefijos
@@ -53,6 +54,36 @@ const normalizeName = (str: string) =>
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .replace(/[^a-z0-9]/g, "");
+
+// 🆕 Función para verificar si un estudiante fue inscrito en los últimos N días
+const isRecentlyEnrolled = (createdAt: string | null, days: number = 5): boolean => {
+  if (!createdAt) return false;
+  
+  const enrolledDate = new Date(createdAt);
+  const now = new Date();
+  const diffTime = Math.abs(now.getTime() - enrolledDate.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  return diffDays <= days;
+};
+
+// 🆕 Normalizar el día de estudio para mostrar
+const normalizeDayName = (day: string | null): string => {
+  if (!day) return '';
+  const dayLower = day.toLowerCase();
+  const dayMap: Record<string, string> = {
+    'lunes': 'Lunes',
+    'martes': 'Martes',
+    'miércoles': 'Miércoles',
+    'miercoles': 'Miércoles',
+    'jueves': 'Jueves',
+    'viernes': 'Viernes',
+    'sábado': 'Sábado',
+    'sabado': 'Sábado',
+    'domingo': 'Domingo',
+  };
+  return dayMap[dayLower] || day;
+};
 
 const levenshtein = (a: string, b: string) => {
   const matrix: number[][] = Array.from({ length: b.length + 1 }, () => []);
@@ -684,11 +715,17 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center space-x-3">
               <User className="h-6 w-6 text-blue-600" />
-              <div>
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-2xl">{student.name}</span>
                 <Badge variant="outline" className="ml-3">
                   {student.carnet}
                 </Badge>
+                {isRecentlyEnrolled(student.createdAt, 5) && (
+                  <Badge variant="default" className="bg-blue-500 hover:bg-blue-600 text-xs">
+                    <Clock className="h-3 w-3 mr-1" />
+                    Reciente
+                  </Badge>
+                )}
               </div>
             </CardTitle>
 
@@ -711,6 +748,15 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
                 )}
               </div>
             </div>
+            {student.diaEstudio && (
+              <div>
+                <span className="font-medium text-gray-600">Día de Estudio:</span>
+                <p className="text-blue-600 font-medium flex items-center gap-1">
+                  <Calendar className="h-4 w-4" />
+                  {normalizeDayName(student.diaEstudio)}
+                </p>
+              </div>
+            )}
             {student.startDate && (
               <div>
                 <span className="font-medium text-gray-600">Inicio:</span>

@@ -68,6 +68,7 @@ export function StudentDetails() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [documentos, setDocumentos] = useState<string[]>([])
+  const [prospectStatus, setProspectStatus] = useState<string | null>(null)
 
   // Firmas guardadas
   interface FirmaGuardada { id: number; nombre: string; imagen_base64: string; es_predeterminada: boolean }
@@ -102,14 +103,15 @@ export function StudentDetails() {
           console.log("Prospecto recibido:", json.data)
           setStudent({
             id: String(json.data.id),
-            name: json.data.nombre_completo || 'Sin nombre',
+            name: json.data.nombre_completo || "Sin nombre",
             email:
               json.data.correo_electronico ||
               json.data.correo ||
               json.data.email ||
               "",
-            dpi: json.data.numero_identificacion || "", // ✅ Capturar DPI
+            dpi: json.data.numero_identificacion || "",
           })
+          setProspectStatus(json.data.status ?? null)
         } catch (err) {
           console.error(err)
         }
@@ -393,7 +395,7 @@ export function StudentDetails() {
   const resetZoom = () => setZoomLevel(100)
 
   // 7) Envío del contrato
-  const handleSendContract = () => {
+  const handleSendContract = async () => {
     if (!signature) {
       Swal.fire({
         icon: "warning",
@@ -403,19 +405,33 @@ export function StudentDetails() {
       return
     }
 
-    // Validar documentos mínimos requeridos
+    // Validar documentos mínimos requeridos (salvo prospectos en Alerta Alumno Nuevo)
     const docsRequeridos = ["dpi", "recibo", "american", "inscripcion"]
     const docsFaltantes = docsRequeridos.filter(doc => !documentos.includes(doc))
+    const esAlertaAlumnoNuevo = prospectStatus != null && /alerta\s*alumno\s*nuevo/i.test(prospectStatus)
 
     if (docsFaltantes.length > 0) {
       const listaFaltantes = docsFaltantes.map(d => d.toUpperCase()).join(", ")
-      Swal.fire({
-        icon: "error",
-        title: "Documentos incompletos",
-        html: `<p>No se puede enviar el contrato porque faltan los siguientes documentos:</p><p class="font-bold text-red-600">${listaFaltantes}</p><p class="mt-2">Por favor, asegúrese de que el prospecto haya cargado todos los documentos requeridos.</p>`,
-        confirmButtonText: "Entendido",
-      })
-      return
+      if (esAlertaAlumnoNuevo) {
+        const result = await Swal.fire({
+          icon: "warning",
+          title: "Documentos básicos faltantes",
+          html: `<p>Faltan los siguientes documentos: <strong class="text-amber-600">${listaFaltantes}</strong>.</p><p class="mt-2">Este prospecto está en <strong>Alerta Alumno Nuevo</strong>. Puede enviar el contrato igual; los documentos deberán completarse desde admisión.</p><p class="mt-2">¿Desea enviar el contrato?</p>`,
+          showCancelButton: true,
+          confirmButtonText: "Sí, enviar contrato",
+          cancelButtonText: "Cancelar",
+          confirmButtonColor: "#059669",
+        })
+        if (!result.isConfirmed) return
+      } else {
+        Swal.fire({
+          icon: "error",
+          title: "Documentos incompletos",
+          html: `<p>No se puede enviar el contrato porque faltan los siguientes documentos:</p><p class="font-bold text-red-600">${listaFaltantes}</p><p class="mt-2">Por favor, asegúrese de que el prospecto haya cargado todos los documentos requeridos.</p>`,
+          confirmButtonText: "Entendido",
+        })
+        return
+      }
     }
 
     if (!currentUser?.email) {
@@ -572,6 +588,43 @@ export function StudentDetails() {
         <Input id="email" value={currentUser?.email || student.email} readOnly />
       </div>
 
+      {/* Información académica: doble/triple titulación o programa único */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Información académica</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {programas.length > 1 ? (
+            <>
+              <p className="text-sm font-semibold text-slate-700 mb-2">
+                {programas.length === 2
+                  ? "Doble titulación (2 carreras)"
+                  : programas.length === 3
+                    ? "Triple titulación (3 carreras)"
+                    : `Varias carreras (${programas.length})`}
+                {" · "}
+                Total: {programas.reduce((s, p) => s + (p.programa?.meses ?? 0), 0)} meses
+              </p>
+              <ul className="list-disc list-inside text-sm text-slate-600 space-y-1">
+                {programas.map((p, idx) => (
+                  <li key={idx}>
+                    {p.programa.abreviatura} – {p.programa.nombre_del_programa} ({p.programa.meses} meses)
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            programa && (
+              <p className="text-sm text-slate-600">
+                <span className="font-medium">Programa:</span> {programa.programa.abreviatura} – {programa.programa.nombre_del_programa}
+                {" · "}
+                <span className="font-medium">Duración:</span> {programa.programa.meses} meses
+              </p>
+            )
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader className="flex justify-between items-center">
           <CardTitle>Contrato de Confidencialidad</CardTitle>
@@ -606,16 +659,27 @@ export function StudentDetails() {
             <p>
               Me comprometo a mantener de manera estrictamente confidencial los
               precios corporativos otorgados por American School of Management para
-              cursar mi programa de:
+              {programas.length > 1 ? " cursar mis programas:" : " cursar mi programa de:"}
             </p>
             <p>
-              <strong>
-                {programa.programa.nombre_del_programa} ({programa.programa.abreviatura})
-              </strong>
+              {programas.length > 1 ? (
+                <strong>
+                  {programas.map((p, i) => (
+                    <span key={i}>
+                      {i > 0 && " · "}
+                      {p.programa.abreviatura} – {p.programa.nombre_del_programa} ({p.programa.meses} meses)
+                    </span>
+                  ))}
+                </strong>
+              ) : (
+                <strong>
+                  {programa.programa.nombre_del_programa} ({programa.programa.abreviatura})
+                </strong>
+              )}
             </p>
             <p>
               Asimismo, entiendo y acepto que mi participación en el acto de
-              graduación de dicho programa es obligatoria e indispensable.
+              graduación {programas.length > 1 ? "de dichos programas" : "de dicho programa"} es obligatoria e indispensable.
             </p>
 
             {/* Datos económicos */}

@@ -61,6 +61,8 @@ interface ReciboData {
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Cuando true, el modal se muestra por encima de otros modales (ej. Alerta Alumno Nuevo) */
+  elevatedZIndex?: boolean
   studentName?: string
   nit?: string
   monto?: string
@@ -124,7 +126,7 @@ const amountToWords = (amount: string): string => {
 }
 
 export default function ReciboPagoGenerator({
-  open, onOpenChange, studentName, nit, monto, concepto,
+  open, onOpenChange, elevatedZIndex, studentName, nit, monto, concepto,
   formaPago, cuotaMensual, cantidadMeses, inversionTotal, convenioNombre,
   programa, telefono, email,
 }: Props) {
@@ -134,6 +136,9 @@ export default function ReciboPagoGenerator({
   const [registrando, setRegistrando] = useState(false)
   const [isPrinting, setIsPrinting] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  // Cache de logos en base64 para que la descarga/impresión sea rápida (se precargan al abrir el modal)
+  const [logoHeaderB64, setLogoHeaderB64] = useState<string | null>(null)
+  const [logoFooterB64, setLogoFooterB64] = useState<string | null>(null)
 
   // Mapear forma de pago del sistema al recibo
   const mapFormaPago = (fp?: string): "Efectivo" | "Tarjeta" | "Cheque" | "Boleta" => {
@@ -210,9 +215,6 @@ export default function ReciboPagoGenerator({
         otros: recibo.otros,
         observaciones: recibo.observaciones,
       }
-      // Note: Recalculate will be called here. As long as it is defined in the component scope, it's fine.
-      // But standard practice is to define helpers outside or useCallback. 
-      // Since recalculate is defined in the component body above, it is available.
       setRecibo(recalculate(newData))
 
       // Auto-generar número de recibo si está vacío
@@ -221,6 +223,42 @@ export default function ReciboPagoGenerator({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  // Cuando los datos del prospecto llegan después (ej. desde menú Generar recibo), actualizar el formulario
+  useEffect(() => {
+    if (!open) return
+    const matriculaVal = monto?.replace(/,/g, "") || ""
+    const mensualidadVal = cuotaMensual?.replace(/,/g, "") || ""
+    setRecibo(prev => recalculate({
+      ...prev,
+      recibidoDe: studentName?.trim() ? studentName : prev.recibidoDe,
+      nit: nit?.trim() ? nit : prev.nit,
+      matricula: matriculaVal || prev.matricula,
+      mensualidad: mensualidadVal || prev.mensualidad,
+      formaPago: mapFormaPago(formaPago),
+    }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, studentName, nit, monto, cuotaMensual, formaPago])
+
+  // Precargar logos al abrir el modal para que Descargar PDF / Imprimir sea rápido
+  useEffect(() => {
+    if (!open) {
+      setLogoHeaderB64(null)
+      setLogoFooterB64(null)
+      return
+    }
+    let cancelled = false
+    Promise.all([
+      toBase64("/recursos/Logos-02.png", "image/jpeg", 0.7),
+      toBase64("/recursos/Logos_Mesa.png", "image/png", 0.7),
+    ]).then(([header, footer]) => {
+      if (!cancelled) {
+        setLogoHeaderB64(header || null)
+        setLogoFooterB64(footer || null)
+      }
+    }).catch(() => { if (!cancelled) { setLogoHeaderB64(null); setLogoFooterB64(null) } })
+    return () => { cancelled = true }
   }, [open])
 
   // Generar siguiente número de recibo vía API
@@ -286,7 +324,7 @@ export default function ReciboPagoGenerator({
   }
 
   // Optimize image loading: use JPEG for smaller size where transparency isn't needed or resizing
-  const toBase64 = async (url: string, format: "image/png" | "image/jpeg" = "image/png", quality = 0.7): Promise<string> => {
+  const toBase64 = async (url: string, format: "image/png" | "image/jpeg" = "image/png", quality = 0.7, maxWidth = 600): Promise<string> => {
     const loadImg = (src: string): Promise<string> => {
       return new Promise((resolve) => {
         const img = new Image()
@@ -294,13 +332,11 @@ export default function ReciboPagoGenerator({
         img.onload = () => {
           try {
             const canvas = document.createElement("canvas")
-            // Resize if too large (e.g. max width 1000px)
             let width = img.width
             let height = img.height
-            const MAX_WIDTH = 800
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width
-              width = MAX_WIDTH
+            if (width > maxWidth) {
+              height *= maxWidth / width
+              width = maxWidth
             }
 
             canvas.width = width
@@ -340,13 +376,13 @@ export default function ReciboPagoGenerator({
   const handleDownloadPDF = async () => {
     setIsPrinting(true)
     try {
-      await registrarRecibo()
-
-      // Use JPEG with 0.7 quality for logos to save space
+      // Usar logos en caché si ya se precargaron; si no, cargarlos ahora (en paralelo con registrarRecibo)
       const [headerLogoB64, footerLogoB64] = await Promise.all([
-        toBase64('/recursos/Logos-02.png', "image/jpeg", 0.7),
-        toBase64('/recursos/Logos_Mesa.png', "image/png", 0.7)
+        logoHeaderB64 ? Promise.resolve(logoHeaderB64) : toBase64("/recursos/Logos-02.png", "image/jpeg", 0.7),
+        logoFooterB64 ? Promise.resolve(logoFooterB64) : toBase64("/recursos/Logos_Mesa.png", "image/png", 0.7),
       ])
+      // Registrar recibo en backend (no bloquea la generación del PDF)
+      registrarRecibo().catch(() => {})
 
       const doc = new jsPDF({
         orientation: 'portrait',
@@ -546,20 +582,25 @@ export default function ReciboPagoGenerator({
   }
 
   const handlePrint = async () => {
-    await registrarRecibo()
+    setIsPrinting(true)
+    try {
+      // Usar logos en caché si están; si no, cargarlos
+      const [headerLogoB64, footerLogoB64] = await Promise.all([
+        logoHeaderB64 ? Promise.resolve(logoHeaderB64) : toBase64("/recursos/Logos-02.png", "image/jpeg", 0.7),
+        logoFooterB64 ? Promise.resolve(logoFooterB64) : toBase64("/recursos/Logos_Mesa.png", "image/png", 0.7),
+      ])
+      registrarRecibo().catch(() => {})
 
-    const [headerLogoB64, footerLogoB64] = await Promise.all([
-      toBase64('/recursos/Logos-02.png', "image/jpeg"),
-      toBase64('/recursos/Logos_Mesa.png', "image/png")
-    ])
+      const printWindow = window.open("", "_blank")
+      if (!printWindow) {
+        setIsPrinting(false)
+        return
+      }
 
-    const printWindow = window.open("", "_blank")
-    if (!printWindow) return
+      const headerSrc = headerLogoB64 || resolveAssetUrl("/recursos/Logos-02.png")
+      const footerSrc = footerLogoB64 || resolveAssetUrl("/recursos/Logos_Mesa.png")
 
-    const headerSrc = headerLogoB64 || resolveAssetUrl("/recursos/Logos-02.png")
-    const footerSrc = footerLogoB64 || resolveAssetUrl("/recursos/Logos_Mesa.png")
-
-    printWindow.document.write(`
+      printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
@@ -592,25 +633,34 @@ export default function ReciboPagoGenerator({
         </style>
       </head>
       <body onload="setTimeout(function(){ window.print(); window.close(); }, 800)">
-        <div class="header-container">
-            <img src="${headerSrc}" class="header-logo" alt="Logo" />
-            <div class="header-info">
-              <h1>AMERICAN</h1>
-              <p style="letter-spacing: 2px;">SCHOOL OF MANAGEMENT</p>
-              <p><strong>American School of Management</strong></p>
-              <p>Torre Tigo, Km. 9.5 Carretera al Salvador, Oficina 6C</p>
-              <p>Cel. 5486-2301</p>
-            </div>
+        <div class="logo-bar">
+          <img src="${headerSrc}" alt="Gaia Business School" />
         </div>
-
-        <div class="data-line"><strong>Nit:</strong> ${recibo.nit || "C/F"}</div>
-        <div class="data-line"><strong>Recibo Serie "A"</strong> Nº <strong style="color: red; font-size: 12pt;">${recibo.reciboNo}</strong></div>
-        <div class="data-row">
-          <span><strong>Fecha</strong> ${new Date(recibo.fecha + "T12:00:00").toLocaleDateString("es-GT")}</span>
-          <span style="font-weight: bold;">Q${parseFloat(recibo.total).toFixed(2)}</span>
+        <div class="gold-line"></div>
+        <div class="header">
+          <h1>GAIA</h1>
+          <p style="font-size: 8pt; letter-spacing: 2px;">BUSINESS SCHOOL</p>
+          <p><strong>Gaia Business School</strong></p>
+          <p>Torre Tigo, Km. 9.5 Carretera al Salvador, Oficina 6C</p>
+          <p>Cel. 5486-2301</p>
         </div>
-        <div class="data-line"><strong>Recibimos de:</strong> ${recibo.recibidoDe}</div>
-        <div class="data-line"><strong>La cantidad de:</strong> ${recibo.cantidadLetras}</div>
+        
+        <div class="info-row">
+          <span><strong>Nit:</strong> ${recibo.nit}</span>
+        </div>
+        <div class="info-row">
+          <span><strong>Recibo Serie "A"</strong> Nº <strong style="color: red; font-size: 12pt;">${recibo.reciboNo}</strong></span>
+        </div>
+        <div class="info-row">
+          <span><strong>Fecha</strong> ${new Date(recibo.fecha + "T12:00:00").toLocaleDateString("es-GT", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
+          <span><strong>Q</strong>${recibo.total}</span>
+        </div>
+        <div class="info-row">
+          <span><strong>Recibimos de:</strong> ${recibo.recibidoDe}</span>
+        </div>
+        <div class="info-row">
+          <span><strong>La cantidad de:</strong> ${recibo.cantidadLetras}</span>
+        </div>
 
         <table class="concepto-table">
           <thead><tr><th colspan="2">Concepto</th></tr></thead>
@@ -652,13 +702,16 @@ export default function ReciboPagoGenerator({
         </div>
       </body>
       </html>
-    `)
-    printWindow.document.close()
+      `)
+      printWindow.document.close()
+    } finally {
+      setIsPrinting(false)
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent elevated={elevatedZIndex} className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />

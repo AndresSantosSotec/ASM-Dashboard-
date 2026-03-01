@@ -31,6 +31,10 @@ interface Props {
   telefono?: string
   email?: string
   programa?: string
+  /** Si true, no sobrescribir inscripción/cuota/meses/inversión con precios del API (datos cargados desde prospecto/Alerta) */
+  preserveFinancialFromProspect?: boolean
+  /** Llamar cuando se respetaron los datos del prospecto para dejar de preservar en el siguiente cambio */
+  onPreserveFinancialApplied?: () => void
 }
 
 export default function FinancieroTab({
@@ -44,6 +48,8 @@ export default function FinancieroTab({
   telefono,
   email,
   programa,
+  preserveFinancialFromProspect,
+  onPreserveFinancialApplied,
 }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -166,18 +172,23 @@ export default function FinancieroTab({
       const invTotal = sumaTotal.toFixed(2)
 
       setSugeridos({ inscripcion: insc, cuota })
-      setDatos(prev => ({
-        ...prev,
-        inscripcion: insc,
-        cuotaMensual: cuota,
-        cantidadMeses: totalMeses,
-        inversionTotal: invTotal,
-      }))
+
+      if (preserveFinancialFromProspect) {
+        onPreserveFinancialApplied?.()
+      } else {
+        setDatos(prev => ({
+          ...prev,
+          inscripcion: insc,
+          cuotaMensual: cuota,
+          cantidadMeses: totalMeses,
+          inversionTotal: invTotal,
+        }))
+      }
 
       if (fallidos.length) console.warn("Peticiones fallidas no críticas:", fallidos)
       setError(null)
     })
-  }, [programas, datos.tieneConvenio, datos.convenioId, setDatos])
+  }, [programas, datos.tieneConvenio, datos.convenioId, setDatos, preserveFinancialFromProspect, onPreserveFinancialApplied])
 
   // Recalcular inversión total al editar montos
   useEffect(() => {

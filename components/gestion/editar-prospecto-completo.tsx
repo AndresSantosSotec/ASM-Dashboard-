@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from "react"
-import { X, CheckCircle, Upload, FileText, Eye, XCircle, Loader2, Trash2, GraduationCap } from "lucide-react"
+import { X, CheckCircle, Upload, FileText, Eye, XCircle, Loader2, Trash2, GraduationCap, PlusCircle, ChevronDown, ChevronUp, Pencil, Receipt } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -17,6 +17,7 @@ import { ServerFilePreviewModal } from "@/components/ui/server-file-preview-moda
 import Swal from "sweetalert2"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import fetchFicha from "@/services/fichas"
+import ReciboPagoGenerator from "@/components/inscripcion/ReciboPagoGenerator"
 import type { DatosAcademicos, DatosFinancieros, DatosLaborales } from "@/components/inscripcion/types"
 import axios from "axios"
 
@@ -58,12 +59,24 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
   const [estudiantePrograma, setEstudiantePrograma] = useState<any>(null)
   const [cuotasEstudiante, setCuotasEstudiante] = useState<any[]>([])
   const [programasInscritos, setProgramasInscritos] = useState<any[]>([])
+  /** ID del estudiante_programa que se está editando en el formulario (permite elegir qué programa modificar) */
+  const [epIdEnEdicion, setEpIdEnEdicion] = useState<number | null>(null)
   const [calculandoPrecios, setCalculandoPrecios] = useState(false)
-  
+
+  // Estados para agregar nuevo programa (doble titulación)
+  const [showAgregarPrograma, setShowAgregarPrograma] = useState(false)
+  const [nuevoPrograma, setNuevoPrograma] = useState({
+    programa_id: "", duracion_meses: "", fecha_inicio: "",
+    inscripcion: "", cuota_mensual: "",
+    loadingPrecios: false, preciosCargados: false, _lastKey: "",
+  })
+  const [loadingAgregarPrograma, setLoadingAgregarPrograma] = useState(false)
+  const [reciboOpen, setReciboOpen] = useState(false)
+
   // Cache para precios
   const precioCache = useRef(new Map<string, { inscripcion: number; cuota_mensual: number }>())
   const lastPrecioKey = useRef("")
-  
+
   // Estados del formulario básico
   const [formData, setFormData] = useState<ProspectoCompleto>({
     id: "",
@@ -96,7 +109,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
     const fetchData = async () => {
       try {
         const token = localStorage.getItem("token")
-        
+
         // Helper: convertir ISO timestamp a "YYYY-MM-DD" para SimpleDatePicker
         const toDateStr = (v: string | null | undefined): string => {
           if (!v) return ""
@@ -106,7 +119,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           const match = v.match(/^(\d{4}-\d{2}-\d{2})/)
           return match ? match[1] : v
         }
-        
+
         // Cargar prospecto (incluye programas.programa eager-loaded)
         const resProspecto = await fetch(`${API_URL}/prospectos/${prospectoId}`, {
           headers: {
@@ -114,9 +127,9 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
             "Content-Type": "application/json",
           },
         })
-        
+
         if (!resProspecto.ok) throw new Error("Error al cargar prospecto")
-        
+
         const { data } = await resProspecto.json()
 
         // Normalizar género: DB puede almacenar "masculino" pero Select espera "Masculino"
@@ -134,7 +147,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           const found = opciones.find(o => o.toLowerCase() === s.toLowerCase().trim())
           return found || s
         }
-        
+
         setFormData({
           id: data.id,
           nombre_completo: data.nombre_completo || "",
@@ -158,15 +171,14 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
         const prospectoPrograms = Array.isArray(data.programas) ? data.programas : []
         if (prospectoPrograms.length > 0) {
           setProgramasInscritos(prospectoPrograms)
-          
-          const epMasReciente = [...prospectoPrograms].sort((a: any, b: any) => 
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          )[0]
-          setEstudiantePrograma(epMasReciente)
-          
-          // Cargar cuotas del programa más reciente
+          // Usar el primer programa como "en edición" para que coincida con los datos que se rellenan abajo (ep0)
+          const epInicial = prospectoPrograms[0]
+          setEstudiantePrograma(epInicial)
+          setEpIdEnEdicion(epInicial.id)
+
+          // Cargar cuotas del programa en edición (primer registro)
           try {
-            const resCuotas = await fetch(`${API_URL}/cuotas/estudiante-programa/${epMasReciente.id}`, {
+            const resCuotas = await fetch(`${API_URL}/cuotas/estudiante-programa/${epInicial.id}`, {
               headers: {
                 Authorization: `Bearer ${token}`,
                 "Content-Type": "application/json",
@@ -179,6 +191,8 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           } catch (err) {
             console.warn("No se pudo cargar cuotas:", err)
           }
+        } else {
+          setEpIdEnEdicion(null)
         }
 
         // Intentar cargar ficha de inscripción
@@ -187,7 +201,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           const fichaData = await fetchFicha(Number(prospectoId))
           fichaLoaded = true
           setTieneFicha(true)
-          
+
           // Cargar datos académicos — merge con programa/duracion del programa inscrito
           const academicosBase: Partial<DatosAcademicos> = {}
           if (fichaData.academicos) {
@@ -203,42 +217,35 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
               academicosBase.fechaTallerIntegracion = toDateStr(academicosBase.fechaTallerIntegracion as string)
             }
           }
-          
-          // Poblar programa y duracion desde el programa inscrito más reciente
+
+          // Poblar programa y duración desde el programa inscrito (prioridad sobre ficha para reflejar lo guardado en backend)
           if (prospectoPrograms.length > 0) {
             const ep0 = prospectoPrograms[0]
-            if (ep0.programa_id && !academicosBase.programa) {
-              academicosBase.programa = ep0.programa_id.toString()
-            }
-            if (ep0.duracion_meses && !academicosBase.duracion) {
-              academicosBase.duracion = ep0.duracion_meses.toString()
-            }
+            if (ep0.programa_id) academicosBase.programa = ep0.programa_id.toString()
+            if (ep0.duracion_meses != null) academicosBase.duracion = ep0.duracion_meses.toString()
+          } else if (data.interes) {
+            // Si no tiene programas inscritos, usar programa de interés como programa principal (por si decide seguir ese programa)
+            academicosBase.programa = String(data.interes)
           }
-          
+
           setDatosAcademicos(academicosBase)
-          
+
           // Cargar datos financieros — SI tiene ficha, cargar los datos guardados del estudiante
           if (fichaData.financieros) {
             const fin = { ...fichaData.financieros }
-            // Derivar tieneConvenio de convenioId
-            if (fin.convenioId && !fin.tieneConvenio) {
-              fin.tieneConvenio = true
-            }
-            // ✅ Cargar los precios que el estudiante YA tiene registrados
-            console.log("📊 [CON FICHA] Cargando datos financieros del estudiante desde ficha:", {
-              inscripcion: fin.inscripcion,
-              cuotaMensual: fin.cuotaMensual,
-              inversionTotal: fin.inversionTotal,
-              cantidadMeses: fin.cantidadMeses,
-            })
+            if (fin.convenioId && !fin.tieneConvenio) fin.tieneConvenio = true
+            if (fin.inscripcion == null || fin.inscripcion === "") fin.inscripcion = "0"
+            if (fin.cuotaMensual == null || fin.cuotaMensual === "") fin.cuotaMensual = "0"
+            if (fin.inversionTotal == null || fin.inversionTotal === "") fin.inversionTotal = "0"
+            if (fin.cantidadMeses == null || fin.cantidadMeses === "") fin.cantidadMeses = "0"
             setDatosFinancieros(fin)
           }
-          
+
           // Cargar datos laborales
           if (fichaData.laborales) {
             setDatosLaborales(fichaData.laborales)
           }
-          
+
           // Cargar documentos de la ficha
           if (fichaData.documentos) {
             setDocumentos(fichaData.documentos)
@@ -247,7 +254,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           // No tiene ficha — cargar datos directamente del prospecto
           fichaLoaded = false
           setTieneFicha(false)
-          
+
           // Aún así poblar académicos y financieros del prospecto directo
           const academicosFromProspecto: Partial<DatosAcademicos> = {
             modalidad: data.modalidad || undefined,
@@ -261,30 +268,33 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
             diaEstudio: data.dia_estudio || undefined,
             medioConocio: data.medio_conocimiento_institucion || undefined,
           }
-          
+
           // Poblar programa y duracion desde programa inscrito
           if (prospectoPrograms.length > 0) {
             const ep0 = prospectoPrograms[0]
             if (ep0.programa_id) academicosFromProspecto.programa = ep0.programa_id.toString()
             if (ep0.duracion_meses) academicosFromProspecto.duracion = ep0.duracion_meses.toString()
+          } else if (data.interes) {
+            // Si no tiene programas inscritos, usar programa de interés como programa principal (por si decide seguir ese programa)
+            academicosFromProspecto.programa = String(data.interes)
           }
-          
+
           setDatosAcademicos(academicosFromProspecto)
-          
+
           // Financieros del prospecto - cargar datos del estudiante_programa si existen
           const finFromProspecto: Partial<DatosFinancieros> = {
             formaPago: data.metodo_pago || undefined,
             convenioId: data.convenio_pago_id || undefined,
             tieneConvenio: !!data.convenio_pago_id,
           }
-          // ✅ Si tiene programa inscrito, cargar los precios que YA pagó el estudiante
+          // ✅ Si tiene programa inscrito, cargar datos del primer programa (sin datos → 0)
           if (prospectoPrograms.length > 0) {
             const ep0 = prospectoPrograms[0]
-            if (ep0.inscripcion) finFromProspecto.inscripcion = ep0.inscripcion
-            if (ep0.cuota_mensual) finFromProspecto.cuotaMensual = ep0.cuota_mensual
-            if (ep0.inversion_total) finFromProspecto.inversionTotal = ep0.inversion_total
-            if (ep0.duracion_meses) finFromProspecto.cantidadMeses = ep0.duracion_meses.toString()
-            
+            finFromProspecto.inscripcion = ep0.inscripcion != null && ep0.inscripcion !== "" ? String(Number(ep0.inscripcion)) : "0"
+            finFromProspecto.cuotaMensual = ep0.cuota_mensual != null && ep0.cuota_mensual !== "" ? String(Number(ep0.cuota_mensual)) : "0"
+            finFromProspecto.inversionTotal = ep0.inversion_total != null && ep0.inversion_total !== "" ? String(Number(ep0.inversion_total)) : "0"
+            finFromProspecto.cantidadMeses = ep0.duracion_meses != null ? String(ep0.duracion_meses) : "0"
+
             console.log("📊 [SIN FICHA] Cargando datos financieros del estudiante_programa:", {
               inscripcion: finFromProspecto.inscripcion,
               cuotaMensual: finFromProspecto.cuotaMensual,
@@ -293,7 +303,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
             })
           }
           setDatosFinancieros(finFromProspecto)
-          
+
           // Laborales del prospecto
           setDatosLaborales({
             empresa: data.empresa_donde_labora_actualmente || undefined,
@@ -303,7 +313,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
             sectorEmpresa: data.sector_empresa || undefined,
           })
         }
-        
+
         // Cargar programas catálogo
         const resProgramas = await fetch(`${API_URL}/programas`, {
           headers: {
@@ -311,7 +321,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
             "Content-Type": "application/json",
           },
         })
-        
+
         if (resProgramas.ok) {
           const programasData = await resProgramas.json()
           setProgramas(programasData)
@@ -324,7 +334,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
             "Content-Type": "application/json",
           },
         })
-        
+
         if (resConvenios.ok) {
           const conveniosData = await resConvenios.json()
           setConvenios(conveniosData)
@@ -337,7 +347,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
             "Content-Type": "application/json",
           },
         })
-        
+
         if (resDeptos.ok) {
           const deptosData = await resDeptos.json()
           setDepartamentos(deptosData.departamentos || [])
@@ -350,7 +360,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
             "Content-Type": "application/json",
           },
         })
-        
+
         if (resDocs.ok) {
           const docsData = await resDocs.json()
           // Agrupar por tipo y tomar el más reciente de cada uno
@@ -366,7 +376,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           }
           setDocumentos(Array.from(docsPorTipo.values()))
         }
-        
+
       } catch (err: any) {
         console.error("❌ Error cargando datos:", err)
         Swal.fire({
@@ -378,7 +388,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
         setLoadingData(false)
       }
     }
-    
+
     fetchData()
   }, [prospectoId])
 
@@ -426,8 +436,21 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
 
       const data = await res.json()
 
-      // Actualizar lista local
-      setProgramasInscritos(prev => prev.filter((p: any) => p.id !== ep.id))
+      // Actualizar lista local; si eliminamos el que estábamos editando, pasar al primero que quede
+      setProgramasInscritos(prev => {
+        const nueva = prev.filter((p: any) => p.id !== ep.id)
+        if (epIdEnEdicion === ep.id && nueva.length > 0) {
+          setEstudiantePrograma(nueva[0])
+          setEpIdEnEdicion(nueva[0].id)
+          setDatosAcademicos(prevA => ({ ...prevA, programa: nueva[0].programa_id?.toString() ?? "", duracion: nueva[0].duracion_meses?.toString() ?? "" }))
+          setDatosFinancieros(prevF => ({ ...prevF, inscripcion: nueva[0].inscripcion != null && nueva[0].inscripcion !== "" ? String(Number(nueva[0].inscripcion)) : "0", cuotaMensual: nueva[0].cuota_mensual != null && nueva[0].cuota_mensual !== "" ? String(Number(nueva[0].cuota_mensual)) : "0", cantidadMeses: nueva[0].duracion_meses != null ? String(nueva[0].duracion_meses) : "0", inversionTotal: nueva[0].inversion_total != null && nueva[0].inversion_total !== "" ? String(Number(nueva[0].inversion_total)) : "0" }))
+        } else if (nueva.length === 0) {
+          setEstudiantePrograma(null)
+          setEpIdEnEdicion(null)
+          setCuotasEstudiante([])
+        }
+        return nueva
+      })
 
       Swal.fire({
         icon: "success",
@@ -447,13 +470,160 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
     }
   }
 
+  /** Seleccionar qué programa inscrito se edita en el formulario; carga sus datos y cuotas */
+  const seleccionarProgramaParaEditar = async (ep: any) => {
+    setEpIdEnEdicion(ep.id)
+    setEstudiantePrograma(ep)
+    setDatosAcademicos(prev => ({
+      ...prev,
+      programa: ep.programa_id?.toString() ?? prev.programa ?? "",
+      duracion: ep.duracion_meses != null ? String(ep.duracion_meses) : prev.duracion ?? "",
+      fechaInicioEspecifica: ep.fecha_inicio ? String(ep.fecha_inicio).split("T")[0] : prev.fechaInicioEspecifica,
+    }))
+    setDatosFinancieros(prev => ({
+      ...prev,
+      inscripcion: ep.inscripcion != null && ep.inscripcion !== "" ? String(Number(ep.inscripcion)) : "0",
+      cuotaMensual: ep.cuota_mensual != null && ep.cuota_mensual !== "" ? String(Number(ep.cuota_mensual)) : "0",
+      cantidadMeses: ep.duracion_meses != null ? String(ep.duracion_meses) : "0",
+      inversionTotal: ep.inversion_total != null && ep.inversion_total !== "" ? String(Number(ep.inversion_total)) : "0",
+    }))
+    try {
+      const token = localStorage.getItem("token")
+      const resCuotas = await fetch(`${API_URL}/cuotas/estudiante-programa/${ep.id}`, {
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      })
+      if (resCuotas.ok) {
+        const cuotasData = await resCuotas.json()
+        setCuotasEstudiante(Array.isArray(cuotasData) ? cuotasData : [])
+      } else {
+        setCuotasEstudiante([])
+      }
+    } catch {
+      setCuotasEstudiante([])
+    }
+  }
+
+  // ✅ Auto-cargar precios cuando cambia programa_id o duracion_meses en el formulario de nuevo programa
+  useEffect(() => {
+    if (!nuevoPrograma.programa_id || !nuevoPrograma.duracion_meses) return
+    // Evitar re-cargar si ya tenemos precios para esta combinación
+    const key = `${nuevoPrograma.programa_id}-${nuevoPrograma.duracion_meses}`
+    if (nuevoPrograma.preciosCargados && nuevoPrograma._lastKey === key) return
+
+    setNuevoPrograma(prev => ({ ...prev, loadingPrecios: true, preciosCargados: false }))
+
+    const token = localStorage.getItem("token")
+    fetch(`${API_URL}/precios/programa/${nuevoPrograma.programa_id}?meses=${nuevoPrograma.duracion_meses}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => res.ok ? res.json() : Promise.reject(res.status))
+      .then(precios => {
+        setNuevoPrograma(prev => ({
+          ...prev,
+          inscripcion: (precios.inscripcion || 0).toFixed(2),
+          cuota_mensual: (precios.cuota_mensual || 0).toFixed(2),
+          loadingPrecios: false,
+          preciosCargados: true,
+          _lastKey: key,
+        }))
+      })
+      .catch(() => {
+        setNuevoPrograma(prev => ({ ...prev, loadingPrecios: false }))
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nuevoPrograma.programa_id, nuevoPrograma.duracion_meses])
+
+  // Agregar nuevo programa inscrito (doble/triple titulación)
+  const handleAgregarPrograma = async () => {
+    if (!nuevoPrograma.programa_id) {
+      Swal.fire({ icon: "warning", title: "Falta programa", text: "Selecciona un programa académico" })
+      return
+    }
+    if (!nuevoPrograma.duracion_meses) {
+      Swal.fire({ icon: "warning", title: "Falta duración", text: "Ingresa la duración en meses" })
+      return
+    }
+
+    setLoadingAgregarPrograma(true)
+    try {
+      const token = localStorage.getItem("token")
+
+      // Usar precios del formulario si ya fueron cargados; si no, consultar la API
+      let inscripcion = Number(nuevoPrograma.inscripcion) || 0
+      let cuotaMensual = Number(nuevoPrograma.cuota_mensual) || 0
+
+      if (!nuevoPrograma.preciosCargados) {
+        const resPrecios = await fetch(`${API_URL}/precios/programa/${nuevoPrograma.programa_id}?meses=${nuevoPrograma.duracion_meses}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (resPrecios.ok) {
+          const precios = await resPrecios.json()
+          inscripcion = precios.inscripcion || 0
+          cuotaMensual = precios.cuota_mensual || 0
+        }
+      }
+
+      const fechaInicio = nuevoPrograma.fecha_inicio || new Date().toISOString().split("T")[0]
+      const fechaInicioObj = new Date(fechaInicio)
+      const fechaFinObj = new Date(fechaInicioObj)
+      fechaFinObj.setMonth(fechaFinObj.getMonth() + Number(nuevoPrograma.duracion_meses))
+      const fechaFin = fechaFinObj.toISOString().split("T")[0]
+      const inversionTotal = inscripcion + cuotaMensual * Number(nuevoPrograma.duracion_meses)
+
+      const res = await fetch(`${API_URL}/estudiante-programa`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          prospecto_id: Number(prospectoId),
+          programas: [{
+            programa_id: Number(nuevoPrograma.programa_id),
+            duracion_meses: Number(nuevoPrograma.duracion_meses),
+            fecha_inicio: fechaInicio,
+            fecha_fin: fechaFin,
+            inscripcion,
+            cuota_mensual: cuotaMensual,
+            inversion_total: inversionTotal,
+          }],
+        }),
+      })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || `Error HTTP ${res.status}`)
+      }
+
+      // Recargar programas desde el servidor
+      const resProspecto = await fetch(`${API_URL}/prospectos/${prospectoId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (resProspecto.ok) {
+        const { data: pd } = await resProspecto.json()
+        if (Array.isArray(pd.programas)) {
+          setProgramasInscritos(pd.programas)
+        }
+      }
+
+      setShowAgregarPrograma(false)
+      setNuevoPrograma({ programa_id: "", duracion_meses: "", fecha_inicio: "", inscripcion: "", cuota_mensual: "", loadingPrecios: false, preciosCargados: false, _lastKey: "" })
+      Swal.fire({ icon: "success", title: "Programa agregado", text: "El programa fue agregado exitosamente", timer: 2500, showConfirmButton: false })
+    } catch (err: any) {
+      console.error("Error al agregar programa:", err)
+      Swal.fire({ icon: "error", title: "Error", text: err.message || "No se pudo agregar el programa" })
+    } finally {
+      setLoadingAgregarPrograma(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     setLoading(true)
     try {
       const token = localStorage.getItem("token")
-      
+
       const payload = {
         nombreCompleto: formData.nombre_completo,
         telefono: formData.telefono || null,
@@ -485,7 +655,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
         direccionEmpresa: datosLaborales.direccionEmpresa || null,
         sectorEmpresa: datosLaborales.sectorEmpresa || null,
       }
-      
+
       const res = await fetch(`${API_URL}/prospectos/${prospectoId}`, {
         method: "PUT",
         headers: {
@@ -494,9 +664,9 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
         },
         body: JSON.stringify(payload),
       })
-      
+
       const body = await res.json()
-      
+
       if (!res.ok) {
         const errorMsg = body.messages?.correoElectronico?.[0] || body.message || `Error ${res.status}`
         throw new Error(errorMsg)
@@ -510,7 +680,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           const duracionMeses = parseInt(datosFinancieros.cantidadMeses || datosAcademicos.duracion || "12")
           const fechaFin = new Date(fechaInicio)
           fechaFin.setMonth(fechaFin.getMonth() + duracionMeses)
-          
+
           const payloadFinanciero = {
             programa_id: parseInt(datosAcademicos.programa),
             duracion_meses: duracionMeses,
@@ -548,7 +718,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           // No bloquear la actualización del prospecto
         }
       }
-      
+
       // Invalidar cachés
       localStorage.removeItem("gestion_prospectos_cache")
       localStorage.removeItem("gestion_prospectos_cache_time")
@@ -559,24 +729,12 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("prospecto:updated"))
       }
-      
+
       onClose()
-      
+
       if (onUpdate) {
         onUpdate()
       }
-
-      // Esperar a que React desmonte el Dialog (evita que el focus-trap bloquee el SweetAlert)
-      await new Promise(resolve => setTimeout(resolve, 300))
-      
-      await Swal.fire({
-        icon: "success",
-        title: "¡Actualizado!",
-        text: "El prospecto ha sido actualizado exitosamente",
-        timer: 2000,
-        showConfirmButton: false
-      })
-      
     } catch (err: any) {
       console.error("❌ Error actualizando:", err)
       Swal.fire({
@@ -610,19 +768,11 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           Authorization: `Bearer ${token}`,
         },
       })
-      
+
       if (resDocs.ok) {
         const docsData = await resDocs.json()
         setDocumentos(Array.isArray(docsData) ? docsData : [])
       }
-
-      await Swal.fire({
-        icon: "success",
-        title: "Documento subido",
-        text: "El documento se ha subido correctamente",
-        timer: 2000,
-        showConfirmButton: false
-      })
     } catch (err: any) {
       console.error("Error subiendo documento:", err)
       Swal.fire({
@@ -652,20 +802,18 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
     return Array.from(map.values())
   }, [programas])
 
-  // Calcular precios cuando cambia el programa académico
-  // ✅ Solo calcular si NO hay datos financieros guardados (inscripción y cuota mensual)
+  // Calcular precios cuando cambia el programa académico (solo si NO estamos editando un programa inscrito)
+  // ✅ Si estamos editando un programa existente (epIdEnEdicion), los datos vienen del backend y no se sobrescriben
   useEffect(() => {
     if (!datosAcademicos.programa || !datosAcademicos.duracion) {
       return
     }
+    if (epIdEnEdicion != null) {
+      return
+    }
 
     // ✅ Si ya tiene inscripción y cuota mensual guardadas, NO recalcular
-    // El usuario quiere ver los datos que YA pagó el estudiante
     if (datosFinancieros.inscripcion && datosFinancieros.cuotaMensual) {
-      console.log("✅ El estudiante ya tiene precios guardados, NO se recalculan:", {
-        inscripcion: datosFinancieros.inscripcion,
-        cuotaMensual: datosFinancieros.cuotaMensual,
-      })
       return
     }
 
@@ -714,14 +862,14 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
       .finally(() => {
         setCalculandoPrecios(false)
       })
-  }, [datosAcademicos.programa, datosAcademicos.duracion, datosFinancieros.tieneConvenio, datosFinancieros.convenioId])
+  }, [datosAcademicos.programa, datosAcademicos.duracion, datosFinancieros.tieneConvenio, datosFinancieros.convenioId, epIdEnEdicion])
 
-  // Actualizar duración cuando cambia el programa (solo si no tiene valor manual)
+  // Actualizar duración cuando cambia el programa (solo si NO estamos editando un programa inscrito: entonces usamos la duración guardada, no la del catálogo)
   const prevProgramaRef = useRef<string | undefined>(undefined)
   useEffect(() => {
     if (!datosAcademicos.programa) return
+    if (epIdEnEdicion != null) return
     const prog = programasUnicos.find((p) => p.id.toString() === datosAcademicos.programa)
-    // Solo auto-setear duración cuando el programa cambia (no al cargar por primera vez con datos existentes)
     if (prog && prog.meses && prevProgramaRef.current !== undefined && prevProgramaRef.current !== datosAcademicos.programa) {
       setDatosAcademicos(prev => ({
         ...prev,
@@ -731,7 +879,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
       }))
     }
     prevProgramaRef.current = datosAcademicos.programa
-  }, [datosAcademicos.programa, programasUnicos])
+  }, [datosAcademicos.programa, programasUnicos, epIdEnEdicion])
 
   // Vista previa de documentos
   const [previewDoc, setPreviewDoc] = useState<any>(null)
@@ -778,7 +926,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
             </Button>
           </DialogTitle>
           <DialogDescription>
-            {tieneFicha 
+            {tieneFicha
               ? "Este prospecto tiene una ficha de inscripción. Puedes editar los datos completados."
               : "Completa los datos del prospecto. Los campos marcados con ✓ ya tienen información."}
           </DialogDescription>
@@ -868,8 +1016,8 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
 
                   <div>
                     <label className="block text-sm font-medium mb-1">Medio de Conocimiento</label>
-                    <Select 
-                      value={formData.medio_conocimiento_institucion || ""} 
+                    <Select
+                      value={formData.medio_conocimiento_institucion || ""}
                       onValueChange={(v) => handleChange("medio_conocimiento_institucion", v)}
                     >
                       <SelectTrigger>
@@ -977,8 +1125,8 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
 
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium mb-1">Programa de Interés</label>
-                    <Select 
-                      value={formData.interes || "sin_programa"} 
+                    <Select
+                      value={formData.interes || "sin_programa"}
                       onValueChange={(v) => handleChange("interes", v === "sin_programa" ? "" : v)}
                     >
                       <SelectTrigger>
@@ -1007,16 +1155,49 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                     </AlertDescription>
                   </Alert>
                 )}
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Selector: qué programa inscrito se está editando (cuando hay más de uno o para dejar claro cuál se edita) */}
+                  {programasInscritos.length > 0 && (
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium mb-1 text-gray-700">Programa a editar</label>
+                      <Select
+                        value={epIdEnEdicion != null ? String(epIdEnEdicion) : ""}
+                        onValueChange={(v) => {
+                          const ep = programasInscritos.find((p: any) => p.id === Number(v))
+                          if (ep) seleccionarProgramaParaEditar(ep)
+                        }}
+                      >
+                        <SelectTrigger className="bg-blue-50 border-blue-200">
+                          <SelectValue placeholder="Seleccionar programa a editar" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {programasInscritos.map((ep: any) => {
+                            const nombreProg = ep.programa?.abreviatura
+                              ? `${ep.programa.abreviatura} – ${ep.programa.nombre_del_programa}`
+                              : programas.find((p: any) => p.id === ep.programa_id)?.nombre_del_programa || `Programa ${ep.programa_id}`
+                            return (
+                              <SelectItem key={ep.id} value={String(ep.id)}>
+                                {nombreProg} ({ep.duracion_meses ?? "—"} meses)
+                              </SelectItem>
+                            )
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Elige qué programa modificar. Los campos de programa, duración, fechas e inscripción/cuota corresponden a este registro.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Programa Académico */}
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium mb-1 flex items-center gap-2">
                       Programa Académico <span className="text-red-500">*</span>
                       {hasField(datosAcademicos.programa) && <CheckCircle className="h-4 w-4 text-green-500" />}
                     </label>
-                    <Select 
-                      value={datosAcademicos.programa || ""} 
+                    <Select
+                      value={datosAcademicos.programa || ""}
                       onValueChange={(v) => setDatosAcademicos(prev => ({ ...prev, programa: v }))}
                     >
                       <SelectTrigger>
@@ -1031,7 +1212,9 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-gray-500 mt-1">
-                      Selecciona el programa para crear el registro en estudiante_programa
+                      {programasInscritos.length > 0
+                        ? "Modifica el programa del registro seleccionado arriba (Programa a editar)."
+                        : "Selecciona el programa para crear el registro en estudiante_programa"}
                     </p>
                   </div>
 
@@ -1054,8 +1237,8 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                       Modalidad
                       {hasField(datosAcademicos.modalidad) && <CheckCircle className="h-4 w-4 text-green-500" />}
                     </label>
-                    <Select 
-                      value={datosAcademicos.modalidad || ""} 
+                    <Select
+                      value={datosAcademicos.modalidad || ""}
                       onValueChange={(v) => setDatosAcademicos(prev => ({ ...prev, modalidad: v as any }))}
                     >
                       <SelectTrigger>
@@ -1105,8 +1288,8 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                       Último Título Obtenido
                       {hasField(datosAcademicos.ultimoTitulo) && <CheckCircle className="h-4 w-4 text-green-500" />}
                     </label>
-                    <Select 
-                      value={datosAcademicos.ultimoTitulo || ""} 
+                    <Select
+                      value={datosAcademicos.ultimoTitulo || ""}
                       onValueChange={(v) => setDatosAcademicos(prev => ({ ...prev, ultimoTitulo: v as any }))}
                     >
                       <SelectTrigger>
@@ -1213,22 +1396,175 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                                 )}
                               </div>
                             </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 ml-2 flex-shrink-0"
-                              title="Eliminar programa y datos asociados"
-                              onClick={() => handleEliminarProgramaInscrito(ep, nombreProg)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className={`h-8 w-8 ${epIdEnEdicion === ep.id ? "text-blue-600 bg-blue-50" : "text-gray-500 hover:text-blue-600 hover:bg-blue-50"}`}
+                                title="Editar este programa (cargar en el formulario)"
+                                onClick={() => seleccionarProgramaParaEditar(ep)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                title="Eliminar programa y datos asociados"
+                                onClick={() => handleEliminarProgramaInscrito(ep, nombreProg)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       )
                     })}
                   </div>
                 )}
+
+                {/* Botón / Formulario para agregar segundo programa (Doble Titulación) */}
+                <div className="mt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-blue-300 text-blue-700 hover:bg-blue-50 gap-2"
+                    onClick={() => setShowAgregarPrograma(prev => !prev)}
+                  >
+                    {showAgregarPrograma ? <ChevronUp className="h-4 w-4" /> : <PlusCircle className="h-4 w-4" />}
+                    {showAgregarPrograma ? "Cancelar" : "Agregar programa / Doble Titulación"}
+                  </Button>
+
+                  {showAgregarPrograma && (
+                    <div className="mt-3 p-4 border border-blue-200 rounded-lg bg-blue-50 space-y-4">
+                      <h4 className="text-sm font-semibold text-blue-800 flex items-center gap-2">
+                        <GraduationCap className="h-4 w-4" />
+                        Agregar programa adicional (doble / triple titulación)
+                      </h4>
+
+                      {/* Fila 1: Programa + Duración + Fecha */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="sm:col-span-1">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Programa *</label>
+                          <Select
+                            value={nuevoPrograma.programa_id}
+                            onValueChange={(v) => setNuevoPrograma(prev => ({ ...prev, programa_id: v, preciosCargados: false, inscripcion: "", cuota_mensual: "" }))}
+                          >
+                            <SelectTrigger className="h-9 text-sm">
+                              <SelectValue placeholder="Seleccionar programa" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {programas
+                                .filter((p: any) => p && p.id)
+                                .map((p: any) => (
+                                  <SelectItem key={p.id} value={String(p.id)}>
+                                    {p.abreviatura ? `${p.abreviatura} – ` : ""}{p.nombre_del_programa}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Duración (meses) *</label>
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="Ej: 12"
+                            value={nuevoPrograma.duracion_meses}
+                            onChange={(e) => setNuevoPrograma(prev => ({ ...prev, duracion_meses: e.target.value.replace(/[^0-9]/g, ""), preciosCargados: false, inscripcion: "", cuota_mensual: "" }))}
+                            className="h-9 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Fecha de inicio</label>
+                          <SimpleDatePicker
+                            value={nuevoPrograma.fecha_inicio}
+                            onChange={(v) => setNuevoPrograma(prev => ({ ...prev, fecha_inicio: v }))}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Indicador de carga automática de precios */}
+                      {nuevoPrograma.loadingPrecios && (
+                        <div className="flex items-center gap-2 text-xs text-blue-600">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Cargando precios del catálogo...
+                        </div>
+                      )}
+                      {nuevoPrograma.preciosCargados && !nuevoPrograma.loadingPrecios && (
+                        <div className="flex items-center gap-2 text-xs text-green-600">
+                          <CheckCircle className="h-3 w-3" />
+                          Precios cargados automáticamente — puedes editarlos si es necesario
+                        </div>
+                      )}
+
+                      {/* Fila 2: Inscripción + Cuota mensual (editables) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Monto inscripción (Q)
+                            <span className="text-gray-400 ml-1 font-normal">— dejar en 0 si no aplica</span>
+                          </label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={nuevoPrograma.inscripcion}
+                            onChange={(e) => setNuevoPrograma(prev => ({ ...prev, inscripcion: e.target.value }))}
+                            className="h-9 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Cuota mensual (Q)</label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={nuevoPrograma.cuota_mensual}
+                            onChange={(e) => setNuevoPrograma(prev => ({ ...prev, cuota_mensual: e.target.value }))}
+                            className="h-9 text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Preview de totales */}
+                      {nuevoPrograma.duracion_meses && (nuevoPrograma.inscripcion || nuevoPrograma.cuota_mensual) && (
+                        <div className="bg-white border border-blue-200 rounded p-3 text-xs space-y-1">
+                          <p className="font-semibold text-blue-800 mb-2">Resumen del plan de pagos</p>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-gray-700">
+                            <span>Inscripción:</span>
+                            <span className="font-medium text-right">Q{(Number(nuevoPrograma.inscripcion) || 0).toFixed(2)}</span>
+                            <span>Cuotas ({nuevoPrograma.duracion_meses} × Q{(Number(nuevoPrograma.cuota_mensual) || 0).toFixed(2)}):</span>
+                            <span className="font-medium text-right">Q{((Number(nuevoPrograma.cuota_mensual) || 0) * Number(nuevoPrograma.duracion_meses)).toFixed(2)}</span>
+                            <span className="font-semibold text-blue-700 border-t pt-1">Subtotal mensualidades:</span>
+                            <span className="font-semibold text-blue-700 text-right border-t pt-1">
+                              Q{((Number(nuevoPrograma.inscripcion) || 0) + (Number(nuevoPrograma.cuota_mensual) || 0) * Number(nuevoPrograma.duracion_meses)).toFixed(2)}
+                            </span>
+                          </div>
+                          <p className="text-gray-400 mt-2 italic">* Los gastos de servicios electrónicos y gastos finales (Proyecto Final, Graduación, Título, Certificación) se agregan automáticamente al generar el plan de pagos.</p>
+                        </div>
+                      )}
+
+                      <div className="flex justify-end">
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleAgregarPrograma}
+                          disabled={loadingAgregarPrograma}
+                          className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                        >
+                          {loadingAgregarPrograma ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />}
+                          Guardar programa y generar plan de pagos
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </TabsContent>
               <TabsContent value="financiero" className="space-y-4 mt-4">
                 {tieneFicha && (
@@ -1240,22 +1576,54 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                   </Alert>
                 )}
 
-                {!datosAcademicos.programa && (
+                {programasInscritos.length > 0 && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50/80 p-4">
+                    <label className="block text-sm font-medium text-blue-900 mb-2">Datos financieros de (doble titulación: elige el programa a editar)</label>
+                    <Select
+                      value={epIdEnEdicion != null ? String(epIdEnEdicion) : ""}
+                      onValueChange={(v) => {
+                        const ep = programasInscritos.find((p: any) => p.id === Number(v))
+                        if (ep) seleccionarProgramaParaEditar(ep)
+                      }}
+                    >
+                      <SelectTrigger className="bg-white border-blue-200">
+                        <SelectValue placeholder="Seleccionar programa" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {programasInscritos.map((ep: any) => {
+                          const nombreProg = ep.programa?.abreviatura
+                            ? `${ep.programa.abreviatura} – ${ep.programa.nombre_del_programa}`
+                            : programas.find((p: any) => p.id === ep.programa_id)?.nombre_del_programa || `Programa ${ep.programa_id}`
+                          return (
+                            <SelectItem key={ep.id} value={String(ep.id)}>
+                              {nombreProg} — Inscripción: Q{Number(ep.inscripcion ?? 0).toFixed(0)} · Cuota: Q{Number(ep.cuota_mensual ?? 0).toFixed(0)}/mes · {ep.duracion_meses ?? "—"} meses
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-blue-700 mt-1">
+                      Los campos de inscripción, cuota mensual, meses e inversión total corresponden al programa seleccionado. Puedes editarlos y guardar cambios.
+                    </p>
+                  </div>
+                )}
+
+                {!datosAcademicos.programa && programasInscritos.length === 0 && (
                   <Alert className="bg-yellow-50 border-yellow-200">
                     <AlertDescription className="text-yellow-800">
-                      ⚠️ Selecciona un programa académico primero para calcular los precios automáticamente.
+                      ⚠️ Selecciona un programa académico primero (pestaña Académico) para calcular los precios automáticamente.
                     </AlertDescription>
                   </Alert>
                 )}
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1 flex items-center gap-2">
                       ¿Posee convenio corporativo?
                       {hasField(datosFinancieros.tieneConvenio) && <CheckCircle className="h-4 w-4 text-green-500" />}
                     </label>
-                    <Select 
-                      value={datosFinancieros.tieneConvenio ? "si" : "no"} 
+                    <Select
+                      value={datosFinancieros.tieneConvenio ? "si" : "no"}
                       onValueChange={(v) => {
                         const tiene = v === "si"
                         setDatosFinancieros(prev => ({
@@ -1282,8 +1650,8 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                         Seleccionar convenio
                         {hasField(datosFinancieros.convenioId) && <CheckCircle className="h-4 w-4 text-green-500" />}
                       </label>
-                      <Select 
-                        value={datosFinancieros.convenioId?.toString() || ""} 
+                      <Select
+                        value={datosFinancieros.convenioId?.toString() || ""}
                         onValueChange={(v) => setDatosFinancieros(prev => ({ ...prev, convenioId: Number(v) }))}
                         disabled={calculandoPrecios}
                       >
@@ -1306,8 +1674,8 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                       Modalidad de Pago
                       {hasField(datosFinancieros.formaPago) && <CheckCircle className="h-4 w-4 text-green-500" />}
                     </label>
-                    <Select 
-                      value={datosFinancieros.formaPago || ""} 
+                    <Select
+                      value={datosFinancieros.formaPago || ""}
                       onValueChange={(v) => setDatosFinancieros(prev => ({ ...prev, formaPago: v as any }))}
                       disabled={calculandoPrecios}
                     >
@@ -1328,9 +1696,9 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                       <label className="block text-sm font-medium mb-1">Inscripción (Q)</label>
                       <Input
                         type="number"
-                        value={datosFinancieros.inscripcion || ""}
+                        value={datosFinancieros.inscripcion !== undefined && datosFinancieros.inscripcion !== "" ? datosFinancieros.inscripcion : "0"}
                         onChange={(e) => setDatosFinancieros(prev => ({ ...prev, inscripcion: e.target.value }))}
-                        placeholder="Auto"
+                        placeholder="0"
                         disabled={calculandoPrecios}
                       />
                     </div>
@@ -1338,9 +1706,9 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                       <label className="block text-sm font-medium mb-1">Cuota Mensual (Q)</label>
                       <Input
                         type="number"
-                        value={datosFinancieros.cuotaMensual || ""}
+                        value={datosFinancieros.cuotaMensual !== undefined && datosFinancieros.cuotaMensual !== "" ? datosFinancieros.cuotaMensual : "0"}
                         onChange={(e) => setDatosFinancieros(prev => ({ ...prev, cuotaMensual: e.target.value }))}
-                        placeholder="Auto"
+                        placeholder="0"
                         disabled={calculandoPrecios}
                       />
                     </div>
@@ -1348,18 +1716,20 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                       <label className="block text-sm font-medium mb-1">Cantidad Meses</label>
                       <Input
                         type="number"
-                        value={datosFinancieros.cantidadMeses || ""}
+                        value={datosFinancieros.cantidadMeses !== undefined && datosFinancieros.cantidadMeses !== "" ? datosFinancieros.cantidadMeses : "0"}
                         readOnly
                         className="bg-gray-50"
+                        placeholder="0"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1">Inversión Total (Q)</label>
                       <Input
                         type="number"
-                        value={datosFinancieros.inversionTotal || ""}
+                        value={datosFinancieros.inversionTotal !== undefined && datosFinancieros.inversionTotal !== "" ? datosFinancieros.inversionTotal : "0"}
                         readOnly
                         className="bg-gray-50 font-bold"
+                        placeholder="0"
                       />
                     </div>
                   </div>
@@ -1408,7 +1778,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                     </AlertDescription>
                   </Alert>
                 )}
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1 flex items-center gap-2">
@@ -1427,8 +1797,8 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                       Departamento
                       {hasField(datosLaborales.departamento) && <CheckCircle className="h-4 w-4 text-green-500" />}
                     </label>
-                    <Select 
-                      value={datosLaborales.departamento || ""} 
+                    <Select
+                      value={datosLaborales.departamento || ""}
                       onValueChange={(v) => setDatosLaborales(prev => ({ ...prev, departamento: v }))}
                     >
                       <SelectTrigger>
@@ -1495,30 +1865,30 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                               <div className="flex items-center gap-2">
                                 <FileText className="h-4 w-4 text-blue-500" />
                                 <span className="font-medium">
-                                  {tipo === "inscripcion" ? "Boleta de Inscripción" : 
-                                   tipo === "dpi" ? "DPI (ambos lados)" :
-                                   tipo === "recibo" ? "Recibo de luz o teléfono" :
-                                   tipo === "american" ? "Recibo de American" :
-                                   tipo === "foto" ? "Fotografía reciente" :
-                                   tipo === "titulo" ? "Título o Diploma" :
-                                   tipo === "cierrePensum" ? "Cierre de Pénsum" :
-                                   tipo === "certificacionCursos" ? "Certificación de cursos" :
-                                   tipo === "carnetColaborador" ? "Carnet de Colaborador" :
-                                   tipo === "autorizacionAcademica" ? "Autorización Académica" :
-                                   tipo === "autorizacionFinanciera" ? "Autorización Financiera" :
-                                   tipo === "autorizacionAsociaciones" ? "Autorización Asociaciones" :
-                                   tipo === "valeDescuento" ? "Vale de Descuento" :
-                                   tipo === "mensajeFinal" ? "Mensaje Final" : 
-                                   "Otros"}
+                                  {tipo === "inscripcion" ? "Boleta de Inscripción" :
+                                    tipo === "dpi" ? "DPI (ambos lados)" :
+                                      tipo === "recibo" ? "Recibo de luz o teléfono" :
+                                        tipo === "american" ? "Recibo de American" :
+                                          tipo === "foto" ? "Fotografía reciente" :
+                                            tipo === "titulo" ? "Título o Diploma" :
+                                              tipo === "cierrePensum" ? "Cierre de Pénsum" :
+                                                tipo === "certificacionCursos" ? "Certificación de cursos" :
+                                                  tipo === "carnetColaborador" ? "Carnet de Colaborador" :
+                                                    tipo === "autorizacionAcademica" ? "Autorización Académica" :
+                                                      tipo === "autorizacionFinanciera" ? "Autorización Financiera" :
+                                                        tipo === "autorizacionAsociaciones" ? "Autorización Asociaciones" :
+                                                          tipo === "valeDescuento" ? "Vale de Descuento" :
+                                                            tipo === "mensajeFinal" ? "Mensaje Final" :
+                                                              "Otros"}
                                 </span>
                                 {esBoleta && (
                                   <Badge variant="secondary" className="text-xs">Solo lectura</Badge>
                                 )}
                               </div>
                               <Badge variant={
-                                doc.estado === "aprobado" ? "default" : 
-                                doc.estado === "rechazado" ? "destructive" : 
-                                "secondary"
+                                doc.estado === "aprobado" ? "default" :
+                                  doc.estado === "rechazado" ? "destructive" :
+                                    "secondary"
                               }>
                                 {doc.estado || "pendiente"}
                               </Badge>
@@ -1656,7 +2026,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                             e.currentTarget.classList.remove("border-blue-500", "bg-blue-50")
                             const file = e.dataTransfer.files[0]
                             if (!file) return
-                            
+
                             const input = document.getElementById("file-input") as HTMLInputElement
                             const tipo = input?.getAttribute("data-tipo")
                             if (!tipo) {
@@ -1667,7 +2037,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                               })
                               return
                             }
-                            
+
                             await handleFileUpload(tipo, file)
                           }}
                           onClick={() => document.getElementById("file-input")?.click()}
@@ -1684,7 +2054,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                           onChange={async (e) => {
                             const file = e.target.files?.[0]
                             if (!file) return
-                            
+
                             const tipo = e.target.getAttribute("data-tipo")
                             if (!tipo) {
                               Swal.fire({
@@ -1694,7 +2064,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                               })
                               return
                             }
-                            
+
                             await handleFileUpload(tipo, file)
                             e.target.value = ""
                           }}
@@ -1729,13 +2099,25 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
               </TabsContent>
             </Tabs>
 
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
-                Cancelar
+            <div className="flex justify-between items-center pt-4 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setReciboOpen(true)}
+                disabled={loading}
+                className="border-amber-400 text-amber-700 hover:bg-amber-50"
+              >
+                <Receipt className="h-4 w-4 mr-2" />
+                Generar recibo de American
               </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? "Guardando..." : "Guardar Cambios"}
-              </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Guardando..." : "Guardar Cambios"}
+                </Button>
+              </div>
             </div>
           </form>
         </ScrollArea>
@@ -1751,6 +2133,50 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
         estado={previewDoc?.estado}
         authToken={typeof window !== "undefined" ? localStorage.getItem("token") : null}
       />
+
+      {/* Recibo de American (mismo componente que en Alerta Alumno Nuevo) */}
+      {(() => {
+        const ep = estudiantePrograma ?? programasInscritos[0]
+        return (
+          <ReciboPagoGenerator
+            open={reciboOpen}
+            onOpenChange={setReciboOpen}
+            elevatedZIndex
+            studentName={formData.nombre_completo || ""}
+            nit={formData.numero_identificacion || "CF"}
+            monto={
+              ep?.inscripcion != null && ep.inscripcion !== ""
+                ? String(Number(ep.inscripcion))
+                : datosFinancieros.inscripcion && Number(datosFinancieros.inscripcion) > 0
+                  ? String(datosFinancieros.inscripcion)
+                  : undefined
+            }
+            concepto="matricula"
+            programa={
+              ep?.programa?.nombre_del_programa ??
+              (ep?.programa_id ? programas.find((p: any) => p.id === ep.programa_id)?.nombre_del_programa : undefined) ??
+              undefined
+            }
+            telefono={formData.telefono ?? undefined}
+            email={formData.correo_electronico ?? undefined}
+            cuotaMensual={
+              ep?.cuota_mensual != null && ep.cuota_mensual !== ""
+                ? String(ep.cuota_mensual)
+                : datosFinancieros.cuotaMensual && Number(datosFinancieros.cuotaMensual) > 0
+                  ? String(datosFinancieros.cuotaMensual)
+                  : undefined
+            }
+            cantidadMeses={
+              ep?.duracion_meses != null ? String(ep.duracion_meses) : datosFinancieros.cantidadMeses ?? undefined
+            }
+            inversionTotal={
+              ep?.inversion_total != null && ep.inversion_total !== ""
+                ? String(ep.inversion_total)
+                : datosFinancieros.inversionTotal ?? undefined
+            }
+          />
+        )
+      })()}
     </Dialog>
   )
 }

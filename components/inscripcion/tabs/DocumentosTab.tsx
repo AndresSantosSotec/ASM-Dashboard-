@@ -378,6 +378,9 @@ export default function DocumentosTab({
             estudianteProgramaId={estudianteProgramaId}
             montoInscripcion={montoInscripcion}
             descuentoInscripcion={descuentoInscripcion}
+            docsEnServidor={serverDocsByType["inscripcion"] || []}
+            onDeleteServerDoc={(doc) => handleDiscardServerDoc("inscripcion", doc)}
+            onPreviewServerDoc={handlePreviewServerDoc}
             onBoletaSubida={() => {
               // Marcar documento de inscripción como cargado
               setDocumentos(docs =>

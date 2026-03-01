@@ -78,9 +78,11 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
 
   const [error, setError] = useState<string | null>(null)
 
-  // 🔧 Ref para rastrear si el usuario editó manualmente la duración
   const userEditedDuration = useRef(false)
   const lastProgramaId = useRef(datos.programa)
+  const lastDuracion = useRef(datos.duracion)
+  const lastTitulo2 = useRef(datos.titulo2)
+  const lastTitulo3 = useRef(datos.titulo3)
 
   // Cargar programas
   useEffect(() => {
@@ -90,18 +92,21 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
       .catch((err) => console.error("❌ Error al obtener programas:", err))
   }, [])
 
-  // Actualizar duración del programa principal — solo cuando CAMBIA el programa seleccionado
+  // Actualizar duración solo cuando el usuario cambia el programa (no al cargar desde API, para respetar la duración guardada del prospecto)
   useEffect(() => {
-    // Solo auto-llenar si el programa realmente cambió (no por re-render)
-    if (datos.programa === lastProgramaId.current && userEditedDuration.current) {
-      return // El usuario editó la duración manualmente, no sobrescribir
+    if (!datos.programa) return
+    const programaCambio = datos.programa !== lastProgramaId.current
+    if (!programaCambio && userEditedDuration.current) return
+    if (programaCambio) {
+      const cargaInicial = lastProgramaId.current === "" || lastProgramaId.current === undefined
+      lastProgramaId.current = datos.programa
+      userEditedDuration.current = false
+      if (cargaInicial) return // Carga desde prospecto/API: no pisar duración con la estándar del programa
     }
-    lastProgramaId.current = datos.programa
     const prog = programasUnicos.find((p) => p.id.toString() === datos.programa)
     const nuevaDur = prog?.meses.toString() ?? ""
     if (nuevaDur) {
-      userEditedDuration.current = false // Reset: la duración viene del programa
-      setDatos((prev) => ({ ...prev, duracion: nuevaDur }))
+      setDatos((prev) => ({ ...prev, duracion: nuevaDur, titulo1_duracion: nuevaDur }))
     }
   }, [datos.programa, programasUnicos, setDatos])
 
@@ -112,29 +117,39 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
     }
   }, [datos.programa, datos.titulo1, setDatos])
 
+  // Cuando cambia "Duración (meses)" (ej. el usuario escribe ahí), actualizar también "Duración 1 (meses)"
   useEffect(() => {
-    if (datos.duracion && datos.titulo1_duracion === "") {
+    if (datos.duracion === lastDuracion.current) return
+    lastDuracion.current = datos.duracion
+    if (datos.duracion) {
       setDatos((prev) => ({ ...prev, titulo1_duracion: datos.duracion }))
     }
   }, [datos.duracion, datos.titulo1_duracion, setDatos])
 
-  // Actualizar duración de programas 2 y 3
+  // Actualizar duración de programa 2 solo cuando el usuario cambia el programa (no al cargar desde API)
   useEffect(() => {
-    if (datos.titulo2) {
-      const prog = programasUnicos.find((p) => p.id.toString() === datos.titulo2)
-      if (prog) {
-        setDatos((prev) => ({ ...prev, titulo2_duracion: prog.meses.toString() }))
-      }
-    }
+    if (!datos.titulo2) return
+    const cambio = datos.titulo2 !== lastTitulo2.current
+    if (cambio) {
+      const cargaInicial = lastTitulo2.current === "" || lastTitulo2.current === undefined
+      lastTitulo2.current = datos.titulo2
+      if (cargaInicial) return
+    } else return
+    const prog = programasUnicos.find((p) => p.id.toString() === datos.titulo2)
+    if (prog) setDatos((prev) => ({ ...prev, titulo2_duracion: prog.meses.toString() }))
   }, [datos.titulo2, programasUnicos, setDatos])
 
+  // Actualizar duración de programa 3 solo cuando el usuario cambia el programa (no al cargar desde API)
   useEffect(() => {
-    if (datos.titulo3) {
-      const prog = programasUnicos.find((p) => p.id.toString() === datos.titulo3)
-      if (prog) {
-        setDatos((prev) => ({ ...prev, titulo3_duracion: prog.meses.toString() }))
-      }
-    }
+    if (!datos.titulo3) return
+    const cambio = datos.titulo3 !== lastTitulo3.current
+    if (cambio) {
+      const cargaInicial = lastTitulo3.current === "" || lastTitulo3.current === undefined
+      lastTitulo3.current = datos.titulo3
+      if (cargaInicial) return
+    } else return
+    const prog = programasUnicos.find((p) => p.id.toString() === datos.titulo3)
+    if (prog) setDatos((prev) => ({ ...prev, titulo3_duracion: prog.meses.toString() }))
   }, [datos.titulo3, programasUnicos, setDatos])
 
   // 🔥 Validación del formulario

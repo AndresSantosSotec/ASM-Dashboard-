@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, FileText, CheckCircle } from "lucide-react"
+import { Loader2, FileText, CheckCircle, ChevronDown, ChevronUp, ClipboardList, Zap } from "lucide-react"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import Swal from "sweetalert2"
 
@@ -33,19 +33,52 @@ interface ContratoData {
   fecha_firma_estudiante: string
   estado_firma: string
   prospecto: {
+    id?: number
     nombre_completo: string
     telefono: string
     correo_electronico: string
+    correo_corporativo?: string
+    numero_identificacion?: string
+    fecha_nacimiento?: string
+    pais_origen?: string
+    pais_residencia?: string
+    direccion_residencia?: string
+    // Datos laborales
+    empresa_donde_labora_actualmente?: string
+    puesto?: string
+    telefono_corporativo?: string
+    direccion_empresa?: string
+    sector_empresa?: string
+    // Datos académicos
+    modalidad?: string
+    dia_estudio?: string
+    fecha_inicio_especifica?: string
+    medio_conocimiento_institucion?: string
+    ultimo_titulo_obtenido?: string
+    institucion_titulo?: string
+    carrera_ultimo_titulo?: string
+    anio_graduacion?: string
+    cantidad_cursos_aprobados?: number
+    // Datos financieros
+    forma_pago?: string
+    servicios_electronicos?: Array<{
+      cantidad_cursos: number
+      precio_transferencia: number
+      precio_otro_metodo: number
+      activo?: boolean
+    }>
     programas?: Array<{
       programa: {
         nombre_del_programa: string
         abreviatura: string
+        meses?: number
       }
       convenio?: {
         nombre_convenio: string
       }
       inscripcion: number
       cuota_mensual: number
+      duracion_meses?: number
     }>
   }
 }
@@ -57,12 +90,40 @@ export default function ContratoVistaModal({
 }: ContratoVistaModalProps) {
   const [loading, setLoading] = useState(true)
   const [contrato, setContrato] = useState<ContratoData | null>(null)
+  const [fichaVisible, setFichaVisible] = useState(false)
+  const [serviciosElectronicos, setServiciosElectronicos] = useState<Array<{
+    cantidad_cursos: number
+    precio_transferencia: number
+    precio_otro_metodo: number
+    activo: boolean
+  }>>([]
+  )
 
   useEffect(() => {
     if (isOpen && contratoId) {
       fetchContrato()
+      fetchServiciosElectronicos()
     }
   }, [isOpen, contratoId])
+
+  const fetchServiciosElectronicos = async () => {
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_BASE_URL}/api/precios-servicios-electronicos/frontend`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        // El endpoint puede devolver { data: [...] } o directamente un array
+        setServiciosElectronicos(Array.isArray(data) ? data : (data.data ?? []))
+      }
+    } catch (e) {
+      console.error("Error cargando precios electrónicos:", e)
+    }
+  }
 
   const fetchContrato = async () => {
     setLoading(true)
@@ -99,7 +160,7 @@ export default function ContratoVistaModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-full max-w-[95vw] sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
@@ -139,14 +200,14 @@ export default function ContratoVistaModal({
             {/* Información del estudiante */}
             <div className="border-b pb-4">
               <h3 className="font-semibold text-lg mb-3">Información del Estudiante</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-gray-600">Nombre:</span>
                   <p className="font-medium">{contrato.datos_contrato?.nombre_completo || contrato.prospecto?.nombre_completo}</p>
                 </div>
                 <div>
                   <span className="text-gray-600">DPI:</span>
-                  <p className="font-medium">{contrato.datos_contrato?.dpi || "No proporcionado"}</p>
+                  <p className="font-medium">{contrato.datos_contrato?.dpi || contrato.prospecto?.numero_identificacion || "No proporcionado"}</p>
                 </div>
                 <div>
                   <span className="text-gray-600">Teléfono:</span>
@@ -179,6 +240,197 @@ export default function ContratoVistaModal({
                   </>
                 )}
               </div>
+            </div>
+
+            {/* ===== FICHA DE INSCRIPCIÓN ===== */}
+            <div className="border rounded-lg overflow-hidden">
+              {/* Header colapsable */}
+              <button
+                className="w-full flex items-center justify-between px-4 py-3 bg-blue-50 hover:bg-blue-100 transition-colors text-left"
+                onClick={() => setFichaVisible(v => !v)}
+              >
+                <div className="flex items-center gap-2">
+                  <ClipboardList className="h-5 w-5 text-blue-600" />
+                  <span className="font-semibold text-blue-800">Ficha de Inscripción</span>
+                </div>
+                {fichaVisible ? (
+                  <ChevronUp className="h-4 w-4 text-blue-600" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-blue-600" />
+                )}
+              </button>
+
+              {fichaVisible && (
+                <div className="p-4 space-y-5 text-sm">
+
+                  {/* ── Datos Personales ── */}
+                  <div>
+                    <p className="font-semibold text-gray-700 mb-2 border-b pb-1">Datos Personales</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                      <div><span className="text-gray-500">Nombre completo:</span><p className="font-medium">{contrato.prospecto?.nombre_completo || "—"}</p></div>
+                      <div><span className="text-gray-500">DPI / Identificación:</span><p className="font-medium">{contrato.prospecto?.numero_identificacion || "—"}</p></div>
+                      <div><span className="text-gray-500">Fecha de nacimiento:</span><p className="font-medium">{contrato.prospecto?.fecha_nacimiento || "—"}</p></div>
+                      <div><span className="text-gray-500">País de origen:</span><p className="font-medium">{contrato.prospecto?.pais_origen || "—"}</p></div>
+                      <div><span className="text-gray-500">País de residencia:</span><p className="font-medium">{contrato.prospecto?.pais_residencia || "—"}</p></div>
+                      <div><span className="text-gray-500">Teléfono:</span><p className="font-medium">{contrato.prospecto?.telefono || "—"}</p></div>
+                      <div><span className="text-gray-500">Correo personal:</span><p className="font-medium">{contrato.prospecto?.correo_electronico || "—"}</p></div>
+                      {contrato.prospecto?.correo_corporativo && (
+                        <div><span className="text-gray-500">Correo corporativo:</span><p className="font-medium">{contrato.prospecto.correo_corporativo}</p></div>
+                      )}
+                      {contrato.prospecto?.direccion_residencia && (
+                        <div className="col-span-2"><span className="text-gray-500">Dirección:</span><p className="font-medium">{contrato.prospecto.direccion_residencia}</p></div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ── Datos Laborales ── */}
+                  {(contrato.prospecto?.empresa_donde_labora_actualmente || contrato.prospecto?.puesto) && (
+                    <div>
+                      <p className="font-semibold text-gray-700 mb-2 border-b pb-1">Datos Laborales</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                        {contrato.prospecto?.empresa_donde_labora_actualmente && (
+                          <div><span className="text-gray-500">Empresa:</span><p className="font-medium">{contrato.prospecto.empresa_donde_labora_actualmente}</p></div>
+                        )}
+                        {contrato.prospecto?.puesto && (
+                          <div><span className="text-gray-500">Puesto:</span><p className="font-medium">{contrato.prospecto.puesto}</p></div>
+                        )}
+                        {contrato.prospecto?.telefono_corporativo && (
+                          <div><span className="text-gray-500">Tel. corporativo:</span><p className="font-medium">{contrato.prospecto.telefono_corporativo}</p></div>
+                        )}
+                        {contrato.prospecto?.sector_empresa && (
+                          <div><span className="text-gray-500">Sector:</span><p className="font-medium">{contrato.prospecto.sector_empresa}</p></div>
+                        )}
+                        {contrato.prospecto?.direccion_empresa && (
+                          <div className="col-span-2"><span className="text-gray-500">Dirección empresa:</span><p className="font-medium">{contrato.prospecto.direccion_empresa}</p></div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Datos Académicos ── */}
+                  <div>
+                    <p className="font-semibold text-gray-700 mb-2 border-b pb-1">Datos Académicos</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                      {contrato.prospecto?.modalidad && (
+                        <div><span className="text-gray-500">Modalidad:</span><p className="font-medium capitalize">{contrato.prospecto.modalidad}</p></div>
+                      )}
+                      {contrato.prospecto?.dia_estudio && (
+                        <div><span className="text-gray-500">Día de estudio:</span><p className="font-medium capitalize">{contrato.prospecto.dia_estudio}</p></div>
+                      )}
+                      {contrato.prospecto?.fecha_inicio_especifica && (
+                        <div><span className="text-gray-500">Fecha de inicio:</span><p className="font-medium">{contrato.prospecto.fecha_inicio_especifica}</p></div>
+                      )}
+                      {contrato.prospecto?.medio_conocimiento_institucion && (
+                        <div><span className="text-gray-500">Medio de contacto:</span><p className="font-medium">{contrato.prospecto.medio_conocimiento_institucion}</p></div>
+                      )}
+                      {contrato.prospecto?.ultimo_titulo_obtenido && (
+                        <div><span className="text-gray-500">Último título:</span><p className="font-medium">{contrato.prospecto.ultimo_titulo_obtenido}</p></div>
+                      )}
+                      {contrato.prospecto?.institucion_titulo && (
+                        <div><span className="text-gray-500">Institución:</span><p className="font-medium">{contrato.prospecto.institucion_titulo}</p></div>
+                      )}
+                      {contrato.prospecto?.carrera_ultimo_titulo && (
+                        <div><span className="text-gray-500">Carrera anterior:</span><p className="font-medium">{contrato.prospecto.carrera_ultimo_titulo}</p></div>
+                      )}
+                      {contrato.prospecto?.anio_graduacion && (
+                        <div><span className="text-gray-500">Año de graduación:</span><p className="font-medium">{contrato.prospecto.anio_graduacion}</p></div>
+                      )}
+                      {contrato.prospecto?.cantidad_cursos_aprobados != null && (
+                        <div><span className="text-gray-500">Cursos aprobados:</span><p className="font-medium">{contrato.prospecto.cantidad_cursos_aprobados}</p></div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ── Datos Financieros / Programas ── */}
+                  <div>
+                    <p className="font-semibold text-gray-700 mb-2 border-b pb-1">Datos Financieros</p>
+                    {contrato.prospecto?.forma_pago && (
+                      <p className="mb-2"><span className="text-gray-500">Forma de pago: </span><span className="font-medium capitalize">{contrato.prospecto.forma_pago}</span></p>
+                    )}
+                    {contrato.prospecto?.programas && contrato.prospecto.programas.length > 0 ? (
+                      <div className="space-y-3">
+                        {contrato.prospecto.programas.map((ep, idx) => (
+                          <div key={idx} className="bg-gray-50 rounded-md p-3 border text-sm">
+                            <p className="font-semibold text-blue-700 mb-1">
+                              {idx === 0 ? "Programa principal" : `${idx + 1}º programa (titulación adicional)`}
+                              {" — "}{ep.programa?.abreviatura || ep.programa?.nombre_del_programa}
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                              <div><span className="text-gray-500">Inscripción:</span><p className="font-medium">Q{Number(ep.inscripcion).toFixed(2)}</p></div>
+                              <div><span className="text-gray-500">Mensualidad:</span><p className="font-medium">Q{Number(ep.cuota_mensual).toFixed(2)}</p></div>
+                              {(ep.duracion_meses ?? ep.programa?.meses) && (
+                                <div><span className="text-gray-500">Duración:</span><p className="font-medium">{ep.duracion_meses ?? ep.programa?.meses} meses</p></div>
+                              )}
+                            </div>
+                            {ep.convenio && (
+                              <p className="mt-1"><span className="text-gray-500">Convenio: </span><span className="font-medium">{ep.convenio.nombre_convenio}</span></p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-400 text-xs">Sin programas registrados</p>
+                    )}
+                  </div>
+
+                  {/* ── Precios Servicios Electrónicos ── (solo la fila del total de meses) */}
+                  {serviciosElectronicos.length > 0 && (() => {
+                    const totalMeses = contrato.prospecto?.programas?.reduce(
+                      (sum, p) => sum + (p.programa?.meses ?? 0), 0
+                    ) ?? 0
+                    const activos = serviciosElectronicos
+                      .filter(s => s.activo !== false)
+                      .sort((a, b) => a.cantidad_cursos - b.cantidad_cursos)
+                    const filaExacta = activos.find(s => s.cantidad_cursos === totalMeses)
+                    const fila = filaExacta ?? activos.filter(s => s.cantidad_cursos <= totalMeses).pop() ?? activos[0]
+                    if (!fila) return null
+                    const cantidad = filaExacta ? fila.cantidad_cursos : totalMeses
+                    const transfer = filaExacta
+                      ? (Number(fila.precio_transferencia) || fila.cantidad_cursos * 70)
+                      : totalMeses * 70
+                    const otro = filaExacta
+                      ? (Number(fila.precio_otro_metodo) || Math.round(transfer * 1.10 * 100) / 100)
+                      : totalMeses * 77
+                    return (
+                      <div>
+                        <p className="font-semibold text-gray-700 mb-2 border-b pb-1 flex items-center gap-1">
+                          <Zap className="h-4 w-4 text-yellow-500" />
+                          Precios Servicios Electrónicos
+                        </p>
+                        <p className="text-xs text-gray-400 mb-2">
+                          {totalMeses > 0 ? `Total ${totalMeses} meses (${contrato.prospecto?.programas?.length ?? 1} ${(contrato.prospecto?.programas?.length ?? 1) === 1 ? "programa" : "programas"})` : "Costos según cantidad de cursos del programa"}
+                        </p>
+                        <div className="overflow-x-auto rounded-md border">
+                          <table className="w-full text-xs min-w-[280px]">
+                            <thead>
+                              <tr className="bg-gray-100">
+                                <th className="text-left px-3 py-2 font-semibold text-gray-600">Cursos</th>
+                                <th className="text-right px-3 py-2 font-semibold text-gray-600">Transferencia / Depósito</th>
+                                <th className="text-right px-3 py-2 font-semibold text-gray-600">Otro método (+10%)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr className="border-t bg-white">
+                                <td className="px-3 py-2 font-medium text-gray-700">{cantidad} cursos</td>
+                                <td className="px-3 py-2 text-right text-green-700 font-semibold">
+                                  Q{Number.isFinite(transfer) ? transfer.toFixed(2) : "0.00"}
+                                </td>
+                                <td className="px-3 py-2 text-right text-blue-700 font-semibold">
+                                  Q{Number.isFinite(otro) ? otro.toFixed(2) : "0.00"}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          * El precio con otro método incluye un recargo del 10% sobre el precio base.
+                        </p>
+                      </div>
+                    )
+                  })()}
+
+                </div>
+              )}
             </div>
 
             {/* Contenido del contrato */}
@@ -281,7 +533,7 @@ export default function ContratoVistaModal({
                   firmo en señal de conformidad con este contrato.
                 </p>
 
-                <div className="grid grid-cols-2 gap-8 mt-12 mb-4 not-prose border-t pt-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mt-12 mb-4 not-prose border-t pt-8">
                   <div className="text-center">
                     <div className="border-b border-black w-full max-w-[160px] mx-auto mb-2"></div>
                     <p className="font-bold text-[10px] uppercase">
@@ -301,7 +553,7 @@ export default function ContratoVistaModal({
             </div>
 
             {/* Firmas */}
-            <div className="grid grid-cols-2 gap-6 mt-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-8">
               {/* Firma del Estudiante */}
               <div className="border rounded-lg p-4">
                 <p className="text-sm font-semibold text-gray-700 mb-2">Firma del Estudiante</p>

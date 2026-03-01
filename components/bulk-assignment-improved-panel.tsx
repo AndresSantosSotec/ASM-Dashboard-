@@ -46,8 +46,39 @@ import {
   Download,
   AlertTriangle,
   GraduationCap,
+  Clock,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+
+// 🆕 Función para verificar si un estudiante fue inscrito en los últimos N días
+const isRecentlyEnrolled = (createdAt: string | null, days: number = 5): boolean => {
+  if (!createdAt) return false;
+  
+  const enrolledDate = new Date(createdAt);
+  const now = new Date();
+  const diffTime = Math.abs(now.getTime() - enrolledDate.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  return diffDays <= days;
+};
+
+// 🆕 Normalizar el día de estudio para mostrar
+const normalizeDayName = (day: string | null): string => {
+  if (!day) return '';
+  const dayLower = day.toLowerCase();
+  const dayMap: Record<string, string> = {
+    'lunes': 'Lunes',
+    'martes': 'Martes',
+    'miércoles': 'Miércoles',
+    'miercoles': 'Miércoles',
+    'jueves': 'Jueves',
+    'viernes': 'Viernes',
+    'sábado': 'Sábado',
+    'sabado': 'Sábado',
+    'domingo': 'Domingo',
+  };
+  return dayMap[dayLower] || day;
+};
 
 // Interfaz para el progreso de carrera desde Moodle
 interface CareerProgress {
@@ -619,6 +650,12 @@ export function BulkAssignmentImprovedPanel({
             // Obtener progreso de carrera para este estudiante
             const careerProgress = careerProgressMap[student.carnet];
             const isInClosingArea = careerProgress?.en_area_cierre === true;
+            
+            // 🆕 Detectar si fue inscrito recientemente (últimos 5 días)
+            const isRecent = isRecentlyEnrolled(student.createdAt, 5);
+            
+            // 🆕 Obtener día de estudio normalizado
+            const dayOfStudy = normalizeDayName(student.diaEstudio);
 
             return (
               <AccordionItem
@@ -643,7 +680,7 @@ export function BulkAssignmentImprovedPanel({
                         </span>
                       </div>
                       <div className="text-left">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-gray-900">{student.name}</p>
                           {isInClosingArea && (
                             <Badge variant="destructive" className="bg-amber-500 hover:bg-amber-600 animate-pulse text-xs">
@@ -651,10 +688,27 @@ export function BulkAssignmentImprovedPanel({
                               Área de Cierre
                             </Badge>
                           )}
+                          {isRecent && (
+                            <Badge variant="default" className="bg-blue-500 hover:bg-blue-600 text-xs">
+                              <Clock className="h-3 w-3 mr-1" />
+                              Reciente
+                            </Badge>
+                          )}
                         </div>
-                        <p className="text-xs text-gray-500">
-                          {student.carnet} • {student.program}
-                        </p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <span>{student.carnet}</span>
+                          <span>•</span>
+                          <span>{student.program}</span>
+                          {dayOfStudy && (
+                            <>
+                              <span>•</span>
+                              <span className="font-medium text-blue-600">
+                                <Calendar className="h-3 w-3 inline mr-1" />
+                                {dayOfStudy}
+                              </span>
+                            </>
+                          )}
+                        </div>
                         {careerProgress && careerProgress.total_cursos_carrera > 0 && (
                           <p className={`text-xs mt-0.5 ${isInClosingArea ? 'text-amber-700 font-medium' : 'text-green-600'}`}>
                             <GraduationCap className="h-3 w-3 inline mr-1" />

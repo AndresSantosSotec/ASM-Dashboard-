@@ -13,6 +13,16 @@ import axios from "axios"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import Swal from "sweetalert2"
 
+interface ServerDoc {
+  id: number
+  tipo_documento: string
+  ruta_archivo: string
+  url: string
+  estado: string
+  subida_at: string
+  fileName: string
+}
+
 interface BoletaInscripcionData {
   numeroBoleta: string
   banco: string
@@ -27,6 +37,9 @@ interface Props {
   montoInscripcion: number
   descuentoInscripcion?: boolean
   onBoletaSubida?: () => void
+  docsEnServidor?: ServerDoc[]
+  onDeleteServerDoc?: (doc: ServerDoc) => void
+  onPreviewServerDoc?: (doc: ServerDoc) => void
 }
 
 const BANCOS = [
@@ -48,7 +61,10 @@ export default function BoletaInscripcionUpload({
   estudianteProgramaId,
   montoInscripcion,
   descuentoInscripcion = false,
-  onBoletaSubida
+  onBoletaSubida,
+  docsEnServidor = [],
+  onDeleteServerDoc,
+  onPreviewServerDoc
 }: Props) {
   const [datos, setDatos] = useState<BoletaInscripcionData>({
     numeroBoleta: "",
@@ -220,13 +236,13 @@ export default function BoletaInscripcionUpload({
     } catch (error: any) {
       console.error("❌ Error al subir boleta:", error)
       console.error("❌ Error completo:", error.response || error)
-      
+
       let errorMessage = "Ocurrió un error al procesar la boleta"
-      
+
       if (error.response) {
         // Error del servidor
         errorMessage = error.response.data?.message || error.response.data?.error || `Error del servidor: ${error.response.status}`
-        
+
         // Si es error 413 (Payload Too Large) o 500, puede ser por tamaño de archivo
         if (error.response.status === 413 || error.response.status === 500) {
           errorMessage += "\n\nPosible causa: El archivo es muy grande o el servidor no puede procesarlo. Intente con un archivo más pequeño o en formato PDF comprimido."
@@ -238,7 +254,7 @@ export default function BoletaInscripcionUpload({
         // Error al configurar la petición
         errorMessage = error.message || errorMessage
       }
-      
+
       await Swal.fire({
         icon: "error",
         title: "Error al subir boleta",
@@ -256,8 +272,69 @@ export default function BoletaInscripcionUpload({
         <div className="flex items-center gap-3 text-green-700">
           <CheckCircle className="h-6 w-6" />
           <div>
-            <p className="font-semibold">Boleta de inscripción registrada</p>
+            <p className="font-semibold">Boleta de inscripción registrada correctamente</p>
             <p className="text-sm">El pago fue procesado correctamente y la cuota 0 está marcada como pagada</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (docsEnServidor && docsEnServidor.length > 0) {
+    return (
+      <div className="space-y-4">
+        <div className="bg-green-50 border-2 border-green-200 rounded-lg p-6">
+          <div className="flex items-center gap-3 text-green-700 mb-4">
+            <CheckCircle className="h-6 w-6" />
+            <div>
+              <p className="font-semibold">Boleta de inscripción ya cargada</p>
+              <p className="text-sm">Se ha detectado una boleta de inscripción previamente subida para este prospecto.</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {docsEnServidor.map(sd => (
+              <div
+                key={sd.id}
+                className="flex items-center justify-between p-3 rounded-lg border border-green-200 bg-white transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <FileText className="h-5 w-5 text-green-600 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm truncate font-medium text-gray-800" title={sd.fileName}>
+                      {sd.fileName}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Subido: {sd.subida_at ? new Date(sd.subida_at).toLocaleDateString("es-GT") : "—"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {onPreviewServerDoc && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                      onClick={() => onPreviewServerDoc(sd)}
+                      title="Ver documento"
+                    >
+                      <Eye className="h-4 w-4 mr-1" /> Ver
+                    </Button>
+                  )}
+                  {onDeleteServerDoc && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => onDeleteServerDoc(sd)}
+                      title="Eliminar y subir otra"
+                    >
+                      <X className="h-4 w-4 mr-1" /> Eliminar
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

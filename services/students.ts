@@ -11,6 +11,8 @@ export interface Student {
   program: string;
   specialty: string;
   startDate: string | null; // Fecha de inscripción (fecha_inicio_especifica)
+  diaEstudio: string | null; // Día de estudio (lunes, martes, etc.)
+  createdAt: string | null; // Fecha de creación del registro (para detectar inscritos recientes)
   programs: Program[];
   assignedCourses: string[];
   assignedCourseNames: string[];
@@ -103,6 +105,8 @@ export const fetchEnrolledStudents = async (forceRefresh = false): Promise<Stude
       program: info?.nombre_del_programa ?? '',
       specialty: info?.abreviatura ?? '',
       startDate: p.fecha_inicio_especifica ?? first?.fecha_inicio ?? null,
+      diaEstudio: p.dia_estudio ?? null,
+      createdAt: p.created_at ?? null,
       programs: progs.map((pr: any) => pr.programa ?? pr),
       assignedCourses: Array.isArray(p.courses)
         ? p.courses.map((c: any) => String(c.id))

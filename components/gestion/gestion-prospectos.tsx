@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Swal from "sweetalert2"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle, RefreshCw, Download, MessageCircle, Trash2, Settings2, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Search, FileSignature } from "lucide-react"
+import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle, RefreshCw, Download, MessageCircle, Trash2, Settings2, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Search, FileSignature, Clock, Receipt } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -35,6 +35,7 @@ import EditarProspecto from "./editar-prospecto"
 import EditarProspectoCompleto from "./editar-prospecto-completo"
 import CambiarEstado from "./cambiar-estado"
 import AlertaAlumnoNuevo from "./alerta-alumno-nuevo"
+import ReciboPagoGenerator from "@/components/inscripcion/ReciboPagoGenerator"
 import SeguimientoModalPanel from "@/components/seguimiento/seguimiento-modal-panel"
 import SelectorColumnasModal from "./selector-columnas-modal"
 import FiltroFechaRango from "./filtro-fecha-rango"
@@ -42,6 +43,22 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { API_BASE_URL } from "@/utils/apiConfig"
 
 const API_URL = `${API_BASE_URL}/api`
+
+// 🆕 Función para detectar si un estudiante fue inscrito recientemente (en los últimos N días)
+const isRecentlyEnrolled = (createdAt: string | null | undefined, days: number = 5): boolean => {
+  if (!createdAt) return false;
+  
+  try {
+    const enrolledDate = new Date(createdAt);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - enrolledDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return diffDays <= days;
+  } catch (error) {
+    return false;
+  }
+};
 
 interface Columna {
   key: string
@@ -121,6 +138,10 @@ export default function GestionProspectos() {
   const [showEstadoMenu, setShowEstadoMenu] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [descargandoReporte, setDescargandoReporte] = useState<string | null>(null)
+  const [reciboOpen, setReciboOpen] = useState(false)
+  const [prospectoReciboId, setProspectoReciboId] = useState<string | null>(null)
+  const [prospectoReciboRow, setProspectoReciboRow] = useState<Prospecto | null>(null)
+  const [reciboProspectoData, setReciboProspectoData] = useState<any>(null)
 
   // 📊 Estados para columnas dinámicas
   const [columnasDisponibles, setColumnasDisponibles] = useState<ColumnasData | null>(null)
@@ -165,6 +186,27 @@ export default function GestionProspectos() {
       setDescargandoReporte(null)
     }
   }
+
+  // Cargar datos del prospecto para el modal Generar recibo (mismo flujo que Alerta Alumno Nuevo)
+  useEffect(() => {
+    if (!reciboOpen || !prospectoReciboId) {
+      if (!reciboOpen) setReciboProspectoData(null)
+      return
+    }
+    let cancelled = false
+    const token = localStorage.getItem("token")
+    fetch(`${API_URL}/prospectos/${prospectoReciboId}`, {
+      headers: { Authorization: token ? `Bearer ${token}` : "" },
+    })
+      .then((res) => res.ok ? res.json() : Promise.reject(new Error("Error al cargar prospecto")))
+      .then(({ data }) => {
+        if (!cancelled) setReciboProspectoData(data)
+      })
+      .catch(() => {
+        if (!cancelled) setReciboProspectoData(null)
+      })
+    return () => { cancelled = true }
+  }, [reciboOpen, prospectoReciboId])
 
   // Filtros y paginación
   const [searchTerm, setSearchTerm] = useState<string>("")
@@ -1292,6 +1334,14 @@ export default function GestionProspectos() {
           )
         })}
 
+        <Button
+          onClick={() => router.push("/captura")}
+          title="Ir a captura de prospecto"
+        >
+          <UserPlus className="h-4 w-4 mr-2" />
+          Registrar nuevo prospecto
+        </Button>
+
         {/* 📊 Botón de configuración de columnas */}
         <Button
           variant="outline"
@@ -1460,15 +1510,27 @@ export default function GestionProspectos() {
                   </td>
                   {/* Estado (siempre visible) */}
                   <td className="py-3 px-4">
-                    <div className="flex flex-col">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getEstadoColor(
-                          p.estado
-                        )}`}
-                      >
-                        {p.estado}
-                      </span>
-                      <span className="text-xs text-gray-500 mt-1">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getEstadoColor(
+                            p.estado
+                          )}`}
+                        >
+                          {p.estado}
+                        </span>
+                        {/* 🆕 Badge "Nuevo" para inscritos recientes (estado "Inscrito" y creado en últimos 5 días) */}
+                        {p.estado?.toLowerCase() === 'inscrito' && isRecentlyEnrolled(p.created_at, 5) && (
+                          <Badge 
+                            variant="default" 
+                            className="bg-blue-500 hover:bg-blue-600 text-xs animate-pulse"
+                          >
+                            <Clock className="h-3 w-3 mr-1" />
+                            Nuevo
+                          </Badge>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-500">
                         Último cambio: {p.ultimoCambio}
                       </span>
                     </div>
@@ -1601,6 +1663,16 @@ export default function GestionProspectos() {
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleInscribir(p.id)}>
                                 Inscribir
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setProspectoReciboRow(p)
+                                  setProspectoReciboId(p.id)
+                                  setReciboOpen(true)
+                                }}
+                              >
+                                <Receipt className="h-4 w-4 mr-2" />
+                                Generar recibo
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleDescargarReporte(p.id)}
@@ -1744,6 +1816,52 @@ export default function GestionProspectos() {
           }}
         />
       )}
+
+      {/* Modal Generar recibo (desde Acciones), con datos del estudiante/prospecto */}
+      <ReciboPagoGenerator
+        open={reciboOpen}
+        onOpenChange={(open) => {
+          setReciboOpen(open)
+          if (!open) {
+            setProspectoReciboId(null)
+            setProspectoReciboRow(null)
+          }
+        }}
+        elevatedZIndex
+        studentName={reciboProspectoData?.nombre_completo ?? reciboProspectoData?.nombre ?? prospectoReciboRow?.nombre ?? ""}
+        nit={reciboProspectoData?.numero_identificacion ?? prospectoReciboRow?.numero_identificacion ?? "CF"}
+        monto={
+          reciboProspectoData?.programas?.[0]?.inscripcion != null
+            ? String(reciboProspectoData.programas[0].inscripcion)
+            : undefined
+        }
+        concepto="matricula"
+        programa={
+          reciboProspectoData?.programas?.[0]?.programa?.nombre_del_programa ??
+          reciboProspectoData?.programa ??
+          undefined
+        }
+        telefono={reciboProspectoData?.telefono ?? reciboProspectoData?.telefono_corporativo ?? prospectoReciboRow?.telefono}
+        email={reciboProspectoData?.correo_electronico ?? reciboProspectoData?.email ?? prospectoReciboRow?.email}
+        formaPago={reciboProspectoData?.forma_pago ? "transferencia" : undefined}
+        cuotaMensual={
+          reciboProspectoData?.programas?.[0]?.cuota_mensual != null
+            ? String(reciboProspectoData.programas[0].cuota_mensual)
+            : undefined
+        }
+        cantidadMeses={
+          reciboProspectoData?.programas?.[0]?.duracion_meses != null
+            ? String(reciboProspectoData.programas[0].duracion_meses)
+            : reciboProspectoData?.programas?.[0]?.programa?.meses != null
+              ? String(reciboProspectoData.programas[0].programa.meses)
+              : undefined
+        }
+        inversionTotal={
+          reciboProspectoData?.programas?.[0]?.inversion_total != null
+            ? String(reciboProspectoData.programas[0].inversion_total)
+            : undefined
+        }
+      />
 
       {/* 📊 Modal de Configuración de Columnas */}
       <SelectorColumnasModal

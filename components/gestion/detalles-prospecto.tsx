@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import {
   X, Calendar, MapPin, Globe, BookOpen, User, Briefcase, Building2,
   Download, Loader2, Phone, Mail, CreditCard, GraduationCap, FileText,
-  Hash, Clock, Shield, IdCard, Trash2, FolderDown
+  Hash, Clock, Shield, IdCard, Trash2, FolderDown, ChevronDown, ChevronUp
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -66,6 +66,8 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
   const [departamentos, setDepartamentos] = useState<{ id: number; nombre: string }[]>([])
   // Vista previa de documentos
   const [previewDoc, setPreviewDoc] = useState<any>(null)
+  // Sección Detalle de Cuotas colapsable (comprimible)
+  const [detalleCuotasAbierto, setDetalleCuotasAbierto] = useState(false)
 
   // Cargar datos completos del prospecto
   useEffect(() => {
@@ -566,89 +568,163 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
               <TabsContent value="financiero" className="space-y-4 mt-4">
                 <SectionTitle icon={CreditCard} title="Información Financiera" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <InfoRow icon={CreditCard} label="Método de Pago" value={prospecto.metodo_pago || "—"} />
-                  <InfoRow icon={CreditCard} label="Monto Inscripción" value={
-                    prospecto.monto_inscripcion
-                      ? `Q ${Number(prospecto.monto_inscripcion).toLocaleString("es-GT", { minimumFractionDigits: 2 })}`
-                      : "—"
+                  <InfoRow icon={CreditCard} label="Método de Pago" value={
+                    (prospecto.metodo_pago || prospecto.forma_pago || "").toString().trim() || "—"
                   } />
-                  {prospecto.convenio && (
-                    <InfoRow icon={FileText} label="Convenio de Pago" value={prospecto.convenio.nombre || "—"} />
+                  <InfoRow icon={CreditCard} label="Monto Inscripción" value={
+                    (prospecto.monto_inscripcion != null && prospecto.monto_inscripcion !== "" && Number(prospecto.monto_inscripcion) >= 0)
+                      ? `Q ${Number(prospecto.monto_inscripcion).toLocaleString("es-GT", { minimumFractionDigits: 2 })}`
+                      : (prospecto.programas?.[0]?.inscripcion != null && prospecto.programas[0].inscripcion !== "")
+                        ? `Q ${Number(prospecto.programas[0].inscripcion).toLocaleString("es-GT", { minimumFractionDigits: 2 })}`
+                        : "—"
+                  } />
+                  {(prospecto.convenio || prospecto.programas?.[0]?.convenio) && (
+                    <InfoRow icon={FileText} label="Convenio de Pago" value={
+                      prospecto.convenio?.nombre ?? prospecto.programas?.[0]?.convenio?.nombre ?? "—"
+                    } />
                   )}
                 </div>
 
-                {/* Cuotas por programa */}
-                {prospecto.programas && prospecto.programas.length > 0 && prospecto.programas.some((ep: any) => ep.cuotas?.length > 0) && (
+                {/* Programas inscritos con montos (inscripción, cuota, duración) — Alerta Alumno Nuevo e inscripción normal */}
+                {prospecto.programas && prospecto.programas.length > 0 && (
                   <>
-                    <SectionTitle icon={CreditCard} title="Detalle de Cuotas" />
-                    {prospecto.programas.map((ep: any, idx: number) => {
-                      if (!ep.cuotas || ep.cuotas.length === 0) return null
-                      const totalCuotas = ep.cuotas.reduce((s: number, c: any) => s + (Number(c.monto) || 0), 0)
-                      const totalPagado = ep.cuotas
-                        .filter((c: any) => c.estado?.toLowerCase() === "pagado")
-                        .reduce((s: number, c: any) => s + (Number(c.monto) || 0), 0)
-
-                      return (
+                    <SectionTitle icon={CreditCard} title="Programas inscritos (montos)" />
+                    <div className="grid grid-cols-1 gap-3">
+                      {prospecto.programas.map((ep: any, idx: number) => (
                         <Card key={idx} className="p-4 border-gray-200">
                           <h5 className="text-sm font-semibold text-gray-800 mb-3">
-                            {ep.programa?.abreviatura || ""} {ep.programa?.nombre_del_programa || ""}
+                            {ep.programa?.abreviatura ? `${ep.programa.abreviatura} – ` : ""}{ep.programa?.nombre_del_programa || "Programa"}
                           </h5>
-                          {/* Resumen financiero */}
-                          <div className="grid grid-cols-3 gap-3 mb-3">
-                            <div className="bg-blue-50 rounded-lg p-2 text-center">
-                              <p className="text-xs text-gray-500">Total</p>
-                              <p className="text-sm font-bold text-blue-800">Q {totalCuotas.toLocaleString("es-GT", { minimumFractionDigits: 2 })}</p>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                            <div className="bg-slate-50 rounded-lg p-2">
+                              <p className="text-xs text-gray-500">Inscripción</p>
+                              <p className="font-semibold text-gray-900">
+                                Q {(Number(ep.inscripcion) || 0).toLocaleString("es-GT", { minimumFractionDigits: 2 })}
+                              </p>
                             </div>
-                            <div className="bg-green-50 rounded-lg p-2 text-center">
-                              <p className="text-xs text-gray-500">Pagado</p>
-                              <p className="text-sm font-bold text-green-800">Q {totalPagado.toLocaleString("es-GT", { minimumFractionDigits: 2 })}</p>
+                            <div className="bg-slate-50 rounded-lg p-2">
+                              <p className="text-xs text-gray-500">Cuota mensual</p>
+                              <p className="font-semibold text-gray-900">
+                                Q {(Number(ep.cuota_mensual) || 0).toLocaleString("es-GT", { minimumFractionDigits: 2 })}
+                              </p>
                             </div>
-                            <div className="bg-red-50 rounded-lg p-2 text-center">
-                              <p className="text-xs text-gray-500">Pendiente</p>
-                              <p className="text-sm font-bold text-red-800">Q {(totalCuotas - totalPagado).toLocaleString("es-GT", { minimumFractionDigits: 2 })}</p>
+                            <div className="bg-slate-50 rounded-lg p-2">
+                              <p className="text-xs text-gray-500">Duración</p>
+                              <p className="font-semibold text-gray-900">{ep.duracion_meses ?? "—"} meses</p>
                             </div>
-                          </div>
-                          {/* Tabla de cuotas */}
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="bg-gray-100 text-gray-600">
-                                  <th className="text-left p-2">#</th>
-                                  <th className="text-left p-2">Concepto</th>
-                                  <th className="text-left p-2">Vencimiento</th>
-                                  <th className="text-right p-2">Monto</th>
-                                  <th className="text-center p-2">Estado</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {ep.cuotas.map((cuota: any, ci: number) => (
-                                  <tr key={ci} className="border-b border-gray-100">
-                                    <td className="p-2">{cuota.numero_cuota}</td>
-                                    <td className="p-2">{cuota.concepto || `Cuota ${cuota.numero_cuota}`}</td>
-                                    <td className="p-2">{cuota.fecha_vencimiento ? new Date(cuota.fecha_vencimiento).toLocaleDateString("es-GT") : "—"}</td>
-                                    <td className="p-2 text-right">Q {Number(cuota.monto || 0).toLocaleString("es-GT", { minimumFractionDigits: 2 })}</td>
-                                    <td className="p-2 text-center">
-                                      <Badge
-                                        variant="outline"
-                                        className={`text-[10px] ${cuota.estado?.toLowerCase() === "pagado"
-                                            ? "bg-green-50 text-green-700 border-green-200"
-                                            : cuota.estado?.toLowerCase() === "vencido"
-                                              ? "bg-red-50 text-red-700 border-red-200"
-                                              : "bg-yellow-50 text-yellow-700 border-yellow-200"
-                                          }`}
-                                      >
-                                        {cuota.estado || "Pendiente"}
-                                      </Badge>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                            <div className="bg-slate-50 rounded-lg p-2">
+                              <p className="text-xs text-gray-500">Inversión total</p>
+                              <p className="font-semibold text-gray-900">
+                                Q {(Number(ep.inversion_total) || 0).toLocaleString("es-GT", { minimumFractionDigits: 2 })}
+                              </p>
+                            </div>
                           </div>
                         </Card>
-                      )
-                    })}
+                      ))}
+                    </div>
                   </>
+                )}
+
+                {/* Detalle de Cuotas por programa — comprimible; considera todos los planes (1 o 2 programas) */}
+                {prospecto.programas && prospecto.programas.length > 0 && (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setDetalleCuotasAbierto(!detalleCuotasAbierto)}
+                      className="w-full flex items-center justify-between gap-2 p-3 bg-gray-50 hover:bg-gray-100 text-left"
+                    >
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="h-4 w-4 text-blue-600" />
+                        <span className="text-sm font-semibold text-gray-800">
+                          Detalle de Cuotas {prospecto.programas.length > 1 ? `(${prospecto.programas.length} planes)` : ""}
+                        </span>
+                      </div>
+                      {detalleCuotasAbierto ? (
+                        <ChevronUp className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                      )}
+                    </button>
+                    {detalleCuotasAbierto && (
+                      <div className="p-4 space-y-4 bg-white">
+                        {prospecto.programas.map((ep: any, idx: number) => {
+                          const tieneCuotas = ep.cuotas && ep.cuotas.length > 0
+                          const totalCuotas = tieneCuotas
+                            ? ep.cuotas.reduce((s: number, c: any) => s + (Number(c.monto) || 0), 0)
+                            : 0
+                          const totalPagado = tieneCuotas
+                            ? ep.cuotas.filter((c: any) => c.estado?.toLowerCase() === "pagado").reduce((s: number, c: any) => s + (Number(c.monto) || 0), 0)
+                            : 0
+
+                          return (
+                            <Card key={idx} className="p-4 border-gray-200">
+                              <h5 className="text-sm font-semibold text-gray-800 mb-3">
+                                {ep.programa?.abreviatura ? `${ep.programa.abreviatura} – ` : ""}{ep.programa?.nombre_del_programa || "Programa"}
+                              </h5>
+                              {tieneCuotas ? (
+                                <>
+                                  <div className="grid grid-cols-3 gap-3 mb-3">
+                                    <div className="bg-blue-50 rounded-lg p-2 text-center">
+                                      <p className="text-xs text-gray-500">Total</p>
+                                      <p className="text-sm font-bold text-blue-800">Q {totalCuotas.toLocaleString("es-GT", { minimumFractionDigits: 2 })}</p>
+                                    </div>
+                                    <div className="bg-green-50 rounded-lg p-2 text-center">
+                                      <p className="text-xs text-gray-500">Pagado</p>
+                                      <p className="text-sm font-bold text-green-800">Q {totalPagado.toLocaleString("es-GT", { minimumFractionDigits: 2 })}</p>
+                                    </div>
+                                    <div className="bg-red-50 rounded-lg p-2 text-center">
+                                      <p className="text-xs text-gray-500">Pendiente</p>
+                                      <p className="text-sm font-bold text-red-800">Q {(totalCuotas - totalPagado).toLocaleString("es-GT", { minimumFractionDigits: 2 })}</p>
+                                    </div>
+                                  </div>
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-xs">
+                                      <thead>
+                                        <tr className="bg-gray-100 text-gray-600">
+                                          <th className="text-left p-2">#</th>
+                                          <th className="text-left p-2">Concepto</th>
+                                          <th className="text-left p-2">Vencimiento</th>
+                                          <th className="text-right p-2">Monto</th>
+                                          <th className="text-center p-2">Estado</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {ep.cuotas.map((cuota: any, ci: number) => (
+                                          <tr key={ci} className="border-b border-gray-100">
+                                            <td className="p-2">{cuota.numero_cuota}</td>
+                                            <td className="p-2">{cuota.concepto || `Cuota ${cuota.numero_cuota}`}</td>
+                                            <td className="p-2">{cuota.fecha_vencimiento ? new Date(cuota.fecha_vencimiento).toLocaleDateString("es-GT") : "—"}</td>
+                                            <td className="p-2 text-right">Q {Number(cuota.monto || 0).toLocaleString("es-GT", { minimumFractionDigits: 2 })}</td>
+                                            <td className="p-2 text-center">
+                                              <Badge
+                                                variant="outline"
+                                                className={`text-[10px] ${cuota.estado?.toLowerCase() === "pagado"
+                                                    ? "bg-green-50 text-green-700 border-green-200"
+                                                    : cuota.estado?.toLowerCase() === "vencido"
+                                                      ? "bg-red-50 text-red-700 border-red-200"
+                                                      : "bg-yellow-50 text-yellow-700 border-yellow-200"
+                                                  }`}
+                                              >
+                                                {cuota.estado || "Pendiente"}
+                                              </Badge>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="text-sm text-gray-500 py-2">
+                                  Sin plan de cuotas generado. Inscripción: Q {(Number(ep.inscripcion) || 0).toLocaleString("es-GT", { minimumFractionDigits: 2 })} · Cuota mensual: Q {(Number(ep.cuota_mensual) || 0).toLocaleString("es-GT", { minimumFractionDigits: 2 })} · {ep.duracion_meses ?? "—"} meses.
+                                </div>
+                              )}
+                            </Card>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
                 )}
               </TabsContent>
 

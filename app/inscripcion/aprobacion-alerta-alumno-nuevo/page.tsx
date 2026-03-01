@@ -33,9 +33,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { useRouter } from "next/navigation"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import Swal from "sweetalert2"
-import { CheckCircle, Clock, User, Calendar, GraduationCap, Eye, XCircle, ArrowLeft, Loader2, AlertCircle } from "lucide-react"
+import { CheckCircle, Clock, User, Calendar, GraduationCap, Eye, XCircle, ArrowLeft, Loader2, AlertCircle, FileText } from "lucide-react"
+import { ServerFilePreviewModal } from "@/components/ui/server-file-preview-modal"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface Alerta {
   id: number
@@ -60,6 +63,12 @@ interface Prospecto {
   telefono: string
   status: string
   alerta: Alerta | null
+  /** Si tiene comprobante de inscripción subido */
+  tiene_boleta_inscripcion?: boolean
+  /** Recibo American, DPI, recibo de luz y boleta de pago completos */
+  documentos_completos?: boolean
+  /** Nombre del asesor asignado (creator/updater) cuando la alerta no trae asesor */
+  asesor_asignado_nombre?: string | null
   programas?: Array<{
     programa: {
       nombre: string
@@ -72,6 +81,7 @@ interface Prospecto {
 }
 
 export default function AprobacionAlertaAlumnoNuevoPage() {
+  const router = useRouter()
   const [prospectos, setProspectos] = useState<Prospecto[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -79,6 +89,14 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
   const [selectedProspecto, setSelectedProspecto] = useState<Prospecto | null>(null)
   const [isModalOpen, setModalOpen] = useState(false)
   const [processingId, setProcessingId] = useState<number | null>(null)
+
+  // Estado para documentos del prospecto
+  const [documentosProspecto, setDocumentosProspecto] = useState<any[]>([])
+  const [boletaInscripcion, setBoletaInscripcion] = useState<any>(null)
+  const [loadingBoleta, setLoadingBoleta] = useState(false)
+  const [previewModalOpen, setPreviewModalOpen] = useState(false)
+  const [documentoToPreview, setDocumentoToPreview] = useState<any | null>(null)
+  const [descargandoContrato, setDescargandoContrato] = useState(false)
 
   useEffect(() => {
     cargarPendientes()
@@ -97,7 +115,7 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
       if (!res.ok) throw new Error("Error al cargar prospectos pendientes")
 
       const data = await res.json()
-      
+
       // Filtrar prospectos válidos y con estructura correcta
       const prospectosValidos = (data.data || []).filter((p: any) => {
         // Validación nivel 1: Datos básicos
@@ -105,12 +123,12 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
           console.error("❌ Elemento no es un objeto:", p)
           return false
         }
-        
+
         if (!p.id || !p.nombre_completo) {
           console.error("❌ Prospecto sin ID o nombre:", p)
           return false
         }
-        
+
         // Validación nivel 2: Estructura de alerta
         if (p.alerta) {
           if (typeof p.alerta !== 'object') {
@@ -121,7 +139,7 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
             p.alerta.asesor = { first_name: 'N/A', last_name: '', email: '' }
           }
         }
-        
+
         // Validación nivel 3: Estructura de programas (CRÍTICO)
         if (p.programas && Array.isArray(p.programas)) {
           p.programas = p.programas.filter((prog: any) => {
@@ -129,7 +147,7 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
               console.error("❌ Programa no es objeto:", prog)
               return false
             }
-            
+
             // VALIDACIÓN CRÍTICA: programa debe existir y ser objeto
             if (!prog.programa || typeof prog.programa !== 'object') {
               console.error("❌ CRÍTICO: programa.programa no existe o no es objeto:", prog)
@@ -137,16 +155,16 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
               console.error("   Estructura recibida:", JSON.stringify(prog, null, 2))
               return false
             }
-            
+
             // Validar que tenga al menos nombre o abreviatura
             if (!prog.programa.nombre && !prog.programa.abreviatura) {
               console.warn("⚠️ Programa sin nombre ni abreviatura:", prog.programa)
               prog.programa.nombre = 'Programa sin nombre'
             }
-            
+
             return true
           })
-          
+
           // Si no quedó ningún programa válido, advertir
           if (p.programas.length === 0) {
             console.warn("⚠️ Prospecto sin programas válidos:", p.id, p.nombre_completo)
@@ -155,12 +173,12 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
           console.error("❌ programas no es array:", p.programas)
           p.programas = []
         }
-        
+
         return true
       })
-      
+
       setProspectos(prospectosValidos)
-      
+
       if (prospectosValidos.length !== (data.data || []).length) {
         console.warn(`Se filtraron ${(data.data || []).length - prospectosValidos.length} prospectos inválidos`)
       }
@@ -176,9 +194,74 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
     }
   }
 
-  const handleViewDetalle = (prospecto: Prospecto) => {
+  const handleViewDetalle = async (prospecto: Prospecto) => {
     setSelectedProspecto(prospecto)
     setModalOpen(true)
+    setBoletaInscripcion(null)
+    setDocumentosProspecto([])
+    setLoadingBoleta(true)
+
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_BASE_URL}/api/documentos/prospecto/${prospecto.id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      if (res.ok) {
+        const documentos = await res.json()
+        setDocumentosProspecto(Array.isArray(documentos) ? documentos : [])
+        const boleta = documentos.find((doc: any) =>
+          doc.tipo_documento === "inscripcion" || doc.tipo_documento === "inscripción"
+        )
+        if (boleta) {
+          setBoletaInscripcion(boleta)
+        }
+      }
+    } catch (err) {
+      console.error("Error al cargar documentos del prospecto:", err)
+    } finally {
+      setLoadingBoleta(false)
+    }
+  }
+
+  const getDocByTipo = (tipo: string) => {
+    return documentosProspecto.find((d: any) =>
+      d.tipo_documento === tipo || (tipo === "inscripcion" && d.tipo_documento === "inscripción")
+    )
+  }
+
+  const openPreview = (doc: any) => {
+    setDocumentoToPreview(doc)
+    setPreviewModalOpen(true)
+  }
+
+  const handleDescargarContrato = async (prospectoId: number) => {
+    setDescargandoContrato(true)
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_BASE_URL}/api/prospectos/${prospectoId}/contrato-pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.message || "No se pudo generar el contrato")
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `Contrato_${selectedProspecto?.nombre_completo?.replace(/\s+/g, "_") || prospectoId}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      Swal.fire({ icon: "success", title: "Contrato descargado", timer: 2000, showConfirmButton: false })
+    } catch (err: any) {
+      Swal.fire({ icon: "error", title: "Error", text: err.message || "No se pudo descargar el contrato" })
+    } finally {
+      setDescargandoContrato(false)
+    }
   }
 
   const handleAprobar = async (alerta: Alerta, prospectoId: number) => {
@@ -223,6 +306,59 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
         showConfirmButton: false,
       })
 
+      cargarPendientes()
+    } catch (err: any) {
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: err.message || "No se pudo aprobar la alerta",
+      })
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  /** Aprobar prospecto sin alerta activa: mismo flujo y modal que con alerta, solo otro endpoint */
+  const handleAprobarProspecto = async (prospectoId: number) => {
+    const { value: comentarios } = await Swal.fire({
+      title: "Aprobar Alerta de Alumno Nuevo",
+      html: `
+        <p class="mb-4">¿Confirmas que deseas aprobar esta alerta?</p>
+        <p class="text-sm text-gray-600">El prospecto pasará al módulo de Generación de Credenciales.</p>
+      `,
+      input: "textarea",
+      inputLabel: "Comentarios (opcional)",
+      inputPlaceholder: "Agrega comentarios sobre la aprobación...",
+      showCancelButton: true,
+      confirmButtonText: "Aprobar",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#059669",
+    })
+
+    if (comentarios === undefined) return
+
+    setProcessingId(prospectoId)
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_BASE_URL}/api/alerta-alumno-nuevo/prospecto/${prospectoId}/aprobar`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ comentarios: comentarios || null }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || "Error al aprobar")
+
+      await Swal.fire({
+        icon: "success",
+        title: "¡Aprobado!",
+        text: "La alerta ha sido aprobada. El prospecto puede proceder a generar credenciales.",
+        timer: 2000,
+        showConfirmButton: false,
+      })
+      setModalOpen(false)
       cargarPendientes()
     } catch (err: any) {
       Swal.fire({
@@ -336,21 +472,21 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           estado_destino: estadoDestino,
-          comentario 
+          comentario
         }),
       })
       if (!res.ok) throw new Error("Error al retroceder")
-      
-      Swal.fire({ 
-        icon: "info", 
-        title: "Ficha retrocedida", 
+
+      Swal.fire({
+        icon: "info",
+        title: "Ficha retrocedida",
         text: `Estado cambiado a: ${estadoDestino}`,
-        timer: 2000, 
-        showConfirmButton: false 
+        timer: 2000,
+        showConfirmButton: false
       })
-      
+
       cargarPendientes()
     } catch (err) {
       console.error("Error:", err)
@@ -363,17 +499,17 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
   const filteredProspectos = prospectos.filter(p => {
     // Validar que el prospecto tenga los datos mínimos necesarios
     if (!p || !p.id || !p.nombre_completo) return false
-    
+
     const term = searchTerm.toLowerCase()
-    const matchSearch = 
+    const matchSearch =
       p.nombre_completo.toLowerCase().includes(term) ||
       p.correo_electronico?.toLowerCase().includes(term) ||
       p.id.toString().includes(term) ||
       (p.carnet && p.carnet.toLowerCase().includes(term))
-    
+
     // Por ahora todos tienen prioridad media, pero preparado para futuro
     const matchPrioridad = filtroPrioridad === "todas" || filtroPrioridad === "media"
-    
+
     return matchSearch && matchPrioridad
   })
 
@@ -480,18 +616,24 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
                     <TableCell>{prospecto.carnet || "Sin carnet"}</TableCell>
                     <TableCell>
                       {(() => {
-                        const programa = prospecto.programas?.[0]?.programa
-                        if (!programa || typeof programa !== 'object') return "N/A"
-                        return programa.nombre || programa.abreviatura || "Sin nombre"
+                        const progs = prospecto.programas
+                          ?.filter((p: any) => p?.programa && typeof p.programa === "object")
+                          .map((p: any) => p.programa.nombre || p.programa.abreviatura || "Sin nombre")
+                        if (!progs?.length) return "N/A"
+                        return progs.join(", ")
                       })()}
                     </TableCell>
                     <TableCell>
                       {prospecto.alerta?.asesor
-                        ? `${prospecto.alerta.asesor.first_name} ${prospecto.alerta.asesor.last_name}`
-                        : "N/A"}
+                        ? `${prospecto.alerta.asesor.first_name} ${prospecto.alerta.asesor.last_name}`.trim() || prospecto.alerta.asesor.email
+                        : prospecto.asesor_asignado_nombre || "N/A"}
                     </TableCell>
                     <TableCell>
-                      {prospecto.alerta && getBadgeForDiasRestantes(prospecto.alerta.dias_restantes)}
+                      {prospecto.documentos_completos ? (
+                        <Badge className="bg-green-100 text-green-800">DOC COMPLETADOS</Badge>
+                      ) : (
+                        prospecto.alerta && getBadgeForDiasRestantes(prospecto.alerta.dias_restantes)
+                      )}
                     </TableCell>
                     <TableCell>
                       <TooltipProvider>
@@ -514,8 +656,12 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => prospecto.alerta && handleAprobar(prospecto.alerta, prospecto.id)}
-                                disabled={processingId === prospecto.id || !prospecto.alerta}
+                                onClick={() =>
+                                  prospecto.alerta
+                                    ? handleAprobar(prospecto.alerta, prospecto.id)
+                                    : handleAprobarProspecto(prospecto.id)
+                                }
+                                disabled={processingId === prospecto.id}
                               >
                                 {processingId === prospecto.id ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -597,6 +743,13 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
               <CardTitle>Detalle del Prospecto</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <Tabs defaultValue="detalle" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="detalle">Detalle</TabsTrigger>
+                  <TabsTrigger value="documentos">Vista previa de documentos</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="detalle" className="space-y-4 mt-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Nombre Completo</Label>
@@ -616,110 +769,284 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
                 </div>
               </div>
 
-              {selectedProspecto.programas?.[0]?.programa && (
+              {selectedProspecto.programas && selectedProspecto.programas.length > 0 && (
                 <div className="border-t pt-4">
-                  <h3 className="font-semibold mb-2">Información del Programa</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Programa</Label>
-                      <p className="text-sm">
-                        {selectedProspecto.programas[0].programa.nombre || 
-                         selectedProspecto.programas[0].programa.abreviatura || 
-                         "Sin nombre"}
-                      </p>
-                    </div>
-                    <div>
-                      <Label>Duración</Label>
-                      <p className="text-sm">{selectedProspecto.programas[0].duracion_meses} meses</p>
-                    </div>
-                    <div>
-                      <Label>Inscripción</Label>
-                      <p className="text-sm">Q{selectedProspecto.programas[0].inscripcion}</p>
-                    </div>
-                    <div>
-                      <Label>Cuota Mensual</Label>
-                      <p className="text-sm">Q{selectedProspecto.programas[0].cuota_mensual}</p>
-                    </div>
+                  <h3 className="font-semibold mb-2">
+                    Información del Programa{selectedProspecto.programas.length > 1 ? "s" : ""}
+                  </h3>
+                  <div className="space-y-4">
+                    {selectedProspecto.programas.map((prog: any, idx: number) =>
+                      prog?.programa ? (
+                        <div key={prog.id ?? idx} className="rounded-lg border bg-slate-50/50 p-3">
+                          {selectedProspecto.programas.length > 1 && (
+                            <p className="text-xs font-medium text-slate-500 mb-2">
+                              Programa {idx + 1}
+                            </p>
+                          )}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label className="text-xs">Programa</Label>
+                              <p className="text-sm font-medium">
+                                {prog.programa.nombre || prog.programa.abreviatura || "Sin nombre"}
+                              </p>
+                            </div>
+                            <div>
+                              <Label className="text-xs">Duración</Label>
+                              <p className="text-sm">{prog.duracion_meses ?? prog.programa?.meses ?? "—"} meses</p>
+                            </div>
+                            <div>
+                              <Label className="text-xs">Inscripción</Label>
+                              <p className="text-sm">Q{prog.inscripcion ?? "—"}</p>
+                            </div>
+                            <div>
+                              <Label className="text-xs">Cuota Mensual</Label>
+                              <p className="text-sm">Q{prog.cuota_mensual ?? "—"}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null
+                    )}
                   </div>
                 </div>
               )}
 
-              {selectedProspecto.alerta && (
+              <div className="border-t pt-4">
+                <h3 className="font-semibold mb-2">Información de la Alerta</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Asesor / Creado por</Label>
+                    <p className="text-sm">
+                      {selectedProspecto.alerta?.asesor
+                        ? `${selectedProspecto.alerta.asesor.first_name} ${selectedProspecto.alerta.asesor.last_name}`.trim() || selectedProspecto.alerta.asesor.email
+                        : selectedProspecto.asesor_asignado_nombre || "N/A"}
+                    </p>
+                  </div>
+                  {selectedProspecto.alerta && (
+                    <>
+                      <div>
+                        <Label>Fecha de Creación</Label>
+                        <p className="text-sm">
+                          {selectedProspecto.alerta?.fecha_creacion
+                            ? new Date(selectedProspecto.alerta.fecha_creacion).toLocaleDateString()
+                            : "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <Label>Fecha Límite</Label>
+                        <p className="text-sm">
+                          {selectedProspecto.alerta?.fecha_limite
+                            ? new Date(selectedProspecto.alerta.fecha_limite).toLocaleDateString()
+                            : "N/A"}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                  <div>
+                    <Label>Tiempo Restante</Label>
+                    <p className="text-sm font-semibold">
+                      {selectedProspecto.documentos_completos ? (
+                        <Badge className="bg-green-100 text-green-800">DOC COMPLETADOS</Badge>
+                      ) : selectedProspecto.alerta?.dias_restantes != null && typeof selectedProspecto.alerta.dias_restantes === "number" ? (
+                        `${selectedProspecto.alerta.dias_restantes} días`
+                      ) : (
+                        "N/A"
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {loadingBoleta && (
                 <div className="border-t pt-4">
-                  <h3 className="font-semibold mb-2">Información de la Alerta</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Creado por</Label>
-                      <p className="text-sm">
-                        {selectedProspecto.alerta?.asesor
-                          ? `${selectedProspecto.alerta.asesor.first_name} ${selectedProspecto.alerta.asesor.last_name}`
-                          : "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <Label>Fecha de Creación</Label>
-                      <p className="text-sm">
-                        {selectedProspecto.alerta?.fecha_creacion
-                          ? new Date(selectedProspecto.alerta.fecha_creacion).toLocaleDateString()
-                          : "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <Label>Fecha Límite</Label>
-                      <p className="text-sm">
-                        {selectedProspecto.alerta?.fecha_limite
-                          ? new Date(selectedProspecto.alerta.fecha_limite).toLocaleDateString()
-                          : "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <Label>Días Restantes</Label>
-                      <p className="text-sm font-semibold">
-                        {selectedProspecto.alerta.dias_restantes !== null
-                          ? `${selectedProspecto.alerta.dias_restantes} días`
-                          : "N/A"}
-                      </p>
-                    </div>
+                  <h3 className="font-semibold mb-2">Comprobante de Inscripción</h3>
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Cargando comprobante...
                   </div>
                 </div>
               )}
+
+              {!loadingBoleta && !boletaInscripcion && (
+                <div className="border-t pt-4 bg-amber-50 border border-amber-200 p-4 rounded-md mt-4">
+                  <h3 className="font-semibold mb-2 text-amber-800 flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5" />
+                    Comprobante de Inscripción faltante
+                  </h3>
+                  <p className="text-sm text-amber-800">
+                    Para que aparezca &quot;DOC COMPLETADOS&quot; y se habilite Aprobar, el prospecto debe tener en Gestión de Prospectos: <strong>recibo American, DPI, recibo de luz/teléfono y boleta de pago</strong>.
+                  </p>
+                </div>
+              )}
+
+              {!loadingBoleta && boletaInscripcion && (
+                <div className="border-t pt-4 bg-blue-50/30 p-4 rounded-md mt-4">
+                  <h3 className="font-semibold mb-2 text-blue-800">Comprobante de Inscripción</h3>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-blue-600" />
+                      <div>
+                        <p className="text-sm font-medium">{boletaInscripcion.nombre_archivo || "Boleta adjunta"}</p>
+                        <p className="text-xs text-gray-500">
+                          Subido el: {new Date(boletaInscripcion.fecha_subida || boletaInscripcion.created_at || boletaInscripcion.subida_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => openPreview(boletaInscripcion)}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      Ver Comprobante
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Apartado para generar contrato (Alerta Alumno Nuevo) */}
+              {selectedProspecto && (
+                <div className="border-t pt-4 mt-4">
+                  <h3 className="font-semibold mb-2 text-[#1e264d]">Contrato de confidencialidad</h3>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Ir a la pantalla de firma con los datos académicos y del estudiante para generar el contrato. Los datos faltantes podrán completarse desde admisión.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={() => {
+                        setModalOpen(false)
+                        router.push(`/firma/student-details/${selectedProspecto.id}`)
+                      }}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Generar contrato (ir a firma)
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleDescargarContrato(selectedProspecto.id)}
+                      disabled={descargandoContrato}
+                    >
+                      {descargandoContrato ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <FileText className="h-4 w-4 mr-2" />
+                      )}
+                      {descargandoContrato ? "Descargando..." : "Solo descargar PDF"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+                </TabsContent>
+
+                <TabsContent value="documentos" className="space-y-4 mt-4">
+                  <h3 className="font-semibold text-[#1e264d]">Documentos requeridos</h3>
+                  <p className="text-sm text-gray-600">Vista previa de los documentos completos (recibo American, DPI, recibo de luz, boleta de pago).</p>
+                  {loadingBoleta ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-500 py-4">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Cargando documentos...
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {[
+                        { tipo: "american", label: "Recibo American" },
+                        { tipo: "dpi", label: "DPI" },
+                        { tipo: "recibo", label: "Recibo de luz / teléfono" },
+                        { tipo: "inscripcion", label: "Boleta de pago" },
+                      ].map(({ tipo, label }) => {
+                        const doc = getDocByTipo(tipo)
+                        const fecha = doc?.fecha_subida || doc?.created_at || doc?.subida_at
+                        return (
+                          <div
+                            key={tipo}
+                            className="flex items-center justify-between py-3 px-4 rounded-lg border bg-slate-50/50"
+                          >
+                            <div className="flex items-center gap-3">
+                              <FileText className="h-5 w-5 text-slate-500" />
+                              <div>
+                                <p className="font-medium text-sm">{label}</p>
+                                <p className="text-xs text-gray-500">
+                                  {doc ? `Subido el: ${fecha ? new Date(fecha).toLocaleDateString() : "—"}` : "No subido"}
+                                </p>
+                              </div>
+                              {doc && (
+                                <Badge className="bg-green-100 text-green-800">Completo</Badge>
+                              )}
+                            </div>
+                            {doc && (
+                              <Button variant="outline" size="sm" onClick={() => openPreview(doc)}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                Ver
+                              </Button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
             </CardContent>
             <CardFooter className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setModalOpen(false)}>
                 Cerrar
               </Button>
-              {selectedProspecto.alerta && (
-                <>
-                  <Button
-                    variant="destructive"
-                    onClick={() => {
-                      setModalOpen(false)
-                      handleSolicitarCorreccion(selectedProspecto.alerta!, selectedProspecto.id)
-                    }}
-                  >
-                    <XCircle className="mr-2 h-4 w-4" />
-                    Rechazar
-                  </Button>
-                  <Button
-                    className="bg-green-600 hover:bg-green-700"
-                    onClick={() => {
-                      setModalOpen(false)
-                      handleAprobar(selectedProspecto.alerta!, selectedProspecto.id)
-                    }}
-                    disabled={processingId === selectedProspecto.id}
-                  >
-                    {processingId === selectedProspecto.id ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                    )}
-                    Aprobar
-                  </Button>
-                </>
-              )}
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setModalOpen(false)
+                  selectedProspecto.alerta && handleSolicitarCorreccion(selectedProspecto.alerta, selectedProspecto.id)
+                }}
+                disabled={processingId === selectedProspecto.id || !selectedProspecto.alerta}
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                Rechazar
+              </Button>
+              <Button
+                className="bg-green-600 hover:bg-green-700"
+                onClick={() => {
+                  if (selectedProspecto.alerta) {
+                    setModalOpen(false)
+                    handleAprobar(selectedProspecto.alerta, selectedProspecto.id)
+                  } else {
+                    handleAprobarProspecto(selectedProspecto.id)
+                  }
+                }}
+                disabled={processingId === selectedProspecto.id}
+              >
+                {processingId === selectedProspecto.id ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                )}
+                Aprobar
+              </Button>
             </CardFooter>
           </Card>
         </div>
+      )}
+
+      {/* Preview Modal para cualquier documento */}
+      {documentoToPreview && (
+        <ServerFilePreviewModal
+          isOpen={previewModalOpen}
+          onClose={() => {
+            setPreviewModalOpen(false)
+            setDocumentoToPreview(null)
+          }}
+          fileUrl={documentoToPreview.id
+            ? `${API_BASE_URL.replace(/\/$/, "")}/api/documentos/${documentoToPreview.id}/file`
+            : ""}
+          fileName={(() => {
+            const name = documentoToPreview.nombre_archivo || ""
+            const path = documentoToPreview.ruta_archivo || ""
+            if (name && name.includes(".")) return name
+            const fromPath = path.split("/").pop() || ""
+            if (fromPath && fromPath.includes(".")) return fromPath
+            const tipo = documentoToPreview.tipo_documento || "documento"
+            return `${tipo}.pdf`
+          })()}
+          tipoDocumento={documentoToPreview.tipo_documento || "inscripcion"}
+          authToken={typeof window !== "undefined" ? localStorage.getItem("token") : null}
+        />
       )}
     </div>
   )

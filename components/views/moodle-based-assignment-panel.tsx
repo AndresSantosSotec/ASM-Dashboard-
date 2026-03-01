@@ -42,6 +42,8 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  Calendar,
+  Clock,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { 
@@ -52,6 +54,36 @@ import {
 import { bulkAssignCourses } from "@/services/students";
 import type { Course } from "@/services/courses";
 import { exportarYDescargarCursosMasivo } from "@/services/courses";
+
+// 🆕 Función para verificar si un estudiante fue inscrito en los últimos N días
+const isRecentlyEnrolled = (createdAt: string | null, days: number = 5): boolean => {
+  if (!createdAt) return false;
+  
+  const enrolledDate = new Date(createdAt);
+  const now = new Date();
+  const diffTime = Math.abs(now.getTime() - enrolledDate.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  return diffDays <= days;
+};
+
+// 🆕 Normalizar el día de estudio para mostrar
+const normalizeDayName = (day: string | null): string => {
+  if (!day) return '';
+  const dayLower = day.toLowerCase();
+  const dayMap: Record<string, string> = {
+    'lunes': 'Lunes',
+    'martes': 'Martes',
+    'miércoles': 'Miércoles',
+    'miercoles': 'Miércoles',
+    'jueves': 'Jueves',
+    'viernes': 'Viernes',
+    'sábado': 'Sábado',
+    'sabado': 'Sábado',
+    'domingo': 'Domingo',
+  };
+  return dayMap[dayLower] || day;
+};
 
 interface MoodleBasedAssignmentPanelProps {
   moodleStudents: MoodleStudentByCourse[];
@@ -523,12 +555,31 @@ export function MoodleBasedAssignmentPanel({
                         </div>
                       )}
                       <div className="text-left">
-                        <p className="font-medium text-base">
-                          {selection.moodleStudent.nombre_completo}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          Carnet: {selection.moodleStudent.carnet} • Plan: {selection.moodleStudent.plan_duracion}
-                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-base">
+                            {selection.moodleStudent.nombre_completo}
+                          </p>
+                          {selection.internalStudent && isRecentlyEnrolled(selection.internalStudent.created_at, 5) && (
+                            <Badge variant="default" className="bg-blue-500 hover:bg-blue-600 text-xs">
+                              <Clock className="h-3 w-3 mr-1" />
+                              Reciente
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <span>Carnet: {selection.moodleStudent.carnet}</span>
+                          <span>•</span>
+                          <span>Plan: {selection.moodleStudent.plan_duracion}</span>
+                          {selection.internalStudent?.dia_estudio && (
+                            <>
+                              <span>•</span>
+                              <span className="font-medium text-blue-600">
+                                <Calendar className="h-3 w-3 inline mr-1" />
+                                {normalizeDayName(selection.internalStudent.dia_estudio)}
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -590,6 +641,15 @@ export function MoodleBasedAssignmentPanel({
                                 <strong>Programa(s):</strong>{" "}
                                 {selection.internalStudent.programas.map((p) => p.nombre).join(", ") || "N/A"}
                               </p>
+                              {selection.internalStudent.dia_estudio && (
+                                <p>
+                                  <strong>Día de Estudio:</strong>{" "}
+                                  <span className="text-blue-600 font-medium">
+                                    <Calendar className="h-3 w-3 inline mr-1" />
+                                    {normalizeDayName(selection.internalStudent.dia_estudio)}
+                                  </span>
+                                </p>
+                              )}
                               <div>
                                 <strong>Estado:</strong>{" "}
                                 <Badge variant="outline">{selection.internalStudent.estado}</Badge>

@@ -54,6 +54,8 @@ export interface InternalStudentEquivalent {
   nombre_completo: string
   correo: string
   telefono: string
+  dia_estudio: string | null
+  created_at: string | null
   programas: Array<{
     id: number
     nombre: string

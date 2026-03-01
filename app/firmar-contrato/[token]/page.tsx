@@ -15,6 +15,9 @@ interface DatosContrato {
   convenio_id: number | null
   asesor: string
   fecha: string
+  /** Doble/triple titulación: lista de programas con nombre y duración */
+  programas_inscritos?: { nombre: string; duracion_meses: number }[]
+  es_doble_titulacion?: boolean
 }
 
 interface Contrato {
@@ -48,6 +51,8 @@ interface FichaInscripcion {
   datos_academicos: {
     programa: string
     duracion_meses: string | number
+    programas_inscritos?: { nombre: string; duracion_meses: number }[]
+    es_doble_titulacion?: boolean
     ultimo_titulo: string
     institucion: string
     carrera: string
@@ -351,8 +356,16 @@ export default function FirmarContratoPage() {
               <p className="font-semibold text-slate-900">{datos.prospecto}</p>
             </div>
             <div>
-              <p className="text-sm text-slate-500 mb-1">Programa Académico</p>
-              <p className="font-semibold text-slate-900">{datos.programa}</p>
+              <p className="text-sm text-slate-500 mb-1">{datos.es_doble_titulacion && datos.programas_inscritos && datos.programas_inscritos.length > 1 ? "Programas académicos" : "Programa académico"}</p>
+              {datos.es_doble_titulacion && datos.programas_inscritos && datos.programas_inscritos.length > 1 ? (
+                <ul className="font-semibold text-slate-900 list-none space-y-0.5">
+                  {datos.programas_inscritos.map((p, idx) => (
+                    <li key={idx}>{p.nombre} ({p.duracion_meses} meses)</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="font-semibold text-slate-900">{datos.programa}</p>
+              )}
             </div>
             <div>
               <p className="text-sm text-slate-500 mb-1">Correo Electrónico</p>
@@ -437,24 +450,65 @@ export default function FirmarContratoPage() {
             </div>
             <div className="border border-slate-300 rounded-b-md mb-5 overflow-hidden">
               <div className="grid grid-cols-1 md:grid-cols-2">
-                {[
-                  { label: "Programa", value: fichaInscripcion.datos_academicos.programa },
-                  { label: "Duración", value: fichaInscripcion.datos_academicos.duracion_meses ? `${fichaInscripcion.datos_academicos.duracion_meses} meses` : null },
-                  { label: "Último título obtenido", value: fichaInscripcion.datos_academicos.ultimo_titulo },
-                  { label: "Institución", value: fichaInscripcion.datos_academicos.institucion },
-                  { label: "Carrera del último título", value: fichaInscripcion.datos_academicos.carrera },
-                  { label: "Año de graduación", value: fichaInscripcion.datos_academicos.anio_graduacion },
-                  { label: "Modalidad", value: fichaInscripcion.datos_academicos.modalidad },
-                  { label: "Día de estudio", value: fichaInscripcion.datos_academicos.dia_estudio },
-                  { label: "Fecha de inicio", value: fichaInscripcion.datos_academicos.fecha_inicio },
-                  { label: "¿Cómo conoció ASM?", value: fichaInscripcion.datos_academicos.medio_conocio },
-                ].filter(f => f.value && f.value.toString().trim() !== "" && f.value.toString().toLowerCase() !== "null" && f.value.toString().toLowerCase() !== "na" && f.value.toString().toLowerCase() !== "n/a")
-                  .map((f, i) => (
-                    <div key={i} className={`p-3 border-b border-slate-200 ${i % 2 === 0 ? 'md:border-r' : ''}`}>
-                      <p className="text-xs font-bold text-[#1e264d]">{f.label}</p>
-                      <p className="text-sm text-slate-800">{f.value}</p>
+                {fichaInscripcion.datos_academicos.es_doble_titulacion && fichaInscripcion.datos_academicos.programas_inscritos && fichaInscripcion.datos_academicos.programas_inscritos.length > 1 ? (
+                  <>
+                    <div className="p-3 border-b border-slate-200 md:border-r col-span-full md:col-span-2">
+                      <p className="text-xs font-bold text-[#1e264d]">
+                        {fichaInscripcion.datos_academicos.programas_inscritos.length === 2
+                          ? "Doble titulación (2 carreras)"
+                          : fichaInscripcion.datos_academicos.programas_inscritos.length === 3
+                            ? "Triple titulación (3 carreras)"
+                            : `Varias carreras (${fichaInscripcion.datos_academicos.programas_inscritos.length})`}
+                      </p>
+                      <p className="text-sm text-slate-800">
+                        Total: {fichaInscripcion.datos_financieros.duracion_meses} meses
+                      </p>
                     </div>
-                  ))}
+                    {fichaInscripcion.datos_academicos.programas_inscritos.map((p, idx) => (
+                      <div key={idx} className={`p-3 border-b border-slate-200 ${idx % 2 === 0 ? "md:border-r" : ""}`}>
+                        <p className="text-xs font-bold text-[#1e264d]">{p.nombre}</p>
+                        <p className="text-sm text-slate-800">{p.duracion_meses} meses</p>
+                      </div>
+                    ))}
+                    {[
+                      { label: "Último título obtenido", value: fichaInscripcion.datos_academicos.ultimo_titulo },
+                      { label: "Institución", value: fichaInscripcion.datos_academicos.institucion },
+                      { label: "Carrera del último título", value: fichaInscripcion.datos_academicos.carrera },
+                      { label: "Año de graduación", value: fichaInscripcion.datos_academicos.anio_graduacion },
+                      { label: "Modalidad", value: fichaInscripcion.datos_academicos.modalidad },
+                      { label: "Día de estudio", value: fichaInscripcion.datos_academicos.dia_estudio },
+                      { label: "Fecha de inicio", value: fichaInscripcion.datos_academicos.fecha_inicio },
+                      { label: "¿Cómo conoció ASM?", value: fichaInscripcion.datos_academicos.medio_conocio },
+                    ]
+                      .filter(f => f.value && f.value.toString().trim() !== "" && f.value.toString().toLowerCase() !== "null" && f.value.toString().toLowerCase() !== "na" && f.value.toString().toLowerCase() !== "n/a")
+                      .map((f, i) => (
+                        <div key={i} className={`p-3 border-b border-slate-200 ${i % 2 === 0 ? "md:border-r" : ""}`}>
+                          <p className="text-xs font-bold text-[#1e264d]">{f.label}</p>
+                          <p className="text-sm text-slate-800">{f.value}</p>
+                        </div>
+                      ))}
+                  </>
+                ) : (
+                  [
+                    { label: "Programa", value: fichaInscripcion.datos_academicos.programa },
+                    { label: "Duración", value: fichaInscripcion.datos_academicos.duracion_meses ? `${fichaInscripcion.datos_academicos.duracion_meses} meses` : null },
+                    { label: "Último título obtenido", value: fichaInscripcion.datos_academicos.ultimo_titulo },
+                    { label: "Institución", value: fichaInscripcion.datos_academicos.institucion },
+                    { label: "Carrera del último título", value: fichaInscripcion.datos_academicos.carrera },
+                    { label: "Año de graduación", value: fichaInscripcion.datos_academicos.anio_graduacion },
+                    { label: "Modalidad", value: fichaInscripcion.datos_academicos.modalidad },
+                    { label: "Día de estudio", value: fichaInscripcion.datos_academicos.dia_estudio },
+                    { label: "Fecha de inicio", value: fichaInscripcion.datos_academicos.fecha_inicio },
+                    { label: "¿Cómo conoció ASM?", value: fichaInscripcion.datos_academicos.medio_conocio },
+                  ]
+                    .filter(f => f.value && f.value.toString().trim() !== "" && f.value.toString().toLowerCase() !== "null" && f.value.toString().toLowerCase() !== "na" && f.value.toString().toLowerCase() !== "n/a")
+                    .map((f, i) => (
+                      <div key={i} className={`p-3 border-b border-slate-200 ${i % 2 === 0 ? "md:border-r" : ""}`}>
+                        <p className="text-xs font-bold text-[#1e264d]">{f.label}</p>
+                        <p className="text-sm text-slate-800">{f.value}</p>
+                      </div>
+                    ))
+                )}
               </div>
             </div>
 
@@ -555,11 +609,15 @@ export default function FirmarContratoPage() {
                       };
                     }
 
+                    const pt = Number(servicio.precio_transferencia)
+                    const po = Number(servicio.precio_otro_metodo)
+                    const transfer = Number.isFinite(pt) && pt >= 0 ? pt : duracion * 70
+                    const otro = Number.isFinite(po) && po >= 0 ? po : duracion * 77
                     return (
                       <tr className="border-b border-slate-200">
                         <td className="p-2 bg-slate-50 font-semibold">Programa de {servicio.cantidad_cursos} cursos</td>
-                        <td className="p-2 text-center">Q{Number(servicio.precio_transferencia).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-2 text-center">Q{Number(servicio.precio_otro_metodo).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-2 text-center">Q{transfer.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-2 text-center">Q{otro.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
                       </tr>
                     );
                   })()}
@@ -649,16 +707,26 @@ export default function FirmarContratoPage() {
             <p className="text-justify">
               Me comprometo a mantener de manera estrictamente confidencial los
               precios corporativos otorgados por American School of Management para
-              cursar mi programa de:
+              cursar {datos.es_doble_titulacion && datos.programas_inscritos && datos.programas_inscritos.length > 1
+                ? "mis programas:"
+                : "mi programa de:"}
             </p>
 
-            <p className="text-center font-bold text-base text-slate-900">
-              {datos.programa} ({datos.programa_abreviatura})
-            </p>
+            {datos.es_doble_titulacion && datos.programas_inscritos && datos.programas_inscritos.length > 1 ? (
+              <ul className="list-none text-center font-bold text-base text-slate-900 space-y-1 my-2">
+                {datos.programas_inscritos.map((p, idx) => (
+                  <li key={idx}>{p.nombre} ({p.duracion_meses} meses)</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-center font-bold text-base text-slate-900">
+                {datos.programa} ({datos.programa_abreviatura})
+              </p>
+            )}
 
             <p className="text-justify">
               Asimismo, entiendo y acepto que mi participación en el acto de
-              graduación de dicho programa es obligatoria e indispensable.
+              graduación de {datos.es_doble_titulacion && datos.programas_inscritos && datos.programas_inscritos.length > 1 ? "dichos programas" : "dicho programa"} es obligatoria e indispensable.
             </p>
 
             {datos.matricula && datos.mensualidad && (
