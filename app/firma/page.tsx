@@ -26,6 +26,8 @@ import {
   FileText,
   XCircle,
   Download,
+  LayoutGrid,
+  TableIcon,
 } from "lucide-react"
 import Swal from "sweetalert2"
 import ContratoVistaModal from "@/components/firma/ContratoVistaModal"
@@ -68,6 +70,10 @@ export default function FirmaPage() {
   const [enviadosHoy, setEnviadosHoy] = useState<ContactoEnviado[]>([])
   const [contratoSeleccionado, setContratoSeleccionado] = useState<number | null>(null)
   const [modalVistaOpen, setModalVistaOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [searchTerm, setSearchTerm] = useState('')
+  const itemsPerPage = 9
 
   useEffect(() => {
     const token = localStorage.getItem("token") || ""
@@ -190,19 +196,45 @@ export default function FirmaPage() {
     }
   }
 
-  const renderCard = (env: ContactoEnviado) => {
-    // Determinar estado basado en firmas
-    const getEstado = () => {
-      if (env.estado_firma === 'firmado_completo') {
-        return { texto: 'Completado', color: 'bg-green-100 text-green-700 border-green-300' }
-      }
-      if (env.estado_firma === 'firmado_asesor') {
-        return { texto: 'Pendiente Firma Estudiante', color: 'bg-yellow-100 text-yellow-700 border-yellow-300' }
-      }
-      return { texto: 'Pendiente', color: 'bg-gray-100 text-gray-700 border-gray-300' }
+  // Filter and pagination logic
+  const getFilteredData = (data: ContactoEnviado[], filter: 'todos' | 'pendientes' | 'completados') => {
+    let filtered = data
+    
+    // Apply tab filter
+    if (filter === 'pendientes') {
+      filtered = filtered.filter(e => e.estado_firma === 'firmado_asesor')
+    } else if (filter === 'completados') {
+      filtered = filtered.filter(e => e.estado_firma === 'firmado_completo')
     }
+    
+    // Apply search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase()
+      filtered = filtered.filter(e => 
+        e.prospecto.nombre_completo?.toLowerCase().includes(term)
+      )
+    }
+    
+    return filtered
+  }
 
-    const estado = getEstado()
+  const getPaginatedData = (data: ContactoEnviado[]) => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    return data.slice(startIndex, startIndex + itemsPerPage)
+  }
+
+  const getEstado = (env: ContactoEnviado) => {
+    if (env.estado_firma === 'firmado_completo') {
+      return { texto: 'Completado', color: 'bg-green-100 text-green-700 border-green-300' }
+    }
+    if (env.estado_firma === 'firmado_asesor') {
+      return { texto: 'Pendiente Firma Estudiante', color: 'bg-yellow-100 text-yellow-700 border-yellow-300' }
+    }
+    return { texto: 'Pendiente', color: 'bg-gray-100 text-gray-700 border-gray-300' }
+  }
+
+  const renderCard = (env: ContactoEnviado) => {
+    const estado = getEstado(env)
 
     return (
       <Card key={env.id}>
@@ -276,6 +308,101 @@ export default function FirmaPage() {
     )
   }
 
+  const renderTableView = (data: ContactoEnviado[]) => {
+    return (
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nombre</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead>Fecha Envío</TableHead>
+              <TableHead>Fecha Firma</TableHead>
+              <TableHead className="text-right">Acciones</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8">
+                  No hay contratos.
+                </TableCell>
+              </TableRow>
+            ) : (
+              data.map(env => {
+                const estado = getEstado(env)
+                return (
+                  <TableRow key={env.id}>
+                    <TableCell className="font-medium">
+                      {env.prospecto.nombre_completo || 'Sin nombre'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={estado.color}>
+                        {estado.texto}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {new Date(env.fecha_envio).toLocaleDateString("es-GT", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </TableCell>
+                    <TableCell>
+                      {env.fecha_firma_estudiante ? (
+                        new Date(env.fecha_firma_estudiante).toLocaleDateString("es-GT", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button 
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setContratoSeleccionado(env.id)
+                            setModalVistaOpen(true)
+                          }}
+                        >
+                          Ver
+                        </Button>
+                        <Button 
+                          variant="outline"
+                          size="sm"
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          onClick={() => handleDescargarContrato(env.id, env.prospecto.nombre_completo || 'Sin_nombre')}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDiscard(env.id)}
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header title="Verificación de Firma Digital y Contrato" />
@@ -316,7 +443,7 @@ export default function FirmaPage() {
                   Verifica la firma digital y el contrato
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Button 
                   variant="default"
                   onClick={() => router.push('/firma/contratos')}
@@ -324,23 +451,51 @@ export default function FirmaPage() {
                   <FileText className="h-4 w-4 mr-2" />
                   Ver Todos los Contratos
                 </Button>
+                
+                <div className="flex items-center gap-1 border rounded-md p-1">
+                  <Button
+                    variant={viewMode === 'cards' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => {
+                      setViewMode('cards')
+                      setCurrentPage(1)
+                    }}
+                    className="h-8"
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={viewMode === 'table' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => {
+                      setViewMode('table')
+                      setCurrentPage(1)
+                    }}
+                    className="h-8"
+                  >
+                    <TableIcon className="h-4 w-4" />
+                  </Button>
+                </div>
+                
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="search"
                     placeholder="Buscar..."
                     className="pl-8 w-[200px]"
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value)
+                      setCurrentPage(1)
+                    }}
                   />
                 </div>
-                <Button variant="outline" size="icon">
-                  <Filter className="h-4 w-4" />
-                </Button>
               </div>
             </div>
           </CardHeader>
 
           <CardContent>
-            <Tabs defaultValue="todos">
+            <Tabs defaultValue="todos" onValueChange={() => setCurrentPage(1)}>
               <TabsList className="mb-4">
                 <TabsTrigger value="todos">Todos</TabsTrigger>
                 <TabsTrigger value="pendientes">Pendiente Firma Estudiante</TabsTrigger>
@@ -348,39 +503,153 @@ export default function FirmaPage() {
               </TabsList>
 
               <TabsContent value="todos">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {enviadosHoy.length === 0 ? (
-                    <p className="col-span-full text-center py-8">
-                      No hay contratos.
-                    </p>
-                  ) : (
-                    enviadosHoy.map(renderCard)
-                  )}
-                </div>
+                {(() => {
+                  const filteredData = getFilteredData(enviadosHoy, 'todos')
+                  const paginatedData = getPaginatedData(filteredData)
+                  const totalPages = Math.ceil(filteredData.length / itemsPerPage)
+
+                  return (
+                    <>
+                      {viewMode === 'cards' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {paginatedData.length === 0 ? (
+                            <p className="col-span-full text-center py-8">
+                              No hay contratos.
+                            </p>
+                          ) : (
+                            paginatedData.map(renderCard)
+                          )}
+                        </div>
+                      ) : (
+                        renderTableView(paginatedData)
+                      )}
+                      
+                      {totalPages > 1 && (
+                        <div className="flex justify-center items-center gap-4 mt-6">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                            disabled={currentPage === 1}
+                          >
+                            Anterior
+                          </Button>
+                          <span className="text-sm">
+                            Página {currentPage} de {totalPages}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                            disabled={currentPage === totalPages}
+                          >
+                            Siguiente
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </TabsContent>
 
               <TabsContent value="pendientes">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {enviadosHoy.filter(e => e.estado_firma === 'firmado_asesor').length === 0 ? (
-                    <p className="col-span-full text-center py-8">
-                      No hay contratos pendientes de firma.
-                    </p>
-                  ) : (
-                    enviadosHoy.filter(e => e.estado_firma === 'firmado_asesor').map(renderCard)
-                  )}
-                </div>
+                {(() => {
+                  const filteredData = getFilteredData(enviadosHoy, 'pendientes')
+                  const paginatedData = getPaginatedData(filteredData)
+                  const totalPages = Math.ceil(filteredData.length / itemsPerPage)
+
+                  return (
+                    <>
+                      {viewMode === 'cards' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {paginatedData.length === 0 ? (
+                            <p className="col-span-full text-center py-8">
+                              No hay contratos pendientes de firma.
+                            </p>
+                          ) : (
+                            paginatedData.map(renderCard)
+                          )}
+                        </div>
+                      ) : (
+                        renderTableView(paginatedData)
+                      )}
+                      
+                      {totalPages > 1 && (
+                        <div className="flex justify-center items-center gap-4 mt-6">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                            disabled={currentPage === 1}
+                          >
+                            Anterior
+                          </Button>
+                          <span className="text-sm">
+                            Página {currentPage} de {totalPages}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                            disabled={currentPage === totalPages}
+                          >
+                            Siguiente
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </TabsContent>
 
               <TabsContent value="completados">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {enviadosHoy.filter(e => e.estado_firma === 'firmado_completo').length === 0 ? (
-                    <p className="col-span-full text-center py-8">
-                      No hay contratos completados.
-                    </p>
-                  ) : (
-                    enviadosHoy.filter(e => e.estado_firma === 'firmado_completo').map(renderCard)
-                  )}
-                </div>
+                {(() => {
+                  const filteredData = getFilteredData(enviadosHoy, 'completados')
+                  const paginatedData = getPaginatedData(filteredData)
+                  const totalPages = Math.ceil(filteredData.length / itemsPerPage)
+
+                  return (
+                    <>
+                      {viewMode === 'cards' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {paginatedData.length === 0 ? (
+                            <p className="col-span-full text-center py-8">
+                              No hay contratos completados.
+                            </p>
+                          ) : (
+                            paginatedData.map(renderCard)
+                          )}
+                        </div>
+                      ) : (
+                        renderTableView(paginatedData)
+                      )}
+                      
+                      {totalPages > 1 && (
+                        <div className="flex justify-center items-center gap-4 mt-6">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                            disabled={currentPage === 1}
+                          >
+                            Anterior
+                          </Button>
+                          <span className="text-sm">
+                            Página {currentPage} de {totalPages}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                            disabled={currentPage === totalPages}
+                          >
+                            Siguiente
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </TabsContent>
             </Tabs>
           </CardContent>
