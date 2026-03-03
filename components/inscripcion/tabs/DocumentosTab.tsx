@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef, useMemo, Dispatch, SetStateAction } from "react"
 import axios, { AxiosError } from "axios"
 import { API_BASE_URL } from "@/utils/apiConfig"
-import { ArrowLeft, ArrowRight, FileText, Info, Upload, X, CheckCircle, Loader2, Eye, MessageSquare, ExternalLink, Trash2, ShieldCheck } from "lucide-react"
+import { ArrowLeft, ArrowRight, FileText, Info, Upload, X, CheckCircle, Loader2, Eye, MessageSquare, ExternalLink, Trash2, ShieldCheck, CreditCard, Download } from "lucide-react"
 import Swal from "sweetalert2"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { FilePreviewModal } from "@/components/ui/file-preview-modal"
 import BoletaInscripcionUpload from "./BoletaInscripcionUpload"
+import RegistrarPagoAdicionalModal from "../RegistrarPagoAdicionalModal"
 
 export interface Documento {
   id: string
@@ -123,11 +124,17 @@ export default function DocumentosTab({
   const [loadingServerDocs, setLoadingServerDocs] = useState(false)
   const docsLoadedRef = useRef(false)
 
+  // Estados para pagos adicionales
+  const [showRegistrarPago, setShowRegistrarPago] = useState(false)
+  const [pagosAdicionales, setPagosAdicionales] = useState<any[]>([])
+  const [loadingPagos, setLoadingPagos] = useState(false)
+
   // Resetear ref cuando cambia prospectoId para permitir recarga
   useEffect(() => {
     docsLoadedRef.current = false
     setServerDocsByType({})
     setServerFileNames({})
+    setPagosAdicionales([])
   }, [prospectoId])
 
   // Cargar documentos existentes del servidor al montar (o cuando cambia prospectoId)
@@ -194,6 +201,34 @@ export default function DocumentosTab({
         }
       })()
   }, [prospectoId])
+
+  // Cargar pagos adicionales del prospecto
+  useEffect(() => {
+    if (prospectoId) {
+      cargarPagosAdicionales()
+    }
+  }, [prospectoId])
+
+  const cargarPagosAdicionales = async () => {
+    if (!prospectoId) return
+    setLoadingPagos(true)
+    try {
+      const token = localStorage.getItem("token")
+      const response = await axios.get(
+        `${API_BASE_URL}/api/prospectos/${prospectoId}/pagos-adicionales`,
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      )
+      if (response.data.success) {
+        setPagosAdicionales(response.data.pagos)
+      }
+    } catch (error) {
+      console.error("Error al cargar pagos adicionales:", error)
+    } finally {
+      setLoadingPagos(false)
+    }
+  }
 
   const triggerUpload = (id: string) => {
     if (!hiddenInput.current) return
@@ -540,6 +575,113 @@ export default function DocumentosTab({
         </div>
       </section>
 
+      {/* Sección de Pagos Adicionales */}
+      <section className="mt-8 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-blue-900 flex items-center gap-2">
+            <CreditCard className="h-5 w-5" />
+            Otros Pagos Realizados
+          </h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowRegistrarPago(true)}
+            className="gap-2"
+          >
+            <CreditCard className="h-4 w-4" />
+            Registrar Pago Adicional
+          </Button>
+        </div>
+
+        {loadingPagos ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+          </div>
+        ) : pagosAdicionales.length === 0 ? (
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              No se han registrado pagos adicionales para este prospecto.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {pagosAdicionales.map((pago) => (
+              <div
+                key={pago.id}
+                className="rounded-lg border p-4 hover:border-blue-200 hover:bg-blue-50/30 transition-all"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm">{pago.concepto}</p>
+                    <p className="text-xs text-gray-500">
+                      {pago.fecha_pago ? new Date(pago.fecha_pago).toLocaleDateString("es-GT") : "—"}
+                    </p>
+                  </div>
+                  <Badge className="bg-green-100 text-green-800 border-green-200">
+                    {pago.estado_pago}
+                  </Badge>
+                </div>
+
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Monto:</span>
+                    <span className="font-bold">Q {parseFloat(pago.monto_pagado || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Método:</span>
+                    <span className="capitalize">{pago.metodo_pago || "—"}</span>
+                  </div>
+                  {pago.numero_boleta && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Boleta:</span>
+                      <span>{pago.numero_boleta}</span>
+                    </div>
+                  )}
+                  {pago.banco && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Banco:</span>
+                      <span>{pago.banco}</span>
+                    </div>
+                  )}
+                  {pago.cuota && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Cuota:</span>
+                      <span className="text-xs">{pago.cuota.concepto}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3 flex gap-2">
+                  {pago.archivo_comprobante && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-xs"
+                      onClick={() => window.open(pago.archivo_comprobante_url, "_blank")}
+                    >
+                      <Download className="h-3 w-3 mr-1" />
+                      Comprobante
+                    </Button>
+                  )}
+                  {pago.recibo_pdf && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-xs"
+                      onClick={() => window.open(pago.recibo_pdf_url || pago.recibo_url, "_blank")}
+                    >
+                      <FileText className="h-3 w-3 mr-1" />
+                      Recibo
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       <input
         ref={hiddenInput}
         type="file"
@@ -639,6 +781,16 @@ export default function DocumentosTab({
         }}
         file={previewFile}
         previewUrl={previewUrl}
+      />
+
+      {/* Modal de Registro de Pago Adicional */}
+      <RegistrarPagoAdicionalModal
+        open={showRegistrarPago}
+        onOpenChange={setShowRegistrarPago}
+        prospectoId={prospectoId}
+        estudianteProgramaId={estudianteProgramaId}
+        prospectoNombre={studentName}
+        onSuccess={cargarPagosAdicionales}
       />
     </>
   )

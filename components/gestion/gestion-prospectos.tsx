@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react"
+import React, { useState, useEffect, useMemo, useCallback, useRef, startTransition } from "react"
 import { useRouter } from "next/navigation"
-import Swal from "sweetalert2"
+import { useToast } from "@/hooks/use-toast"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle, RefreshCw, Download, MessageCircle, Trash2, Settings2, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Search, FileSignature, Clock, Receipt } from "lucide-react"
+import { Filter, MoreHorizontal, Eye, Edit2, UserPlus, AlertCircle, RefreshCw, Download, MessageCircle, Trash2, Settings2, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Search, FileSignature, Clock, Receipt, CreditCard } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -23,12 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+// Tooltip imports removed — using native title for performance (eliminated ~140 Radix instances)
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import DetallesProspecto from "./detalles-prospecto"
 import EditarProspecto from "./editar-prospecto"
@@ -36,6 +31,7 @@ import EditarProspectoCompleto from "./editar-prospecto-completo"
 import CambiarEstado from "./cambiar-estado"
 import AlertaAlumnoNuevo from "./alerta-alumno-nuevo"
 import ReciboPagoGenerator from "@/components/inscripcion/ReciboPagoGenerator"
+import RegistrarPagoAdicionalModal from "@/components/inscripcion/RegistrarPagoAdicionalModal"
 import SeguimientoModalPanel from "@/components/seguimiento/seguimiento-modal-panel"
 import SelectorColumnasModal from "./selector-columnas-modal"
 import FiltroFechaRango from "./filtro-fecha-rango"
@@ -43,6 +39,21 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { API_BASE_URL } from "@/utils/apiConfig"
 
 const API_URL = `${API_BASE_URL}/api`
+
+// 🔧 Constante de mapeo de campos (hoisted para evitar recreación en cada render)
+const FIELD_MAP: Record<string, string> = {
+  'nombre_completo': 'nombre',
+  'correo_electronico': 'email',
+  'status': 'estado',
+  'created_by': 'creador',
+  'medio_conocimiento_institucion': 'origen',
+  'empresa_donde_labora_actualmente': 'departamento',
+  'municipio_nombre': 'ciudad',
+  'pais_nombre': 'pais',
+  'pais_residencia': 'pais',
+  'interes': 'programa',
+  'notas_generales': 'notasGenerales',
+}
 
 // 🆕 Función para detectar si un estudiante fue inscrito recientemente (en los últimos N días)
 const isRecentlyEnrolled = (createdAt: string | null | undefined, days: number = 5): boolean => {
@@ -59,6 +70,75 @@ const isRecentlyEnrolled = (createdAt: string | null | undefined, days: number =
     return false;
   }
 };
+
+/**
+ * 🆕 Componente de tabla con barra de scroll horizontal arriba y abajo.
+ * Permite desplazar la tabla desde la parte superior cuando la pantalla es pequeña.
+ */
+function TableWithDualScroll({ children }: { children: React.ReactNode }) {
+  const topScrollRef = useRef<HTMLDivElement>(null)
+  const bottomScrollRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [scrollWidth, setScrollWidth] = useState(0)
+  const syncing = useRef(false)
+
+  // Medir el ancho real de la tabla para la barra superior
+  useEffect(() => {
+    const measure = () => {
+      if (contentRef.current) {
+        setScrollWidth(contentRef.current.scrollWidth)
+      }
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    if (contentRef.current) ro.observe(contentRef.current)
+    return () => ro.disconnect()
+  }, [children])
+
+  // Sincronizar scroll entre top y bottom
+  const handleTopScroll = useCallback(() => {
+    if (syncing.current) return
+    syncing.current = true
+    if (bottomScrollRef.current && topScrollRef.current) {
+      bottomScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft
+    }
+    requestAnimationFrame(() => { syncing.current = false })
+  }, [])
+
+  const handleBottomScroll = useCallback(() => {
+    if (syncing.current) return
+    syncing.current = true
+    if (topScrollRef.current && bottomScrollRef.current) {
+      topScrollRef.current.scrollLeft = bottomScrollRef.current.scrollLeft
+    }
+    requestAnimationFrame(() => { syncing.current = false })
+  }, [])
+
+  return (
+    <div>
+      {/* Barra de scroll superior */}
+      <div
+        ref={topScrollRef}
+        onScroll={handleTopScroll}
+        className="overflow-x-auto overflow-y-hidden border-b border-gray-200"
+        style={{ height: 16 }}
+      >
+        <div style={{ width: scrollWidth, height: 1 }} />
+      </div>
+      {/* Contenido de la tabla con scroll inferior */}
+      <div
+        ref={(el) => {
+          (bottomScrollRef as any).current = el;
+          (contentRef as any).current = el;
+        }}
+        onScroll={handleBottomScroll}
+        className="overflow-x-auto"
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
 
 interface Columna {
   key: string
@@ -116,6 +196,7 @@ interface Creator {
 
 export default function GestionProspectos() {
   const router = useRouter()
+  const { toast } = useToast()
   const [mounted, setMounted] = useState(false);
   const [prospectos, setProspectos] = useState<Prospecto[]>([]);
   const [statuses, setStatuses] = useState<string[]>([]);
@@ -132,6 +213,7 @@ export default function GestionProspectos() {
   const [programas, setProgramas] = useState<Record<string, string>>({});
   const [programasLoaded, setProgramasLoaded] = useState(false);
   const [loading, setLoading] = useState(true)
+  const [softReloading, setSoftReloading] = useState(false) // 🔄 Recarga suave sin skeleton (mantiene tabla visible)
   const [error, setError] = useState<string>("")
   const [selectedProspecto, setSelectedProspecto] = useState<Prospecto | null>(null)
   const [modalType, setModalType] = useState<"detalles" | "editar" | "alerta" | "seguimiento" | null>(null)
@@ -142,6 +224,10 @@ export default function GestionProspectos() {
   const [prospectoReciboId, setProspectoReciboId] = useState<string | null>(null)
   const [prospectoReciboRow, setProspectoReciboRow] = useState<Prospecto | null>(null)
   const [reciboProspectoData, setReciboProspectoData] = useState<any>(null)
+  const [pagoAdicionalOpen, setPagoAdicionalOpen] = useState(false)
+  const [prospectoPagoAdicionalId, setProspectoPagoAdicionalId] = useState<number | null>(null)
+  const [prospectoPagoAdicionalNombre, setProspectoPagoAdicionalNombre] = useState<string>("")
+  const [pagoAdicionalProspectoData, setPagoAdicionalProspectoData] = useState<any>(null)
 
   // 📊 Estados para columnas dinámicas
   const [columnasDisponibles, setColumnasDisponibles] = useState<ColumnasData | null>(null)
@@ -168,19 +254,16 @@ export default function GestionProspectos() {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
 
-      Swal.fire({
-        icon: "success",
-        title: "Descarga exitosa",
-        text: "El reporte consolidado se descargó correctamente",
-        timer: 2000,
-        showConfirmButton: false,
+      toast({
+        title: "✅ Descarga exitosa",
+        description: "El reporte consolidado se descargó correctamente",
       })
     } catch (err) {
       console.error("Error al descargar reporte:", err)
-      Swal.fire({
-        icon: "error",
+      toast({
         title: "Error",
-        text: "No se pudo descargar el reporte consolidado",
+        description: "No se pudo descargar el reporte consolidado",
+        variant: "destructive",
       })
     } finally {
       setDescargandoReporte(null)
@@ -208,6 +291,27 @@ export default function GestionProspectos() {
     return () => { cancelled = true }
   }, [reciboOpen, prospectoReciboId])
 
+  // Cargar datos del prospecto para el modal Registrar Pago Adicional
+  useEffect(() => {
+    if (!pagoAdicionalOpen || !prospectoPagoAdicionalId) {
+      if (!pagoAdicionalOpen) setPagoAdicionalProspectoData(null)
+      return
+    }
+    let cancelled = false
+    const token = localStorage.getItem("token")
+    fetch(`${API_URL}/prospectos/${prospectoPagoAdicionalId}`, {
+      headers: { Authorization: token ? `Bearer ${token}` : "" },
+    })
+      .then((res) => res.ok ? res.json() : Promise.reject(new Error("Error al cargar prospecto")))
+      .then(({ data }) => {
+        if (!cancelled) setPagoAdicionalProspectoData(data)
+      })
+      .catch(() => {
+        if (!cancelled) setPagoAdicionalProspectoData(null)
+      })
+    return () => { cancelled = true }
+  }, [pagoAdicionalOpen, prospectoPagoAdicionalId])
+
   // Filtros y paginación
   const [searchTerm, setSearchTerm] = useState<string>("")
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>("")
@@ -222,7 +326,7 @@ export default function GestionProspectos() {
   const [createdHasta, setCreatedHasta] = useState<string>("")
   const [fechaDesde, setFechaDesde] = useState<string>("")
   const [fechaHasta, setFechaHasta] = useState<string>("")
-  const [pageSize, setPageSize] = useState<string>("50")
+  const [pageSize, setPageSize] = useState<string>("20")
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [totalProspectos, setTotalProspectos] = useState<number>(0)
   const [totalPages, setTotalPages] = useState<number>(1)
@@ -349,19 +453,7 @@ export default function GestionProspectos() {
 
   // Valores distintos por columna extra (desde datos actuales)
   const getValorColumna = useCallback((p: Prospecto, columnaKey: string): string => {
-    const fieldMap: Record<string, string> = {
-      nombre_completo: "nombre",
-      correo_electronico: "email",
-      status: "estado",
-      created_by: "creador",
-      medio_conocimiento_institucion: "origen",
-      empresa_donde_labora_actualmente: "departamento",
-      municipio_nombre: "ciudad",
-      pais_nombre: "pais",
-      interes: "programa",
-      notas_generales: "notasGenerales",
-    }
-    const campo = fieldMap[columnaKey] || columnaKey
+    const campo = FIELD_MAP[columnaKey] || columnaKey
     let v = p[campo] ?? p[columnaKey]
     if (v === undefined || v === null) return ""
     if (typeof v === "object") return ""
@@ -487,7 +579,7 @@ export default function GestionProspectos() {
   }, []);
 
   // ⚡ Carga optimizada con paginación del servidor
-  const fetchProspectos = useCallback(async (page: number = 1, resetCache: boolean = false) => {
+  const fetchProspectos = useCallback(async (page: number = 1, resetCache: boolean = false, soft: boolean = false) => {
     // No cargar hasta que los programas estén listos
     if (!programasLoaded) return;
 
@@ -512,11 +604,13 @@ export default function GestionProspectos() {
           if (elapsed < 60000) { // 1 minuto (reducido de 5 minutos para mejor sincronización)
             console.log("✅ Usando caché de gestión prospectos");
             const cachedData = JSON.parse(cached);
-            setProspectos(cachedData.items || cachedData);
-            if (cachedData.pagination) {
-              setTotalProspectos(cachedData.pagination.total);
-              setTotalPages(cachedData.pagination.last_page);
-            }
+            startTransition(() => {
+              setProspectos(cachedData.items || cachedData);
+              if (cachedData.pagination) {
+                setTotalProspectos(cachedData.pagination.total);
+                setTotalPages(cachedData.pagination.last_page);
+              }
+            });
             setLoading(false);
             return;
           }
@@ -524,7 +618,12 @@ export default function GestionProspectos() {
       }
     }
 
-    setLoading(true)
+    // 🔄 Modo suave: mantiene tabla visible (sin skeleton) durante recarga post-operación
+    if (soft && prospectos.length > 0) {
+      setSoftReloading(true)
+    } else {
+      setLoading(true)
+    }
     setError("")
     try {
       const token = localStorage.getItem("token")
@@ -611,13 +710,16 @@ export default function GestionProspectos() {
         return prospecto;
       })
 
-      setProspectos(list)
+      // ⚡ Usar startTransition para evitar bloquear la UI durante re-renders grandes
+      startTransition(() => {
+        setProspectos(list)
 
-      // ⚡ Actualizar paginación
-      if (json.pagination) {
-        setTotalProspectos(json.pagination.total)
-        setTotalPages(json.pagination.last_page)
-      }
+        // ⚡ Actualizar paginación
+        if (json.pagination) {
+          setTotalProspectos(json.pagination.total)
+          setTotalPages(json.pagination.last_page)
+        }
+      })
 
       // 💾 Guardar en caché solo si es primera página sin filtros
       if (page === 1 && !debouncedSearchTerm && sinFiltrosMulti) {
@@ -633,8 +735,9 @@ export default function GestionProspectos() {
       setError(err.message || "Error inesperado")
     } finally {
       setLoading(false)
+      setSoftReloading(false)
     }
-  }, [programasLoaded, debouncedSearchTerm, estadoFilters, departamentoFilters, puestoFilters, origenFilters, creadorFilters, campaniaFilters, createdDesde, createdHasta, fechaDesde, fechaHasta, dynamicFilters, pageSize, sortBy, sortOrder])
+  }, [programasLoaded, debouncedSearchTerm, estadoFilters, departamentoFilters, puestoFilters, origenFilters, creadorFilters, campaniaFilters, createdDesde, createdHasta, fechaDesde, fechaHasta, dynamicFilters, pageSize, sortBy, sortOrder, prospectos.length])
 
   // ⚡ Cargar prospectos cuando cambian los filtros
   useEffect(() => {
@@ -774,24 +877,9 @@ export default function GestionProspectos() {
   }
 
   // 📊 Renderizar celda dinámica - Soporta CUALQUIER columna del backend
-  const renderCelda = (prospecto: Prospecto, columnaKey: string) => {
-    // Mapeos especiales para campos con nombres diferentes en frontend vs backend
-    const fieldMap: Record<string, string> = {
-      'nombre_completo': 'nombre',
-      'correo_electronico': 'email',
-      'status': 'estado',
-      'created_by': 'creador',
-      'medio_conocimiento_institucion': 'origen',
-      'empresa_donde_labora_actualmente': 'departamento',
-      'municipio_nombre': 'ciudad',
-      'pais_nombre': 'pais',
-      'pais_residencia': 'pais',
-      'interes': 'programa',
-      'notas_generales': 'notasGenerales',
-    }
-
+  const renderCelda = useCallback((prospecto: Prospecto, columnaKey: string) => {
     // Determinar el campo real a buscar
-    const campoReal = fieldMap[columnaKey] || columnaKey
+    const campoReal = FIELD_MAP[columnaKey] || columnaKey
     
     // Obtener valor del prospecto (primero intenta el mapeo, luego directamente)
     let valor = prospecto[campoReal] !== undefined ? prospecto[campoReal] : prospecto[columnaKey]
@@ -828,24 +916,11 @@ export default function GestionProspectos() {
     }
 
     return valor || '—'
-  }
+  }, [])
 
   /** Valor de celda para CSV (misma lógica que renderCelda, texto plano) */
   const getValorCeldaCSV = (prospecto: Prospecto, columnaKey: string): string => {
-    const fieldMap: Record<string, string> = {
-      'nombre_completo': 'nombre',
-      'correo_electronico': 'email',
-      'status': 'estado',
-      'created_by': 'creador',
-      'medio_conocimiento_institucion': 'origen',
-      'empresa_donde_labora_actualmente': 'departamento',
-      'municipio_nombre': 'ciudad',
-      'pais_nombre': 'pais',
-      'pais_residencia': 'pais',
-      'interes': 'programa',
-      'notas_generales': 'notasGenerales',
-    }
-    const campoReal = fieldMap[columnaKey] || columnaKey
+    const campoReal = FIELD_MAP[columnaKey] || columnaKey
     let valor: unknown = prospecto[campoReal as keyof Prospecto] ?? prospecto[columnaKey as keyof Prospecto]
     if (valor === undefined || valor === null) valor = '—'
     if ((columnaKey.includes('fecha') || columnaKey.includes('_at')) && valor && valor !== '—') {
@@ -930,7 +1005,11 @@ export default function GestionProspectos() {
       a.click()
       URL.revokeObjectURL(url)
     } catch (err: unknown) {
-      Swal.fire("Error", err instanceof Error ? err.message : "No se pudo descargar el CSV", "error")
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "No se pudo descargar el CSV",
+        variant: "destructive",
+      })
     }
   }, [debouncedSearchTerm, estadoFilters, departamentoFilters, puestoFilters, origenFilters, creadorFilters, campaniaFilters, createdDesde, createdHasta, fechaDesde, fechaHasta, dynamicFilters, sortBy, sortOrder, columnasSeleccionadas])
 
@@ -949,15 +1028,8 @@ export default function GestionProspectos() {
 
   // Preinscripción - Redirige automáticamente a la ficha de inscripción
   const handleInscribir = async (id: string) => {
-    const result = await Swal.fire({
-      title: "Pasar a preinscripción",
-      text: "¿Confirmas que deseas pasar este prospecto al módulo de Inscripción?",
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonText: "Sí, pasar a Inscripción",
-      cancelButtonText: "Cancelar",
-    })
-    if (!result.isConfirmed) return
+    const confirmed = window.confirm("¿Confirmas que deseas pasar este prospecto al módulo de Inscripción?")
+    if (!confirmed) return
 
     try {
       const token = localStorage.getItem("token")
@@ -974,20 +1046,22 @@ export default function GestionProspectos() {
       }
       await res.json()
 
-      // ✅ Mostrar mensaje de éxito y redirigir automáticamente
-      await Swal.fire({
-        title: "¡Listo!",
-        text: "El prospecto ha sido pasado a Inscripción. Serás redirigido para completar la ficha.",
-        icon: "success",
-        timer: 2000,
-        showConfirmButton: false,
+      toast({
+        title: "✅ ¡Listo!",
+        description: "El prospecto ha sido pasado a Inscripción. Redirigiendo...",
       })
 
       // 🔄 Redirigir a la ficha de inscripción con el ID del prospecto
-      window.location.href = `/inscripcion/ficha?prospectoId=${id}`
+      setTimeout(() => {
+        window.location.href = `/inscripcion/ficha?prospectoId=${id}`
+      }, 1000)
 
     } catch (err: any) {
-      Swal.fire("Error", err.message, "error")
+      toast({
+        title: "Error",
+        description: err.message,
+        variant: "destructive",
+      })
       console.log('Error details:', err);
     }
   }
@@ -997,15 +1071,8 @@ export default function GestionProspectos() {
   const handleBulkInscribir = async () => {
     if (selectedIds.length === 0) return;
 
-    const result = await Swal.fire({
-      title: 'Pasar a preinscripción masiva',
-      text: `¿Confirmas que deseas inscribir ${selectedIds.length} prospectos?`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, inscribir',
-      cancelButtonText: 'Cancelar',
-    });
-    if (!result.isConfirmed) return;
+    const confirmed = window.confirm(`¿Confirmas que deseas inscribir ${selectedIds.length} prospectos?`);
+    if (!confirmed) return;
 
     try {
       const token = localStorage.getItem('token');
@@ -1026,24 +1093,23 @@ export default function GestionProspectos() {
       // Actualiza tu estado local: quita los que ya pasaron a inscripción
       setProspectos((ps) => ps.filter((p) => !selectedIds.includes(p.id)));
       setSelectedIds([]);
-      Swal.fire('¡Listo!', 'Los prospectos se han pasado a Inscripción.', 'success');
+      toast({
+        title: "✅ ¡Listo!",
+        description: "Los prospectos se han pasado a Inscripción.",
+      });
     } catch (err: any) {
-      Swal.fire('Error', err.message, 'error');
+      toast({
+        title: "Error",
+        description: err.message,
+        variant: "destructive",
+      });
     }
   };
 
   // Eliminar prospecto (solo para administradores)
   const handleDeleteProspecto = async (id: string) => {
-    const result = await Swal.fire({
-      title: '¿Eliminar prospecto?',
-      text: 'Esta acción no se puede deshacer. ¿Estás seguro?',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#dc2626',
-    });
-    if (!result.isConfirmed) return;
+    const confirmed = window.confirm('⚠️ ¿Eliminar prospecto? Esta acción no se puede deshacer.');
+    if (!confirmed) return;
 
     try {
       const token = localStorage.getItem('token');
@@ -1064,9 +1130,16 @@ export default function GestionProspectos() {
         localStorage.removeItem("gestion_prospectos_cache_time");
       }
       
-      Swal.fire('¡Eliminado!', 'El prospecto ha sido eliminado.', 'success');
+      toast({
+        title: "✅ ¡Eliminado!",
+        description: "El prospecto ha sido eliminado.",
+      });
     } catch (err: any) {
-      Swal.fire('Error', err.message || 'No se pudo eliminar el prospecto', 'error');
+      toast({
+        title: "Error",
+        description: err.message || 'No se pudo eliminar el prospecto',
+        variant: "destructive",
+      });
     }
   };
 
@@ -1361,17 +1434,17 @@ export default function GestionProspectos() {
             }
             fetchProspectos(currentPage, true)
           }}
-          disabled={loading}
+          disabled={loading && !softReloading}
           title="Refrescar lista de prospectos"
         >
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+          <RefreshCw className={`h-4 w-4 mr-2 ${(loading || softReloading) ? "animate-spin" : ""}`} />
           Refrescar
         </Button>
 
         <Button
           variant="outline"
           onClick={handleDescargarCSVFiltrado}
-          disabled={loading}
+          disabled={loading && !softReloading}
           title="Descargar los prospectos filtrados en CSV"
         >
           <Download className="h-4 w-4 mr-2" />
@@ -1412,11 +1485,19 @@ export default function GestionProspectos() {
       )}
       {error && <p className="p-4 text-red-500">{error}</p>}
 
+      {/* 🔄 Indicador sutil de recarga suave (sin ocultar la tabla) */}
+      {softReloading && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 text-sm rounded-md mx-4">
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          Actualizando datos...
+        </div>
+      )}
+
       {/* Tabla */}
       {mounted && !loading && (
-        <div className="overflow-x-auto">
+        <TableWithDualScroll>
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600">
+            <thead className="bg-gray-50 text-gray-600 sticky top-0 z-10">
               <tr>
                 <th className="py-3 px-4">
                   <Checkbox
@@ -1473,40 +1554,27 @@ export default function GestionProspectos() {
                       {renderCelda(p, columnaKey)}
                     </td>
                   ))}
-                  {/* Notas (siempre visible) */}
+                  {/* Notas (siempre visible) — title nativo en lugar de Tooltip */}
                   <td className="py-3 px-4">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="max-w-[150px] truncate cursor-help">
-                            {p.notasGenerales || p.observaciones ? (
-                              <span className="text-xs text-gray-600">
-                                {p.notasGenerales || p.observaciones}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-gray-400">Sin notas</span>
-                            )}
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          {p.notasGenerales && (
-                            <div className="mb-2">
-                              <strong>Notas Generales:</strong>
-                              <p className="text-sm">{p.notasGenerales}</p>
-                            </div>
-                          )}
-                          {p.observaciones && (
-                            <div>
-                              <strong>Observaciones:</strong>
-                              <p className="text-sm">{p.observaciones}</p>
-                            </div>
-                          )}
-                          {!p.notasGenerales && !p.observaciones && (
-                            <p className="text-sm text-gray-400">Sin notas ni observaciones</p>
-                          )}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    <div
+                      className="max-w-[150px] truncate cursor-help"
+                      title={
+                        [
+                          p.notasGenerales ? `Notas: ${p.notasGenerales}` : '',
+                          p.observaciones ? `Obs: ${p.observaciones}` : '',
+                        ]
+                          .filter(Boolean)
+                          .join('\n') || 'Sin notas ni observaciones'
+                      }
+                    >
+                      {p.notasGenerales || p.observaciones ? (
+                        <span className="text-xs text-gray-600">
+                          {p.notasGenerales || p.observaciones}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">Sin notas</span>
+                      )}
+                    </div>
                   </td>
                   {/* Estado (siempre visible) */}
                   <td className="py-3 px-4">
@@ -1523,7 +1591,7 @@ export default function GestionProspectos() {
                         {p.estado?.toLowerCase() === 'inscrito' && isRecentlyEnrolled(p.created_at, 5) && (
                           <Badge 
                             variant="default" 
-                            className="bg-blue-500 hover:bg-blue-600 text-xs animate-pulse"
+                            className="bg-blue-500 hover:bg-blue-600 text-xs"
                           >
                             <Clock className="h-3 w-3 mr-1" />
                             Nuevo
@@ -1535,173 +1603,138 @@ export default function GestionProspectos() {
                       </span>
                     </div>
                   </td>
-                  {/* Acciones (siempre visible) */}
+                  {/* Acciones (siempre visible) — botones con title nativo para evitar ~140 instancias Tooltip */}
                   <td className="py-3 px-4">
-                    <TooltipProvider>
                       <div className="flex items-center gap-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setSelectedProspecto(p)
-                                setModalType("detalles")
-                              }}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Ver prospecto</TooltipContent>
-                        </Tooltip>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Ver prospecto"
+                          onClick={() => {
+                            setSelectedProspecto(p)
+                            setModalType("detalles")
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
 
                         {currentUser?.rol !== "asesor" && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  setSelectedProspecto(p)
-                                  setModalType("editar")
-                                }}
-                              >
-                                <Edit2 className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Editar</TooltipContent>
-                          </Tooltip>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Editar"
+                            onClick={() => {
+                              setSelectedProspecto(p)
+                              setModalType("editar")
+                            }}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
                         )}
 
-                        {currentUser?.rol === "administrador" && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  setSelectedProspecto(p)
-                                  setModalType("editar")
-                                }}
-                              >
-                                <Edit2 className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Editar</TooltipContent>
-                          </Tooltip>
-                        )}
-
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleInscribir(p.id)}
-                            >
-                              <UserPlus className="h-4 w-4" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Inscribir"
+                          onClick={() => handleInscribir(p.id)}
+                        >
+                          <UserPlus className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Alerta Alumno Nuevo"
+                          onClick={() => {
+                            setSelectedProspecto(p)
+                            setModalType("alerta")
+                          }}
+                          className="text-orange-600 hover:text-orange-700"
+                        >
+                          <AlertCircle className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Panel de Seguimiento"
+                          onClick={() => {
+                            setSelectedProspecto(p)
+                            setModalType("seguimiento")
+                          }}
+                          className="text-blue-600 hover:text-blue-700"
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" title="Más acciones">
+                              <MoreHorizontal className="h-4 w-4" />
                             </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Inscribir</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
                               onClick={() => {
                                 setSelectedProspecto(p)
-                                setModalType("alerta")
+                                setModalType("editar")
                               }}
-                              className="text-orange-600 hover:text-orange-700"
                             >
-                              <AlertCircle className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Alerta Alumno Nuevo</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
+                              Actualizar Prospecto
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
                               onClick={() => {
                                 setSelectedProspecto(p)
-                                setModalType("seguimiento")
+                                setShowEstadoMenu(true)
                               }}
-                              className="text-blue-600 hover:text-blue-700"
                             >
-                              <MessageCircle className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Panel de Seguimiento</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <DropdownMenu>
-                            <TooltipTrigger asChild>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                            </TooltipTrigger>
-                            <DropdownMenuContent align="end">
+                              Cambiar Estado
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleInscribir(p.id)}>
+                              Inscribir
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setProspectoReciboRow(p)
+                                setProspectoReciboId(p.id)
+                                setReciboOpen(true)
+                              }}
+                            >
+                              <Receipt className="h-4 w-4 mr-2" />
+                              Generar recibo
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setProspectoPagoAdicionalId(Number(p.id))
+                                setProspectoPagoAdicionalNombre(p.nombre || "Prospecto")
+                                setPagoAdicionalOpen(true)
+                              }}
+                            >
+                              <CreditCard className="h-4 w-4 mr-2" />
+                              Registrar Pago Adicional
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDescargarReporte(p.id)}
+                              disabled={descargandoReporte === p.id}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              {descargandoReporte === p.id ? "Descargando..." : "Descargar Reporte PDF"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => router.push(`/firma/student-details/${p.id}`)}
+                            >
+                              <FileSignature className="h-4 w-4 mr-2" />
+                              Firma digital / Generar contrato
+                            </DropdownMenuItem>
+                            {currentUser?.rol === "administrador" && (
                               <DropdownMenuItem
-                                onClick={() => {
-                                  setSelectedProspecto(p)
-                                  setModalType("editar")
-                                }}
+                                onClick={() => handleDeleteProspecto(p.id)}
+                                className="text-red-600 focus:text-red-700"
                               >
-                                Actualizar Prospecto
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Eliminar Prospecto
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  setSelectedProspecto(p)
-                                  setShowEstadoMenu(true)
-                                }}
-                              >
-                                Cambiar Estado
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleInscribir(p.id)}>
-                                Inscribir
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  setProspectoReciboRow(p)
-                                  setProspectoReciboId(p.id)
-                                  setReciboOpen(true)
-                                }}
-                              >
-                                <Receipt className="h-4 w-4 mr-2" />
-                                Generar recibo
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleDescargarReporte(p.id)}
-                                disabled={descargandoReporte === p.id}
-                              >
-                                <Download className="h-4 w-4 mr-2" />
-                                {descargandoReporte === p.id ? "Descargando..." : "Descargar Reporte PDF"}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => router.push(`/firma/student-details/${p.id}`)}
-                              >
-                                <FileSignature className="h-4 w-4 mr-2" />
-                                Firma digital / Generar contrato
-                              </DropdownMenuItem>
-                              {currentUser?.rol === "administrador" && (
-                                <DropdownMenuItem
-                                  onClick={() => handleDeleteProspecto(p.id)}
-                                  className="text-red-600 focus:text-red-700"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Eliminar Prospecto
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                          <TooltipContent>Más acciones</TooltipContent>
-                        </Tooltip>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
-                    </TooltipProvider>
                   </td>
                 </tr>
               ))}
@@ -1714,7 +1747,7 @@ export default function GestionProspectos() {
               )}
             </tbody>
           </table>
-        </div>
+        </TableWithDualScroll>
       )}
 
       {/* Paginación */}
@@ -1727,6 +1760,7 @@ export default function GestionProspectos() {
             <SelectItem value="5">5</SelectItem>
             <SelectItem value="10">10</SelectItem>
             <SelectItem value="20">20</SelectItem>
+            <SelectItem value="50">50</SelectItem>
             <SelectItem value="all">Todos</SelectItem>
           </SelectContent>
         </Select>
@@ -1798,10 +1832,12 @@ export default function GestionProspectos() {
                 setModalType(null)
               }}
               onSuccess={() => {
-                // Invalidar caché y recargar
+                // Invalidar caché y recargar suavemente
                 localStorage.removeItem("gestion_prospectos_cache")
                 localStorage.removeItem("gestion_prospectos_cache_time")
-                window.location.reload()
+                setSelectedProspecto(null)
+                setModalType(null)
+                setTimeout(() => fetchProspectos(currentPage, true, true), 300)
               }}
             />
           </DialogContent>
@@ -1861,6 +1897,28 @@ export default function GestionProspectos() {
             ? String(reciboProspectoData.programas[0].inversion_total)
             : undefined
         }
+      />
+
+      {/* Modal Registrar Pago Adicional */}
+      <RegistrarPagoAdicionalModal
+        open={pagoAdicionalOpen}
+        onOpenChange={(open) => {
+          setPagoAdicionalOpen(open)
+          if (!open) {
+            setProspectoPagoAdicionalId(null)
+            setProspectoPagoAdicionalNombre("")
+            setPagoAdicionalProspectoData(null)
+          }
+        }}
+        prospectoId={prospectoPagoAdicionalId || 0}
+        estudianteProgramaId={pagoAdicionalProspectoData?.programas?.[0]?.id}
+        prospectoNombre={pagoAdicionalProspectoData?.nombre_completo || prospectoPagoAdicionalNombre}
+        onSuccess={() => {
+          // 🔄 Invalidar caché y recargar la página completa para desbloquear botones
+          localStorage.removeItem("gestion_prospectos_cache")
+          localStorage.removeItem("gestion_prospectos_cache_time")
+          window.location.reload()
+        }}
       />
 
       {/* 📊 Modal de Configuración de Columnas */}
