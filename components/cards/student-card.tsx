@@ -217,9 +217,9 @@ export function StudentCard({
           <div className="flex items-center space-x-2">
             <User className={`h-5 w-5 ${isInClosingArea ? 'text-amber-600' : 'text-blue-600'}`} />
             <h3 className="font-semibold text-lg">{student.name}</h3>
-            {isNuevo(student.createdAt) && (
+            {(isNuevo(student.createdAt) || isNuevo(student.startDate)) && (
               <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs">
-                Nuevo
+                ✨ Nuevo
               </Badge>
             )}
             {isInClosingArea && (

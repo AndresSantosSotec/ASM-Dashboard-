@@ -18,7 +18,7 @@ import {
   fetchInternalStudentEquivalents,
   type InternalStudentEquivalent,
 } from "@/services/moodleCourseQueries";
-import { fetchCourses, type Course, exportarYDescargarCursosMasivo } from "@/services/courses";
+import { fetchCourses, fetchCoursesForMonth, type Course, exportarYDescargarCursosMasivo } from "@/services/courses";
 import { bulkAssignCourses, fetchStudentCourseLists } from "@/services/students";
 import fetchApprovedMoodleCourses, { MoodleQueryCourse } from "@/services/moodleCourseQueries";
 
@@ -142,6 +142,9 @@ const areNamesSimilar = (a: string, b: string) => {
   return false;
 };
 
+const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
 // 🆕 Verificar si un estudiante fue inscrito en los últimos N días
 const isNuevo = (date: string | null | undefined, days: number = 15): boolean => {
   if (!date) return false;
@@ -152,18 +155,20 @@ const isNuevo = (date: string | null | undefined, days: number = 15): boolean =>
 };
 
 // 🚀 Componente memoizado para cada estudiante (evita re-renders)
-const StudentAccordionItem = memo(({ 
+const StudentAccordionItem = memo(({
   student, 
   currentMonthCourses,
   onLoadCourses,
   onToggleCourseSelection,
   careerProgress,
+  isCurrentMonth,
 }: {
   student: StudentWithInternalData;
   currentMonthCourses: Course[];
   onLoadCourses: (carnet: string) => void;
-  onToggleCourseSelection: (carnet: string, courseId: string) => void;
+  onToggleCourseSelection: (carnet: string, courseId: string, studentData?: StudentWithInternalData) => void;
   careerProgress?: CareerProgress;
+  isCurrentMonth?: boolean;
 }) => {
   const hasInternal = !!student.internalStudent;
   const selectedCount = student.selectedCourseIds.length;
@@ -267,7 +272,7 @@ const StudentAccordionItem = memo(({
                 <p className="font-medium text-sm">{student.nombreCompleto}</p>
                 {isNuevo(student.internalStudent?.created_at) && (
                   <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs">
-                    Nuevo
+                    ✨ Nuevo
                   </Badge>
                 )}
                 {isInClosingArea && (
@@ -415,14 +420,17 @@ const StudentAccordionItem = memo(({
                   <h5 className="font-semibold text-xs text-blue-800 mb-2 flex items-center justify-between">
                     <span className="flex items-center">
                       <BookOpen className="h-3 w-3 mr-1" />
-                      Cursos Disponibles - Mes Actual
+                      Cursos Disponibles
+                      {isCurrentMonth === false && (
+                        <Badge className="ml-2 bg-orange-400 text-white text-xs">Solo vista</Badge>
+                      )}
                     </span>
                     <Badge variant="outline" className="text-xs bg-blue-100">
                       {selectedCount}/{availableCourses.length}
                     </Badge>
                   </h5>
                   <div className="text-xs text-blue-700 mb-2 bg-blue-100/70 p-1.5 rounded border border-blue-200">
-                    📅 Solo cursos del programa del estudiante (excluye completados y asignados)
+                    📅 {isCurrentMonth === false ? '👁️ Mes anterior — solo visualización, no asignable' : 'Solo cursos del programa del estudiante (excluye completados y asignados)'}
                   </div>
                   <div className="space-y-1 max-h-64 overflow-y-auto">
                     {availableCourses.length === 0 ? (
@@ -445,10 +453,11 @@ const StudentAccordionItem = memo(({
                                 ? "border-blue-400 bg-blue-100 shadow-sm"
                                 : "border-blue-200 bg-white hover:bg-blue-50"
                             }`}
-                            onClick={() => onToggleCourseSelection(student.carnet, String(course.id))}
+                            onClick={() => isCurrentMonth !== false && onToggleCourseSelection(student.carnet, String(course.id), student)}
+                            style={isCurrentMonth === false ? { cursor: 'default', opacity: 0.7 } : undefined}
                           >
                             <div className="flex items-start space-x-2">
-                              <Checkbox checked={isSelected} className="mt-0.5" />
+                              <Checkbox checked={isSelected} disabled={isCurrentMonth === false} className="mt-0.5" />
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs font-medium line-clamp-2 text-blue-900">{course.name}</p>
                                 <div className="flex items-center gap-2 mt-1">
@@ -498,6 +507,9 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
   const [searchMoodleCourse, setSearchMoodleCourse] = useState("");
   const [searchStudent, setSearchStudent] = useState("");
   const [filterMonth, setFilterMonth] = useState<string>("todos");
+  // Filtro de mes/año para cursos asignables
+  const [courseFilterMonth, setCourseFilterMonth] = useState<number>(new Date().getMonth());
+  const [courseFilterYear, setCourseFilterYear] = useState<number>(new Date().getFullYear());
   const [showOnlyWithInternal, setShowOnlyWithInternal] = useState(false);
   const [showOnlyWithSelections, setShowOnlyWithSelections] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -667,57 +679,21 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
     loadStudents();
   }, [selectedMoodleCourseIds, toast]);
 
-  // 3️⃣ Cargar cursos del mes actual para asignar
+  // 3️⃣ Cargar cursos del mes/año seleccionado para asignar
   useEffect(() => {
     const loadCurrentCourses = async () => {
       setLoadingCurrentCourses(true);
       try {
-        const allCourses = await fetchCourses();
-        
-        const now = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-        const añoActual = String(now.getFullYear());
-
-        // Meses en español para detectar por nombre del curso
-        const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-                          'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-        const mesActual = MESES_ES[now.getMonth()];
-
-        // Un curso pertenece al mes actual si:
-        //  A) su startDate cae dentro del mes, O
-        //  B) su nombre contiene el mes actual (en español) y el año actual (prefijo de nombre)
-        const courseMatchesCurrentMonth = (course: Course): boolean => {
-          if (course.status === "synced") return false;
-
-          // A) Por startDate
-          const courseStartDate = new Date(course.startDate);
-          if (!isNaN(courseStartDate.getTime()) &&
-              courseStartDate >= monthStart &&
-              courseStartDate <= monthEnd) {
-            return true;
-          }
-
-          // B) Por nombre: buscar "Mes Año" o "Año Mes" en el nombre del curso
-          const nameUpper = course.name.toUpperCase();
-          const mesUpper = mesActual.toUpperCase();
-          if (nameUpper.includes(mesUpper) && nameUpper.includes(añoActual)) {
-            console.log(`📅 [Nombre] Curso "${course.name}" detectado como del mes actual por nombre`);
-            return true;
-          }
-
-          return false;
-        };
-
-        const currentMonth = allCourses.filter(courseMatchesCurrentMonth);
-
-        setCurrentMonthCourses(currentMonth);
-        console.log(`✅ ${currentMonth.length} cursos del mes actual disponibles (${mesActual} ${añoActual})`);
+        // Una sola llamada al backend con OR: startDate en el mes OR nombre contiene "Mes Año"
+        // Funciona para cualquier año futuro (2026, 2027, ...)
+        const courses = await fetchCoursesForMonth(courseFilterMonth, courseFilterYear);
+        setCurrentMonthCourses(courses);
+        console.log(`✅ ${courses.length} cursos para ${MESES_ES[courseFilterMonth]} ${courseFilterYear}`);
       } catch (error) {
-        console.error("Error cargando cursos actuales:", error);
+        console.error("Error cargando cursos:", error);
         toast({
           title: "Error",
-          description: "No se pudieron cargar los cursos del mes actual",
+          description: "No se pudieron cargar los cursos del mes seleccionado",
           variant: "destructive",
         });
       } finally {
@@ -726,7 +702,7 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
     };
 
     loadCurrentCourses();
-  }, [toast]);
+  }, [courseFilterMonth, courseFilterYear, toast]);
 
   // Filtrar cursos de Moodle
   const filteredMoodleCursos = useMemo(() => {
@@ -760,7 +736,46 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
 
   // Filtrar estudiantes (con memoización)
   const filteredStudents = useMemo(() => {
-    let result = studentsData;
+    // Conjunto de carnets ya en la lista de Moodle (para no duplicar)
+    const moodleCarnets = new Set(studentsData.map(s => s.carnet.toUpperCase()));
+
+    // Inyectar estudiantes "Nuevo" del prop que no aparecen en Moodle
+    const nuevoExtra: StudentWithInternalData[] = (students as any[])
+      .filter((s) =>
+        (isNuevo(s.createdAt) || isNuevo(s.startDate)) &&
+        !moodleCarnets.has((s.carnet as string).toUpperCase())
+      )
+      .map((s) => ({
+        moodleUserId: 0,
+        carnet: (s.carnet as string).toUpperCase(),
+        nombreCompleto: s.name as string,
+        email: s.email ?? '',
+        cursosLlevados: '',
+        totalCursosLlevados: 0,
+        internalStudent: {
+          id: Number(s.id),
+          carnet: s.carnet as string,
+          nombre_completo: s.name as string,
+          correo: s.email ?? '',
+          telefono: '',
+          dia_estudio: s.diaEstudio ?? null,
+          created_at: s.createdAt ?? s.startDate ?? null,
+          programas: s.programId
+            ? [{ id: s.programId as number, nombre: s.program as string }]
+            : [],
+          programa_principal: s.programId
+            ? { id: s.programId as number, nombre: s.program as string }
+            : null,
+          estado: 'Inscrito',
+        } as InternalStudentEquivalent,
+        selectedCourseIds: [],
+        completedCourseIds: [],
+        assignedCourseIds: [],
+        moodleCompletedCourses: [],
+        coursesLoaded: false,
+      }));
+
+    let result: StudentWithInternalData[] = [...studentsData, ...nuevoExtra];
     
     if (searchStudent) {
       const searchLower = searchStudent.toLowerCase();
@@ -781,13 +796,13 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
     }
     
     return result;
-  }, [studentsData, searchStudent, showOnlyWithInternal, showOnlyWithSelections]);
+  }, [studentsData, students, searchStudent, showOnlyWithInternal, showOnlyWithSelections]);
 
   // � Calcular resumen de especialidades y cursos disponibles
   const programSummary = useMemo(() => {
     const summary = new Map<string, { count: number; totalCourses: number }>();
     
-    studentsData.forEach(student => {
+    filteredStudents.forEach(student => {
       if (!student.internalStudent) return;
       
       // Obtener especialidades del estudiante
@@ -838,7 +853,7 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
       studentCount: data.count,
       totalAvailableCourses: data.totalCourses
     }));
-  }, [studentsData, currentMonthCourses]);
+  }, [filteredStudents, currentMonthCourses]);
 
   // �📄 Paginación de estudiantes
   const paginatedStudents = useMemo(() => {
@@ -848,6 +863,11 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
   }, [filteredStudents, currentPage]);
 
   const totalPages = Math.ceil(filteredStudents.length / ITEMS_PER_PAGE);
+
+  // ¿El mes/año seleccionado es el actual? (determina si los cursos son asignables)
+  const isSelectedMonthCurrent =
+    courseFilterYear === new Date().getFullYear() &&
+    courseFilterMonth === new Date().getMonth();
 
   // Reset página cuando cambian los filtros
   useEffect(() => {
@@ -990,9 +1010,14 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
   }, [studentsData, currentMonthCourses]);
 
   // Toggle selección de curso actual para un estudiante (optimizado)
-  const toggleStudentCourseSelection = useCallback((studentCarnet: string, courseId: string) => {
-    setStudentsData((prev) =>
-      prev.map((s) => {
+  const toggleStudentCourseSelection = useCallback((studentCarnet: string, courseId: string, studentData?: StudentWithInternalData) => {
+    setStudentsData((prev) => {
+      const exists = prev.some(s => s.carnet === studentCarnet);
+      if (!exists && studentData) {
+        // Nuevo student not yet in studentsData — inject with this course selected
+        return [...prev, { ...studentData, selectedCourseIds: [courseId] }];
+      }
+      return prev.map((s) => {
         if (s.carnet !== studentCarnet) return s;
         const isSelected = s.selectedCourseIds.includes(courseId);
         return {
@@ -1001,22 +1026,22 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
             ? s.selectedCourseIds.filter((id) => id !== courseId)
             : [...s.selectedCourseIds, courseId],
         };
-      })
-    );
+      });
+    });
   }, []);
 
-  // Totales
+  // Totales (incluye tanto estudiantes Moodle como Nuevos inyectados)
   const totalSelectedCourses = useMemo(
-    () => studentsData.reduce((sum, s) => sum + s.selectedCourseIds.length, 0),
-    [studentsData]
+    () => filteredStudents.reduce((sum, s) => sum + s.selectedCourseIds.length, 0),
+    [filteredStudents]
   );
 
   const validAssignments = useMemo(
     () =>
-      studentsData.filter(
+      filteredStudents.filter(
         (s) => s.internalStudent && s.selectedCourseIds.length > 0
       ),
-    [studentsData]
+    [filteredStudents]
   );
 
   // Confirmar asignación
@@ -1267,6 +1292,50 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
                 <Badge variant="outline" className="h-9 px-3 flex items-center">
                   {filteredMoodleCursos.length} curso(s)
                 </Badge>
+              </div>
+            </div>
+
+            {/* Filtro de mes/año para cursos asignables */}
+            <div className="border-t pt-3 mt-2">
+              <label className="text-xs font-semibold text-gray-700 mb-2 block">
+                📅 Mes/Año de cursos asignables
+                {!isSelectedMonthCurrent && <span className="ml-2 text-orange-600">(modo solo visualización)</span>}
+              </label>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={String(courseFilterMonth)}
+                  onValueChange={(v) => setCourseFilterMonth(Number(v))}
+                >
+                  <SelectTrigger className="h-9 w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MESES_ES.map((mes, idx) => (
+                      <SelectItem key={idx} value={String(idx)}>{mes}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={String(courseFilterYear)}
+                  onValueChange={(v) => setCourseFilterYear(Number(v))}
+                >
+                  <SelectTrigger className="h-9 w-28">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1].map((yr) => (
+                      <SelectItem key={yr} value={String(yr)}>{yr}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Badge variant="outline" className="h-9 px-3 flex items-center text-blue-700 border-blue-300">
+                  {currentMonthCourses.length} cursos
+                </Badge>
+                {!isSelectedMonthCurrent && (
+                  <Badge className="h-9 px-3 flex items-center bg-orange-100 text-orange-800 border border-orange-300">
+                    Solo vista
+                  </Badge>
+                )}
               </div>
             </div>
           </CardContent>
@@ -1536,12 +1605,20 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
                     </span>
                     <span className="text-gray-400 hidden sm:inline">|</span>
                     <span className="text-green-700">
-                      <strong>{studentsData.filter(s => s.internalStudent).length}</strong> en sistema interno
+                      <strong>{filteredStudents.filter(s => s.internalStudent).length}</strong> en sistema interno
                     </span>
                     <span className="text-gray-400 hidden sm:inline">|</span>
                     <span className="text-blue-700">
-                      <strong>{studentsData.filter(s => s.selectedCourseIds.length > 0).length}</strong> con selecciones
+                      <strong>{filteredStudents.filter(s => s.selectedCourseIds.length > 0).length}</strong> con selecciones
                     </span>
+                    {filteredStudents.filter(s => isNuevo(s.internalStudent?.created_at)).length > 0 && (
+                      <>
+                        <span className="text-gray-400 hidden sm:inline">|</span>
+                        <span className="text-green-600 font-medium">
+                          ✨ <strong>{filteredStudents.filter(s => isNuevo(s.internalStudent?.created_at)).length}</strong> nuevos (&lt;15 días)
+                        </span>
+                      </>
+                    )}
                     {/* Contador de estudiantes en área de cierre */}
                     {Object.values(careerProgressMap).filter(p => p.en_area_cierre).length > 0 && (
                       <>
@@ -1601,6 +1678,7 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
                           onLoadCourses={loadStudentCompletedCourses}
                           onToggleCourseSelection={toggleStudentCourseSelection}
                           careerProgress={careerProgressMap[student.carnet] || careerProgressMap[student.carnet.toUpperCase()]}
+                          isCurrentMonth={isSelectedMonthCurrent}
                         />
                       ))}
                     </Accordion>
@@ -1685,14 +1763,19 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
               <h5 className="font-semibold text-sm text-blue-800 mb-3 flex items-center justify-between">
                 <span className="flex items-center">
                   <BookOpen className="h-4 w-4 mr-2" />
-                  Cursos Disponibles - Mes Actual
+                  Cursos Disponibles — {MESES_ES[courseFilterMonth]} {courseFilterYear}
+                  {!isSelectedMonthCurrent && (
+                    <Badge className="ml-2 bg-orange-400 text-white text-xs">Solo vista</Badge>
+                  )}
                 </span>
                 <Badge variant="outline" className="text-sm bg-blue-100">
                   {massiveSelectedCourseIds.length}/{currentMonthCourses.length}
                 </Badge>
               </h5>
               <div className="text-sm text-blue-700 mb-3 bg-blue-100/70 p-2 rounded border border-blue-200">
-                📅 Solo cursos del programa del estudiante (excluye completados y asignados)
+                📅 {isSelectedMonthCurrent
+                  ? 'Solo cursos del programa del estudiante (excluye completados y asignados)'
+                  : '👁️ Mes anterior — solo visualización, no asignable. Cambia el filtro al mes actual para asignar.'}
               </div>
               <div className="space-y-2 max-h-[50vh] overflow-y-auto">
                 {currentMonthCourses.length === 0 ? (
@@ -1716,15 +1799,17 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
                             : "border-blue-200 bg-white hover:bg-blue-50"
                         }`}
                         onClick={() => {
+                          if (!isSelectedMonthCurrent) return;
                           setMassiveSelectedCourseIds(prev => 
                             isSelected
                               ? prev.filter(id => id !== String(course.id))
                               : [...prev, String(course.id)]
                           );
                         }}
+                        style={!isSelectedMonthCurrent ? { cursor: 'default', opacity: 0.75 } : undefined}
                       >
                         <div className="flex items-start space-x-3">
-                          <Checkbox checked={isSelected} className="mt-1" />
+                          <Checkbox checked={isSelected} disabled={!isSelectedMonthCurrent} className="mt-1" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium line-clamp-2 text-blue-900">{course.name}</p>
                             <div className="flex items-center gap-2 mt-2">

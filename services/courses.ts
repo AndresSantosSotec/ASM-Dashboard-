@@ -116,6 +116,36 @@ export const fetchCourses = async (programId?: number) => {
   return courses
 }
 
+/**
+ * Obtiene cursos de un mes+año específico usando el filtro del backend.
+ * El backend hace OR entre: start_date en el mes  o  nombre contiene "Mes Año".
+ * Works for any future year (2026, 2027, ...). month is 0-based (JS Date convention).
+ */
+export const fetchCoursesForMonth = async (
+  monthIndex: number,  // 0 = Enero, 11 = Diciembre
+  year: number,
+  programId?: number,
+): Promise<Course[]> => {
+  const params: Record<string, any> = {
+    month: monthIndex + 1, // backend expects 1-12
+    year,
+    per_page: 200,
+    page: 1,
+  }
+  if (programId) params.program_id = programId
+
+  try {
+    const res = await api.get('/courses', { params })
+    const data = Array.isArray(res.data) ? res.data : res.data.data
+    const courses = Array.isArray(data) ? data.map(mapCourseFromApi) : []
+    console.log(`📅 fetchCoursesForMonth: ${courses.length} cursos para mes ${monthIndex + 1}/${year}`)
+    return courses
+  } catch (err) {
+    console.error('❌ fetchCoursesForMonth error:', err)
+    return []
+  }
+}
+
 export const fetchProgramCourses = async (programId: number) => {
   return fetchCourses(programId)
 }
