@@ -814,6 +814,34 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
       }));
 
     let result: StudentWithInternalData[] = [...studentsData, ...nuevoExtra];
+
+    // ─── Filtrar por programa según cursos Moodle seleccionados ───────────────
+    // Si hay cursos seleccionados, extraemos las abreviaturas de programa del
+    // nombre del curso (BBA, MBA, DBA, MFIM, MAST, BACH, etc.) y filtramos
+    // solo estudiantes cuyo programa coincida.
+    if (selectedMoodleCourseIds.length > 0) {
+      // Recopilar nombres de los cursos seleccionados
+      const selectedNames = selectedMoodleCourseIds
+        .map(id => moodleCursos.find(c => c.course_id === id)?.course_name ?? '')
+        .join(' ')
+        .toUpperCase();
+
+      // Abreviaturas conocidas ordenadas de más específica a más general
+      const ABBRS = ['MFIM', 'MBA', 'BBA', 'DBA', 'MPA', 'MAST', 'BACH', 'MAEST'];
+      const activeAbbrs = ABBRS.filter(a => selectedNames.includes(a));
+
+      if (activeAbbrs.length > 0) {
+        result = result.filter(s => {
+          const progNames = (s.internalStudent?.programas ?? [])
+            .map(p => p.nombre.toUpperCase())
+            .join(' ');
+          // También revisar el carnet/nombre por si no tiene programa asignado
+          const fullText = `${progNames} ${s.carnet} ${s.nombreCompleto}`.toUpperCase();
+          return activeAbbrs.some(a => fullText.includes(a));
+        });
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
     
     if (searchStudent) {
       const searchLower = searchStudent.toLowerCase();
@@ -832,9 +860,16 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
     if (showOnlyWithSelections) {
       result = result.filter((s) => s.selectedCourseIds.length > 0);
     }
-    
+
+    // Ordenar: más nuevos primero (por created_at del estudiante interno)
+    result = result.slice().sort((a, b) => {
+      const dateA = a.internalStudent?.created_at ? new Date(a.internalStudent.created_at).getTime() : 0;
+      const dateB = b.internalStudent?.created_at ? new Date(b.internalStudent.created_at).getTime() : 0;
+      return dateB - dateA; // descendente: más nuevo primero
+    });
+
     return result;
-  }, [studentsData, students, searchStudent, showOnlyWithInternal, showOnlyWithSelections]);
+  }, [studentsData, students, searchStudent, showOnlyWithInternal, showOnlyWithSelections, selectedMoodleCourseIds, moodleCursos]);
 
   // � Calcular resumen de especialidades y cursos disponibles
   const programSummary = useMemo(() => {

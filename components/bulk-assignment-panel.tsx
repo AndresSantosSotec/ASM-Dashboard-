@@ -22,6 +22,18 @@ import {
   Calendar,
 } from "lucide-react"
 
+const normalizeDayName = (day: string | null): string => {
+  if (!day) return '';
+  const dayLower = day.toLowerCase();
+  const dayMap: Record<string, string> = {
+    'lunes': 'Lunes', 'martes': 'Martes',
+    'mi\u00e9rcoles': 'Mi\u00e9rcoles', 'miercoles': 'Mi\u00e9rcoles',
+    'jueves': 'Jueves', 'viernes': 'Viernes',
+    's\u00e1bado': 'S\u00e1bado', 'sabado': 'S\u00e1bado', 'domingo': 'Domingo',
+  };
+  return dayMap[dayLower] || day;
+};
+
 interface BulkAssignmentPanelProps {
   selectedStudents: Student[]
   courses: Course[]
@@ -197,11 +209,20 @@ export function BulkAssignmentPanel({
             Estudiantes Seleccionados ({selectedStudents.length})
           </h4>
           <div className="flex flex-wrap gap-2">
-            {selectedStudents.map((student) => (
-              <Badge key={student.id} variant="secondary">
-                {student.name} - {student.carnet} - {student.specialty}
-              </Badge>
-            ))}
+            {selectedStudents.map((student) => {
+              const day = normalizeDayName(student.diaEstudio);
+              return (
+                <Badge key={student.id} variant="outline" className="px-3 py-1.5 bg-white border-blue-200 flex-col items-start gap-0.5">
+                  <span className="font-semibold text-gray-900">{student.name}</span>
+                  <span className="text-xs text-gray-500">
+                    {student.carnet}{student.specialty ? ` • ${student.specialty}` : ''}
+                    {day && (
+                      <span className="ml-1 text-indigo-600 font-medium">• 📅 {day}</span>
+                    )}
+                  </span>
+                </Badge>
+              );
+            })}
           </div>
         </div>
 
