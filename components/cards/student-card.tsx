@@ -11,6 +11,15 @@ import { useToast } from "@/components/ui/use-toast";
 import { useState, useEffect, useRef } from "react";
 import { fetchAvailablePensumForStudent } from "@/services/courses";
 
+// 🆕 Verificar si un estudiante fue inscrito en los últimos N días
+const isNuevo = (date: string | null, days: number = 15): boolean => {
+  if (!date) return false;
+  const enrolled = new Date(date);
+  if (isNaN(enrolled.getTime())) return false;
+  const diffDays = (Date.now() - enrolled.getTime()) / (1000 * 60 * 60 * 24);
+  return diffDays <= days;
+};
+
 // Interfaz para el progreso de carrera desde Moodle
 interface CareerProgress {
   cursos_aprobados: number;
@@ -208,6 +217,11 @@ export function StudentCard({
           <div className="flex items-center space-x-2">
             <User className={`h-5 w-5 ${isInClosingArea ? 'text-amber-600' : 'text-blue-600'}`} />
             <h3 className="font-semibold text-lg">{student.name}</h3>
+            {isNuevo(student.createdAt) && (
+              <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs">
+                Nuevo
+              </Badge>
+            )}
             {isInClosingArea && (
               <Badge variant="destructive" className="bg-amber-500 hover:bg-amber-600 animate-pulse">
                 <AlertTriangle className="h-3 w-3 mr-1" />

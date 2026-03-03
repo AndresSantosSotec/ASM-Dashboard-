@@ -142,6 +142,15 @@ const areNamesSimilar = (a: string, b: string) => {
   return false;
 };
 
+// 🆕 Verificar si un estudiante fue inscrito en los últimos N días
+const isNuevo = (date: string | null | undefined, days: number = 15): boolean => {
+  if (!date) return false;
+  const enrolled = new Date(date);
+  if (isNaN(enrolled.getTime())) return false;
+  const diffDays = (Date.now() - enrolled.getTime()) / (1000 * 60 * 60 * 24);
+  return diffDays <= days;
+};
+
 // 🚀 Componente memoizado para cada estudiante (evita re-renders)
 const StudentAccordionItem = memo(({ 
   student, 
@@ -256,6 +265,11 @@ const StudentAccordionItem = memo(({
             <div className="text-left">
               <div className="flex items-center gap-2">
                 <p className="font-medium text-sm">{student.nombreCompleto}</p>
+                {isNuevo(student.internalStudent?.created_at) && (
+                  <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs">
+                    Nuevo
+                  </Badge>
+                )}
                 {isInClosingArea && (
                   <Badge variant="destructive" className="bg-amber-500 hover:bg-amber-600 animate-pulse text-xs">
                     <AlertTriangle className="h-3 w-3 mr-1" />
@@ -662,19 +676,43 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
         
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+        const añoActual = String(now.getFullYear());
 
-        const currentMonth = allCourses.filter((course: Course) => {
+        // Meses en español para detectar por nombre del curso
+        const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                          'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+        const mesActual = MESES_ES[now.getMonth()];
+
+        // Un curso pertenece al mes actual si:
+        //  A) su startDate cae dentro del mes, O
+        //  B) su nombre contiene el mes actual (en español) y el año actual (prefijo de nombre)
+        const courseMatchesCurrentMonth = (course: Course): boolean => {
+          if (course.status === "synced") return false;
+
+          // A) Por startDate
           const courseStartDate = new Date(course.startDate);
-          return (
-            courseStartDate >= monthStart &&
-            courseStartDate <= monthEnd &&
-            course.status !== "synced"
-          );
-        });
+          if (!isNaN(courseStartDate.getTime()) &&
+              courseStartDate >= monthStart &&
+              courseStartDate <= monthEnd) {
+            return true;
+          }
+
+          // B) Por nombre: buscar "Mes Año" o "Año Mes" en el nombre del curso
+          const nameUpper = course.name.toUpperCase();
+          const mesUpper = mesActual.toUpperCase();
+          if (nameUpper.includes(mesUpper) && nameUpper.includes(añoActual)) {
+            console.log(`📅 [Nombre] Curso "${course.name}" detectado como del mes actual por nombre`);
+            return true;
+          }
+
+          return false;
+        };
+
+        const currentMonth = allCourses.filter(courseMatchesCurrentMonth);
 
         setCurrentMonthCourses(currentMonth);
-        console.log(`✅ ${currentMonth.length} cursos del mes actual disponibles`);
+        console.log(`✅ ${currentMonth.length} cursos del mes actual disponibles (${mesActual} ${añoActual})`);
       } catch (error) {
         console.error("Error cargando cursos actuales:", error);
         toast({
