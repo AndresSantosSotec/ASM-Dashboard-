@@ -445,17 +445,28 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
   const monthCourses = useMemo(() => {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    return allCourses.filter((c) => {
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    const añoStr = String(now.getFullYear());
+    const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                      'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const mesStr = MESES_ES[now.getMonth()].toUpperCase();
+
+    const isCurrentMonth = (c: Course): boolean => {
+      // A) Por startDate dentro del mes
       const d = new Date(c.startDate);
-      return (
-        d >= start &&
-        d <= end &&
-        !assigned.some((a) => a.id === c.id) &&
-        !completed.some((co) => co.id === c.id) &&
-        !moodleCourses.some((m) => areNamesSimilar(m.coursename, c.name))
-      );
-    });
+      if (!isNaN(d.getTime()) && d >= start && d <= end) return true;
+      // B) Por nombre que contenga el mes en español y el año
+      const nameUp = c.name.toUpperCase();
+      if (nameUp.includes(mesStr) && nameUp.includes(añoStr)) return true;
+      return false;
+    };
+
+    return allCourses.filter((c) =>
+      isCurrentMonth(c) &&
+      !assigned.some((a) => a.id === c.id) &&
+      !completed.some((co) => co.id === c.id) &&
+      !moodleCourses.some((m) => areNamesSimilar(m.coursename, c.name))
+    );
   }, [allCourses, assigned, completed, moodleCourses]);
 
   useEffect(() => {

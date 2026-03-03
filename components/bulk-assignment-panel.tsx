@@ -83,11 +83,17 @@ export function BulkAssignmentPanel({
   const monthCourses = useMemo(() => {
     const now = new Date()
     const start = new Date(now.getFullYear(), now.getMonth(), 1)
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-    return filtered.filter((c) => {
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+    const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+    const mesStr = MESES_ES[now.getMonth()].toUpperCase()
+    const añoStr = String(now.getFullYear())
+    const isCurrentMonth = (c: { startDate: string; name: string }) => {
       const d = new Date(c.startDate)
-      return d >= start && d <= end
-    })
+      if (!isNaN(d.getTime()) && d >= start && d <= end) return true
+      const nameUp = c.name.toUpperCase()
+      return nameUp.includes(mesStr) && nameUp.includes(añoStr)
+    }
+    return filtered.filter(isCurrentMonth)
   }, [filtered])
 
   const handleCourseSelect = (courseId: string, isSelected: boolean) => {

@@ -332,10 +332,14 @@ export function BulkAssignmentImprovedPanel({
       // Excluir cursos con status 'synced' (ya sincronizados)
       if (course.status === 'synced') return false;
 
-      // 🔹 FILTRO DEL MES ACTUAL: Solo cursos que inicien en el mes actual
+      // 🔹 FILTRO DEL MES ACTUAL: startDate en rango OR nombre contiene mes+año
+      const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      const mesStr = MESES_ES[now.getMonth()].toUpperCase();
+      const añoStr = String(now.getFullYear());
       const courseStartDate = new Date(course.startDate);
-      const isInCurrentMonth = courseStartDate >= monthStart && courseStartDate <= monthEnd;
-      if (!isInCurrentMonth) return false;
+      const inDateRange = !isNaN(courseStartDate.getTime()) && courseStartDate >= monthStart && courseStartDate <= monthEnd;
+      const inNameMatch = course.name.toUpperCase().includes(mesStr) && course.name.toUpperCase().includes(añoStr);
+      if (!inDateRange && !inNameMatch) return false;
 
       // Aplicar filtros globales
       const matchesName =
