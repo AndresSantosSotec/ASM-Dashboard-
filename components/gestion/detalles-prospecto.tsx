@@ -360,7 +360,11 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto p-0">
+      <DialogContent
+        className="max-w-4xl max-h-[92vh] overflow-y-auto p-0"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         <DialogHeader className="sticky top-0 z-10 bg-white border-b px-6 py-4">
           <DialogTitle className="flex items-center justify-between">
             <div className="flex items-center gap-3">

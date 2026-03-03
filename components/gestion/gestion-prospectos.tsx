@@ -1817,7 +1817,11 @@ export default function GestionProspectos() {
           setSelectedProspecto(null)
           setModalType(null)
         }}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent
+            className="max-w-2xl"
+            onOpenAutoFocus={(e) => e.preventDefault()}
+            onCloseAutoFocus={(e) => e.preventDefault()}
+          >
             <DialogHeader>
               <DialogTitle>Alerta Alumno Nuevo</DialogTitle>
               <DialogDescription>

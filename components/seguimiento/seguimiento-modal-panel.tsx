@@ -410,7 +410,12 @@ export default function SeguimientoModalPanel({ prospecto, onClose }: Seguimient
 
   return (
     <Dialog open={!!prospecto} onOpenChange={(open) => !open && onClose()} modal={false}>
-      <DialogContent aria-describedby={undefined} className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        aria-describedby={undefined}
+        className="max-w-4xl max-h-[90vh] overflow-y-auto"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         <DialogTitle className="sr-only">Detalles del prospecto</DialogTitle>
         <div className="max-h-[80vh] overflow-y-auto p-4">
           <div className="grid grid-cols-2 gap-6">
