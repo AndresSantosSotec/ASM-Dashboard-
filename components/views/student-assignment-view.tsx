@@ -445,24 +445,28 @@ export function StudentAssignmentView({ student, onCoursesChange }: StudentAssig
   const monthCourses = useMemo(() => {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-    const añoStr = String(now.getFullYear());
+    const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const nextEnd = new Date(nextMonthDate.getFullYear(), nextMonthDate.getMonth() + 1, 0, 23, 59, 59);
     const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                       'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-    const mesStr = MESES_ES[now.getMonth()].toUpperCase();
+    const mesActual = MESES_ES[now.getMonth()].toUpperCase();
+    const mesSiguiente = MESES_ES[nextMonthDate.getMonth()].toUpperCase();
+    const añoActual = String(now.getFullYear());
+    const añoSiguiente = String(nextMonthDate.getFullYear());
 
-    const isCurrentMonth = (c: Course): boolean => {
-      // A) Por startDate dentro del mes
+    const isRelevant = (c: Course): boolean => {
+      // A) Por startDate dentro del mes actual o siguiente
       const d = new Date(c.startDate);
-      if (!isNaN(d.getTime()) && d >= start && d <= end) return true;
-      // B) Por nombre que contenga el mes en español y el año
+      if (!isNaN(d.getTime()) && d >= start && d <= nextEnd) return true;
+      // B) Por nombre que contenga mes actual o siguiente + año
       const nameUp = c.name.toUpperCase();
-      if (nameUp.includes(mesStr) && nameUp.includes(añoStr)) return true;
+      if (nameUp.includes(mesActual) && nameUp.includes(añoActual)) return true;
+      if (nameUp.includes(mesSiguiente) && nameUp.includes(añoSiguiente)) return true;
       return false;
     };
 
     return allCourses.filter((c) =>
-      isCurrentMonth(c) &&
+      isRelevant(c) &&
       !assigned.some((a) => a.id === c.id) &&
       !completed.some((co) => co.id === c.id) &&
       !moodleCourses.some((m) => areNamesSimilar(m.coursename, c.name))

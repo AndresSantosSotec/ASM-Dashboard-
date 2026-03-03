@@ -82,18 +82,23 @@ export function BulkAssignmentPanel({
   // Solo mostrar cursos del mes actual
   const monthCourses = useMemo(() => {
     const now = new Date()
-    const start = new Date(now.getFullYear(), now.getMonth(), 1)
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+    const curStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+    const nextEnd = new Date(nextMonthDate.getFullYear(), nextMonthDate.getMonth() + 1, 0, 23, 59, 59)
     const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-    const mesStr = MESES_ES[now.getMonth()].toUpperCase()
-    const añoStr = String(now.getFullYear())
-    const isCurrentMonth = (c: { startDate: string; name: string }) => {
+    const mesActual = MESES_ES[now.getMonth()].toUpperCase()
+    const mesSiguiente = MESES_ES[nextMonthDate.getMonth()].toUpperCase()
+    const añoActual = String(now.getFullYear())
+    const añoSiguiente = String(nextMonthDate.getFullYear())
+    const isRelevant = (c: { startDate: string; name: string }) => {
       const d = new Date(c.startDate)
-      if (!isNaN(d.getTime()) && d >= start && d <= end) return true
+      if (!isNaN(d.getTime()) && d >= curStart && d <= nextEnd) return true
       const nameUp = c.name.toUpperCase()
-      return nameUp.includes(mesStr) && nameUp.includes(añoStr)
+      if (nameUp.includes(mesActual) && nameUp.includes(añoActual)) return true
+      if (nameUp.includes(mesSiguiente) && nameUp.includes(añoSiguiente)) return true
+      return false
     }
-    return filtered.filter(isCurrentMonth)
+    return filtered.filter(isRelevant)
   }, [filtered])
 
   const handleCourseSelect = (courseId: string, isSelected: boolean) => {

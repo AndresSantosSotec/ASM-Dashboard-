@@ -684,11 +684,18 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
     const loadCurrentCourses = async () => {
       setLoadingCurrentCourses(true);
       try {
-        // Una sola llamada al backend con OR: startDate en el mes OR nombre contiene "Mes Año"
-        // Funciona para cualquier año futuro (2026, 2027, ...)
-        const courses = await fetchCoursesForMonth(courseFilterMonth, courseFilterYear);
-        setCurrentMonthCourses(courses);
-        console.log(`✅ ${courses.length} cursos para ${MESES_ES[courseFilterMonth]} ${courseFilterYear}`);
+        // Fetch mes seleccionado + mes siguiente para mostrar cursos próximos
+        const nextMonthIdx = (courseFilterMonth + 1) % 12;
+        const nextYear = courseFilterMonth === 11 ? courseFilterYear + 1 : courseFilterYear;
+        const [coursesCurrent, coursesNext] = await Promise.all([
+          fetchCoursesForMonth(courseFilterMonth, courseFilterYear),
+          fetchCoursesForMonth(nextMonthIdx, nextYear),
+        ]);
+        // Merge sin duplicados (por id)
+        const seenIds = new Set(coursesCurrent.map(c => c.id));
+        const merged = [...coursesCurrent, ...coursesNext.filter(c => !seenIds.has(c.id))];
+        setCurrentMonthCourses(merged);
+        console.log(`✅ ${merged.length} cursos: ${MESES_ES[courseFilterMonth]} ${courseFilterYear} + ${MESES_ES[nextMonthIdx]} ${nextYear}`);
       } catch (error) {
         console.error("Error cargando cursos:", error);
         toast({

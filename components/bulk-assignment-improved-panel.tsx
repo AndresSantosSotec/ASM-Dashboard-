@@ -332,13 +332,19 @@ export function BulkAssignmentImprovedPanel({
       // Excluir cursos con status 'synced' (ya sincronizados)
       if (course.status === 'synced') return false;
 
-      // 🔹 FILTRO DEL MES ACTUAL: startDate en rango OR nombre contiene mes+año
+      // 🔹 FILTRO MES ACTUAL + SIGUIENTE: startDate en rango OR nombre contiene mes+año
       const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-      const mesStr = MESES_ES[now.getMonth()].toUpperCase();
-      const añoStr = String(now.getFullYear());
+      const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const nextMonthEnd = new Date(nextMonthDate.getFullYear(), nextMonthDate.getMonth() + 1, 0, 23, 59, 59);
+      const mesActual = MESES_ES[now.getMonth()].toUpperCase();
+      const mesSiguiente = MESES_ES[nextMonthDate.getMonth()].toUpperCase();
+      const añoActual = String(now.getFullYear());
+      const añoSiguiente = String(nextMonthDate.getFullYear());
       const courseStartDate = new Date(course.startDate);
-      const inDateRange = !isNaN(courseStartDate.getTime()) && courseStartDate >= monthStart && courseStartDate <= monthEnd;
-      const inNameMatch = course.name.toUpperCase().includes(mesStr) && course.name.toUpperCase().includes(añoStr);
+      const inDateRange = !isNaN(courseStartDate.getTime()) && courseStartDate >= monthStart && courseStartDate <= nextMonthEnd;
+      const nameUp = course.name.toUpperCase();
+      const inNameMatch = (nameUp.includes(mesActual) && nameUp.includes(añoActual)) ||
+                          (nameUp.includes(mesSiguiente) && nameUp.includes(añoSiguiente));
       if (!inDateRange && !inNameMatch) return false;
 
       // Aplicar filtros globales
