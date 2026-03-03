@@ -64,13 +64,19 @@ export default function FinancieroTab({
   // ——— Validación de campos obligatorios ———
   const isFormValid = useMemo(() => {
     // Debe haber respondido si tiene convenio o no,
-    // si tiene, debe seleccionar un convenio, y siempre forma de pago
+    // si tiene, debe seleccionar un convenio, siempre forma de pago,
+    // y obligatoriamente inscripción y cuota mensual
+    const inscripcionValida = datos.inscripcion && parseFloat(datos.inscripcion.replace(/,/g, "")) > 0
+    const cuotaMensualValida = datos.cuotaMensual && parseFloat(datos.cuotaMensual.replace(/,/g, "")) > 0
+    
     return (
       datos.tieneConvenio !== undefined &&
       (!datos.tieneConvenio || !!datos.convenioId) &&
-      !!datos.formaPago
+      !!datos.formaPago &&
+      inscripcionValida &&
+      cuotaMensualValida
     )
-  }, [datos.tieneConvenio, datos.convenioId, datos.formaPago])
+  }, [datos.tieneConvenio, datos.convenioId, datos.formaPago, datos.inscripcion, datos.cuotaMensual])
 
   /* ——— Cargar convenios y precios de servicios electrónicos ——— */
   useEffect(() => {
@@ -295,6 +301,8 @@ export default function FinancieroTab({
             value={datos.inscripcion}
             placeholder={sugeridos.inscripcion}
             onChange={(v) => setDatos((d) => ({ ...d, inscripcion: v }))}
+            required
+            error={!datos.inscripcion || parseFloat(datos.inscripcion.replace(/,/g, "")) <= 0}
           />
           {/* Toggle de descuento: visible cuando inscripción < precio sugerido del API */}
           {(() => {
@@ -328,6 +336,8 @@ export default function FinancieroTab({
           value={datos.cuotaMensual}
           placeholder={sugeridos.cuota}
           onChange={(v) => setDatos((d) => ({ ...d, cuotaMensual: v }))}
+          required
+          error={!datos.cuotaMensual || parseFloat(datos.cuotaMensual.replace(/,/g, "")) <= 0}
         />
         <InputWithLabel
           id="mes"
@@ -444,6 +454,8 @@ function InputWithLabel({
   placeholder,
   readOnly = false,
   bold = false,
+  required = false,
+  error = false,
 }: {
   id: string
   label: string
@@ -452,10 +464,15 @@ function InputWithLabel({
   placeholder?: string
   readOnly?: boolean
   bold?: boolean
+  required?: boolean
+  error?: boolean
 }) {
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id}>
+        {label}
+        {required && <RequiredAsterisk />}
+      </Label>
       <Input
         id={id}
         value={value}
@@ -463,8 +480,11 @@ function InputWithLabel({
         onChange={onChange ? (e) => onChange(e.target.value) : undefined}
         readOnly={readOnly}
         title={placeholder ? `Precio sugerido: ${placeholder}` : undefined}
-        className={bold ? "font-bold" : ""}
+        className={`${bold ? "font-bold" : ""} ${error ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
       />
+      {error && (
+        <p className="text-xs text-red-600">Este campo es obligatorio</p>
+      )}
     </div>
   )
 }

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { useToast } from "@/hooks/use-toast"
 import { 
   Sparkles, 
   Calendar, 
@@ -15,11 +17,15 @@ import {
   Bell,
   CheckCircle2,
   AlertCircle,
-  AlertTriangle
+  AlertTriangle,
+  UserCheck,
+  Mail,
+  X
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import NotificationsPanel from "@/components/dashboard/NotificationsPanel"
 import dashboardService from "@/services/dashboard"
+import api from "@/services/api"
 
 interface WelcomeData {
   user: {
@@ -103,6 +109,9 @@ interface WelcomeData {
     estado: string
     dias_restantes: number
     carnet_existe_moodle?: boolean
+    tiene_usuario?: boolean
+    usuario_id?: number | null
+    ya_enviado?: boolean
     dias_atraso: number
     fecha_limite: string
     fecha_creacion: string
@@ -216,7 +225,9 @@ export default function WelcomeView() {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [currentPage, setCurrentPage] = useState(1)
   const [paginaAprobacion, setPaginaAprobacion] = useState(1)
+  const [procesandoAlerta, setProcesandoAlerta] = useState<number | null>(null)
   const itemsPerPage = 10
+  const { toast } = useToast()
 
   useEffect(() => {
     // Actualizar reloj cada minuto
@@ -412,6 +423,35 @@ export default function WelcomeView() {
     
     const diffDays = Math.floor(diffHours / 24)
     return `Hace ${diffDays} día${diffDays > 1 ? 's' : ''}`
+  }
+
+  const marcarAlertaProcesada = async (alertaId: number) => {
+    try {
+      setProcesandoAlerta(alertaId)
+      
+      const response = await api.post('/dashboard/alertas/marcar-procesada', {
+        alerta_id: alertaId
+      })
+
+      if (response.data.success) {
+        toast({
+          title: "Alerta procesada",
+          description: "La alerta ha sido marcada como procesada exitosamente",
+        })
+
+        // Recargar datos del dashboard
+        await loadWelcomeData()
+      }
+    } catch (error: any) {
+      console.error("Error al marcar alerta:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.message || "No se pudo procesar la alerta",
+      })
+    } finally {
+      setProcesandoAlerta(null)
+    }
   }
 
   const getDefaultActivities = (rol: string) => {
@@ -1102,6 +1142,7 @@ export default function WelcomeView() {
                     <tr className="border-b">
                       <th className="text-left p-2 font-semibold">Prospecto</th>
                       <th className="text-left p-2 font-semibold">Carnet</th>
+                      <th className="text-center p-2 font-semibold">Estado Proceso</th>
                       <th className="text-left p-2 font-semibold">Asesor (Creador)</th>
                       <th className="text-center p-2 font-semibold">Estado</th>
                       <th className="text-center p-2 font-semibold">Días</th>
@@ -1190,6 +1231,24 @@ export default function WelcomeView() {
                               <span className="text-muted-foreground text-xs">Sin carnet</span>
                             )}
                           </td>
+                          <td className="p-2 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              {/* Indicador: Usuario Creado */}
+                              <div className="flex items-center gap-1" title={alerta.tiene_usuario ? 'Usuario ya creado' : 'Usuario no creado'}>
+                                <UserCheck className={`h-4 w-4 ${alerta.tiene_usuario ? 'text-green-600' : 'text-gray-300'}`} />
+                                <span className={`text-xs ${alerta.tiene_usuario ? 'text-green-600 font-medium' : 'text-gray-400'}`}>
+                                  {alerta.tiene_usuario ? 'Usuario' : 'Sin usuario'}
+                                </span>
+                              </div>
+                              {/* Indicador: Credenciales Enviadas */}
+                              <div className="flex items-center gap-1" title={alerta.ya_enviado ? 'Credenciales ya enviadas (Inscrito)' : 'Credenciales no enviadas'}>
+                                <Mail className={`h-4 w-4 ${alerta.ya_enviado ? 'text-blue-600' : 'text-gray-300'}`} />
+                                <span className={`text-xs ${alerta.ya_enviado ? 'text-blue-600 font-medium' : 'text-gray-400'}`}>
+                                  {alerta.ya_enviado ? 'Enviadas' : 'Sin enviar'}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
                           <td className="p-2 text-sm">{alerta.asesor_nombre}</td>
                           <td className="p-2 text-center">
                             <Badge
@@ -1255,15 +1314,27 @@ export default function WelcomeView() {
                           <td className="p-2 text-center text-xs text-muted-foreground">
                             {new Date(alerta.fecha_limite).toLocaleDateString('es-GT')}
                           </td>
-                          <td className="p-2 text-center">
-                            <button
-                              onClick={() => {
-                                window.location.href = `/gestion?prospectoId=${alerta.prospecto_id}`
-                              }}
-                              className="text-xs text-blue-600 hover:text-blue-800 underline"
-                            >
-                              Ver Prospecto
-                            </button>
+                          <td className="p-2">
+                            <div className="flex flex-col gap-2 items-center">
+                              <button
+                                onClick={() => {
+                                  window.location.href = `/gestion?prospectoId=${alerta.prospecto_id}`
+                                }}
+                                className="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap"
+                              >
+                                Ver Prospecto
+                              </button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => marcarAlertaProcesada(alerta.id)}
+                                disabled={procesandoAlerta === alerta.id}
+                                className="h-7 px-2 text-xs gap-1 hover:bg-green-50 hover:border-green-300"
+                              >
+                                <X className="h-3 w-3" />
+                                {procesandoAlerta === alerta.id ? 'Procesando...' : 'Marcar Procesada'}
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       )

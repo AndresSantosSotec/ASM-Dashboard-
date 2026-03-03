@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -67,6 +67,9 @@ interface ProspectoRaw {
   tiene_carnet: boolean
   datos_completos: boolean
   campos_faltantes: string[]
+  tiene_usuario?: boolean
+  usuario_id?: number | null
+  ya_enviado?: boolean
   programas: Array<{
     duracion_meses: number | null
     programa: {
@@ -99,6 +102,9 @@ interface Estadisticas {
   con_carnet: number
   sin_carnet: number
   listos_para_enviar: number
+  usuarios_creados: number
+  credenciales_enviadas: number
+  sin_usuario: number
 }
 
 const steps = [
@@ -133,7 +139,10 @@ export function GeneracionCredenciales() {
     fecha_inicio_hasta: "",
     programa_id: "",
     correo: "",
-    busqueda: ""
+    busqueda: "",
+    solo_con_usuario: false,
+    solo_credenciales_enviadas: false,
+    solo_sin_usuario: false,
   })
 
   // Estados de archivos cargados
@@ -162,7 +171,7 @@ export function GeneracionCredenciales() {
     try {
       const params = new URLSearchParams()
       Object.entries(filtros).forEach(([key, value]) => {
-        if (value) params.append(key, value)
+        if (value) params.append(key, `${value}`)
       })
 
       // Usar el endpoint de datos crudos
@@ -194,6 +203,25 @@ export function GeneracionCredenciales() {
       console.error("Error cargando estadísticas:", error)
     }
   }
+
+  // Filtrar prospectos localmente basándose en filtros de estado
+  const prospectosFiltrados = useMemo(() => {
+    let filtered = prospectos
+
+    if (filtros.solo_con_usuario) {
+      filtered = filtered.filter(p => p.tiene_usuario === true)
+    }
+
+    if (filtros.solo_sin_usuario) {
+      filtered = filtered.filter(p => !p.tiene_usuario)
+    }
+
+    if (filtros.solo_credenciales_enviadas) {
+      filtered = filtered.filter(p => p.ya_enviado === true)
+    }
+
+    return filtered
+  }, [prospectos, filtros.solo_con_usuario, filtros.solo_sin_usuario, filtros.solo_credenciales_enviadas])
 
   const generarCarnets = async () => {
     if (selectedIds.length === 0) {
@@ -526,10 +554,10 @@ export function GeneracionCredenciales() {
   }
 
   const toggleAll = () => {
-    if (selectedIds.length === prospectos.length) {
+    if (selectedIds.length === prospectosFiltrados.length && prospectosFiltrados.length > 0) {
       setSelectedIds([])
     } else {
-      setSelectedIds(prospectos.map(p => p.id))
+      setSelectedIds(prospectosFiltrados.map(p => p.id))
     }
   }
 
@@ -638,10 +666,13 @@ export function GeneracionCredenciales() {
 
       {/* Estadísticas */}
       {estadisticas && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Total Pendientes</CardTitle>
+              <CardTitle className="text-sm font-medium items-center flex gap-2">
+                <User className="w-4 h-4" />
+                Total Pendientes
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{estadisticas.total_pendientes}</div>
@@ -649,7 +680,10 @@ export function GeneracionCredenciales() {
           </Card>
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Con Carnet</CardTitle>
+              <CardTitle className="text-sm font-medium items-center flex gap-2">
+                <CheckCircle2 className="w-4 h-4" />
+                Con Carnet
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">{estadisticas.con_carnet}</div>
@@ -657,7 +691,10 @@ export function GeneracionCredenciales() {
           </Card>
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Sin Carnet</CardTitle>
+              <CardTitle className="text-sm font-medium items-center flex gap-2">
+                <AlertCircle className="w-4 h-4" />
+                Sin Carnet
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-orange-600">{estadisticas.sin_carnet}</div>
@@ -665,10 +702,35 @@ export function GeneracionCredenciales() {
           </Card>
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Listos para Enviar</CardTitle>
+              <CardTitle className="text-sm font-medium items-center flex gap-2">
+                <UserCheck className="w-4 h-4" />
+                Usuarios Creados
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{estadisticas.listos_para_enviar}</div>
+              <div className="text-2xl font-bold text-blue-600">{estadisticas.usuarios_creados || 0}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium items-center flex gap-2">
+                <Mail className="w-4 h-4" />
+                Credenciales Enviadas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-600">{estadisticas.credenciales_enviadas || 0}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium items-center flex gap-2">
+                <Send className="w-4 h-4" />
+                Listos para Enviar
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-teal-600">{estadisticas.listos_para_enviar}</div>
             </CardContent>
           </Card>
         </div>
@@ -735,8 +797,77 @@ export function GeneracionCredenciales() {
               />
             </div>
           </div>
-          <div className="mt-4">
+          
+          {/* Filtros adicionales de estado */}
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <Label className="text-sm font-semibold mb-3 block">Filtros de Estado de Usuario</Label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="solo_con_usuario"
+                  checked={filtros.solo_con_usuario}
+                  onCheckedChange={(checked) => setFiltros({
+                    ...filtros, 
+                    solo_con_usuario: !!checked,
+                    solo_sin_usuario: false // Desmarcar el opuesto
+                  })}
+                />
+                <Label htmlFor="solo_con_usuario" className="text-sm flex items-center gap-2 cursor-pointer">
+                  <UserCheck className="w-4 h-4 text-green-600" />
+                  Solo con usuario creado
+                </Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="solo_credenciales_enviadas"
+                  checked={filtros.solo_credenciales_enviadas}
+                  onCheckedChange={(checked) => setFiltros({
+                    ...filtros, 
+                    solo_credenciales_enviadas: !!checked
+                  })}
+                />
+                <Label htmlFor="solo_credenciales_enviadas" className="text-sm flex items-center gap-2 cursor-pointer">
+                  <Mail className="w-4 h-4 text-blue-600" />
+                  Solo con credenciales enviadas
+                </Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="solo_sin_usuario"
+                  checked={filtros.solo_sin_usuario}
+                  onCheckedChange={(checked) => setFiltros({
+                    ...filtros, 
+                    solo_sin_usuario: !!checked,
+                    solo_con_usuario: false // Desmarcar el opuesto
+                  })}
+                />
+                <Label htmlFor="solo_sin_usuario" className="text-sm flex items-center gap-2 cursor-pointer">
+                  <User className="w-4 h-4 text-gray-600" />
+                  Solo sin usuario
+                </Label>
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-4 flex gap-2">
             <Button onClick={cargarProspectos}>Aplicar Filtros</Button>
+            <Button 
+              variant="outline" 
+              onClick={() => setFiltros({
+                fecha_inicio_desde: "",
+                fecha_inicio_hasta: "",
+                programa_id: "",
+                correo: "",
+                busqueda: "",
+                solo_con_usuario: false,
+                solo_credenciales_enviadas: false,
+                solo_sin_usuario: false,
+              })}
+            >
+              Limpiar Filtros
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -754,7 +885,7 @@ export function GeneracionCredenciales() {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <div className="text-sm text-muted-foreground">
-                  {selectedIds.length} de {prospectos.length} seleccionados
+                  {selectedIds.length} de {prospectosFiltrados.length} seleccionados ({prospectos.length} total)
                 </div>
                 <Button 
                   onClick={generarCarnets}
@@ -771,10 +902,11 @@ export function GeneracionCredenciales() {
                     <TableRow>
                       <TableHead className="w-12">
                         <Checkbox 
-                          checked={selectedIds.length === prospectos.length && prospectos.length > 0}
+                          checked={selectedIds.length === prospectosFiltrados.length && prospectosFiltrados.length > 0}
                           onCheckedChange={toggleAll}
                         />
                       </TableHead>
+                      <TableHead>Estado Usuario</TableHead>
                       <TableHead>Carnet</TableHead>
                       <TableHead>Día 1</TableHead>
                       <TableHead>Día 2</TableHead>
@@ -792,13 +924,39 @@ export function GeneracionCredenciales() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {prospectos.map((prospecto) => (
-                      <TableRow key={prospecto.id}>
+                    {prospectosFiltrados.map((prospecto) => {
+                      // Determinar si ya tiene usuario creado
+                      const tieneUsuario = prospecto.tiene_usuario || false
+                      const yaEnviado = prospecto.ya_enviado || false
+                      
+                      return (
+                      <TableRow key={prospecto.id} className={yaEnviado ? "bg-green-50" : ""}>
                         <TableCell>
                           <Checkbox 
                             checked={selectedIds.includes(prospecto.id)}
                             onCheckedChange={() => toggleSelection(prospecto.id)}
                           />
+                        </TableCell>
+                        <TableCell>
+                          {tieneUsuario ? (
+                            <div className="flex flex-col gap-1">
+                              <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+                                <UserCheck className="w-3 h-3 mr-1" />
+                                Usuario Creado
+                              </Badge>
+                              {yaEnviado && (
+                                <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+                                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                                  Credenciales Enviadas
+                                </Badge>
+                              )}
+                            </div>
+                          ) : (
+                            <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-300">
+                              <User className="w-3 h-3 mr-1" />
+                              Sin Usuario
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
                           {prospecto.carnet ? (
@@ -840,7 +998,8 @@ export function GeneracionCredenciales() {
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </div>
