@@ -284,6 +284,11 @@ const StudentAccordionItem = memo(({
               </div>
               <p className="text-xs text-gray-600">
                 {student.carnet} • {totalCompleted} completado(s) • {totalCursosLlevados} histórico(s)
+                {student.internalStudent?.dia_estudio && (
+                  <span className="ml-1 inline-flex items-center gap-0.5 text-indigo-600 font-medium">
+                    • 📅 {student.internalStudent.dia_estudio}
+                  </span>
+                )}
               </p>
               {careerProgress && careerProgress.total_cursos_carrera > 0 && (
                 <p className={`text-xs ${isInClosingArea ? 'text-amber-700 font-medium' : 'text-green-600'}`}>
@@ -332,6 +337,14 @@ const StudentAccordionItem = memo(({
                 <span className="text-gray-500">Programa(s):</span>{" "}
                 {student.internalStudent!.programas.map(p => p.nombre).join(", ") || "N/A"}
               </div>
+              {student.internalStudent!.dia_estudio && (
+                <div className="col-span-2 flex items-center gap-1">
+                  <span className="text-gray-500">Día(s) de estudio:</span>
+                  <span className="font-medium text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                    📅 {student.internalStudent!.dia_estudio}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Mostrar loading si aún no se han cargado los cursos */}
@@ -746,12 +759,29 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
     // Conjunto de carnets ya en la lista de Moodle (para no duplicar)
     const moodleCarnets = new Set(studentsData.map(s => s.carnet.toUpperCase()));
 
+    // Contexto de programas activos: derivado de los estudiantes de Moodle ya cargados
+    // Si se seleccionó un curso BBA → sólo habrá IDs de programas BBA aquí
+    const moodleProgramIds = new Set<number>();
+    studentsData.forEach(s => {
+      s.internalStudent?.programas?.forEach(p => moodleProgramIds.add(p.id));
+    });
+
     // Inyectar estudiantes "Nuevo" del prop que no aparecen en Moodle
+    // Filtrar por programa del contexto Moodle activo para evitar mezclas cross-carrera
     const nuevoExtra: StudentWithInternalData[] = (students as any[])
-      .filter((s) =>
-        (isNuevo(s.createdAt) || isNuevo(s.startDate)) &&
-        !moodleCarnets.has((s.carnet as string).toUpperCase())
-      )
+      .filter((s) => {
+        if (!isNuevo(s.createdAt) && !isNuevo(s.startDate)) return false;
+        if (moodleCarnets.has((s.carnet as string).toUpperCase())) return false;
+        // Si hay contexto de Moodle con programas conocidos → solo inyectar
+        // nuevos cuyo programa coincida (evita mezclar BBA con Master, etc.)
+        if (moodleProgramIds.size > 0) {
+          const pid = s.programId ? Number(s.programId) : null;
+          if (!pid) return false; // sin programa conocido → excluir
+          return moodleProgramIds.has(pid);
+        }
+        // Sin contexto Moodle → mostrar todos los nuevos
+        return true;
+      })
       .map((s) => ({
         moodleUserId: 0,
         carnet: (s.carnet as string).toUpperCase(),
@@ -779,7 +809,8 @@ export function CourseBasedAssignment({ students }: CourseBasedAssignmentProps) 
         completedCourseIds: [],
         assignedCourseIds: [],
         moodleCompletedCourses: [],
-        coursesLoaded: false,
+        // Sin histórico de Moodle → no hay nada que cargar; mostrar cursos disponibles de inmediato
+        coursesLoaded: true,
       }));
 
     let result: StudentWithInternalData[] = [...studentsData, ...nuevoExtra];
