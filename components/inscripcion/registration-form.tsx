@@ -411,6 +411,21 @@ export default function RegistrationForm() {
     if (isSubmitting) return
     setIsSubmitting(true)
     try {
+      // Garantizar que inversionTotal tenga un valor numérico antes de enviar.
+      // Si el usuario no pasó por la tab financiera o el campo es undefined/vacío,
+      // lo calculamos aquí: cuotaMensual * cantidadMeses + inscripcion.
+      const inscNum    = parseFloat(String(datosFinancieros.inscripcion  || '0').replace(/,/g, '')) || 0
+      const cuotaNum   = parseFloat(String(datosFinancieros.cuotaMensual || '0').replace(/,/g, '')) || 0
+      const mesesNum   = parseInt(String(datosFinancieros.cantidadMeses  || '0'), 10) || 0
+      const invRaw     = String(datosFinancieros.inversionTotal || '').replace(/,/g, '')
+      const invNum     = parseFloat(invRaw) || 0
+      const invFinal   = invNum > 0 ? invNum : (cuotaNum * mesesNum + inscNum)
+      const financierosPayload = {
+        ...datosFinancieros,
+        cantidadMeses:  String(mesesNum || datosFinancieros.cantidadMeses || '0'),
+        inversionTotal: invFinal.toFixed(2),
+      }
+
       // 1. Finalizar inscripción (crear prospecto y estudiante_programa)
       const response = await api.post(
         `/inscripciones/finalizar`,
@@ -418,7 +433,7 @@ export default function RegistrationForm() {
           personales: { ...datosPersonales, id: prospectoId },
           laborales: datosLaborales,
           academicos: datosAcademicos,
-          financieros: datosFinancieros,
+          financieros: financierosPayload,
         }
       );
 
