@@ -285,7 +285,16 @@ const CuotasTab: React.FC<CuotasTabProps> = ({ filters }) => {
                                   <Label htmlFor="edit_estado">Estado</Label>
                                   <Select
                                     value={editFormData.estado}
-                                    onValueChange={(value) => setEditFormData({ ...editFormData, estado: value })}
+                                    onValueChange={(value) => {
+                                      const updates: any = { ...editFormData, estado: value }
+                                      if (value === "pagada" && !editFormData.paid_at) {
+                                        updates.paid_at = new Date().toISOString().split("T")[0]
+                                      }
+                                      if (value !== "pagada") {
+                                        updates.paid_at = ""
+                                      }
+                                      setEditFormData(updates)
+                                    }}
                                   >
                                     <SelectTrigger>
                                       <SelectValue />
@@ -297,6 +306,18 @@ const CuotasTab: React.FC<CuotasTabProps> = ({ filters }) => {
                                     </SelectContent>
                                   </Select>
                                 </div>
+                                
+                                {editFormData.estado === "pagada" && (
+                                  <div>
+                                    <Label htmlFor="edit_paid_at">Fecha de Pago</Label>
+                                    <Input
+                                      id="edit_paid_at"
+                                      type="date"
+                                      value={editFormData.paid_at || ""}
+                                      onChange={(e) => setEditFormData({ ...editFormData, paid_at: e.target.value })}
+                                    />
+                                  </div>
+                                )}
                                 
                                 <div className="flex justify-end space-x-2">
                                   <Button variant="outline" onClick={handleCancelEdit}>

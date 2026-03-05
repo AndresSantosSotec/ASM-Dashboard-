@@ -66,7 +66,7 @@ export default function FinancieroTab({
     // Debe haber respondido si tiene convenio o no,
     // si tiene, debe seleccionar un convenio, siempre forma de pago,
     // y obligatoriamente inscripción y cuota mensual
-    const inscripcionValida = datos.inscripcion && parseFloat(datos.inscripcion.replace(/,/g, "")) > 0
+    const inscripcionValida = datos.inscripcion !== undefined && datos.inscripcion !== null && datos.inscripcion.trim() !== "" && parseFloat(datos.inscripcion.replace(/,/g, "")) >= 0
     const cuotaMensualValida = datos.cuotaMensual && parseFloat(datos.cuotaMensual.replace(/,/g, "")) > 0
     
     return (
@@ -302,7 +302,7 @@ export default function FinancieroTab({
             placeholder={sugeridos.inscripcion}
             onChange={(v) => setDatos((d) => ({ ...d, inscripcion: v }))}
             required
-            error={!datos.inscripcion || parseFloat(datos.inscripcion.replace(/,/g, "")) <= 0}
+            error={datos.inscripcion === undefined || datos.inscripcion === null || datos.inscripcion.trim() === "" || parseFloat(datos.inscripcion.replace(/,/g, "")) < 0}
           />
           {/* Toggle de descuento: visible cuando inscripción < precio sugerido del API */}
           {(() => {

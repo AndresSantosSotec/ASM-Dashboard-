@@ -14,6 +14,7 @@ export interface CuotaEditFormState {
   fecha_vencimiento: string
   monto: string
   estado: string
+  paid_at: string
 }
 
 interface UseCuotasTabOptions {
@@ -47,6 +48,7 @@ export const useCuotasTab = ({ filters }: UseCuotasTabOptions) => {
     fecha_vencimiento: "",
     monto: "",
     estado: "",
+    paid_at: "",
   })
 
   // Función para construir filtros de request
@@ -215,6 +217,7 @@ export const useCuotasTab = ({ filters }: UseCuotasTabOptions) => {
       fecha_vencimiento: cuota.fecha_vencimiento || "",
       monto: cuota.monto?.toString() || "",
       estado: cuota.estado || "",
+      paid_at: cuota.paid_at || "",
     })
   }, [])
 
@@ -226,6 +229,7 @@ export const useCuotasTab = ({ filters }: UseCuotasTabOptions) => {
       fecha_vencimiento: editFormData.fecha_vencimiento,
       monto: parseFloat(editFormData.monto),
       estado: editFormData.estado,
+      paid_at: editFormData.paid_at || null,
     })
     
     if (result) {
@@ -242,6 +246,7 @@ export const useCuotasTab = ({ filters }: UseCuotasTabOptions) => {
       fecha_vencimiento: "",
       monto: "",
       estado: "",
+      paid_at: "",
     })
   }, [])
 

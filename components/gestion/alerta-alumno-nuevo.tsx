@@ -647,7 +647,11 @@ export default function AlertaAlumnoNuevo({
         try {
           let inscripcion = Number(formData.inscripcion) || 0
           let cuotaMensual = Number(formData.cuota_mensual) || 0
-          if (inscripcion === 0 && cuotaMensual === 0) {
+          // Solo buscar precios del catálogo si el usuario NO llenó los campos (vacíos/undefined)
+          // Si el usuario puso 0 explícitamente, respetar ese valor
+          const inscripcionVacia = formData.inscripcion === undefined || formData.inscripcion === null || formData.inscripcion === ""
+          const cuotaVacia = formData.cuota_mensual === undefined || formData.cuota_mensual === null || formData.cuota_mensual === ""
+          if (inscripcionVacia && cuotaVacia) {
             const resPrecios = await fetch(`${API_URL}/precios/programa/${formData.programa_id}?meses=${formData.duracion_meses}`, { headers: { Authorization: `Bearer ${token}` } })
             if (resPrecios.ok) {
               const precios = await resPrecios.json()
@@ -1057,7 +1061,11 @@ export default function AlertaAlumnoNuevo({
           // Usar precio establecido en el formulario (inscripción/mensualidad); si no hay, cargar del catálogo
           let inscripcion = Number(formData.inscripcion) || 0
           let cuotaMensual = Number(formData.cuota_mensual) || 0
-          if (inscripcion === 0 && cuotaMensual === 0) {
+          // Solo buscar precios del catálogo si el usuario NO llenó los campos (vacíos/undefined)
+          // Si el usuario puso 0 explícitamente, respetar ese valor
+          const inscripcionVacia = formData.inscripcion === undefined || formData.inscripcion === null || formData.inscripcion === ""
+          const cuotaVacia = formData.cuota_mensual === undefined || formData.cuota_mensual === null || formData.cuota_mensual === ""
+          if (inscripcionVacia && cuotaVacia) {
             const resPrecios = await fetch(`${API_URL}/precios/programa/${formData.programa_id}?meses=${formData.duracion_meses}`, {
               headers: { Authorization: `Bearer ${token}` },
             })
@@ -2365,8 +2373,8 @@ export default function AlertaAlumnoNuevo({
         studentName={prospectoData?.nombre_completo || prospectoNombre}
         nit={prospectoData?.numero_identificacion || "CF"}
         monto={
-          (Number(formData.inscripcion) > 0 ? formData.inscripcion : null) ||
-          (montoInscripcion > 0 ? montoInscripcion.toString() : undefined)
+          (formData.inscripcion !== undefined && formData.inscripcion !== null && formData.inscripcion !== "" ? formData.inscripcion : null) ||
+          (montoInscripcion != null ? montoInscripcion.toString() : undefined)
         }
         concepto="matricula"
         programa={programaData?.programa?.nombre_del_programa || programasAcademicos.find(p => p?.id?.toString() === formData.programa_id)?.nombre_del_programa}

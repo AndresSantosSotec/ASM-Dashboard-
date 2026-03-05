@@ -96,6 +96,7 @@ export function SeguimientoEstudiantes() {
     monto: 0,
     estado: "pendiente",
     observaciones: "",
+    paid_at: "",
   })
 
   // Bulk creation form
@@ -161,6 +162,7 @@ export function SeguimientoEstudiantes() {
       monto: 0,
       estado: "pendiente",
       observaciones: "",
+      paid_at: "",
     })
     setShowCreateModal(true)
   }
@@ -173,6 +175,7 @@ export function SeguimientoEstudiantes() {
       monto: cuota.monto,
       estado: cuota.estado || "pendiente",
       observaciones: "",
+      paid_at: cuota.paid_at ? cuota.paid_at.split(" ")[0].split("T")[0] : "",
     })
     setShowEditModal(true)
   }
@@ -230,6 +233,7 @@ export function SeguimientoEstudiantes() {
         monto: formData.monto,
         estado: formData.estado,
         observaciones: formData.observaciones,
+        paid_at: formData.estado === "pagado" && formData.paid_at ? formData.paid_at : (formData.estado === "pagado" ? new Date().toISOString().split("T")[0] : null),
       }
 
       await updateCuota(selectedCuota.id, payload)
@@ -686,7 +690,16 @@ export function SeguimientoEstudiantes() {
             </div>
             <div>
               <Label>Estado</Label>
-              <Select value={formData.estado} onValueChange={(value) => setFormData({ ...formData, estado: value })}>
+              <Select value={formData.estado} onValueChange={(value) => {
+                const updates: any = { ...formData, estado: value }
+                if (value === "pagado" && !formData.paid_at) {
+                  updates.paid_at = new Date().toISOString().split("T")[0]
+                }
+                if (value !== "pagado") {
+                  updates.paid_at = ""
+                }
+                setFormData(updates)
+              }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -698,6 +711,16 @@ export function SeguimientoEstudiantes() {
                 </SelectContent>
               </Select>
             </div>
+            {formData.estado === "pagado" && (
+              <div>
+                <Label>Fecha de Pago</Label>
+                <Input
+                  type="date"
+                  value={formData.paid_at || ""}
+                  onChange={(e) => setFormData({ ...formData, paid_at: e.target.value })}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditModal(false)}>

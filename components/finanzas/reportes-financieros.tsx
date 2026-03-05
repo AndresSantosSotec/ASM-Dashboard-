@@ -232,6 +232,7 @@ export const ReportesFinancieros = () => {
     fecha_vencimiento: "",
     monto: 0,
     estado: "pendiente",
+    paid_at: "",
   })
 
   // Estados para generación masiva de cuotas
@@ -1030,6 +1031,7 @@ export const ReportesFinancieros = () => {
       fecha_vencimiento: fechaFormateada,
       monto: cuota.monto || 0,
       estado: cuota.estado || "pendiente",
+      paid_at: cuota.paid_at ? cuota.paid_at.split(" ")[0].split("T")[0] : "",
     })
     setShowEditCuotaModal(true)
   }, [])
@@ -1185,6 +1187,7 @@ export const ReportesFinancieros = () => {
         fecha_vencimiento: cuotaEditForm.fecha_vencimiento,
         monto: cuotaEditForm.monto,
         estado: cuotaEditForm.estado,
+        paid_at: cuotaEditForm.estado === "pagado" && cuotaEditForm.paid_at ? cuotaEditForm.paid_at : (cuotaEditForm.estado === "pagado" ? new Date().toISOString().split("T")[0] : null),
       }
 
       console.log('🔄 Actualizando cuota:', { id: selectedCuota.id, payload })
@@ -3080,7 +3083,16 @@ export const ReportesFinancieros = () => {
             </div>
             <div>
               <Label>Estado</Label>
-              <Select value={cuotaEditForm.estado} onValueChange={(value) => setCuotaEditForm({ ...cuotaEditForm, estado: value })}>
+              <Select value={cuotaEditForm.estado} onValueChange={(value) => {
+                const updates: any = { ...cuotaEditForm, estado: value }
+                if (value === "pagado" && !cuotaEditForm.paid_at) {
+                  updates.paid_at = new Date().toISOString().split("T")[0]
+                }
+                if (value !== "pagado") {
+                  updates.paid_at = ""
+                }
+                setCuotaEditForm(updates)
+              }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -3092,6 +3104,16 @@ export const ReportesFinancieros = () => {
                 </SelectContent>
               </Select>
             </div>
+            {cuotaEditForm.estado === "pagado" && (
+              <div>
+                <Label>Fecha de Pago</Label>
+                <Input
+                  type="date"
+                  value={cuotaEditForm.paid_at}
+                  onChange={(e) => setCuotaEditForm({ ...cuotaEditForm, paid_at: e.target.value })}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
