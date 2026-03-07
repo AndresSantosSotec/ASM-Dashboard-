@@ -26,7 +26,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Plus, Edit, Trash2, DollarSign, Calendar, RefreshCw } from "lucide-react"
+import { Search, Plus, Edit, Trash2, DollarSign, Calendar, RefreshCw, FileText } from "lucide-react"
 import {
   getCuotasDashboard,
   createCuota,
@@ -38,6 +38,7 @@ import {
   type CuotaDetalladaResumen,
   type Pagination,
 } from "@/services/mantenimientos"
+import { API_BASE_URL } from "@/utils/apiConfig"
 import { toast } from "sonner"
 
 const currencyFormatter = new Intl.NumberFormat("es-GT", {
@@ -88,6 +89,7 @@ export function SeguimientoEstudiantes() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showBulkCreateModal, setShowBulkCreateModal] = useState(false)
   const [selectedCuota, setSelectedCuota] = useState<CuotaDetalladaResumen | null>(null)
+  const [deletingCuota, setDeletingCuota] = useState(false)
 
   // Form states for create/edit
   const [formData, setFormData] = useState({
@@ -261,17 +263,20 @@ export function SeguimientoEstudiantes() {
   const submitDeleteCuota = async () => {
     if (!selectedCuota) return
 
+    setDeletingCuota(true)
     try {
       await deleteCuota(selectedCuota.id)
       toast.success("Cuota eliminada exitosamente")
       setShowDeleteDialog(false)
-      await loadEstudiantes()
+      setSelectedCuota(null)
       // Reload the selected student's cuotas
       const updatedResponse = await getCuotasDashboard({ 
         page: currentPage, 
         per_page: perPage,
         search: searchQuery || undefined,
       })
+      setEstudiantes(updatedResponse.estudiantes || [])
+      setPagination(updatedResponse.pagination || null)
       const updatedEstudiante = updatedResponse.estudiantes.find(
         (e) => e.estudiante_programa_id === selectedEstudiante?.estudiante_programa_id,
       )
@@ -281,6 +286,8 @@ export function SeguimientoEstudiantes() {
     } catch (error: any) {
       console.error("Error deleting cuota:", error)
       toast.error(error.response?.data?.message || "Error al eliminar la cuota")
+    } finally {
+      setDeletingCuota(false)
     }
   }
 
@@ -542,6 +549,7 @@ export function SeguimientoEstudiantes() {
                     <TableHead className="text-right">Monto</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Fecha Pago</TableHead>
+                    <TableHead>Comprobante</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -556,6 +564,30 @@ export function SeguimientoEstudiantes() {
                           <Badge className={getEstadoBadgeColor(cuota.estado)}>{cuota.estado || "pendiente"}</Badge>
                         </TableCell>
                         <TableCell>{formatDate(cuota.paid_at)}</TableCell>
+                        <TableCell>
+                          {cuota.pagos && cuota.pagos.length > 0 ? (
+                            <div className="flex gap-1">
+                              {cuota.pagos
+                                .filter((p) => p.archivo_comprobante)
+                                .map((p) => (
+                                  <Button
+                                    key={p.id}
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => window.open(`${API_BASE_URL}/storage/${p.archivo_comprobante}`, '_blank')}
+                                    title={`Ver comprobante - Boleta ${p.numero_boleta || 'S/N'}`}
+                                  >
+                                    <FileText className="h-4 w-4 text-blue-600" />
+                                  </Button>
+                                ))}
+                              {cuota.pagos.filter((p) => p.archivo_comprobante).length === 0 && (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex gap-2 justify-end">
                             <Button
@@ -580,7 +612,7 @@ export function SeguimientoEstudiantes() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
                         No hay cuotas registradas
                       </TableCell>
                     </TableRow>
@@ -732,7 +764,9 @@ export function SeguimientoEstudiantes() {
       </Dialog>
 
       {/* Delete Cuota Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <AlertDialog open={showDeleteDialog} onOpenChange={(open) => {
+        if (!deletingCuota) setShowDeleteDialog(open)
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
@@ -741,10 +775,14 @@ export function SeguimientoEstudiantes() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={submitDeleteCuota} className="bg-red-600 hover:bg-red-700">
-              Eliminar
-            </AlertDialogAction>
+            <AlertDialogCancel disabled={deletingCuota}>Cancelar</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={submitDeleteCuota}
+              disabled={deletingCuota}
+            >
+              {deletingCuota ? "Eliminando..." : "Eliminar"}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

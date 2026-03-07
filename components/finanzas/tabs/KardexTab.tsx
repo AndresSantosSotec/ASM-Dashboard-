@@ -9,10 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Edit, Trash2, Plus, DollarSign, Users, TrendingUp, AlertCircle } from "lucide-react"
+import { Edit, Trash2, Plus, DollarSign, Users, TrendingUp, AlertCircle, FileText } from "lucide-react"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { useKardexTab } from "@/hooks/useKardexTab"
 import type { KardexPagoResumen } from "@/services/mantenimientos"
+import { API_BASE_URL } from "@/utils/apiConfig"
 
 interface KardexTabProps {
   filters: any
@@ -249,13 +250,14 @@ const KardexTab: React.FC<KardexTabProps> = ({ filters }) => {
                   <TableHead>Fecha Pago</TableHead>
                   <TableHead>Método</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Comprobante</TableHead>
                   <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       No hay movimientos de pago registrados
                     </TableCell>
                   </TableRow>
@@ -276,6 +278,20 @@ const KardexTab: React.FC<KardexTabProps> = ({ filters }) => {
                         <Badge variant={getBadgeVariant(kardex.estado_pago)}>
                           {kardex.estado_pago || "Sin estado"}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {kardex.archivo_comprobante ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(`${API_BASE_URL}/storage/${kardex.archivo_comprobante}`, '_blank')}
+                            title="Ver comprobante"
+                          >
+                            <FileText className="h-4 w-4 text-blue-600" />
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">

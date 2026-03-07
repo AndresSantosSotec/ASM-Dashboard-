@@ -9,10 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Edit, Trash2, Plus, DollarSign, Users, TrendingDown, AlertCircle } from "lucide-react"
+import { Edit, Trash2, Plus, DollarSign, Users, TrendingDown, AlertCircle, FileText } from "lucide-react"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { useCuotasTab } from "@/hooks/useCuotasTab"
 import type { CuotaProgramaResumen } from "@/services/mantenimientos"
+import { API_BASE_URL } from "@/utils/apiConfig"
 
 interface CuotasTabProps {
   filters: any
@@ -219,13 +220,14 @@ const CuotasTab: React.FC<CuotasTabProps> = ({ filters }) => {
                   <TableHead>Monto</TableHead>
                   <TableHead>Vencimiento</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Comprobante</TableHead>
                   <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       No hay cuotas registradas
                     </TableCell>
                   </TableRow>
@@ -246,6 +248,20 @@ const CuotasTab: React.FC<CuotasTabProps> = ({ filters }) => {
                         <Badge variant={getBadgeVariant(cuota.estado)}>
                           {cuota.estado || "Sin estado"}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {cuota.archivo_comprobante ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(`${API_BASE_URL}/storage/${cuota.archivo_comprobante}`, '_blank')}
+                            title="Ver comprobante"
+                          >
+                            <FileText className="h-4 w-4 text-blue-600" />
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">

@@ -38,8 +38,9 @@ import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Eye, Loader2, Pencil, Plus, RefreshCw, Trash2, Calendar } from "lucide-react"
+import { Eye, FileText, Loader2, Pencil, Plus, RefreshCw, Trash2, Calendar } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { API_BASE_URL } from "@/utils/apiConfig"
 import { FiltrosCuotas, FiltrosKardex, FiltrosReconciliaciones } from "@/components/finanzas/reportes"
 import { ReconciliacionModal } from "./modals/ReconciliacionModal"
 import { AsistentePagoModal } from "./modals/AsistentePagoModal"
@@ -2909,6 +2910,7 @@ export const ReportesFinancieros = () => {
                     <TableHead className="text-right">Monto</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Fecha Pago</TableHead>
+                    <TableHead>Comprobante</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -2930,6 +2932,30 @@ export const ReportesFinancieros = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>{formatDate(cuota.paid_at)}</TableCell>
+                          <TableCell>
+                            {cuota.pagos && cuota.pagos.length > 0 ? (
+                              <div className="flex gap-1">
+                                {cuota.pagos
+                                  .filter((p) => p.archivo_comprobante)
+                                  .map((p) => (
+                                    <Button
+                                      key={p.id}
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => window.open(`${API_BASE_URL}/storage/${p.archivo_comprobante}`, '_blank')}
+                                      title={`Ver comprobante - Boleta ${p.numero_boleta || 'S/N'}`}
+                                    >
+                                      <FileText className="h-4 w-4 text-blue-600" />
+                                    </Button>
+                                  ))}
+                                {cuota.pagos.filter((p) => p.archivo_comprobante).length === 0 && (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right">
                             <div className="flex gap-2 justify-end">
                               <Button
@@ -2955,7 +2981,7 @@ export const ReportesFinancieros = () => {
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
                         No hay cuotas registradas
                       </TableCell>
                     </TableRow>
@@ -3247,6 +3273,23 @@ export const ReportesFinancieros = () => {
                   <div>
                     <p className="text-xs uppercase text-muted-foreground">Observaciones</p>
                     <p>{(kardexModal.row as KardexPagoResumen).observaciones}</p>
+                  </div>
+                ) : null}
+                {kardexModal.tab === "kardex" && (kardexModal.row as KardexPagoResumen).archivo_comprobante ? (
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Comprobante de pago</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-1"
+                      onClick={() => {
+                        const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, '') || ''
+                        window.open(`${baseUrl}/storage/${(kardexModal.row as KardexPagoResumen).archivo_comprobante}`, '_blank')
+                      }}
+                    >
+                      <Eye className="h-4 w-4 mr-2 text-blue-600" />
+                      Ver comprobante
+                    </Button>
                   </div>
                 ) : null}
                 <div>

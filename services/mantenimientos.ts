@@ -90,6 +90,7 @@ export interface KardexPagoResumen {
   numero_boleta: string | null
   banco: string | null
   observaciones: string | null
+  archivo_comprobante: string | null
   mes?: number | null // 🆕 Mes de referencia (1-12)
   ano?: number | null // 🆕 Año de referencia (YYYY)
   mes_pago?: string | null // 🆕 Mes del pago como texto (ej: "Octubre")
@@ -105,6 +106,7 @@ export interface KardexRelacionadoResumen {
   fecha_pago?: string | null
   monto_pagado?: number
   estado_pago?: string | null
+  archivo_comprobante?: string | null
 }
 
 export interface ReconciliationRecordResumen {
@@ -130,6 +132,7 @@ export interface CuotaProgramaResumen {
   monto: number
   estado: string | null
   paid_at: string | null
+  archivo_comprobante: string | null
   prospecto: ProspectoResumen | null
   programa: ProgramaResumen | null
 }
@@ -150,6 +153,16 @@ export interface KardexDataResponse {
   }
 }
 
+export interface CuotaPagoResumen {
+  id: number
+  fecha_pago: string | null
+  monto_pagado: number
+  estado_pago: string | null
+  numero_boleta: string | null
+  banco: string | null
+  archivo_comprobante: string | null
+}
+
 export interface CuotaDetalladaResumen {
   id: number
   numero_cuota: number
@@ -157,6 +170,7 @@ export interface CuotaDetalladaResumen {
   monto: number
   estado: string | null
   paid_at: string | null
+  pagos?: CuotaPagoResumen[]
 }
 
 export interface CuotasDashboardEstudiante {

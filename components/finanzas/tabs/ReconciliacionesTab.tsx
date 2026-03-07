@@ -4,11 +4,12 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { Edit, Trash2, Plus, DollarSign, Users, TrendingUp, AlertCircle } from "lucide-react"
+import { Edit, Trash2, Plus, DollarSign, Users, TrendingUp, AlertCircle, FileText } from "lucide-react"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { useReconciliacionesTab } from "@/hooks/useReconciliacionesTab"
 import { ReconciliacionModal } from "@/components/finanzas/modals/ReconciliacionModal"
 import type { ReconciliationRecordResumen } from "@/services/mantenimientos"
+import { API_BASE_URL } from "@/utils/apiConfig"
 
 interface ReconciliacionesTabProps {
   filters: any
@@ -143,13 +144,14 @@ const ReconciliacionesTab: React.FC<ReconciliacionesTabProps> = ({ filters }) =>
                   <TableHead>Monto</TableHead>
                   <TableHead>Fecha</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Comprobante</TableHead>
                   <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       No hay reconciliaciones registradas
                     </TableCell>
                   </TableRow>
@@ -170,6 +172,20 @@ const ReconciliacionesTab: React.FC<ReconciliacionesTabProps> = ({ filters }) =>
                         <Badge variant={getBadgeVariant(reconciliacion.status)}>
                           {reconciliacion.status || "Sin estado"}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {reconciliacion.kardex?.archivo_comprobante ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(`${API_BASE_URL}/storage/${reconciliacion.kardex!.archivo_comprobante}`, '_blank')}
+                            title="Ver comprobante"
+                          >
+                            <FileText className="h-4 w-4 text-blue-600" />
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">
