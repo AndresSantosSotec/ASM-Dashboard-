@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ArrowLeft, Plus, Info, Download, ShieldAlert } from "lucide-react"
+import { ArrowLeft, Plus, Info, Download, ShieldAlert, Loader2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import { useToast } from "@/components/ui/use-toast"
@@ -55,6 +55,7 @@ export default function CargaMasivaProspectos() {
   const [editingColumn, setEditingColumn] = useState<Column | null>(null)
   const [selectedDbColumn, setSelectedDbColumn] = useState<string>("")
   const [progress, setProgress] = useState<number>(0)
+  const [isImporting, setIsImporting] = useState<boolean>(false)
 
   // Estados para asignar asesor al importar
   const [asesores, setAsesores] = useState<{ id: number; nombre: string; username: string }[]>([])
@@ -701,15 +702,25 @@ export default function CargaMasivaProspectos() {
     xhr.open("POST", `${API_BASE_URL}/api/import`);
     if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
 
+    setIsImporting(true);
+    setProgress(1); // mostrar barra de progreso de inmediato
+
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
-        const percent = Math.round((e.loaded / e.total) * 100);
-        console.log("[Import] progreso:", percent);
+        // El upload ocupa el 0-80%, el procesamiento del servidor el 80-99%
+        const percent = Math.round((e.loaded / e.total) * 80);
+        console.log("[Import] progreso upload:", percent);
         setProgress(percent);
       }
     };
 
+    xhr.upload.onload = () => {
+      // Upload completado — ahora el servidor está procesando
+      setProgress(85);
+    };
+
     xhr.onload = () => {
+      setIsImporting(false);
       setProgress(0);
       console.log("[Import] respuesta xhr:", xhr.status);
       if (xhr.status < 200 || xhr.status >= 300) {
@@ -858,6 +869,7 @@ export default function CargaMasivaProspectos() {
     };
 
     xhr.onerror = () => {
+      setIsImporting(false);
       setProgress(0);
       handleError(new Error("Network error"));
     };
@@ -1013,10 +1025,22 @@ export default function CargaMasivaProspectos() {
                   Descargar Lista Asesores
                 </Button>
               )}
-              <Button onClick={() => handleImport()}>Importar Leads</Button>
-              {progress > 0 && (
+              <Button
+                onClick={() => handleImport()}
+                disabled={isImporting}
+              >
+                {isImporting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {progress < 85 ? `Subiendo... ${progress}%` : "Procesando..."}
+                  </>
+                ) : (
+                  "Importar Leads"
+                )}
+              </Button>
+              {(progress > 0 || isImporting) && (
                 <div className="flex-1">
-                  <Progress value={progress} />
+                  <Progress value={isImporting && progress === 0 ? 99 : progress} />
                 </div>
               )}
             </div>
