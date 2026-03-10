@@ -135,7 +135,7 @@ export default function DebugLogsPage() {
         per_page: paginacion.per_page,
         pagina,
       }
-      if (nivelFiltro && nivelFiltro !== "todos") params.nivel = nivelFiltro
+      if (nivelFiltro && nivelFiltro !== "todos") params.nivel = nivelFiltro.toLowerCase()
       if (fechaFiltro) params.fecha = fechaFiltro
       if (buscar.trim()) params.buscar = buscar.trim()
 

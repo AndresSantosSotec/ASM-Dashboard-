@@ -6,6 +6,7 @@ import axios from "axios"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
   DialogContent,
@@ -29,12 +30,24 @@ import { AlertCircle, CheckCircle2, Pencil, RefreshCw, Search } from "lucide-rea
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface Usuario {
+  tipo: "usuario"
   id: number
   nombre: string
   email: string
   username: string
   carnet: string
 }
+
+interface ProspectoConCarnet {
+  tipo: "prospecto"
+  id: number
+  nombre: string
+  email: string
+  carnet: string
+  status: string
+}
+
+type Registro = Usuario | ProspectoConCarnet
 
 interface Paginacion {
   current_page: number
@@ -43,17 +56,123 @@ interface Paginacion {
   last_page: number
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+const PAGINACION_INICIAL: Paginacion = { current_page: 1, per_page: 50, total: 0, last_page: 1 }
+
+function statusColor(status: string) {
+  const s = status?.toLowerCase()
+  if (s === "activo") return "bg-green-100 text-green-800 border-green-300"
+  if (s === "inactivo") return "bg-gray-100 text-gray-600 border-gray-300"
+  if (s === "interesado") return "bg-blue-100 text-blue-800 border-blue-300"
+  if (s === "matriculado") return "bg-purple-100 text-purple-800 border-purple-300"
+  return "bg-gray-100 text-gray-600 border-gray-200"
+}
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+interface TablaProps {
+  registros: Registro[]
+  loading: boolean
+  total: number
+  tipo: "usuario" | "prospecto"
+  paginacion: Paginacion
+  onEditar: (r: Registro) => void
+  onPaginar: (p: number) => void
+  label: string
+}
+
+function TablaRegistros({ registros, loading, total, tipo, paginacion, onEditar, onPaginar, label }: TablaProps) {
+  return (
+    <>
+      <Card>
+        <CardHeader className="pb-2 pt-4 px-4">
+          <CardTitle className="text-sm font-medium text-gray-500">
+            {loading ? "Cargando..." : `${total.toLocaleString()} ${label}`}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-0 pb-0">
+          {loading ? (
+            <div className="flex justify-center py-12 text-gray-400">
+              <RefreshCw className="h-8 w-8 animate-spin" />
+            </div>
+          ) : registros.length === 0 ? (
+            <p className="text-center py-10 text-gray-400 text-sm">No se encontraron resultados.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Correo</TableHead>
+                  {tipo === "usuario" ? <TableHead>Username</TableHead> : <TableHead>Estado</TableHead>}
+                  <TableHead>Carnet actual</TableHead>
+                  <TableHead className="text-right">Acción</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {registros.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="font-medium">{r.nombre}</TableCell>
+                    <TableCell className="text-gray-500 text-sm">{r.email}</TableCell>
+                    {r.tipo === "usuario" ? (
+                      <TableCell className="font-mono text-sm">{r.username}</TableCell>
+                    ) : (
+                      <TableCell>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${statusColor(r.status)}`}>
+                          {r.status || "—"}
+                        </span>
+                      </TableCell>
+                    )}
+                    <TableCell>
+                      <Badge variant="outline" className="font-mono">{r.carnet}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" variant="ghost" onClick={() => onEditar(r)}>
+                        <Pencil className="h-4 w-4 mr-1" />
+                        Editar
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {!loading && total > 0 && (
+        <div className="flex items-center justify-between text-sm mt-3">
+          <span className="text-gray-500">
+            Página {paginacion.current_page} de {paginacion.last_page}
+          </span>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={paginacion.current_page <= 1}
+              onClick={() => onPaginar(paginacion.current_page - 1)}>Anterior</Button>
+            <Button variant="outline" size="sm" disabled={paginacion.current_page >= paginacion.last_page}
+              onClick={() => onPaginar(paginacion.current_page + 1)}>Siguiente</Button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function EditarCarnetPage() {
+  // ── Usuarios ──
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
-  const [paginacion, setPaginacion] = useState<Paginacion>({ current_page: 1, per_page: 50, total: 0, last_page: 1 })
-  const [busqueda, setBusqueda] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [pagUsuarios, setPagUsuarios] = useState<Paginacion>(PAGINACION_INICIAL)
+  const [busquedaUsuarios, setBusquedaUsuarios] = useState("")
+  const [loadingUsuarios, setLoadingUsuarios] = useState(false)
 
-  // Modal de edición
-  const [editando, setEditando] = useState<Usuario | null>(null)
+  // ── Prospectos ──
+  const [prospectos, setProspectos] = useState<ProspectoConCarnet[]>([])
+  const [pagProspectos, setPagProspectos] = useState<Paginacion>(PAGINACION_INICIAL)
+  const [busquedaProspectos, setBusquedaProspectos] = useState("")
+  const [loadingProspectos, setLoadingProspectos] = useState(false)
+
+  // ── Shared ──
+  const [error, setError] = useState<string | null>(null)
+  const [editando, setEditando] = useState<Registro | null>(null)
   const [nuevoCarnet, setNuevoCarnet] = useState("")
   const [motivo, setMotivo] = useState("")
   const [intercambiarCon, setIntercambiarCon] = useState("")
@@ -62,31 +181,50 @@ export default function EditarCarnetPage() {
   const [guardando, setGuardando] = useState(false)
   const [exito, setExito] = useState<string | null>(null)
 
+  // ── Fetch usuarios ──
   const fetchUsuarios = useCallback(async (pagina = 1) => {
-    setLoading(true)
-    setError(null)
+    setLoadingUsuarios(true)
     try {
       const res = await api.get(`/academico/usuarios`, {
-        params: { busqueda: busqueda.trim() || undefined, per_page: 50, page: pagina },
+        params: { busqueda: busquedaUsuarios.trim() || undefined, per_page: 50, page: pagina },
       })
-      setUsuarios(res.data.data ?? [])
-      setPaginacion(res.data.pagination ?? { current_page: 1, per_page: 50, total: 0, last_page: 1 })
+      setUsuarios((res.data.data ?? []).map((u: Omit<Usuario, "tipo">) => ({ ...u, tipo: "usuario" as const })))
+      setPagUsuarios(res.data.pagination ?? PAGINACION_INICIAL)
     } catch {
-      setError("Error al cargar los usuarios. Verifica la conexión.")
+      setError("Error al cargar los usuarios del sistema.")
     } finally {
-      setLoading(false)
+      setLoadingUsuarios(false)
     }
-  }, [busqueda])
+  }, [busquedaUsuarios])
 
-  useEffect(() => { fetchUsuarios(1) }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  // ── Fetch prospectos ──
+  const fetchProspectos = useCallback(async (pagina = 1) => {
+    setLoadingProspectos(true)
+    try {
+      const res = await api.get(`/academico/prospectos-con-carnet`, {
+        params: { busqueda: busquedaProspectos.trim() || undefined, per_page: 50, page: pagina },
+      })
+      setProspectos((res.data.data ?? []).map((p: Omit<ProspectoConCarnet, "tipo">) => ({ ...p, tipo: "prospecto" as const })))
+      setPagProspectos(res.data.pagination ?? PAGINACION_INICIAL)
+    } catch {
+      setError("Error al cargar los prospectos.")
+    } finally {
+      setLoadingProspectos(false)
+    }
+  }, [busquedaProspectos])
 
-  const abrirEdicion = (usuario: Usuario) => {
-    setEditando(usuario)
-    setNuevoCarnet(usuario.carnet === "—" ? "" : usuario.carnet)
+  useEffect(() => { fetchUsuarios(1) }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchProspectos(1) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Modal ──
+  const abrirEdicion = (r: Registro) => {
+    setEditando(r)
+    setNuevoCarnet(r.carnet === "—" ? "" : r.carnet)
     setMotivo("")
     setIntercambiarCon("")
     setDisponible(null)
     setExito(null)
+    setError(null)
   }
 
   const cerrarEdicion = () => {
@@ -96,16 +234,21 @@ export default function EditarCarnetPage() {
     setIntercambiarCon("")
     setDisponible(null)
     setExito(null)
+    setError(null)
   }
 
-  const verificarCarnet = useCallback(async () => {
+  const verificarCarnetActual = useCallback(async () => {
     if (!nuevoCarnet.trim() || !editando) return
     setVerificando(true)
     setDisponible(null)
     try {
-      const res = await api.get(`/academico/carnets/verificar`, {
-        params: { carnet: nuevoCarnet.trim(), usuario_id: editando.id },
-      })
+      const endpoint = editando.tipo === "usuario"
+        ? `/academico/carnets/verificar`
+        : `/academico/carnets/verificar-prospecto`
+      const paramId = editando.tipo === "usuario"
+        ? { usuario_id: editando.id }
+        : { prospecto_id: editando.id }
+      const res = await api.get(endpoint, { params: { carnet: nuevoCarnet.trim(), ...paramId } })
       setDisponible(res.data)
     } catch {
       setDisponible(null)
@@ -114,12 +257,11 @@ export default function EditarCarnetPage() {
     }
   }, [nuevoCarnet, editando])
 
-  // Verificar automáticamente cuando cambia el carnet (debounced)
   useEffect(() => {
     if (!nuevoCarnet.trim() || !editando) { setDisponible(null); return }
-    const t = setTimeout(verificarCarnet, 600)
+    const t = setTimeout(verificarCarnetActual, 600)
     return () => clearTimeout(t)
-  }, [nuevoCarnet, editando, verificarCarnet])
+  }, [nuevoCarnet, editando, verificarCarnetActual])
 
   const guardar = async () => {
     if (!editando) return
@@ -132,9 +274,15 @@ export default function EditarCarnetPage() {
       }
       if (intercambiarCon.trim()) payload.intercambiar_con = Number(intercambiarCon.trim())
 
-      await api.patch(`/academico/usuarios/${editando.id}/carnet`, payload)
+      const endpoint = editando.tipo === "usuario"
+        ? `/academico/usuarios/${editando.id}/carnet`
+        : `/academico/prospectos/${editando.id}/carnet`
+
+      await api.patch(endpoint, payload)
       setExito(`Carnet actualizado correctamente a "${nuevoCarnet.trim()}".`)
-      fetchUsuarios(paginacion.current_page)
+
+      if (editando.tipo === "usuario") fetchUsuarios(pagUsuarios.current_page)
+      else fetchProspectos(pagProspectos.current_page)
     } catch (e: unknown) {
       if (axios.isAxiosError(e)) {
         setError(e.response?.data?.message ?? "Error al actualizar el carnet.")
@@ -144,7 +292,7 @@ export default function EditarCarnetPage() {
     }
   }
 
-  const totalPages = paginacion.last_page
+  const carnetSinCambio = nuevoCarnet.trim() === (editando?.carnet === "—" ? "" : editando?.carnet ?? "")
 
   return (
     <div className="p-6 space-y-4 max-w-5xl mx-auto">
@@ -159,25 +307,6 @@ export default function EditarCarnetPage() {
         </p>
       </div>
 
-      {/* Buscador */}
-      <div className="flex gap-2">
-        <Input
-          placeholder="Buscar por nombre, carnet o correo..."
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && fetchUsuarios(1)}
-          className="max-w-md"
-        />
-        <Button onClick={() => fetchUsuarios(1)} disabled={loading}>
-          {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          Buscar
-        </Button>
-        <Button variant="outline" onClick={() => fetchUsuarios(paginacion.current_page)} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-        </Button>
-      </div>
-
-      {/* Error global */}
       {error && (
         <div className="flex items-center gap-2 p-3 rounded-md bg-red-50 border border-red-200 text-red-700 text-sm">
           <AlertCircle className="h-4 w-4 shrink-0" />
@@ -185,74 +314,90 @@ export default function EditarCarnetPage() {
         </div>
       )}
 
-      {/* Tabla */}
-      <Card>
-        <CardHeader className="pb-2 pt-4 px-4">
-          <CardTitle className="text-sm font-medium text-gray-500">
-            {loading ? "Cargando..." : `${paginacion.total.toLocaleString()} usuarios con carnet`}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-0 pb-0">
-          {loading ? (
-            <div className="flex justify-center py-12 text-gray-400">
-              <RefreshCw className="h-8 w-8 animate-spin" />
-            </div>
-          ) : usuarios.length === 0 ? (
-            <p className="text-center py-10 text-gray-400 text-sm">No se encontraron resultados.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Correo</TableHead>
-                  <TableHead>Username</TableHead>
-                  <TableHead>Carnet actual</TableHead>
-                  <TableHead className="text-right">Acción</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {usuarios.map((u) => (
-                  <TableRow key={u.id}>
-                    <TableCell className="font-medium">{u.nombre}</TableCell>
-                    <TableCell className="text-gray-500 text-sm">{u.email}</TableCell>
-                    <TableCell className="font-mono text-sm">{u.username}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="font-mono">{u.carnet}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button size="sm" variant="ghost" onClick={() => abrirEdicion(u)}>
-                        <Pencil className="h-4 w-4 mr-1" />
-                        Editar
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="usuarios">
+        <TabsList>
+          <TabsTrigger value="usuarios">
+            Usuarios del sistema
+            {!loadingUsuarios && pagUsuarios.total > 0 && (
+              <span className="ml-2 text-xs bg-gray-200 text-gray-700 rounded-full px-2 py-0.5">{pagUsuarios.total}</span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="prospectos">
+            Prospectos con carnet
+            {!loadingProspectos && pagProspectos.total > 0 && (
+              <span className="ml-2 text-xs bg-gray-200 text-gray-700 rounded-full px-2 py-0.5">{pagProspectos.total}</span>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Paginación */}
-      {!loading && paginacion.total > 0 && (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-500">
-            Página {paginacion.current_page} de {totalPages}
-          </span>
+        {/* ── Tab: Usuarios ── */}
+        <TabsContent value="usuarios" className="space-y-3 mt-4">
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={paginacion.current_page <= 1} onClick={() => fetchUsuarios(paginacion.current_page - 1)}>Anterior</Button>
-            <Button variant="outline" size="sm" disabled={paginacion.current_page >= totalPages} onClick={() => fetchUsuarios(paginacion.current_page + 1)}>Siguiente</Button>
+            <Input
+              placeholder="Buscar por nombre, carnet o correo..."
+              value={busquedaUsuarios}
+              onChange={(e) => setBusquedaUsuarios(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && fetchUsuarios(1)}
+              className="max-w-md"
+            />
+            <Button onClick={() => fetchUsuarios(1)} disabled={loadingUsuarios}>
+              {loadingUsuarios ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              Buscar
+            </Button>
+            <Button variant="outline" onClick={() => fetchUsuarios(pagUsuarios.current_page)} disabled={loadingUsuarios}>
+              <RefreshCw className={`h-4 w-4 ${loadingUsuarios ? "animate-spin" : ""}`} />
+            </Button>
           </div>
-        </div>
-      )}
+          <TablaRegistros
+            registros={usuarios}
+            loading={loadingUsuarios}
+            total={pagUsuarios.total}
+            tipo="usuario"
+            paginacion={pagUsuarios}
+            onEditar={abrirEdicion}
+            onPaginar={fetchUsuarios}
+            label="usuarios con carnet"
+          />
+        </TabsContent>
 
-      {/* Modal de edición */}
+        {/* ── Tab: Prospectos ── */}
+        <TabsContent value="prospectos" className="space-y-3 mt-4">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Buscar por nombre, carnet o correo..."
+              value={busquedaProspectos}
+              onChange={(e) => setBusquedaProspectos(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && fetchProspectos(1)}
+              className="max-w-md"
+            />
+            <Button onClick={() => fetchProspectos(1)} disabled={loadingProspectos}>
+              {loadingProspectos ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              Buscar
+            </Button>
+            <Button variant="outline" onClick={() => fetchProspectos(pagProspectos.current_page)} disabled={loadingProspectos}>
+              <RefreshCw className={`h-4 w-4 ${loadingProspectos ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+          <TablaRegistros
+            registros={prospectos}
+            loading={loadingProspectos}
+            total={pagProspectos.total}
+            tipo="prospecto"
+            paginacion={pagProspectos}
+            onEditar={abrirEdicion}
+            onPaginar={fetchProspectos}
+            label="prospectos con carnet"
+          />
+        </TabsContent>
+      </Tabs>
+
+      {/* ── Modal de edición ── */}
       <Dialog open={!!editando} onOpenChange={(open) => !open && cerrarEdicion()}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Editar carnet</DialogTitle>
             <DialogDescription>
-              Estudiante: <strong>{editando?.nombre}</strong>
+              {editando?.tipo === "usuario" ? "Usuario" : "Prospecto"}: <strong>{editando?.nombre}</strong>
               <br />
               Carnet actual: <code className="bg-gray-100 px-1 rounded">{editando?.carnet}</code>
             </DialogDescription>
@@ -266,7 +411,6 @@ export default function EditarCarnetPage() {
             </div>
           ) : (
             <div className="space-y-4 py-2">
-              {/* Nuevo carnet */}
               <div className="space-y-1.5">
                 <Label htmlFor="nuevo_carnet">Nuevo carnet</Label>
                 <div className="flex gap-2">
@@ -280,7 +424,6 @@ export default function EditarCarnetPage() {
                   {verificando && <RefreshCw className="h-4 w-4 animate-spin self-center text-gray-400 shrink-0" />}
                 </div>
 
-                {/* Estado de disponibilidad */}
                 {disponible !== null && nuevoCarnet.trim() && (
                   disponible.disponible ? (
                     <p className="text-xs text-green-600 flex items-center gap-1">
@@ -290,31 +433,29 @@ export default function EditarCarnetPage() {
                     <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
                       <p className="font-medium">Carnet en uso por: {disponible.tomado_por?.nombre}</p>
                       <p className="text-gray-500 mt-0.5">
-                        Puedes escribir el ID de ese usuario en "Intercambiar con" para hacer un intercambio de carnets.
+                        Puedes escribir el ID en "Intercambiar con" para hacer un intercambio de carnets.
                       </p>
                     </div>
                   )
                 )}
               </div>
 
-              {/* Intercambiar con (opcional) */}
               <div className="space-y-1.5">
                 <Label htmlFor="intercambiar_con">
-                  Intercambiar con (ID de usuario) <span className="text-gray-400 font-normal">— opcional</span>
+                  Intercambiar con (ID) <span className="text-gray-400 font-normal">— opcional</span>
                 </Label>
                 <Input
                   id="intercambiar_con"
-                  placeholder="ID del otro usuario (opcional)"
+                  placeholder="ID del otro registro (opcional)"
                   type="number"
                   value={intercambiarCon}
                   onChange={(e) => setIntercambiarCon(e.target.value)}
                 />
                 <p className="text-xs text-gray-400">
-                  Si lo completas, el carnet actual de este estudiante pasará al usuario especificado.
+                  El carnet actual pasará al registro con ese ID.
                 </p>
               </div>
 
-              {/* Motivo */}
               <div className="space-y-1.5">
                 <Label htmlFor="motivo">Motivo del cambio <span className="text-red-500">*</span></Label>
                 <Input
@@ -342,12 +483,7 @@ export default function EditarCarnetPage() {
               <Button variant="outline" onClick={cerrarEdicion} disabled={guardando}>Cancelar</Button>
               <Button
                 onClick={guardar}
-                disabled={
-                  guardando ||
-                  !nuevoCarnet.trim() ||
-                  motivo.trim().length < 10 ||
-                  nuevoCarnet.trim() === (editando?.carnet === "—" ? "" : editando?.carnet)
-                }
+                disabled={guardando || !nuevoCarnet.trim() || motivo.trim().length < 10 || carnetSinCambio}
               >
                 {guardando ? <RefreshCw className="h-4 w-4 animate-spin mr-1" /> : null}
                 Guardar cambio
