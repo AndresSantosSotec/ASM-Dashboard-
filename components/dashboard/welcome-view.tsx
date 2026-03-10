@@ -20,11 +20,14 @@ import {
   AlertTriangle,
   UserCheck,
   Mail,
-  X
+  X,
+  Download,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import NotificationsPanel from "@/components/dashboard/NotificationsPanel"
-import dashboardService from "@/services/dashboard"
+import dashboardService, { fetchInscritosPorMes, downloadInscritosPorMes, type InscritoMes } from "@/services/dashboard"
 import api from "@/services/api"
 
 interface WelcomeData {
@@ -229,6 +232,20 @@ export default function WelcomeView() {
   const itemsPerPage = 10
   const { toast } = useToast()
 
+  // — Estado: Inscritos por mes —
+  const [inscritosMes, setInscritosMes] = useState<InscritoMes[]>([])
+  const [inscritosTotal, setInscritosTotal] = useState(0)
+  const [inscritosEsAdmin, setInscritosEsAdmin] = useState(false)
+  const [inscritosMesNombre, setInscritosMesNombre] = useState('')
+  const [inscritosLoading, setInscritosLoading] = useState(false)
+  const [inscritosDescargando, setInscritosDescargando] = useState(false)
+  const [inscritosPagina, setInscritosPagina] = useState(1)
+  const inscritosPerPage = 10
+
+  const hoy = new Date()
+  const [mesSel, setMesSel] = useState(hoy.getMonth() + 1)
+  const [anoSel, setAnoSel] = useState(hoy.getFullYear())
+
   useEffect(() => {
     // Actualizar reloj cada minuto
     const timer = setInterval(() => {
@@ -240,6 +257,28 @@ export default function WelcomeView() {
 
     return () => clearInterval(timer)
   }, [])
+
+  // Cargar inscritos cuando cambie mes/año
+  useEffect(() => {
+    const cargarInscritos = async () => {
+      try {
+        setInscritosLoading(true)
+        const res = await fetchInscritosPorMes(mesSel, anoSel)
+        if (res.success) {
+          setInscritosMes(res.data)
+          setInscritosTotal(res.total)
+          setInscritosEsAdmin(res.es_admin)
+          setInscritosMesNombre(res.mes_nombre)
+          setInscritosPagina(1)
+        }
+      } catch (e) {
+        console.warn('No se pudieron cargar inscritos por mes', e)
+      } finally {
+        setInscritosLoading(false)
+      }
+    }
+    cargarInscritos()
+  }, [mesSel, anoSel])
 
   const loadWelcomeData = async () => {
     try {
@@ -452,6 +491,26 @@ export default function WelcomeView() {
     } finally {
       setProcesandoAlerta(null)
     }
+  }
+
+  const descargarInscritosMes = async (format: 'csv' | 'excel') => {
+    try {
+      setInscritosDescargando(true)
+      await downloadInscritosPorMes(mesSel, anoSel, inscritosMesNombre, format)
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo descargar el reporte' })
+    } finally {
+      setInscritosDescargando(false)
+    }
+  }
+
+  const cambiarMes = (delta: number) => {
+    let m = mesSel + delta
+    let a = anoSel
+    if (m < 1) { m = 12; a-- }
+    if (m > 12) { m = 1; a++ }
+    setMesSel(m)
+    setAnoSel(a)
   }
 
   const getDefaultActivities = (rol: string) => {
@@ -1522,6 +1581,176 @@ export default function WelcomeView() {
                 <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
                 <p className="text-sm">No hay prospectos en proceso de aprobación</p>
               </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Inscritos por Mes ── */}
+      {(welcomeData.user.rol === 'Administrador' || welcomeData.user.rol === 'Asesor') && (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <GraduationCap className="h-5 w-5 text-emerald-500" />
+                  Inscritos por Mes
+                </CardTitle>
+                <CardDescription>
+                  {inscritosEsAdmin
+                    ? 'Registro histórico de todos los prospectos inscritos en el período seleccionado'
+                    : 'Tus prospectos inscritos en el período seleccionado'}
+                </CardDescription>
+              </div>
+              {/* Selector de mes */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => cambiarMes(-1)}
+                  className="p-1 rounded hover:bg-muted border"
+                  title="Mes anterior"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <div className="flex gap-1">
+                  <select
+                    value={mesSel}
+                    onChange={e => setMesSel(Number(e.target.value))}
+                    className="text-sm border rounded px-2 py-1 bg-background"
+                  >
+                    {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m, i) => (
+                      <option key={i+1} value={i+1}>{m}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    value={anoSel}
+                    onChange={e => setAnoSel(Number(e.target.value))}
+                    min={2020}
+                    max={2100}
+                    className="text-sm border rounded px-2 py-1 w-20 bg-background"
+                  />
+                </div>
+                <button
+                  onClick={() => cambiarMes(1)}
+                  className="p-1 rounded hover:bg-muted border"
+                  title="Mes siguiente"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => descargarInscritosMes('csv')}
+                  disabled={inscritosDescargando || inscritosLoading || inscritosTotal === 0}
+                  className="gap-1 ml-2"
+                  title="Descargar CSV"
+                >
+                  <Download className="h-4 w-4" />
+                  CSV
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => descargarInscritosMes('excel')}
+                  disabled={inscritosDescargando || inscritosLoading || inscritosTotal === 0}
+                  className="gap-1 border-green-500 text-green-600 hover:bg-green-50"
+                  title="Descargar Excel (.xlsx)"
+                >
+                  <Download className="h-4 w-4" />
+                  Excel
+                </Button>
+              </div>
+            </div>
+            {/* Resumen */}
+            <div className="mt-2 flex items-center gap-2">
+              <Badge variant="secondary" className="text-sm px-3 py-1">
+                {inscritosLoading ? '...' : inscritosTotal} inscrito{inscritosTotal !== 1 ? 's' : ''} en {inscritosMesNombre || '...'} {anoSel}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {inscritosLoading ? (
+              <div className="space-y-2">
+                {[1,2,3].map(i => <div key={i} className="h-10 bg-muted animate-pulse rounded" />)}
+              </div>
+            ) : inscritosMes.length === 0 ? (
+              <div className="text-center py-10 text-muted-foreground">
+                <GraduationCap className="h-12 w-12 mx-auto mb-3 opacity-40" />
+                <p className="text-sm">No hay inscritos en {inscritosMesNombre} {anoSel}</p>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/40">
+                        <th className="text-left p-2 font-semibold">#</th>
+                        <th className="text-left p-2 font-semibold">Nombre</th>
+                        <th className="text-left p-2 font-semibold">Carnet</th>
+                        <th className="text-left p-2 font-semibold">Programa</th>
+                        <th className="text-left p-2 font-semibold">Meses</th>
+                        <th className="text-right p-2 font-semibold">Inscripción</th>
+                        <th className="text-center p-2 font-semibold">Fecha</th>
+                        {inscritosEsAdmin && <th className="text-left p-2 font-semibold">Asesor</th>}
+                        <th className="text-center p-2 font-semibold">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {inscritosMes
+                        .slice((inscritosPagina - 1) * inscritosPerPage, inscritosPagina * inscritosPerPage)
+                        .map((inscrito, idx) => (
+                          <tr key={inscrito.ep_id} className="border-b hover:bg-muted/30">
+                            <td className="p-2 text-muted-foreground text-xs">
+                              {(inscritosPagina - 1) * inscritosPerPage + idx + 1}
+                            </td>
+                            <td className="p-2">
+                              <div className="font-medium leading-tight">{inscrito.nombre_completo}</div>
+                              <div className="text-xs text-muted-foreground">{inscrito.correo_electronico}</div>
+                            </td>
+                            <td className="p-2">
+                              {inscrito.carnet
+                                ? <Badge variant="outline" className="font-mono text-xs">{inscrito.carnet}</Badge>
+                                : <span className="text-muted-foreground text-xs">—</span>}
+                            </td>
+                            <td className="p-2">
+                              <span className="font-medium">{inscrito.programa_abreviatura || inscrito.programa_nombre}</span>
+                              {inscrito.programa_abreviatura && (
+                                <div className="text-xs text-muted-foreground">{inscrito.programa_nombre}</div>
+                              )}
+                            </td>
+                            <td className="p-2 text-center">{inscrito.duracion_meses}</td>
+                            <td className="p-2 text-right font-mono">
+                              {inscrito.monto_inscripcion != null
+                                ? `Q${Number(inscrito.monto_inscripcion).toLocaleString('es-GT', {minimumFractionDigits: 2})}`
+                                : '—'}
+                            </td>
+                            <td className="p-2 text-center text-xs text-muted-foreground whitespace-nowrap">
+                              {new Date(inscrito.fecha_inscripcion).toLocaleDateString('es-GT')}
+                            </td>
+                            {inscritosEsAdmin && (
+                              <td className="p-2 text-sm">{inscrito.asesor_nombre}</td>
+                            )}
+                            <td className="p-2 text-center">
+                              <button
+                                onClick={() => { window.location.href = `/gestion?prospectoId=${inscrito.prospecto_id}` }}
+                                className="text-xs text-blue-600 hover:text-blue-800 underline whitespace-nowrap"
+                              >
+                                Ver
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+                {inscritosMes.length > inscritosPerPage && (
+                  <PaginationControls
+                    currentPage={inscritosPagina}
+                    totalPages={Math.ceil(inscritosMes.length / inscritosPerPage)}
+                    onPageChange={setInscritosPagina}
+                  />
+                )}
+              </>
             )}
           </CardContent>
         </Card>

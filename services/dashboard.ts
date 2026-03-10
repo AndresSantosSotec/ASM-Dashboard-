@@ -149,8 +149,60 @@ export const fetchCurrentUserInfo = async (): Promise<any> => {
   }
 }
 
+export interface InscritoMes {
+  ep_id: number
+  prospecto_id: number
+  nombre_completo: string
+  correo_electronico: string
+  telefono: string
+  carnet: string | null
+  programa_nombre: string
+  programa_abreviatura: string
+  duracion_meses: string
+  monto_inscripcion: number | null
+  fecha_inscripcion: string
+  asesor_nombre: string
+  asesor_id: number
+}
+
+export interface InscritosMesResponse {
+  success: boolean
+  data: InscritoMes[]
+  total: number
+  mes: number
+  ano: number
+  mes_nombre: string
+  es_admin: boolean
+}
+
+export const fetchInscritosPorMes = async (mes: number, ano: number): Promise<InscritosMesResponse> => {
+  const response = await api.get('/dashboard/inscritos-por-mes', { params: { mes, ano } })
+  return response.data
+}
+
+export const downloadInscritosPorMes = async (mes: number, ano: number, mesNombre: string, format: 'csv' | 'excel' = 'excel'): Promise<void> => {
+  const ext = format === 'excel' ? 'xlsx' : 'csv'
+  const mime = format === 'excel'
+    ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    : 'text/csv;charset=utf-8;'
+  const response = await api.get('/dashboard/inscritos-por-mes/export', {
+    params: { mes, ano, format },
+    responseType: 'blob',
+  })
+  const url = URL.createObjectURL(new Blob([response.data], { type: mime }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `Inscritos_${mesNombre}_${ano}.${ext}`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
 export default {
   fetchDashboardData,
   fetchProspectosAprobacion,
-  fetchCurrentUserInfo
+  fetchCurrentUserInfo,
+  fetchInscritosPorMes,
+  downloadInscritosPorMes,
 }
