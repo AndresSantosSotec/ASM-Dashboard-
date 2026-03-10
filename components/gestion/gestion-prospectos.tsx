@@ -220,6 +220,7 @@ export default function GestionProspectos() {
   const [programasLoaded, setProgramasLoaded] = useState(false);
   const [loading, setLoading] = useState(true)
   const [softReloading, setSoftReloading] = useState(false) // 🔄 Recarga suave sin skeleton (mantiene tabla visible)
+  const [isDownloading, setIsDownloading] = useState(false) // 📥 Loader para descarga CSV
   const [error, setError] = useState<string>("")
   const [selectedProspecto, setSelectedProspecto] = useState<Prospecto | null>(null)
   const [modalType, setModalType] = useState<"detalles" | "editar" | "alerta" | "seguimiento" | null>(null)
@@ -998,6 +999,8 @@ export default function GestionProspectos() {
     const token = localStorage.getItem("token")
     if (!token) return
 
+    setIsDownloading(true)
+
     const params = new URLSearchParams({
       page: "1",
       per_page: "10000",
@@ -1063,6 +1066,8 @@ export default function GestionProspectos() {
         description: err instanceof Error ? err.message : "No se pudo descargar el CSV",
         variant: "destructive",
       })
+    } finally {
+      setIsDownloading(false)
     }
   }, [debouncedSearchTerm, estadoFilters, departamentoFilters, puestoFilters, origenFilters, creadorFilters, loadedByFilters, campaniaFilters, createdDesde, createdHasta, fechaDesde, fechaHasta, dynamicFilters, sortBy, sortOrder, columnasSeleccionadas])
 
@@ -1366,7 +1371,7 @@ export default function GestionProspectos() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {currentUser?.rol === "administrador" && (
+        {currentUser?.rol !== "asesor" && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="w-[200px] justify-between">
@@ -1387,7 +1392,7 @@ export default function GestionProspectos() {
           </DropdownMenu>
         )}
 
-        {currentUser?.rol === "administrador" && (
+        {currentUser?.rol !== "asesor" && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="w-[200px] justify-between">
@@ -1518,11 +1523,12 @@ export default function GestionProspectos() {
         <Button
           variant="outline"
           onClick={handleDescargarCSVFiltrado}
-          disabled={loading && !softReloading}
+          disabled={loading && !softReloading || isDownloading}
           title="Descargar los prospectos filtrados en CSV"
         >
-          <Download className="h-4 w-4 mr-2" />
-          Descargar CSV (filtrado)
+          {isDownloading
+            ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Descargando...</>
+            : <><Download className="h-4 w-4 mr-2" />Descargar CSV (filtrado)</>}
         </Button>
 
         <Button
