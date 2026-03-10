@@ -8,11 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/use-toast"
 import { useEstudiantesSearch } from "@/hooks/useEstudiantesSearch"
-import { 
-  createReconciliacion, 
+import {
+  createReconciliacion,
   getKardex,
   type ReconciliacionCreatePayload,
-  type KardexPagoResumen 
+  type KardexPagoResumen
 } from "@/services/mantenimientos"
 
 // Hook para manejar la carga de kardex por prospecto
@@ -88,46 +88,68 @@ export const ReconciliacionModal = ({ open, onOpenChange, onSuccess }: Reconcili
   const [submitting, setSubmitting] = useState(false)
 
   // Hooks personalizados
-  const { 
-    searchTerm, 
-    setSearchTerm, 
-    estudiantes, 
+  const {
+    searchTerm,
+    setSearchTerm,
+    estudiantes,
     loading: searchingEstudiantes,
     clearSearch,
     hasMinLength,
     error: searchError
-  } = useEstudiantesSearch({ maxResults: 50 })
-  
-  const { 
-    kardexOptions, 
-    loading: loadingKardex, 
-    loadKardexForProspecto, 
-    clearKardex 
+  } = useEstudiantesSearch({ maxResults: 100 })
+
+  // Estudiante seleccionado (guarda ambos IDs)
+  const [selectedEstudiante, setSelectedEstudiante] = useState<{
+    estudiante_programa_id: number
+    prospecto_id: number
+    label: string
+  } | null>(null)
+
+  const {
+    kardexOptions,
+    loading: loadingKardex,
+    loadKardexForProspecto,
+    clearKardex
   } = useKardexProspecto()
 
   // Reset formulario cuando se abre/cierra el modal
   useEffect(() => {
     if (open) {
       setForm(INITIAL_FORM_STATE)
+      setSelectedEstudiante(null)
       clearSearch()
       clearKardex()
     }
   }, [open, clearSearch, clearKardex])
 
-  // Manejar cambio de prospecto
-  const handleProspectoChange = useCallback((prospectoId: number | undefined) => {
+  // Manejar selección de estudiante — usa prospecto_id para kardex y para el payload
+  const handleEstudianteSelect = useCallback((estudianteId: string) => {
+    const est = estudiantes.find(e => e.estudiante_programa_id.toString() === estudianteId)
+    if (!est) return
+
+    setSelectedEstudiante({
+      estudiante_programa_id: est.estudiante_programa_id,
+      prospecto_id: est.prospecto_id,
+      label: est.label,
+    })
+
     setForm(prev => ({
       ...prev,
-      prospecto_id: prospectoId,
-      kardex_pago_id: undefined, // Reset kardex selection
+      prospecto_id: est.prospecto_id,   // ✅ ID real del prospecto
+      kardex_pago_id: undefined,
     }))
 
-    if (prospectoId) {
-      loadKardexForProspecto(prospectoId)
-    } else {
-      clearKardex()
-    }
-  }, [loadKardexForProspecto, clearKardex])
+    // Cargar kardex usando el prospecto_id real
+    loadKardexForProspecto(est.prospecto_id)
+  }, [estudiantes, loadKardexForProspecto])
+
+  // Limpiar selección de estudiante
+  const handleClearEstudiante = useCallback(() => {
+    setSelectedEstudiante(null)
+    setForm(prev => ({ ...prev, prospecto_id: undefined, kardex_pago_id: undefined }))
+    clearSearch()
+    clearKardex()
+  }, [clearSearch, clearKardex])
 
   // Manejar envío del formulario
   const handleSubmit = useCallback(async () => {
@@ -163,15 +185,15 @@ export const ReconciliacionModal = ({ open, onOpenChange, onSuccess }: Reconcili
       }
 
       const newReconciliacion = await createReconciliacion(payload)
-      
+
       toast({
         title: "Reconciliación creada",
         description: "La reconciliación se ha creado exitosamente",
       })
-      
+
       onOpenChange(false)
       onSuccess(newReconciliacion)
-      
+
     } catch (error: any) {
       console.error("Error creating reconciliation:", error)
       toast({
@@ -202,44 +224,73 @@ export const ReconciliacionModal = ({ open, onOpenChange, onSuccess }: Reconcili
             Registre una nueva conciliación bancaria y vincúlela con un estudiante y pago específico
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="grid gap-4 py-4">
           {/* Selector de Estudiante/Prospecto con búsqueda optimizada */}
           <div className="grid gap-2">
             <Label htmlFor="rec-prospecto">Estudiante/Prospecto</Label>
             <div className="space-y-2">
-              <Input
-                placeholder="Buscar por nombre o carnet..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full"
-              />
-              {hasMinLength && (
-                <Select
-                  value={form.prospecto_id?.toString() || ""}
-                  onValueChange={(value) => handleProspectoChange(value ? parseInt(value) : undefined)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={searchingEstudiantes ? "Buscando..." : "Seleccione un estudiante"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {estudiantes.map((estudiante) => (
-                      <SelectItem key={estudiante.estudiante_programa_id} value={estudiante.estudiante_programa_id.toString()}>
-                        {estudiante.label}
-                      </SelectItem>
-                    ))}
-                    {estudiantes.length === 0 && !searchingEstudiantes && (
-                      <SelectItem value="no-results" disabled>
-                        {searchError ? "Error al cargar estudiantes" : "No se encontraron resultados"}
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              )}
-              {!hasMinLength && (
-                <p className="text-sm text-muted-foreground">
-                  Escriba al menos 2 caracteres para buscar estudiantes
-                </p>
+
+              {/* Si ya hay estudiante seleccionado, mostrarlo con opción de quitar */}
+              {selectedEstudiante ? (
+                <div className="flex items-center justify-between rounded-md border px-3 py-2 bg-muted/50">
+                  <div>
+                    <p className="text-sm font-medium">{selectedEstudiante.label}</p>
+                    <p className="text-xs text-muted-foreground">ID Prospecto: {selectedEstudiante.prospecto_id}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={handleClearEstudiante}
+                  >
+                    Cambiar
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Input
+                    placeholder="Buscar por nombre o carnet..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full"
+                    autoComplete="off"
+                  />
+                  {searchingEstudiantes && (
+                    <p className="text-sm text-muted-foreground">Buscando...</p>
+                  )}
+                  {hasMinLength && !searchingEstudiantes && estudiantes.length > 0 && (
+                    <Select
+                      value=""
+                      onValueChange={handleEstudianteSelect}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccione un estudiante" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {estudiantes.map((estudiante) => (
+                          <SelectItem
+                            key={estudiante.estudiante_programa_id}
+                            value={estudiante.estudiante_programa_id.toString()}
+                          >
+                            {estudiante.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {!hasMinLength && (
+                    <p className="text-sm text-muted-foreground">
+                      Escriba al menos 2 caracteres para buscar en todos los estudiantes
+                    </p>
+                  )}
+                  {hasMinLength && !searchingEstudiantes && estudiantes.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      {searchError ? "Error al buscar estudiantes" : "No se encontraron estudiantes con ese nombre o carnet"}
+                    </p>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -250,9 +301,9 @@ export const ReconciliacionModal = ({ open, onOpenChange, onSuccess }: Reconcili
               <Label htmlFor="rec-kardex">Pago a Reconciliar</Label>
               <Select
                 value={form.kardex_pago_id?.toString() || ""}
-                onValueChange={(value) => setForm(prev => ({ 
-                  ...prev, 
-                  kardex_pago_id: value ? parseInt(value) : undefined 
+                onValueChange={(value) => setForm(prev => ({
+                  ...prev,
+                  kardex_pago_id: value ? parseInt(value) : undefined
                 }))}
                 disabled={loadingKardex}
               >
@@ -343,7 +394,7 @@ export const ReconciliacionModal = ({ open, onOpenChange, onSuccess }: Reconcili
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             Cancelar
           </Button>
-          <Button 
+          <Button
             onClick={handleSubmit}
             disabled={!form.bank || !form.reference || form.amount <= 0 || submitting}
           >

@@ -107,6 +107,8 @@ export interface DatosFinancieros {
   convenioNombre?: string;
   /** Indica si la inscripción tiene descuento (monto < estándar Q1,000) */
   descuentoInscripcion?: boolean;
+  /** Indica que la inscripción fue Q0 (exonerada/cortesía): importante para tracking contable */
+  inscripcionCero?: boolean;
 }
 
 export interface Documento {

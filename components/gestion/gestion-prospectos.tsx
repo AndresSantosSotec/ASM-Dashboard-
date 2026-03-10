@@ -46,6 +46,7 @@ const FIELD_MAP: Record<string, string> = {
   'correo_electronico': 'email',
   'status': 'estado',
   'created_by': 'creador',
+  'loaded_by': 'subidoPor',
   'medio_conocimiento_institucion': 'origen',
   'empresa_donde_labora_actualmente': 'departamento',
   'municipio_nombre': 'ciudad',
@@ -172,6 +173,8 @@ interface Prospecto {
   asesor?: string
   creador?: string
   creadorId?: string
+  subidoPor?: string
+  subidoPorId?: string
   genero?: string
   correo_corporativo?: string
   telefono_corporativo?: string
@@ -208,8 +211,11 @@ export default function GestionProspectos() {
     puestos: string[]
     origenes: string[]
     campanias: string[]
-    creadores?: any[]
+    creadores?: { id: number; nombre: string; email: string }[]
+    asesores?: { id: number; nombre: string; email: string }[]
+    subido_por?: { id: number; nombre: string; email: string }[]
   } | null>(null)
+  const [opcionesFiltrosDinamicos, setOpcionesFiltrosDinamicos] = useState<Record<string, string[]>>({})
   const [programas, setProgramas] = useState<Record<string, string>>({});
   const [programasLoaded, setProgramasLoaded] = useState(false);
   const [loading, setLoading] = useState(true)
@@ -320,6 +326,7 @@ export default function GestionProspectos() {
   const [puestoFilters, setPuestoFilters] = useState<string[]>([])
   const [origenFilters, setOrigenFilters] = useState<string[]>([])
   const [creadorFilters, setCreadorFilters] = useState<string[]>([])
+  const [loadedByFilters, setLoadedByFilters] = useState<string[]>([])
   const [campaniaFilters, setCampaniaFilters] = useState<string[]>([])
   // 📅 Filtros de fecha
   const [createdDesde, setCreatedDesde] = useState<string>("")
@@ -339,6 +346,7 @@ export default function GestionProspectos() {
   const [searchPuesto, setSearchPuesto] = useState<string>("")
   const [searchOrigen, setSearchOrigen] = useState<string>("")
   const [searchCreador, setSearchCreador] = useState<string>("")
+  const [searchSubidoPor, setSearchSubidoPor] = useState<string>("")
   const [searchCampania, setSearchCampania] = useState<string>("")
   const [filtrosAbiertos, setFiltrosAbiertos] = useState<boolean>(true)
   // Filtros dinámicos por columnas agregadas (key columna -> valores seleccionados)
@@ -434,6 +442,18 @@ export default function GestionProspectos() {
         : creators,
     [creators, searchCreador]
   )
+  const subidoPorList = useMemo(() => opcionesFiltros?.subido_por || [], [opcionesFiltros])
+  const subidoPorFiltrados = useMemo(
+    () =>
+      searchSubidoPor.trim()
+        ? subidoPorList.filter(
+            (c) =>
+              (c.nombre && c.nombre.toLowerCase().includes(searchSubidoPor.toLowerCase())) ||
+              (c.email && c.email.toLowerCase().includes(searchSubidoPor.toLowerCase()))
+          )
+        : subidoPorList,
+    [subidoPorList, searchSubidoPor]
+  )
   const campaniasFiltradas = useMemo(
     () =>
       searchCampania.trim()
@@ -451,7 +471,7 @@ export default function GestionProspectos() {
     return columnasSeleccionadas.filter((key) => !baseKeys.has(key))
   }, [columnasDisponibles, columnasSeleccionadas])
 
-  // Valores distintos por columna extra (desde datos actuales)
+  // Valores distintos por columna extra: desde API (todos los datos) para que los filtros funcionen en todas las páginas
   const getValorColumna = useCallback((p: Prospecto, columnaKey: string): string => {
     const campo = FIELD_MAP[columnaKey] || columnaKey
     let v = p[campo] ?? p[columnaKey]
@@ -460,20 +480,15 @@ export default function GestionProspectos() {
     return String(v).trim()
   }, [])
 
+  // Opciones de filtros dinámicos: solo desde API (todos los datos), nunca desde la página actual para no limitar por paginación
   const valoresPorColumnaExtra = useMemo(() => {
     const out: Record<string, string[]> = {}
     columnasExtraParaFiltros.forEach((key) => {
-      const vals = Array.from(
-        new Set(
-          prospectos
-            .map((p) => getValorColumna(p, key))
-            .filter((v) => v !== "" && v !== "—" && v !== "N/A")
-        )
-      ).sort((a, b) => a.localeCompare(b))
-      out[key] = vals
+      const desdeApi = opcionesFiltrosDinamicos[key]
+      out[key] = Array.isArray(desdeApi) ? desdeApi : []
     })
     return out
-  }, [columnasExtraParaFiltros, prospectos, getValorColumna])
+  }, [columnasExtraParaFiltros, opcionesFiltrosDinamicos])
 
   // ⚙️ Control de montaje para evitar hidratación
   useEffect(() => {
@@ -489,16 +504,13 @@ export default function GestionProspectos() {
         if (res.ok) {
           const json = await res.json()
           setOpcionesFiltros(json.data)
-          
-          // Mantener compatibilidad con código existente
           setStatuses(json.data.estados || [])
-          if (json.data.creadores) {
-            setCreators(json.data.creadores.map((c: any) => ({
-              id: c.id,
-              name: c.nombre,
-              email: c.email
-            })))
-          }
+          const asesoresList = json.data.asesores || json.data.creadores || []
+          setCreators(asesoresList.map((c: any) => ({
+            id: c.id,
+            name: c.nombre,
+            email: c.email ?? ""
+          })))
         }
       } catch (err) {
         console.error("Error cargando opciones de filtros:", err)
@@ -549,6 +561,37 @@ export default function GestionProspectos() {
     fetchColumnas()
   }, []);
 
+  // Cargar opciones para filtros dinámicos (por columna) desde el backend — así filtran sobre todos los datos
+  useEffect(() => {
+    if (columnasExtraParaFiltros.length === 0) {
+      setOpcionesFiltrosDinamicos({})
+      return
+    }
+    let cancelled = false
+    const token = localStorage.getItem("token")
+    const columnas = columnasExtraParaFiltros.join(",")
+    fetch(`${API_URL}/prospectos/opciones-filtros-dinamicos?columnas=${encodeURIComponent(columnas)}`, {
+      headers: { Authorization: token ? `Bearer ${token}` : "" },
+    })
+      .then(async (r) => {
+        if (!r.ok) {
+          if (!cancelled) setOpcionesFiltrosDinamicos({})
+          const msg = await r.text().catch(() => r.statusText)
+          console.warn("Opciones filtros dinámicos:", r.status, msg)
+          return null
+        }
+        return r.json()
+      })
+      .then((json) => {
+        if (!cancelled && json?.data) setOpcionesFiltrosDinamicos(json.data)
+      })
+      .catch((err) => {
+        if (!cancelled) setOpcionesFiltrosDinamicos({})
+        console.warn("Error cargando opciones filtros dinámicos:", err)
+      })
+    return () => { cancelled = true }
+  }, [columnasExtraParaFiltros.join(",")])
+
   // 📚 Cargar programas académicos
   useEffect(() => {
     const fetchProgramas = async () => {
@@ -590,6 +633,7 @@ export default function GestionProspectos() {
       puestoFilters.length === 0 &&
       origenFilters.length === 0 &&
       creadorFilters.length === 0 &&
+      loadedByFilters.length === 0 &&
       campaniaFilters.length === 0 &&
       !createdDesde && !createdHasta &&
       !fechaDesde && !fechaHasta &&
@@ -644,6 +688,7 @@ export default function GestionProspectos() {
       if (puestoFilters.length > 0) params.append("puesto", puestoFilters.join(","))
       if (origenFilters.length > 0) params.append("origen", origenFilters.join(","))
       if (creadorFilters.length > 0) params.append("created_by", creadorFilters.join(","))
+      if (loadedByFilters.length > 0) params.append("loaded_by", loadedByFilters.join(","))
       if (campaniaFilters.length > 0) params.append("campania", campaniaFilters.join(","))
       
       // 📅 Filtros de fecha
@@ -705,6 +750,8 @@ export default function GestionProspectos() {
           asesor: item.creator ? `${item.creator.first_name || ""} ${item.creator.last_name || ""}`.trim() : "Sin asignar",
           creador: item.creator ? `${item.creator.first_name || ""} ${item.creator.last_name || ""}`.trim() : "Sin asignar",
           creadorId: item.created_by ? String(item.created_by) : undefined,
+          subidoPor: item.loader ? `${item.loader.first_name || ""} ${item.loader.last_name || ""}`.trim() : "—",
+          subidoPorId: item.loaded_by ? String(item.loaded_by) : undefined,
         };
 
         return prospecto;
@@ -737,7 +784,7 @@ export default function GestionProspectos() {
       setLoading(false)
       setSoftReloading(false)
     }
-  }, [programasLoaded, debouncedSearchTerm, estadoFilters, departamentoFilters, puestoFilters, origenFilters, creadorFilters, campaniaFilters, createdDesde, createdHasta, fechaDesde, fechaHasta, dynamicFilters, pageSize, sortBy, sortOrder, prospectos.length])
+  }, [programasLoaded, debouncedSearchTerm, estadoFilters, departamentoFilters, puestoFilters, origenFilters, creadorFilters, loadedByFilters, campaniaFilters, createdDesde, createdHasta, fechaDesde, fechaHasta, dynamicFilters, pageSize, sortBy, sortOrder, prospectos.length])
 
   // ⚡ Cargar prospectos cuando cambian los filtros
   useEffect(() => {
@@ -883,8 +930,10 @@ export default function GestionProspectos() {
     
     // Obtener valor del prospecto (primero intenta el mapeo, luego directamente)
     let valor = prospecto[campoReal] !== undefined ? prospecto[campoReal] : prospecto[columnaKey]
-    
-    // Si aún no hay valor, intentar acceso directo por la key original
+    // Legacy: "Subido por" (loaded_by) sin dato → mostrar creador/asesor para no romper registros antiguos
+    if (columnaKey === 'loaded_by' && (valor === undefined || valor === null || valor === '—' || valor === '')) {
+      valor = prospecto.creador ?? prospecto.asesor ?? '—'
+    }
     if (valor === undefined || valor === null) {
       valor = '—'
     }
@@ -922,6 +971,9 @@ export default function GestionProspectos() {
   const getValorCeldaCSV = (prospecto: Prospecto, columnaKey: string): string => {
     const campoReal = FIELD_MAP[columnaKey] || columnaKey
     let valor: unknown = prospecto[campoReal as keyof Prospecto] ?? prospecto[columnaKey as keyof Prospecto]
+    if (columnaKey === 'loaded_by' && (valor === undefined || valor === null || valor === '—' || valor === '')) {
+      valor = prospecto.creador ?? prospecto.asesor ?? '—'
+    }
     if (valor === undefined || valor === null) valor = '—'
     if ((columnaKey.includes('fecha') || columnaKey.includes('_at')) && valor && valor !== '—') {
       try {
@@ -959,6 +1011,7 @@ export default function GestionProspectos() {
     if (puestoFilters.length > 0) params.append("puesto", puestoFilters.join(","))
     if (origenFilters.length > 0) params.append("origen", origenFilters.join(","))
     if (creadorFilters.length > 0) params.append("created_by", creadorFilters.join(","))
+    if (loadedByFilters.length > 0) params.append("loaded_by", loadedByFilters.join(","))
     if (campaniaFilters.length > 0) params.append("campania", campaniaFilters.join(","))
     if (createdDesde) params.append("created_desde", createdDesde)
     if (createdHasta) params.append("created_hasta", createdHasta)
@@ -1011,7 +1064,7 @@ export default function GestionProspectos() {
         variant: "destructive",
       })
     }
-  }, [debouncedSearchTerm, estadoFilters, departamentoFilters, puestoFilters, origenFilters, creadorFilters, campaniaFilters, createdDesde, createdHasta, fechaDesde, fechaHasta, dynamicFilters, sortBy, sortOrder, columnasSeleccionadas])
+  }, [debouncedSearchTerm, estadoFilters, departamentoFilters, puestoFilters, origenFilters, creadorFilters, loadedByFilters, campaniaFilters, createdDesde, createdHasta, fechaDesde, fechaHasta, dynamicFilters, sortBy, sortOrder, columnasSeleccionadas])
 
   // ⚡ Invalidar caché cuando se actualiza un prospecto
   const handleUpdateProspecto = useCallback(() => {
@@ -1317,12 +1370,12 @@ export default function GestionProspectos() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="w-[200px] justify-between">
-                <span className="truncate">{creadorFilters.length === 0 ? "Todos creadores" : `Creadores (${creadorFilters.length})`}</span>
+                <span className="truncate">{creadorFilters.length === 0 ? "Asesor (todos)" : `Asesor (${creadorFilters.length})`}</span>
                 <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-[240px] p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
-              <div className="p-2 border-b"><div className="relative"><Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Buscar..." className="pl-8 h-9" value={searchCreador} onChange={(e) => setSearchCreador(e.target.value)} onKeyDown={(e) => e.stopPropagation()} /></div></div>
+              <div className="p-2 border-b"><div className="relative"><Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Buscar asesor..." className="pl-8 h-9" value={searchCreador} onChange={(e) => setSearchCreador(e.target.value)} onKeyDown={(e) => e.stopPropagation()} /></div></div>
               <DropdownMenuSeparator />
               <ScrollArea className="h-[220px]">
                 {creatorsFiltrados.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">Sin resultados</p> : creatorsFiltrados.map((c) => (
@@ -1330,6 +1383,27 @@ export default function GestionProspectos() {
                 ))}
               </ScrollArea>
               {creadorFilters.length > 0 && <div className="p-2 border-t"><Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setCreadorFilters([]); setCurrentPage(1) }}>Limpiar</Button></div>}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
+        {currentUser?.rol === "administrador" && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="w-[200px] justify-between">
+                <span className="truncate">{loadedByFilters.length === 0 ? "Subido por (todos)" : `Subido por (${loadedByFilters.length})`}</span>
+                <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[240px] p-0" onCloseAutoFocus={(e) => e.preventDefault()}>
+              <div className="p-2 border-b"><div className="relative"><Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Buscar..." className="pl-8 h-9" value={searchSubidoPor} onChange={(e) => setSearchSubidoPor(e.target.value)} onKeyDown={(e) => e.stopPropagation()} /></div></div>
+              <DropdownMenuSeparator />
+              <ScrollArea className="h-[220px]">
+                {subidoPorFiltrados.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">Sin resultados</p> : subidoPorFiltrados.map((c) => (
+                  <DropdownMenuCheckboxItem key={c.id} checked={loadedByFilters.includes(String(c.id))} onCheckedChange={(checked) => { setLoadedByFilters((prev) => (checked ? [...prev, String(c.id)] : prev.filter((x) => x !== String(c.id)))); setCurrentPage(1) }}>{c.nombre}</DropdownMenuCheckboxItem>
+                ))}
+              </ScrollArea>
+              {loadedByFilters.length > 0 && <div className="p-2 border-t"><Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setLoadedByFilters([]); setCurrentPage(1) }}>Limpiar</Button></div>}
             </DropdownMenuContent>
           </DropdownMenu>
         )}

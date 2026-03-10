@@ -514,6 +514,7 @@ export const deleteReconciliacion = async (id: number, config?: AxiosRequestConf
 // 🔍 Obtener estudiante_programa para Select (más simple que búsqueda)
 export interface EstudianteProgramaSelect {
   estudiante_programa_id: number
+  prospecto_id: number
   estudiante_nombre: string
   carnet: string
   correo: string

@@ -13,10 +13,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Clock, Plus, Trash2, Edit, CalendarIcon, Bell, CheckCircle2, } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Plus, Trash2, Edit, CalendarIcon, Bell, CheckCircle2, ImageIcon, Megaphone, Download } from "lucide-react";
 
 import { api } from "@/services/api";
+import { API_BASE_URL } from "@/utils/apiConfig";
 import Swal from "sweetalert2";
+
+/** Evento público creado por administrador, visible para todos (diplomados, webinars, etc.) */
+interface EventoPublico {
+  id: number;
+  titulo: string;
+  descripcion: string | null;
+  fecha: string;
+  hora_inicio: string | null;
+  hora_fin: string | null;
+  tipo: string;
+  imagen_url: string | null;
+  created_by: number | null;
+}
 
 interface Tarea {
   id: string;
@@ -53,8 +67,23 @@ export default function CalendarioPage() {
   const [selectedCita, setSelectedCita] = useState<Cita | null>(null);
   const [selectedDayActivities, setSelectedDayActivities] = useState<{
     date: Date;
-    items: Array<{ kind: 'tarea' | 'cita'; item: Tarea | Cita }>;
+    items: Array<{ kind: 'tarea' | 'cita' | 'evento_publico'; item: Tarea | Cita | EventoPublico }>;
   } | null>(null);
+
+  const [eventosPublicos, setEventosPublicos] = useState<EventoPublico[]>([]);
+  const [loadingEventosPublicos, setLoadingEventosPublicos] = useState(false);
+  const [isAdminCalendario, setIsAdminCalendario] = useState(false);
+  const [eventoPublicoModalOpen, setEventoPublicoModalOpen] = useState(false);
+  const [eventoPublicoDetailsOpen, setEventoPublicoDetailsOpen] = useState(false);
+  const [selectedEventoPublico, setSelectedEventoPublico] = useState<EventoPublico | null>(null);
+  const [nuevoEventoPublico, setNuevoEventoPublico] = useState<Partial<EventoPublico> & { imagen?: File | null }>({
+    titulo: "",
+    descripcion: "",
+    fecha: "",
+    hora_inicio: "09:00",
+    hora_fin: "10:00",
+    tipo: "evento",
+  });
 
   const [nuevaTarea, setNuevaTarea] = useState<Partial<Tarea>>({
     titulo: "",
@@ -128,6 +157,21 @@ export default function CalendarioPage() {
       .finally(() => setLoadingCitas(false));
   }, [token]);
 
+  // --- Fetch eventos públicos del calendario (visibles para todos; is_admin para mostrar botón crear) ---
+  useEffect(() => {
+    if (!token) return;
+    setLoadingEventosPublicos(true);
+    api
+      .get("/eventos-calendario-publicos")
+      .then((res) => {
+        const data = res.data?.data ?? res.data;
+        setEventosPublicos(Array.isArray(data) ? data : []);
+        setIsAdminCalendario(!!res.data?.is_admin);
+      })
+      .catch(console.error)
+      .finally(() => setLoadingEventosPublicos(false));
+  }, [token]);
+
   // --- Alerta de eventos próximos (próximas 24 horas) ---
   useEffect(() => {
     if (tareas.length === 0 && citas.length === 0) return;
@@ -195,6 +239,8 @@ export default function CalendarioPage() {
     tareas.filter((t) => isSameDay(parseISO(t.fecha), d));
   const getCitasForDate = (d: Date) =>
     citas.filter((c) => isSameDay(parseISO(c.datecita), d));
+  const getEventosPublicosForDate = (d: Date) =>
+    eventosPublicos.filter((e) => isSameDay(parseISO(e.fecha), d));
 
   // --- Handlers: open modals ---
   const openNewTareaModal = (d: Date) => {
@@ -225,9 +271,100 @@ export default function CalendarioPage() {
     setCitaModalOpen(true);
   };
 
-  const openDayActivities = (day: Date, items: Array<{ kind: 'tarea' | 'cita'; item: Tarea | Cita }>) => {
+  const openDayActivities = (day: Date, items: Array<{ kind: 'tarea' | 'cita' | 'evento_publico'; item: Tarea | Cita | EventoPublico }>) => {
     setSelectedDayActivities({ date: day, items });
     setDayActivitiesModalOpen(true);
+  };
+
+  const openEventoPublicoDetails = (e: EventoPublico) => {
+    setSelectedEventoPublico(e);
+    setEventoPublicoDetailsOpen(true);
+  };
+
+  const downloadEventoImage = async (imagenUrl: string, titulo: string) => {
+    try {
+      const url = `${API_BASE_URL}${imagenUrl}`;
+      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) throw new Error("No se pudo obtener la imagen");
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = titulo.replace(/[^a-z0-9.-]/gi, "_") + (imagenUrl.match(/\.[a-z]+$/i)?.[0] || ".jpg");
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      window.open(`${API_BASE_URL}${imagenUrl}`, "_blank");
+    }
+  };
+  const openNewEventoPublicoModal = (d?: Date) => {
+    setSelectedEventoPublico(null);
+    setNuevoEventoPublico({
+      titulo: "",
+      descripcion: "",
+      fecha: d ? format(d, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+      hora_inicio: "09:00",
+      hora_fin: "10:00",
+      tipo: "evento",
+      imagen: null,
+    });
+    setEventoPublicoModalOpen(true);
+  };
+  const openEditEventoPublicoModal = (e: EventoPublico) => {
+    setSelectedEventoPublico(e);
+    setNuevoEventoPublico({
+      ...e,
+      imagen: null,
+    });
+    setEventoPublicoModalOpen(true);
+  };
+
+  const saveEventoPublico = async () => {
+    if (!nuevoEventoPublico.titulo || !nuevoEventoPublico.fecha || !token) return;
+    const formData = new FormData();
+    formData.append("titulo", nuevoEventoPublico.titulo);
+    formData.append("descripcion", nuevoEventoPublico.descripcion ?? "");
+    formData.append("fecha", nuevoEventoPublico.fecha);
+    formData.append("hora_inicio", nuevoEventoPublico.hora_inicio ?? "09:00");
+    formData.append("hora_fin", nuevoEventoPublico.hora_fin ?? "10:00");
+    formData.append("tipo", nuevoEventoPublico.tipo ?? "evento");
+    if (nuevoEventoPublico.imagen) formData.append("imagen", nuevoEventoPublico.imagen);
+    try {
+      if (selectedEventoPublico) {
+        const res = await api.put(`/eventos-calendario-publicos/${selectedEventoPublico.id}`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        setEventosPublicos((prev) => prev.map((ev) => (ev.id === selectedEventoPublico.id ? (res.data?.data ?? res.data) : ev)));
+      } else {
+        const res = await api.post("/eventos-calendario-publicos", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        setEventosPublicos((prev) => [...prev, res.data?.data ?? res.data]);
+      }
+      setEventoPublicoModalOpen(false);
+      Swal.fire({ icon: "success", title: "Guardado", timer: 2000, showConfirmButton: false });
+    } catch (err: any) {
+      Swal.fire({ icon: "error", title: "Error", text: err.response?.data?.error || "No se pudo guardar" });
+    }
+  };
+
+  const deleteEventoPublico = async (id: number) => {
+    if (!token) return;
+    const { isConfirmed } = await Swal.fire({
+      title: "¿Eliminar evento?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Sí, eliminar",
+    });
+    if (!isConfirmed) return;
+    try {
+      await api.delete(`/eventos-calendario-publicos/${id}`);
+      setEventosPublicos((prev) => prev.filter((e) => e.id !== id));
+      setEventoPublicoDetailsOpen(false);
+      setSelectedEventoPublico(null);
+      Swal.fire({ icon: "success", title: "Eliminado", timer: 2000, showConfirmButton: false });
+    } catch (err: any) {
+      Swal.fire({ icon: "error", title: "Error", text: err.response?.data?.error || "No se pudo eliminar" });
+    }
   };
 
   // --- Handlers: API calls ---
@@ -524,6 +661,17 @@ export default function CalendarioPage() {
                   </PopoverContent>
                 </Popover>
               )}
+              {isAdminCalendario && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-amber-500/20 text-white border-amber-300/40 hover:bg-amber-500/30"
+                  onClick={() => openNewEventoPublicoModal()}
+                >
+                  <Megaphone className="h-4 w-4 mr-1" />
+                  Evento para todos
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -590,7 +738,7 @@ export default function CalendarioPage() {
               </div>
             ))}
           </div>
-          {(loadingTareas || loadingCitas) ? (
+          {(loadingTareas || loadingCitas || loadingEventosPublicos) ? (
             <div className="grid grid-cols-7 gap-1">
               {Array.from({ length: 35 }).map((_, i) => (
                 <div key={i} className="h-32 p-2 rounded-md border bg-gray-50">
@@ -613,9 +761,11 @@ export default function CalendarioPage() {
               {monthDays.map((day) => {
                 const dayT = getTareasForDate(day);
                 const dayC = getCitasForDate(day);
-                const items = [
+                const dayE = getEventosPublicosForDate(day);
+                const items: Array<{ kind: "tarea" | "cita" | "evento_publico"; item: Tarea | Cita | EventoPublico }> = [
                   ...dayT.map((t) => ({ kind: "tarea" as const, item: t })),
                   ...dayC.map((c) => ({ kind: "cita" as const, item: c })),
+                  ...dayE.map((e) => ({ kind: "evento_publico" as const, item: e })),
                 ];
                 const toShow = items.slice(0, 3);
                 const isCurr = isSameMonth(day, currentDate);
@@ -657,28 +807,41 @@ export default function CalendarioPage() {
                       {toShow.map(({ kind, item }) =>
                         kind === "tarea" ? (
                           <div
-                            key={item.id}
-                            className={`px-2 py-1 text-xs rounded-md cursor-pointer truncate ${colorTipoTarea[item.tipo]
-                              } ${item.completada ? "opacity-60 line-through" : ""}`}
+                            key={`t-${item.id}`}
+                            className={`px-2 py-1 text-xs rounded-md cursor-pointer truncate ${colorTipoTarea[(item as Tarea).tipo]
+                              } ${(item as Tarea).completada ? "opacity-60 line-through" : ""}`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              openTareaDetails(item);
+                              openTareaDetails(item as Tarea);
                             }}
                           >
-                            {item.horaInicio} - {item.titulo}
+                            {(item as Tarea).horaInicio} - {(item as Tarea).titulo}
                           </div>
-                        ) : (
+                        ) : kind === "cita" ? (
                           <div
-                            key={item.id}
+                            key={`c-${item.id}`}
                             className={`px-2 py-1 text-xs rounded-md cursor-pointer truncate bg-green-100 text-green-800 border-green-200 ${(item as Cita).estado === "completada" ? "opacity-60 line-through" : ""}`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              openCitaDetails(item);
+                              openCitaDetails(item as Cita);
                             }}
                           >
                             {(item as Cita).estado === "completada" && "✓ "}
-                            {format(parseISO(item.datecita), "HH:mm")} -{" "}
-                            {item.descricita}
+                            {format(parseISO((item as Cita).datecita), "HH:mm")} -{" "}
+                            {(item as Cita).descricita}
+                          </div>
+                        ) : (
+                          <div
+                            key={`e-${item.id}`}
+                            className="px-2 py-1 text-xs rounded-md cursor-pointer truncate bg-amber-100 text-amber-900 border-amber-300"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEventoPublicoDetails(item as EventoPublico);
+                            }}
+                          >
+                            <Megaphone className="inline h-3 w-3 mr-0.5" />
+                            {(item as EventoPublico).hora_inicio && `${(item as EventoPublico).hora_inicio} - `}
+                            {(item as EventoPublico).titulo}
                           </div>
                         )
                       )}
@@ -1041,11 +1204,11 @@ export default function CalendarioPage() {
                         </div>
                       </div>
                     );
-                  } else {
+                  } else if (kind === "cita") {
                     const cita = item as Cita;
                     return (
                       <div
-                        key={cita.id}
+                        key={`c-${cita.id}`}
                         className={`p-4 rounded-lg border-2 cursor-pointer hover:shadow-md transition-shadow bg-green-50 border-green-200 ${cita.estado === "completada" ? "opacity-60" : ""}`}
                         onClick={() => {
                           setDayActivitiesModalOpen(false);
@@ -1095,6 +1258,34 @@ export default function CalendarioPage() {
                         </div>
                       </div>
                     );
+                  } else {
+                    const ev = item as EventoPublico;
+                    return (
+                      <div
+                        key={`e-${ev.id}`}
+                        className="p-4 rounded-lg border-2 cursor-pointer hover:shadow-md transition-shadow bg-amber-50 border-amber-200"
+                        onClick={() => {
+                          setDayActivitiesModalOpen(false);
+                          openEventoPublicoDetails(ev);
+                        }}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="outline" className="text-xs bg-amber-100 text-amber-800">
+                            <Megaphone className="h-3 w-3 mr-0.5 inline" /> {ev.tipo === "diplomado" ? "Diplomado" : ev.tipo === "webinar" ? "Webinar" : ev.tipo}
+                          </Badge>
+                        </div>
+                        <h4 className="font-semibold text-amber-900">{ev.titulo}</h4>
+                        {ev.hora_inicio && (
+                          <div className="flex items-center text-sm gap-2 mt-2 text-amber-800">
+                            <Clock className="h-4 w-4" />
+                            <span>{ev.hora_inicio}{ev.hora_fin ? ` - ${ev.hora_fin}` : ""}</span>
+                          </div>
+                        )}
+                        {ev.descripcion && (
+                          <p className="text-sm mt-2 text-gray-700 line-clamp-2">{ev.descripcion}</p>
+                        )}
+                      </div>
+                    );
                   }
                 })
               )}
@@ -1126,6 +1317,118 @@ export default function CalendarioPage() {
             </DialogFooter>
           </DialogContent>
         )}
+      </Dialog>
+
+      {/* Modal detalle evento público */}
+      <Dialog open={eventoPublicoDetailsOpen} onOpenChange={setEventoPublicoDetailsOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Megaphone className="h-5 w-5 text-amber-600" />
+              {selectedEventoPublico?.titulo}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedEventoPublico && (
+            <div className="space-y-4">
+              {selectedEventoPublico.imagen_url && (
+                <div className="space-y-2">
+                  <div className="rounded-lg border bg-muted/50 overflow-auto max-h-[min(70vh,420px)] flex items-center justify-center p-1">
+                    <img
+                      src={`${API_BASE_URL}${selectedEventoPublico.imagen_url}`}
+                      alt={selectedEventoPublico.titulo}
+                      className="max-w-full max-h-[min(68vh,400px)] w-auto h-auto object-contain"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="inline-flex items-center gap-2 text-primary hover:underline -ml-2"
+                    onClick={() => selectedEventoPublico.imagen_url && downloadEventoImage(selectedEventoPublico.imagen_url, selectedEventoPublico.titulo)}
+                  >
+                    <Download className="h-4 w-4" />
+                    Descargar imagen
+                  </Button>
+                </div>
+              )}
+              <p className="text-sm text-muted-foreground capitalize">{selectedEventoPublico.tipo}</p>
+              <p className="text-sm">{selectedEventoPublico.descripcion || "Sin descripción."}</p>
+              <p className="text-xs text-muted-foreground">
+                {selectedEventoPublico.fecha.includes("T") ? selectedEventoPublico.fecha.slice(0, 10) : selectedEventoPublico.fecha} · {selectedEventoPublico.hora_inicio} - {selectedEventoPublico.hora_fin}
+              </p>
+              {isAdminCalendario && (
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" size="sm" onClick={() => { openEditEventoPublicoModal(selectedEventoPublico); setEventoPublicoDetailsOpen(false); }}>
+                    Editar
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={() => selectedEventoPublico && deleteEventoPublico(selectedEventoPublico.id)}>
+                    Eliminar
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal crear/editar evento público (admin) */}
+      <Dialog open={eventoPublicoModalOpen} onOpenChange={(open) => { setEventoPublicoModalOpen(open); if (!open) { setSelectedEventoPublico(null); setNuevoEventoPublico({ titulo: "", descripcion: "", fecha: "", hora_inicio: "09:00", hora_fin: "10:00", tipo: "evento", imagen: null }); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{selectedEventoPublico ? "Editar evento" : "Nuevo evento para todos"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Título</Label>
+              <Input value={nuevoEventoPublico.titulo} onChange={(e) => setNuevoEventoPublico((p) => ({ ...p, titulo: e.target.value }))} placeholder="Ej. Webinar ventas" />
+            </div>
+            <div>
+              <Label>Descripción</Label>
+              <textarea className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={nuevoEventoPublico.descripcion} onChange={(e) => setNuevoEventoPublico((p) => ({ ...p, descripcion: e.target.value }))} placeholder="Descripción opcional" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Fecha</Label>
+                <Input type="date" value={nuevoEventoPublico.fecha} onChange={(e) => setNuevoEventoPublico((p) => ({ ...p, fecha: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Tipo</Label>
+                <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={nuevoEventoPublico.tipo} onChange={(e) => setNuevoEventoPublico((p) => ({ ...p, tipo: e.target.value }))}>
+                  <option value="diplomado">Diplomado</option>
+                  <option value="webinar">Webinar</option>
+                  <option value="taller">Taller</option>
+                  <option value="evento">Evento</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Hora inicio</Label>
+                <Input type="time" value={nuevoEventoPublico.hora_inicio} onChange={(e) => setNuevoEventoPublico((p) => ({ ...p, hora_inicio: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Hora fin</Label>
+                <Input type="time" value={nuevoEventoPublico.hora_fin} onChange={(e) => setNuevoEventoPublico((p) => ({ ...p, hora_fin: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <Label>Imagen (opcional)</Label>
+              {(nuevoEventoPublico.imagen_url && !nuevoEventoPublico.imagen) ? (
+                <div className="mt-2 flex items-center gap-2">
+                  <img src={`${API_BASE_URL}${nuevoEventoPublico.imagen_url}`} alt="Actual" className="h-20 w-20 object-cover rounded border" />
+                  <Button type="button" variant="outline" size="sm" onClick={() => setNuevoEventoPublico((p) => ({ ...p, imagen_url: undefined, imagen: null }))}>Quitar / reemplazar</Button>
+                </div>
+              ) : (
+                <Input type="file" accept="image/*" className="mt-1" onChange={(e) => setNuevoEventoPublico((p) => ({ ...p, imagen: e.target.files?.[0] ?? null }))} />
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEventoPublicoModalOpen(false)}>Cancelar</Button>
+            <Button onClick={saveEventoPublico}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
     </div>
   );

@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { DatosFinancieros } from "../types"
 import ReciboPagoGenerator from "../ReciboPagoGenerator"
 
@@ -181,6 +182,8 @@ export default function FinancieroTab({
 
       if (preserveFinancialFromProspect) {
         onPreserveFinancialApplied?.()
+        // Siempre actualizar cantidadMeses (viene del programa, no del prospecto)
+        setDatos(prev => ({ ...prev, cantidadMeses: totalMeses }))
       } else {
         setDatos(prev => ({
           ...prev,
@@ -299,12 +302,32 @@ export default function FinancieroTab({
             id="ins"
             label="Inscripción (Q)"
             value={datos.inscripcion}
-            placeholder={sugeridos.inscripcion}
-            onChange={(v) => setDatos((d) => ({ ...d, inscripcion: v }))}
+            placeholder={datos.inscripcionCero ? "0.00" : sugeridos.inscripcion}
+            onChange={datos.inscripcionCero ? undefined : (v) => setDatos((d) => ({ ...d, inscripcion: v }))}
+            readOnly={!!datos.inscripcionCero}
             required
-            error={datos.inscripcion === undefined || datos.inscripcion === null || datos.inscripcion.trim() === "" || parseFloat(datos.inscripcion.replace(/,/g, "")) < 0}
+            error={!datos.inscripcionCero && (datos.inscripcion === undefined || datos.inscripcion === null || datos.inscripcion.trim() === "" || parseFloat(datos.inscripcion.replace(/,/g, "")) < 0)}
           />
-          {/* Toggle de descuento: visible cuando inscripción < precio sugerido del API */}
+          {/* Toggle Inscripción Cero */}
+          <div className="flex items-center gap-3 mt-2">
+            <Switch
+              id="inscripcion-cero-toggle"
+              checked={!!datos.inscripcionCero}
+              onCheckedChange={(cero) => {
+                setDatos((d) => ({ ...d, inscripcionCero: cero, inscripcion: cero ? "0" : d.inscripcion }))
+              }}
+              className="data-[state=checked]:bg-orange-500"
+            />
+            <label htmlFor="inscripcion-cero-toggle" className="text-sm text-orange-700 font-medium cursor-pointer select-none">
+              Inscripción cero (no se cobró inscripción)
+            </label>
+          </div>
+          {!!datos.inscripcionCero && (
+            <p className="text-xs text-orange-600 mt-1">
+              Se registrará como inscripción Q0 (exonerada). El comprobante de pago corresponderá a la primera mensualidad.
+            </p>
+          )}
+          {/* Toggle de descuento (solo cuando NO es inscipción cero) */}
           {(() => {
             const precioBase = parseFloat(sugeridos.inscripcion) || 0
             const montoActual = parseFloat(datos.inscripcion?.replace(/,/g, "") || "0")

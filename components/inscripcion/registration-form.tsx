@@ -644,6 +644,7 @@ export default function RegistrationForm() {
                   prospectoId={prospectoId as number}
                   montoInscripcion={parseFloat(datosFinancieros.inscripcion?.replace(/,/g, "") || "0")}
                   descuentoInscripcion={!!datosFinancieros.descuentoInscripcion}
+                  inscripcionCero={!!datosFinancieros.inscripcionCero}
                   studentName={datosPersonales.nombre}
                   studentPhone={datosPersonales.telefono}
                   studentEmail={datosPersonales.emailPersonal}

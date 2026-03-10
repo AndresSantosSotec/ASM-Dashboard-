@@ -18,6 +18,7 @@ import axios from "axios"
 import { FilePreviewModal } from "@/components/ui/file-preview-modal"
 import { useToast } from "@/hooks/use-toast"
 import ReciboPagoGenerator from "@/components/inscripcion/ReciboPagoGenerator"
+import { Switch } from "@/components/ui/switch"
 
 interface AlertaAlumnoNuevoProps {
   prospectoId: string
@@ -182,6 +183,7 @@ export default function AlertaAlumnoNuevo({
   const [showPreview, setShowPreview] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [boletaSubida, setBoletaSubida] = useState(false)
+  const [inscripcionCero, setInscripcionCero] = useState(false)
 
   // Cargar precios desde la API para un programa adicional
   const cargarPreciosAdicional = async (idx: number) => {
@@ -678,9 +680,10 @@ export default function AlertaAlumnoNuevo({
             duracion_meses: Number(formData.duracion_meses),
             fecha_inicio: fechaInicio,
             fecha_fin: fechaFin,
-            inscripcion,
+            inscripcion: inscripcionCero ? 0 : inscripcion,
+            inscripcion_cero: inscripcionCero,
             cuota_mensual: cuotaMensual,
-            inversion_total: inversionTotal,
+            inversion_total: inscripcionCero ? cuotaMensual * Number(formData.duracion_meses) : inversionTotal,
           }
 
           if (estudianteProgramaId) {
@@ -1108,9 +1111,10 @@ export default function AlertaAlumnoNuevo({
             duracion_meses: Number(formData.duracion_meses),
             fecha_inicio: fechaInicio,
             fecha_fin: fechaFin,
-            inscripcion: inscripcion,
+            inscripcion: inscripcionCero ? 0 : inscripcion,
+            inscripcion_cero: inscripcionCero,
             cuota_mensual: cuotaMensual,
-            inversion_total: inversionTotal,
+            inversion_total: inscripcionCero ? cuotaMensual * Number(formData.duracion_meses) : inversionTotal,
           }
 
           if (estudianteProgramaId) {
@@ -2174,6 +2178,32 @@ export default function AlertaAlumnoNuevo({
                   Sube la boleta de inscripción con los datos mínimos requeridos.
                 </AlertDescription>
               </Alert>
+
+              {/* Toggle Inscripción Cero */}
+              <div className="flex items-center gap-3 p-3 rounded-lg border border-orange-200 bg-orange-50">
+                <Switch
+                  id="inscripcion-cero-alerta"
+                  checked={inscripcionCero}
+                  onCheckedChange={(checked) => setInscripcionCero(checked)}
+                  className="data-[state=checked]:bg-orange-500"
+                />
+                <label htmlFor="inscripcion-cero-alerta" className="cursor-pointer select-none">
+                  <p className="text-sm font-medium text-orange-800">Inscripción Cero (no se cobra inscripción)</p>
+                  <p className="text-xs text-orange-600">Activa esto si la inscripción fue exonerada (Q0). El comprobante corresponderá a la primera mensualidad.</p>
+                </label>
+              </div>
+
+              {inscripcionCero && (
+                <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4 mb-2">
+                  <div className="flex items-center gap-3 text-orange-700">
+                    <CheckCircle className="h-5 w-5" />
+                    <div>
+                      <p className="font-semibold text-sm">Inscripción Q0 — El comprobante corresponde a la primera mensualidad</p>
+                      <p className="text-xs">Suba el comprobante de pago de la primera cuota mensual.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Boton generar recibo de American */}
               <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">

@@ -18,6 +18,7 @@ import Swal from "sweetalert2"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import fetchFicha from "@/services/fichas"
 import ReciboPagoGenerator from "@/components/inscripcion/ReciboPagoGenerator"
+import { Switch } from "@/components/ui/switch"
 import type { DatosAcademicos, DatosFinancieros, DatosLaborales } from "@/components/inscripcion/types"
 import axios from "axios"
 
@@ -61,6 +62,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
   const [programasInscritos, setProgramasInscritos] = useState<any[]>([])
   /** ID del estudiante_programa que se está editando en el formulario (permite elegir qué programa modificar) */
   const [epIdEnEdicion, setEpIdEnEdicion] = useState<number | null>(null)
+  const [epInscripcionCero, setEpInscripcionCero] = useState(false)
   const [calculandoPrecios, setCalculandoPrecios] = useState(false)
 
   // Estados para agregar nuevo programa (doble titulación)
@@ -291,6 +293,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           if (prospectoPrograms.length > 0) {
             const ep0 = prospectoPrograms[0]
             finFromProspecto.inscripcion = ep0.inscripcion != null && ep0.inscripcion !== "" ? String(Number(ep0.inscripcion)) : "0"
+            setEpInscripcionCero(!!ep0.inscripcion_cero)
             finFromProspecto.cuotaMensual = ep0.cuota_mensual != null && ep0.cuota_mensual !== "" ? String(Number(ep0.cuota_mensual)) : "0"
             finFromProspecto.inversionTotal = ep0.inversion_total != null && ep0.inversion_total !== "" ? String(Number(ep0.inversion_total)) : "0"
             finFromProspecto.cantidadMeses = ep0.duracion_meses != null ? String(ep0.duracion_meses) : "0"
@@ -474,6 +477,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
   const seleccionarProgramaParaEditar = async (ep: any) => {
     setEpIdEnEdicion(ep.id)
     setEstudiantePrograma(ep)
+    setEpInscripcionCero(!!ep.inscripcion_cero)
     setDatosAcademicos(prev => ({
       ...prev,
       programa: ep.programa_id?.toString() ?? prev.programa ?? "",
@@ -686,7 +690,8 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
             duracion_meses: duracionMeses,
             fecha_inicio: fechaInicio,
             fecha_fin: fechaFin.toISOString().split('T')[0],
-            inscripcion: parseFloat(datosFinancieros.inscripcion || "0"),
+            inscripcion: epInscripcionCero ? 0 : parseFloat(datosFinancieros.inscripcion || "0"),
+            inscripcion_cero: epInscripcionCero,
             cuota_mensual: parseFloat(datosFinancieros.cuotaMensual || "0"),
             inversion_total: parseFloat(datosFinancieros.inversionTotal || "0"),
             convenio_id: datosFinancieros.convenioId || null,
@@ -1704,11 +1709,27 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                       <label className="block text-sm font-medium mb-1">Inscripción (Q)</label>
                       <Input
                         type="number"
-                        value={datosFinancieros.inscripcion !== undefined && datosFinancieros.inscripcion !== "" ? datosFinancieros.inscripcion : "0"}
+                        value={epInscripcionCero ? "0" : (datosFinancieros.inscripcion !== undefined && datosFinancieros.inscripcion !== "" ? datosFinancieros.inscripcion : "0")}
                         onChange={(e) => setDatosFinancieros(prev => ({ ...prev, inscripcion: e.target.value }))}
                         placeholder="0"
                         disabled={calculandoPrecios}
+                        readOnly={epInscripcionCero}
+                        className={epInscripcionCero ? "bg-orange-50 border-orange-200" : ""}
                       />
+                      <div className="flex items-center gap-3 mt-2">
+                        <Switch
+                          id="ep-inscripcion-cero-toggle"
+                          checked={epInscripcionCero}
+                          onCheckedChange={(checked) => {
+                            setEpInscripcionCero(checked)
+                            if (checked) setDatosFinancieros(prev => ({ ...prev, inscripcion: "0" }))
+                          }}
+                          className="data-[state=checked]:bg-orange-500"
+                        />
+                        <label htmlFor="ep-inscripcion-cero-toggle" className="text-xs text-orange-700 font-medium cursor-pointer select-none">
+                          Inscripción cero (exonerada)
+                        </label>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1">Cuota Mensual (Q)</label>

@@ -182,6 +182,19 @@ export function Advisors() {
   const [goalModalOpen, setGoalModalOpen] = useState(false)
   const [selectedGoalAdvisor, setSelectedGoalAdvisor] = useState<Advisor | null>(null)
   const [newGoal, setNewGoal] = useState(10)
+
+  // Estados para reglas de comisión personalizadas por asesor
+  const [asesorRules, setAsesorRules] = useState<Array<{
+    id?: number
+    level: string
+    min_percentage: number
+    max_percentage: number | null
+    commission_percentage: number
+  }>>([])
+  const [asesorHasCustomRules, setAsesorHasCustomRules] = useState(false)
+  const [useCustomRules, setUseCustomRules] = useState(false)
+  const [asesorRulesLoading, setAsesorRulesLoading] = useState(false)
+  const [savingGoalAndRules, setSavingGoalAndRules] = useState(false)
   const [globalRulesModalOpen, setGlobalRulesModalOpen] = useState(false)
   const [commissionDetailModalOpen, setCommissionDetailModalOpen] = useState(false)
   const [selectedCommission, setSelectedCommission] = useState<CommissionV2 | null>(null)
@@ -550,11 +563,113 @@ export function Advisors() {
     }
   }
 
-  const openGoalModal = (adv: Advisor) => {
+  const openGoalModal = async (adv: Advisor) => {
     setSelectedGoalAdvisor(adv)
     const goal = goals.find(g => g.asesor_id.toString() === adv.id)
-    setNewGoal(goal?.monthly_goal || 10)
+    setNewGoal(goal?.monthly_goal || globalSettings.global_default_goal)
+    setAsesorRules([])
+    setAsesorHasCustomRules(false)
+    setUseCustomRules(false)
     setGoalModalOpen(true)
+    // Cargar reglas personalizadas del asesor
+    setAsesorRulesLoading(true)
+    try {
+      const r = await safeFetch(`${API_COMM_V2}/asesor-rules/${adv.id}`)
+      const json = await r.json()
+      if (json.success) {
+        const hasCustom = json.has_custom_rules && json.data?.length > 0
+        setAsesorHasCustomRules(hasCustom)
+        setUseCustomRules(hasCustom)
+        setAsesorRules(json.data?.map((rule: any) => ({
+          id: rule.id,
+          level: rule.level,
+          min_percentage: rule.min_percentage,
+          max_percentage: rule.max_percentage,
+          commission_percentage: Number(rule.commission_percentage),
+        })) || [])
+      }
+    } catch (err: any) {
+      console.error("Error cargando reglas del asesor:", err)
+    } finally {
+      setAsesorRulesLoading(false)
+    }
+  }
+
+  const addAsesorRuleRow = () => {
+    setAsesorRules(prev => [...prev, {
+      level: `nivel_${prev.length + 1}`,
+      min_percentage: 0,
+      max_percentage: null,
+      commission_percentage: 0,
+    }])
+  }
+
+  const removeAsesorRuleRow = (index: number) => {
+    setAsesorRules(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const initAsesorRulesFromGlobal = () => {
+    const copied = [...globalRules]
+      .sort((a, b) => (b.min_sales || 0) - (a.min_sales || 0))
+      .map(r => ({
+        level: r.level,
+        min_percentage: r.min_sales,
+        max_percentage: r.max_sales,
+        commission_percentage: Number(r.percentage),
+      }))
+    setAsesorRules(copied)
+    setUseCustomRules(true)
+  }
+
+  const saveGoalAndRules = async () => {
+    if (!selectedGoalAdvisor) return
+    if (newGoal < 1 || newGoal > 500) {
+      Swal.fire("Error", "La meta debe estar entre 1 y 500 ventas", "error")
+      return
+    }
+    if (useCustomRules && asesorRules.length > 0) {
+      const hasErrors = asesorRules.some(r => {
+        if (!r.level.trim()) return true
+        if (r.commission_percentage < 0 || r.commission_percentage > 100) return true
+        if (r.min_percentage < 0) return true
+        if (r.max_percentage !== null && r.max_percentage < r.min_percentage) return true
+        return false
+      })
+      if (hasErrors) {
+        Swal.fire("Error", "Por favor verifica los valores de los niveles personalizados", "error")
+        return
+      }
+    }
+    setSavingGoalAndRules(true)
+    try {
+      // 1. Guardar meta mensual
+      const goalRes = await safeFetch(`${API_COMM_V2}/goal/${selectedGoalAdvisor.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ monthly_goal: newGoal, active: true }),
+      })
+      const goalJson = await goalRes.json()
+      if (!goalJson.success) throw new Error(goalJson.message || "Error al guardar meta")
+      // 2. Guardar reglas personalizadas (array vacío = usar global)
+      const rulesToSave = useCustomRules ? asesorRules : []
+      const rulesRes = await safeFetch(`${API_COMM_V2}/asesor-rules/${selectedGoalAdvisor.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rules: rulesToSave }),
+      })
+      const rulesJson = await rulesRes.json()
+      if (!rulesJson.success) throw new Error(rulesJson.message || "Error al guardar reglas")
+      setGoalModalOpen(false)
+      Swal.fire("Guardado", useCustomRules && asesorRules.length > 0
+        ? "Meta y niveles personalizados guardados correctamente"
+        : "Meta guardada. El asesor usará las reglas globales de comisión", "success")
+      await loadGoals()
+      await loadCommissionsV2()
+    } catch (err: any) {
+      Swal.fire("Error", "No se pudo guardar: " + err.message, "error")
+    } finally {
+      setSavingGoalAndRules(false)
+    }
   }
 
   const openCommissionDetail = async (commissionId: number) => {
@@ -1460,37 +1575,246 @@ export function Advisors() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal Editar Meta */}
+      {/* Modal Editar Meta y Niveles de Comisión por Asesor */}
       <Dialog open={goalModalOpen} onOpenChange={setGoalModalOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[750px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar Meta para {selectedGoalAdvisor?.name}</DialogTitle>
+            <DialogTitle>Editar Configuración de {selectedGoalAdvisor?.name}</DialogTitle>
             <DialogDescription>
-              Establece la meta mensual de ventas para este asesor
+              Configura la meta mensual y los niveles de comisión para este asesor
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="monthly-goal">Meta Mensual (ventas)</Label>
+          <div className="grid gap-6 py-4">
+
+            {/* Sección 1: Meta Mensual */}
+            <div className="grid gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold">🎯 Meta Mensual (ventas)</span>
+              </div>
               <div className="flex items-center gap-4">
                 <Slider
-                  id="monthly-goal"
                   min={1}
-                  max={50}
+                  max={100}
                   step={1}
                   value={[newGoal]}
                   onValueChange={v => setNewGoal(v[0])}
                   className="flex-1"
                 />
-                <span className="w-12 text-right font-medium">{newGoal}</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={newGoal}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 1
+                    setNewGoal(Math.min(Math.max(val, 1), 500))
+                  }}
+                  className="w-20"
+                />
               </div>
+              <p className="text-xs text-muted-foreground">
+                Meta global por defecto: <strong>{globalSettings.global_default_goal} ventas</strong>
+              </p>
+            </div>
+
+            <div className="border-t" />
+
+            {/* Sección 2: Niveles de Comisión Personalizados */}
+            <div className="grid gap-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold">⚙️ Niveles de Comisión</p>
+                  <p className="text-xs text-muted-foreground">
+                    {useCustomRules
+                      ? "Este asesor tiene niveles personalizados que sobrescriben las reglas globales"
+                      : "Este asesor usa las Reglas Globales de Comisión"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {asesorHasCustomRules && (
+                    <Badge variant="default" className="bg-purple-600 text-xs">Personalizado</Badge>
+                  )}
+                  <Switch
+                    checked={useCustomRules}
+                    onCheckedChange={(checked) => {
+                      setUseCustomRules(checked)
+                      if (checked && asesorRules.length === 0) {
+                        initAsesorRulesFromGlobal()
+                      }
+                    }}
+                  />
+                  <Label className="text-sm">Personalizar</Label>
+                </div>
+              </div>
+
+              {asesorRulesLoading ? (
+                <div className="text-center py-4 text-muted-foreground text-sm">Cargando niveles...</div>
+              ) : useCustomRules ? (
+                <div className="grid gap-2">
+                  <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                    <p className="text-xs text-purple-700 dark:text-purple-300">
+                      <strong>ℹ️</strong> Los niveles aquí configurados aplican <strong>solo a {selectedGoalAdvisor?.name}</strong>.
+                      El % de comisión se calcula según el % de su meta individual alcanzado.
+                    </p>
+                  </div>
+
+                  {asesorRules.length === 0 ? (
+                    <div className="text-center py-4 border-2 border-dashed rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-3">No hay niveles personalizados configurados</p>
+                      <div className="flex gap-2 justify-center">
+                        <Button size="sm" variant="outline" onClick={initAsesorRulesFromGlobal}>
+                          📋 Copiar desde Reglas Globales
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={addAsesorRuleRow}>
+                          + Agregar nivel vacío
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[25%]">Nivel</TableHead>
+                            <TableHead className="w-[18%]">% Meta Mín.</TableHead>
+                            <TableHead className="w-[18%]">% Meta Máx.</TableHead>
+                            <TableHead>% Comisión</TableHead>
+                            <TableHead className="w-10"></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {asesorRules.map((rule, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell>
+                                <Input
+                                  value={rule.level}
+                                  onChange={(e) => {
+                                    const updated = [...asesorRules]
+                                    updated[idx] = { ...updated[idx], level: e.target.value }
+                                    setAsesorRules(updated)
+                                  }}
+                                  className="h-8 text-xs"
+                                  placeholder="nombre"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1">
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    value={rule.min_percentage}
+                                    onChange={(e) => {
+                                      const updated = [...asesorRules]
+                                      updated[idx] = { ...updated[idx], min_percentage: parseInt(e.target.value) || 0 }
+                                      setAsesorRules(updated)
+                                    }}
+                                    className="h-8 w-16 text-xs"
+                                  />
+                                  <span className="text-xs text-muted-foreground">%</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1">
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    value={rule.max_percentage ?? ""}
+                                    onChange={(e) => {
+                                      const updated = [...asesorRules]
+                                      updated[idx] = { ...updated[idx], max_percentage: e.target.value ? parseInt(e.target.value) : null }
+                                      setAsesorRules(updated)
+                                    }}
+                                    className="h-8 w-16 text-xs"
+                                    placeholder="∞"
+                                  />
+                                  <span className="text-xs text-muted-foreground">%</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Slider
+                                    min={0}
+                                    max={100}
+                                    step={0.5}
+                                    value={[rule.commission_percentage]}
+                                    onValueChange={(v) => {
+                                      const updated = [...asesorRules]
+                                      updated[idx] = { ...updated[idx], commission_percentage: v[0] }
+                                      setAsesorRules(updated)
+                                    }}
+                                    className="flex-1 min-w-[60px]"
+                                  />
+                                  <Badge variant="secondary" className="w-14 justify-center text-xs">
+                                    {rule.commission_percentage}%
+                                  </Badge>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-red-500 hover:text-red-700"
+                                  onClick={() => removeAsesorRuleRow(idx)}
+                                >
+                                  ✕
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={addAsesorRuleRow}>
+                          + Agregar Nivel
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-muted-foreground"
+                          onClick={initAsesorRulesFromGlobal}
+                        >
+                          📋 Reiniciar desde Global
+                        </Button>
+                      </div>
+                    </>
+                  )}
+
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-red-500 hover:text-red-700 self-start"
+                    onClick={() => {
+                      setUseCustomRules(false)
+                      setAsesorRules([])
+                    }}
+                  >
+                    🗑 Eliminar reglas personalizadas — volver a Global
+                  </Button>
+                </div>
+              ) : (
+                <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Este asesor usará las <strong>Reglas Globales de Comisión</strong>.
+                    Activa &quot;Personalizar&quot; para configurar niveles específicos para él.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {globalRules.slice().sort((a, b) => b.min_sales - a.min_sales).map(r => (
+                      <Badge key={r.id} variant="outline" className="text-xs">
+                        {getLevelIcon(r.level)} {r.level.replace(/_/g, ' ')}: {r.percentage}%
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setGoalModalOpen(false)}>
+            <Button variant="outline" onClick={() => setGoalModalOpen(false)} disabled={savingGoalAndRules}>
               Cancelar
             </Button>
-            <Button onClick={saveGoal}>Guardar</Button>
+            <Button onClick={saveGoalAndRules} disabled={savingGoalAndRules}>
+              {savingGoalAndRules ? "Guardando..." : "Guardar"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

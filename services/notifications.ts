@@ -9,6 +9,7 @@ export interface InternalNotification {
   message: string;
   route: string | null;
   data: {
+    // inscripcion_etapa / avance_inscripcion_asesor
     prospecto_id?: number;
     prospecto_nombre?: string;
     prospecto_carnet?: string;
@@ -18,6 +19,16 @@ export interface InternalNotification {
     performed_by_name?: string;
     programa?: string;
     comentario?: string;
+    es_retroceso?: boolean;
+    // nueva_carga_leads
+    cantidad_leads?: number;
+    importado_por_id?: number;
+    importado_por_name?: string;
+    // lead_sin_contacto
+    prospecto_email?: string;
+    prospecto_tel?: string;
+    asesor_id?: number;
+    horas_sin_contacto?: number;
   } | null;
   read_at: string | null;
   created_at: string;

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Bell, Check, CheckCheck, ExternalLink, Loader2, Trash2, X } from "lucide-react"
+import { Bell, Check, CheckCheck, ExternalLink, Loader2, Trash2, X, Users, FileUp, TrendingUp, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -125,6 +125,39 @@ export default function NotificationBell() {
     return labels[status || ""] || status || "N/A"
   }
 
+  // Retorna el ícono correspondiente según el tipo de notificación
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case "nueva_carga_leads":
+        return <FileUp className="h-4 w-4 text-emerald-600" />
+      case "avance_inscripcion_asesor":
+        return <TrendingUp className="h-4 w-4 text-blue-600" />
+      case "inscripcion_etapa":
+        return <Users className="h-4 w-4 text-indigo-600" />
+      case "lead_sin_contacto":
+        return <Clock className="h-4 w-4 text-amber-600" />
+      default:
+        return <Bell className="h-4 w-4 text-muted-foreground" />
+    }
+  }
+
+  // Retorna el color de fondo del borde según el tipo
+  const getNotificationAccent = (type: string, isUnread: boolean) => {
+    if (!isUnread) return ""
+    switch (type) {
+      case "nueva_carga_leads":
+        return "border-l-2 border-l-emerald-500"
+      case "avance_inscripcion_asesor":
+        return "border-l-2 border-l-blue-500"
+      case "inscripcion_etapa":
+        return "border-l-2 border-l-indigo-500"
+      case "lead_sin_contacto":
+        return "border-l-2 border-l-amber-500"
+      default:
+        return "border-l-2 border-l-gray-300"
+    }
+  }
+
   return (
     <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
       <DropdownMenuTrigger asChild>
@@ -185,19 +218,19 @@ export default function NotificationBell() {
               {notifications.map((notification) => (
                 <DropdownMenuItem
                   key={notification.id}
-                  className="flex flex-col items-start p-4 cursor-pointer hover:bg-accent focus:bg-accent"
+                  className={`flex flex-col items-start p-4 cursor-pointer hover:bg-accent focus:bg-accent ${getNotificationAccent(notification.type, !notification.read_at)}`}
                   onClick={() => handleNotificationClick(notification)}
                   onSelect={(e) => e.preventDefault()}
                 >
                   <div className="flex items-start justify-between w-full mb-1">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
+                        {getNotificationIcon(notification.type)}
                         <h4
-                          className={`text-sm font-medium ${
-                            !notification.read_at
-                              ? "text-foreground font-semibold"
-                              : "text-muted-foreground"
-                          }`}
+                          className={`text-sm font-medium ${!notification.read_at
+                            ? "text-foreground font-semibold"
+                            : "text-muted-foreground"
+                            }`}
                         >
                           {notification.title}
                         </h4>
@@ -208,27 +241,71 @@ export default function NotificationBell() {
                       <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
                         {notification.message}
                       </p>
-                      {notification.data?.prospecto_nombre && (
-                        <div className="text-xs text-muted-foreground mb-1">
-                          <span className="font-medium">Estudiante:</span>{" "}
-                          {notification.data.prospecto_nombre}
-                          {notification.data.prospecto_carnet && (
-                            <span className="ml-1">
-                              ({notification.data.prospecto_carnet})
-                            </span>
+                      {/* Datos específicos por tipo de notificación */}
+                      {notification.type === "nueva_carga_leads" ? (
+                        <>
+                          {notification.data?.cantidad_leads !== undefined && (
+                            <div className="text-xs text-muted-foreground mb-1">
+                              <span className="font-medium">Leads asignados:</span>{" "}
+                              <span className="text-emerald-700 font-semibold">
+                                {notification.data.cantidad_leads}
+                              </span>
+                            </div>
                           )}
-                        </div>
-                      )}
-                      {notification.data?.programa && (
-                        <div className="text-xs text-muted-foreground mb-1">
-                          <span className="font-medium">Programa:</span>{" "}
-                          {notification.data.programa}
-                        </div>
-                      )}
-                      {notification.data?.to_status && (
-                        <Badge variant="outline" className="text-xs mt-1">
-                          {getStatusLabel(notification.data.to_status)}
-                        </Badge>
+                          {notification.data?.importado_por_name && (
+                            <div className="text-xs text-muted-foreground mb-1">
+                              <span className="font-medium">Importado por:</span>{" "}
+                              {notification.data.importado_por_name}
+                            </div>
+                          )}
+                        </>
+                      ) : notification.type === "lead_sin_contacto" ? (
+                        <>
+                          {notification.data?.prospecto_nombre && (
+                            <div className="text-xs text-muted-foreground mb-1">
+                              <span className="font-medium">Lead:</span>{" "}
+                              {notification.data.prospecto_nombre}
+                            </div>
+                          )}
+                          {notification.data?.prospecto_tel && (
+                            <div className="text-xs text-muted-foreground mb-1">
+                              <span className="font-medium">Tel:</span>{" "}
+                              {notification.data.prospecto_tel}
+                            </div>
+                          )}
+                          <span className="inline-block text-xs bg-amber-100 text-amber-800 rounded px-2 py-0.5 mt-1 font-medium">
+                            ⏰ {notification.data?.horas_sin_contacto ?? 2}h sin contacto
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          {notification.data?.prospecto_nombre && (
+                            <div className="text-xs text-muted-foreground mb-1">
+                              <span className="font-medium">Prospecto:</span>{" "}
+                              {notification.data.prospecto_nombre}
+                              {notification.data?.prospecto_carnet && (
+                                <span className="ml-1">
+                                  ({notification.data.prospecto_carnet})
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {notification.data?.programa && (
+                            <div className="text-xs text-muted-foreground mb-1">
+                              <span className="font-medium">Programa:</span>{" "}
+                              {notification.data.programa}
+                            </div>
+                          )}
+                          {notification.data?.to_status && (
+                            <Badge variant="outline" className={`text-xs mt-1 ${notification.data?.es_retroceso
+                                ? 'border-red-300 text-red-700'
+                                : 'border-blue-300 text-blue-700'
+                              }`}>
+                              {notification.data?.es_retroceso ? '⚠️ ' : '📈 '}
+                              {getStatusLabel(notification.data.to_status)}
+                            </Badge>
+                          )}
+                        </>
                       )}
                     </div>
                     <div className="flex gap-1 ml-2">

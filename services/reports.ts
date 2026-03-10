@@ -78,6 +78,28 @@ export interface LeadDetail {
   dias_desde_captura: number
 }
 
+export interface CommissionStat {
+  asesor_id: number
+  asesor_nombre: string
+  inscritos_periodo: number
+  monto_total_inscripciones: number
+  monto_comision: number
+  tasa_comision_aplicada: number
+  observaciones: string | null
+  mes: number
+  anio: number
+}
+
+export interface CommissionTotales {
+  total_asesores: number
+  total_inscritos: number
+  total_monto_inscripciones: number
+  total_comisiones: number
+  mes: number
+  anio: number
+  periodo_label: string
+}
+
 // ========== FUNCIONES DE API ==========
 
 /**
@@ -159,6 +181,22 @@ export const getLeadsByAdvisorDetail = async (filters?: ReportFilters): Promise<
 }
 
 /**
+ * 💰 NUEVO: Obtener reporte de comisiones por asesor
+ */
+export const getCommissionStats = async (filters?: ReportFilters & { mes?: number; anio?: number }): Promise<{
+  data: CommissionStat[]
+  totales: CommissionTotales
+}> => {
+  try {
+    const res = await api.get('/reports/commission-stats', { params: filters })
+    return res.data
+  } catch (error) {
+    console.error('Error fetching commission stats:', error)
+    throw error
+  }
+}
+
+/**
  * Exportar reporte a PDF/Excel/CSV
  */
 export const exportReport = async (
@@ -199,7 +237,7 @@ export const exportAdvisorStatsLocal = (
     'Interacciones',
     'Promedio Interacciones por Lead'
   ]
-  
+
   const rows = data.map(advisor => [
     advisor.advisor_name,
     advisor.total_leads,
@@ -229,7 +267,7 @@ export const exportLeadStatsLocal = (
   // Resumen general
   const summaryHeaders = ['Métrica', 'Cantidad', 'Porcentaje']
   const total = data.total || 1 // Evitar división por cero
-  
+
   const summaryRows = [
     ['Total de Leads', data.total, '100%'],
     ['Nuevos', data.nuevos, `${((data.nuevos / total) * 100).toFixed(2)}%`],
@@ -241,12 +279,12 @@ export const exportLeadStatsLocal = (
 
   // Por programa
   let allRows = [...summaryRows]
-  
+
   if (data.por_programa && data.por_programa.length > 0) {
     allRows.push(['', '', '']) // Línea vacía
     allRows.push(['DISTRIBUCIÓN POR PROGRAMA', '', ''])
     allRows.push(['Programa', 'Cantidad', 'Porcentaje'])
-    
+
     data.por_programa.forEach(item => {
       allRows.push([
         item.programa,
@@ -323,7 +361,7 @@ export const exportLeadsByAdvisorDetail = (
     'Total Interacciones',
     'Días desde Captura'
   ]
-  
+
   const rows = data.map(lead => [
     lead.id,
     lead.nombre,
@@ -358,17 +396,17 @@ const exportToCSV = (
   userInfo?: { name: string; email: string }
 ) => {
   let csvContent = ''
-  
+
   // Agregar información del usuario si está disponible
   if (userInfo) {
     csvContent += `Generado por: ${userInfo.name}\n`
     csvContent += `Email: ${userInfo.email}\n`
     csvContent += `Fecha: ${new Date().toLocaleString('es-ES')}\n\n`
   }
-  
+
   // Agregar datos
   csvContent += data.map(row => row.join(',')).join('\n')
-  
+
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   const url = URL.createObjectURL(blob)
@@ -378,6 +416,76 @@ const exportToCSV = (
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
+}
+
+// ========== REPORTE COMISIONES MENSUAL ==========
+
+export interface CommissionReportRow {
+  carnet: string
+  nombre: string
+  apellido: string
+  mes_ingresa: string
+  codigo_carrera: string
+  valor_matricula: number
+  boleta_inscripcion: string
+  recibo_american: string
+  no_factura: string
+  mensualidad: number
+  recibo_mensualidad: string
+  boleta_mensualidad: string
+  asesor: string
+  fecha_inscripcion: string
+  pago_comision: number
+  monto_deposito: number
+  pago_1: number
+  otros_descuentos: number
+  pago_2: number
+}
+
+export interface CommissionReportResponse {
+  success: boolean
+  data: CommissionReportRow[]
+  resumen: {
+    total_inscripciones: number
+    total_mensualidades: number
+    total_comisiones: number
+    mes: number
+    anio: number
+  }
+}
+
+export const getCommissionReport = async (
+  month: number,
+  year: number,
+  asesorId?: number
+): Promise<CommissionReportResponse> => {
+  const params: Record<string, any> = {}
+  if (asesorId) params.asesor_id = asesorId
+  const res = await api.get(`/commission-report/${month}/${year}`, { params })
+  return res.data
+}
+
+export const downloadCommissionReportExport = async (
+  month: number,
+  year: number,
+  format: 'excel' | 'pdf' | 'csv',
+  asesorId?: number
+): Promise<void> => {
+  const params: Record<string, any> = { format }
+  if (asesorId) params.asesor_id = asesorId
+  const res = await api.get(`/commission-report/${month}/${year}/export`, {
+    params,
+    responseType: 'blob',
+  })
+  const ext = format === 'excel' ? 'xlsx' : format
+  const blob = new Blob([res.data])
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `reporte_comisiones_${month}_${year}.${ext}`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(link.href)
 }
 
 /**

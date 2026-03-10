@@ -61,6 +61,8 @@ type Props = {
   isFinalizing?: boolean
   montoInscripcion?: number
   descuentoInscripcion?: boolean
+  /** Inscripción Q0 exonerada - no se requiere boleta */
+  inscripcionCero?: boolean
   estudianteProgramaId?: number
   studentName?: string
   studentPhone?: string
@@ -92,6 +94,7 @@ export default function DocumentosTab({
   isFinalizing,
   montoInscripcion = 0,
   descuentoInscripcion = false,
+  inscripcionCero = false,
   estudianteProgramaId,
   studentName = "",
   studentPhone = "",
@@ -406,13 +409,17 @@ export default function DocumentosTab({
       <section className="space-y-6">
         <h3 className="text-lg font-semibold text-blue-900">Documentos obligatorios</h3>
 
-        {/* Componente expandido para Boleta de Inscripción - SIN CARD */}
+        {/* Componente expandido para Boleta / Primera Mensualidad */}
         <div className="border-2 border-blue-200 rounded-lg p-6 bg-blue-50/30">
+          {inscripcionCero && (
+            <p className="text-sm font-semibold text-orange-700 mb-3">⚠️ Inscripción Q0 — El comprobante corresponde a la primera mensualidad</p>
+          )}
           <BoletaInscripcionUpload
             prospectoId={prospectoId}
             estudianteProgramaId={estudianteProgramaId}
             montoInscripcion={montoInscripcion}
             descuentoInscripcion={descuentoInscripcion}
+            inscripcionCero={inscripcionCero}
             docsEnServidor={serverDocsByType["inscripcion"] || []}
             onDeleteServerDoc={(doc) => handleDiscardServerDoc("inscripcion", doc)}
             onPreviewServerDoc={handlePreviewServerDoc}

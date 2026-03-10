@@ -31,11 +31,11 @@ import {
   getAdvisorStats,
   getLeadStats,
   getConversionStats,
-  getIncomeStats,
-  getPerformanceStats,
   getAdvisorsForFilter,
   getProgramsForFilter,
   getLeadsByAdvisorDetail,
+  getCommissionReport,
+  downloadCommissionReportExport,
   exportReport,
   exportAdvisorStatsLocal,
   exportLeadStatsLocal,
@@ -45,7 +45,8 @@ import {
   type AdvisorStats,
   type LeadStats,
   type ConversionStats,
-  type LeadDetail
+  type LeadDetail,
+  type CommissionReportRow,
 } from "@/services/reports"
 
 export function Reports() {
@@ -62,6 +63,13 @@ export function Reports() {
   const [leadStats, setLeadStats] = useState<LeadStats | null>(null)
   const [conversionStats, setConversionStats] = useState<ConversionStats | null>(null)
   const [leadsDetail, setLeadsDetail] = useState<LeadDetail[]>([])
+  // Reporte de Comisiones (por mes)
+  const [commissionRows, setCommissionRows] = useState<CommissionReportRow[]>([])
+  const [commissionMonth, setCommissionMonth] = useState(new Date().getMonth() + 1)
+  const [commissionYear, setCommissionYear] = useState(new Date().getFullYear())
+  const [commissionExporting, setCommissionExporting] = useState(false)
+  const [commissionPage, setCommissionPage] = useState(1)
+  const COMMISSION_PAGE_SIZE = 20
 
   // Estados de UI
   const [loading, setLoading] = useState(false)
@@ -123,6 +131,11 @@ export function Reports() {
           const detailData = await getLeadsByAdvisorDetail(filters)
           setLeadsDetail(detailData)
           break
+        case "comisiones":
+          const commData = await getCommissionReport(commissionMonth, commissionYear, filters.userId)
+          setCommissionRows(commData.data ?? [])
+          setCommissionPage(1)
+          break
       }
     } catch (err: any) {
       setError(err?.message || "Error al cargar los datos")
@@ -142,7 +155,7 @@ export function Reports() {
       // Obtener información del usuario
       const userName = localStorage.getItem('user_name') || 'Usuario'
       const userEmail = localStorage.getItem('email') || ''
-      
+
       if (format === 'xlsx' || format === 'csv') {
         // Exportación local
         if (reportType === 'asesores' && advisorStats.length > 0) {
@@ -154,7 +167,7 @@ export function Reports() {
         } else if (reportType === 'detalle' && leadsDetail.length > 0) {
           exportLeadsByAdvisorDetail(leadsDetail, format, { name: userName, email: userEmail })
         }
-        
+
         toast({
           title: "Descarga exitosa",
           description: `Reporte ${format.toUpperCase()} generado correctamente`
@@ -298,7 +311,7 @@ export function Reports() {
 
       {/* Tabs de reportes */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="asesores">
             <Users className="h-4 w-4 mr-2" />
             Asesores
@@ -314,6 +327,10 @@ export function Reports() {
           <TabsTrigger value="detalle">
             <BarChart3 className="h-4 w-4 mr-2" />
             Detalle por Asesor
+          </TabsTrigger>
+          <TabsTrigger value="comisiones">
+            <DollarSign className="h-4 w-4 mr-2" />
+            Reportes Comisiones
           </TabsTrigger>
         </TabsList>
 
@@ -806,8 +823,225 @@ export function Reports() {
             </Card>
           )}
         </TabsContent>
+
+        {/* TAB: Reportes Comisiones — columnas completas por alumno */}
+        <TabsContent value="comisiones" className="space-y-4">
+          {/* Selector de mes/año + exportar */}
+          <Card>
+            <CardContent className="pt-4 pb-3">
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="space-y-1">
+                  <Label>Mes</Label>
+                  <Select
+                    value={commissionMonth.toString()}
+                    onValueChange={(v) => setCommissionMonth(Number(v))}
+                  >
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[
+                        [1, 'Enero'], [2, 'Febrero'], [3, 'Marzo'], [4, 'Abril'],
+                        [5, 'Mayo'], [6, 'Junio'], [7, 'Julio'], [8, 'Agosto'],
+                        [9, 'Septiembre'], [10, 'Octubre'], [11, 'Noviembre'], [12, 'Diciembre']
+                      ].map(([n, label]) => (
+                        <SelectItem key={n} value={n.toString()}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Año</Label>
+                  <Select
+                    value={commissionYear.toString()}
+                    onValueChange={(v) => setCommissionYear(Number(v))}
+                  >
+                    <SelectTrigger className="w-[100px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[2023, 2024, 2025, 2026, 2027].map(y => (
+                        <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={loadData} disabled={loading} size="sm">
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                  Generar Reporte
+                </Button>
+                <div className="ml-auto flex gap-2">
+                  <Button
+                    size="sm" variant="outline"
+                    disabled={commissionExporting || commissionRows.length === 0}
+                    onClick={async () => {
+                      setCommissionExporting(true)
+                      try {
+                        await downloadCommissionReportExport(commissionMonth, commissionYear, 'pdf', filters.userId)
+                        toast({ title: 'PDF descargado' })
+                      } catch { toast({ title: 'Error al descargar', variant: 'destructive' } as any) }
+                      finally { setCommissionExporting(false) }
+                    }}
+                  >
+                    {commissionExporting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileText className="h-4 w-4 mr-1" />} PDF
+                  </Button>
+                  <Button
+                    size="sm" variant="outline"
+                    disabled={commissionExporting || commissionRows.length === 0}
+                    onClick={async () => {
+                      setCommissionExporting(true)
+                      try {
+                        await downloadCommissionReportExport(commissionMonth, commissionYear, 'csv', filters.userId)
+                        toast({ title: 'CSV descargado' })
+                      } catch { toast({ title: 'Error al descargar', variant: 'destructive' } as any) }
+                      finally { setCommissionExporting(false) }
+                    }}
+                  >
+                    <FileText className="h-4 w-4 mr-1" /> CSV
+                  </Button>
+                  <Button
+                    size="sm" variant="outline"
+                    disabled={commissionExporting || commissionRows.length === 0}
+                    onClick={async () => {
+                      setCommissionExporting(true)
+                      try {
+                        await downloadCommissionReportExport(commissionMonth, commissionYear, 'excel', filters.userId)
+                        toast({ title: 'Excel descargado' })
+                      } catch { toast({ title: 'Error al descargar', variant: 'destructive' } as any) }
+                      finally { setCommissionExporting(false) }
+                    }}
+                  >
+                    <Download className="h-4 w-4 mr-1" /> Excel
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {loading ? (
+            <Card><CardContent className="p-6"><div className="space-y-3">
+              {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+            </div></CardContent></Card>
+          ) : commissionRows.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center text-muted-foreground">
+                <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-20 text-amber-500" />
+                <p className="font-medium">No hay datos de comisiones para el período seleccionado</p>
+                <p className="text-xs mt-2">Seleccione el mes y año y presione «Generar Reporte».</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium">
+                    Reporte de Comisiones — {[
+                      '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+                    ][commissionMonth]} {commissionYear}
+                    <Badge className="ml-2 bg-amber-600 text-white">{commissionRows.length} registros</Badge>
+                  </CardTitle>
+                  {/* Paginación superior */}
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">
+                      Pág. {commissionPage} de {Math.ceil(commissionRows.length / COMMISSION_PAGE_SIZE)}
+                    </span>
+                    <Button size="sm" variant="outline" className="h-7 px-2"
+                      disabled={commissionPage === 1}
+                      onClick={() => setCommissionPage(p => p - 1)}
+                    >←</Button>
+                    <Button size="sm" variant="outline" className="h-7 px-2"
+                      disabled={commissionPage >= Math.ceil(commissionRows.length / COMMISSION_PAGE_SIZE)}
+                      onClick={() => setCommissionPage(p => p + 1)}
+                    >→</Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table className="text-xs">
+                    <TableHeader>
+                      <TableRow className="bg-amber-50 dark:bg-amber-950/30">
+                        <TableHead className="whitespace-nowrap font-bold">Carné</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold">Nombre</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold">Apellido</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold">Mes que Ingresa</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold">Cód. Carrera</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold text-right">Valor Q. Matrícula</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold">Boleta</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold">No. Recibo</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold">No. Factura</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold text-right">Mensualidad</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold">Recibo</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold">Boleta Mensual</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold">Asesor</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold">Fecha Inscripción</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold text-right bg-yellow-100 dark:bg-yellow-900/30">Pago Comisión</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold text-right">Monto Depósito</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold text-right">Pago 1</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold">Otros Desc.</TableHead>
+                        <TableHead className="whitespace-nowrap font-bold text-right">Pago 2</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {commissionRows
+                        .slice((commissionPage - 1) * COMMISSION_PAGE_SIZE, commissionPage * COMMISSION_PAGE_SIZE)
+                        .map((row, idx) => (
+                          <TableRow key={idx} className={idx % 2 === 0 ? '' : 'bg-muted/30'}>
+                            <TableCell className="font-mono font-medium">{row.carnet}</TableCell>
+                            <TableCell>{row.nombre}</TableCell>
+                            <TableCell>{row.apellido}</TableCell>
+                            <TableCell>{row.mes_ingresa}</TableCell>
+                            <TableCell><Badge variant="outline" className="text-xs">{row.codigo_carrera}</Badge></TableCell>
+                            <TableCell className="text-right font-medium">
+                              {Number(row.valor_matricula) > 0 ? `Q${Number(row.valor_matricula).toLocaleString('es-GT', { minimumFractionDigits: 2 })}` : <span className="text-muted-foreground">—</span>}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">{row.boleta_inscripcion || <span className="text-muted-foreground">—</span>}</TableCell>
+                            <TableCell className="font-mono text-xs">{row.recibo_american || <span className="text-muted-foreground">—</span>}</TableCell>
+                            <TableCell className="text-muted-foreground">—</TableCell>
+                            <TableCell className="text-right">
+                              {Number(row.mensualidad) > 0 ? `Q${Number(row.mensualidad).toLocaleString('es-GT', { minimumFractionDigits: 2 })}` : <span className="text-muted-foreground">—</span>}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">{row.recibo_mensualidad || <span className="text-muted-foreground">—</span>}</TableCell>
+                            <TableCell className="font-mono text-xs">{row.boleta_mensualidad || <span className="text-muted-foreground">—</span>}</TableCell>
+                            <TableCell className="max-w-[120px] truncate" title={row.asesor}>{row.asesor || <span className="text-muted-foreground">—</span>}</TableCell>
+                            <TableCell>{row.fecha_inscripcion}</TableCell>
+                            <TableCell className="text-right font-bold text-amber-700 bg-yellow-50 dark:bg-yellow-900/20">
+                              {Number(row.pago_comision) > 0 ? `Q${Number(row.pago_comision).toLocaleString('es-GT', { minimumFractionDigits: 2 })}` : <span className="text-muted-foreground">—</span>}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {Number(row.monto_deposito) > 0 ? `Q${Number(row.monto_deposito).toLocaleString('es-GT', { minimumFractionDigits: 2 })}` : <span className="text-muted-foreground">—</span>}
+                            </TableCell>
+                            <TableCell className="text-right">{row.pago_1 || <span className="text-muted-foreground">—</span>}</TableCell>
+                            <TableCell>{row.otros_descuentos || <span className="text-muted-foreground">—</span>}</TableCell>
+                            <TableCell className="text-right">{row.pago_2 || <span className="text-muted-foreground">—</span>}</TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {/* Paginación inferior */}
+                {commissionRows.length > COMMISSION_PAGE_SIZE && (
+                  <div className="flex items-center justify-center gap-3 py-3 border-t text-sm">
+                    <Button size="sm" variant="outline"
+                      disabled={commissionPage === 1}
+                      onClick={() => setCommissionPage(p => p - 1)}
+                    >← Anterior</Button>
+                    <span className="text-muted-foreground">
+                      {Math.min((commissionPage - 1) * COMMISSION_PAGE_SIZE + 1, commissionRows.length)}–{Math.min(commissionPage * COMMISSION_PAGE_SIZE, commissionRows.length)} de {commissionRows.length}
+                    </span>
+                    <Button size="sm" variant="outline"
+                      disabled={commissionPage >= Math.ceil(commissionRows.length / COMMISSION_PAGE_SIZE)}
+                      onClick={() => setCommissionPage(p => p + 1)}
+                    >Siguiente →</Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
       </Tabs>
     </div>
   )
 }
-

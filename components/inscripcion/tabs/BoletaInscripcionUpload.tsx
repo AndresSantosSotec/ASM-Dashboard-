@@ -36,6 +36,8 @@ interface Props {
   estudianteProgramaId?: number
   montoInscripcion: number
   descuentoInscripcion?: boolean
+  /** Indica que la inscripción fue Q0 - no se requiere boleta de pago */
+  inscripcionCero?: boolean
   onBoletaSubida?: () => void
   docsEnServidor?: ServerDoc[]
   onDeleteServerDoc?: (doc: ServerDoc) => void
@@ -61,6 +63,7 @@ export default function BoletaInscripcionUpload({
   estudianteProgramaId,
   montoInscripcion,
   descuentoInscripcion = false,
+  inscripcionCero = false,
   onBoletaSubida,
   docsEnServidor = [],
   onDeleteServerDoc,
@@ -73,6 +76,9 @@ export default function BoletaInscripcionUpload({
     fechaRecibo: "",
     archivo: null
   })
+
+  // Cuando es inscripción cero, NO notificamos automáticamente porque
+  // el usuario aún debe subir comprobante de la primera mensualidad
 
   // Sincronizar monto cuando cambia el prop montoInscripcion (e.g. al cargar precios del API)
   const prevMontoRef = useRef(montoInscripcion)
@@ -343,11 +349,25 @@ export default function BoletaInscripcionUpload({
 
   return (
     <div className="space-y-6">
+      {/* Inscripción Cero - no se requiere boleta */}
+      {inscripcionCero && (
+        <div className="rounded-lg border-2 border-orange-200 bg-orange-50 p-5 flex items-start gap-3">
+          <span className="text-2xl">🟠</span>
+          <div>
+            <p className="font-semibold text-orange-800">Inscripción Cero — Comprobante = Primera mensualidad</p>
+            <p className="text-sm text-orange-700 mt-1">
+              Este estudiante tiene inscripción exonerada (Q0). El comprobante de pago
+              que se adjunte en esta sección corresponderá a la primera cuota mensual.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-4">
 
         {/* Comprobante */}
         <div className="space-y-2">
-          <Label>Comprobante de Pago <span className="text-red-500">*</span></Label>
+          <Label>{inscripcionCero ? "Comprobante de Pago — Primera Mensualidad" : "Comprobante de Pago"} <span className="text-red-500">*</span></Label>
 
           {!datos.archivo ? (
             <div

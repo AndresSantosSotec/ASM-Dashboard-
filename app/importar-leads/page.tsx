@@ -57,7 +57,7 @@ export default function CargaMasivaProspectos() {
   const [progress, setProgress] = useState<number>(0)
 
   // Estados para asignar asesor al importar
-  const [asesores, setAsesores] = useState<{ id: number; nombre: string }[]>([])
+  const [asesores, setAsesores] = useState<{ id: number; nombre: string; username: string }[]>([])
   const [selectedAsesorId, setSelectedAsesorId] = useState<string>("")
   const [currentUser, setCurrentUser] = useState<{ id: number; rol: string } | null>(null)
 
@@ -180,6 +180,7 @@ export default function CargaMasivaProspectos() {
         setAsesores(
           users.map(u => ({
             id: u.id,
+            username: u.username ?? "",
             nombre:
               u.full_name ??
               (u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username ?? "—"),
@@ -888,6 +889,37 @@ export default function CargaMasivaProspectos() {
     await downloadExcelTemplate(mappedColumns, "plantilla_importar_leads")
   }
 
+  // Función para descargar listado de asesores en Excel
+  const handleDownloadAsesores = async () => {
+    if (asesores.length === 0) {
+      toast({ title: "Sin asesores", description: "No hay asesores disponibles para descargar.", variant: "destructive" })
+      return
+    }
+    const ExcelJS = (await import("exceljs")).default
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet("Asesores")
+    sheet.columns = [
+      { header: "Usuario", key: "username", width: 25 },
+      { header: "Nombre completo", key: "nombre", width: 40 },
+      { header: "ID", key: "id", width: 10 },
+    ]
+    // Estilo de encabezado
+    sheet.getRow(1).eachCell(cell => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } }
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2563EB" } }
+      cell.alignment = { vertical: "middle", horizontal: "center" }
+    })
+    asesores.forEach(a => sheet.addRow({ username: a.username, nombre: a.nombre, id: a.id }))
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `listado_asesores_${new Date().toISOString().slice(0,10)}.xlsx`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   // Función para "guardar" la configuración de columnas (opcional)
   const handleSaveConfiguration = () => {
     Swal.fire({
@@ -975,6 +1007,12 @@ export default function CargaMasivaProspectos() {
                 <Download className="h-4 w-4 mr-2" />
                 Descargar Plantilla
               </Button>
+              {asesores.length > 0 && (
+                <Button variant="outline" onClick={handleDownloadAsesores}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Descargar Lista Asesores
+                </Button>
+              )}
               <Button onClick={() => handleImport()}>Importar Leads</Button>
               {progress > 0 && (
                 <div className="flex-1">
