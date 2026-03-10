@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
+import { api } from "@/services/api"
 import axios from "axios"
-import { API_BASE_URL } from "@/utils/apiConfig"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -43,13 +43,6 @@ interface Paginacion {
   last_page: number
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function authHeaders() {
-  const token = localStorage.getItem("access_token")
-  return { Authorization: `Bearer ${token}` }
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function EditarCarnetPage() {
@@ -73,8 +66,7 @@ export default function EditarCarnetPage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/academico/usuarios`, {
-        headers: authHeaders(),
+      const res = await api.get(`/academico/usuarios`, {
         params: { busqueda: busqueda.trim() || undefined, per_page: 50, page: pagina },
       })
       setUsuarios(res.data.data ?? [])
@@ -111,8 +103,7 @@ export default function EditarCarnetPage() {
     setVerificando(true)
     setDisponible(null)
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/academico/carnets/verificar`, {
-        headers: authHeaders(),
+      const res = await api.get(`/academico/carnets/verificar`, {
         params: { carnet: nuevoCarnet.trim(), usuario_id: editando.id },
       })
       setDisponible(res.data)
@@ -141,11 +132,7 @@ export default function EditarCarnetPage() {
       }
       if (intercambiarCon.trim()) payload.intercambiar_con = Number(intercambiarCon.trim())
 
-      await axios.patch(
-        `${API_BASE_URL}/api/academico/usuarios/${editando.id}/carnet`,
-        payload,
-        { headers: authHeaders() },
-      )
+      await api.patch(`/academico/usuarios/${editando.id}/carnet`, payload)
       setExito(`Carnet actualizado correctamente a "${nuevoCarnet.trim()}".`)
       fetchUsuarios(paginacion.current_page)
     } catch (e: unknown) {

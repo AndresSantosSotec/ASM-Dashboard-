@@ -1,8 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
-import axios from "axios"
-import { API_BASE_URL } from "@/utils/apiConfig"
+import { api } from "@/services/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -78,6 +77,8 @@ interface ArchivoLog {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+const axios = api  // alias for readability
+
 const NIVEL_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   ERROR:     { label: "ERROR",     color: "bg-red-100 text-red-700 border-red-300",    icon: <XCircle className="h-3 w-3" /> },
   CRITICAL:  { label: "CRITICAL",  color: "bg-red-200 text-red-800 border-red-400",    icon: <XCircle className="h-3 w-3" /> },
@@ -99,11 +100,6 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function authHeaders() {
-  const token = localStorage.getItem("access_token")
-  return { Authorization: `Bearer ${token}` }
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function DebugLogsPage() {
@@ -123,9 +119,7 @@ export default function DebugLogsPage() {
 
   const fetchArchivos = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/debug/logs/archivos`, {
-        headers: authHeaders(),
-      })
+      const res = await api.get(`/debug/logs/archivos`)
       setArchivos(res.data.archivos ?? [])
     } catch {
       // silent
@@ -145,15 +139,12 @@ export default function DebugLogsPage() {
       if (fechaFiltro) params.fecha = fechaFiltro
       if (buscar.trim()) params.buscar = buscar.trim()
 
-      const res = await axios.get(`${API_BASE_URL}/api/debug/logs`, {
-        headers: authHeaders(),
-        params,
-      })
+      const res = await api.get(`/debug/logs`, { params })
       setLogs(res.data.logs ?? [])
       setPaginacion(res.data.paginacion ?? { total: 0, pagina: 1, per_page: 50 })
       setResumen(res.data.resumen ?? {})
     } catch (e: unknown) {
-      if (axios.isAxiosError(e) && e.response?.status === 403) {
+      if (e instanceof Error && (e as import('axios').AxiosError).response?.status === 403) {
         setError("No tienes permiso para ver los logs del sistema.")
       } else {
         setError("Error al cargar los logs. Verifica la conexión.")
@@ -174,32 +165,32 @@ export default function DebugLogsPage() {
   const handleClear = async () => {
     setClearLoading(true)
     try {
-      await axios.post(`${API_BASE_URL}/api/debug/logs/clear`, {
-        archivo: archivoSeleccionado,
-        confirmar: true,
-      }, { headers: authHeaders() })
+      await api.post(`/debug/logs/clear`, { archivo: archivoSeleccionado, confirmar: true })
       setConfirmClear(false)
       fetchLogs(1)
     } catch (e: unknown) {
-      if (axios.isAxiosError(e)) {
-        alert(e.response?.data?.message ?? "Error al limpiar el log.")
-      }
+      const err = e as import('axios').AxiosError<{ message?: string }>
+      alert(err.response?.data?.message ?? "Error al limpiar el log.")
     } finally {
       setClearLoading(false)
     }
   }
 
   const handleDownload = async () => {
-    const token = localStorage.getItem("access_token")
-    const url = `${API_BASE_URL}/api/debug/logs/download?archivo=${encodeURIComponent(archivoSeleccionado)}`
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-    if (!res.ok) { alert("No se pudo descargar el archivo."); return }
-    const blob = await res.blob()
-    const a = document.createElement("a")
-    a.href = URL.createObjectURL(blob)
-    a.download = archivoSeleccionado
-    a.click()
-    URL.revokeObjectURL(a.href)
+    try {
+      const res = await api.get(`/debug/logs/download`, {
+        params: { archivo: archivoSeleccionado },
+        responseType: "blob",
+      })
+      const blob = res.data
+      const a = document.createElement("a")
+      a.href = URL.createObjectURL(blob)
+      a.download = archivoSeleccionado
+      a.click()
+      URL.revokeObjectURL(a.href)
+    } catch {
+      alert("No se pudo descargar el archivo.")
+    }
   }
 
   const toggleExpand = (id: string) => {
