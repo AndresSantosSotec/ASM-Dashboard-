@@ -1,8 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Pencil, Trash2 } from "lucide-react"
+import { Plus, Pencil, Trash2, ChevronsUpDown, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import type { PrecioConvenioPrograma, Programa, PrecioForm } from "@/types/convenios"
 import {
   agregarPrecio,
@@ -39,6 +41,7 @@ export default function TablaPreciosPrograma({
     meses: "",
   })
   const [guardando, setGuardando] = useState(false)
+  const [openCombo, setOpenCombo] = useState(false)
 
   const inversionTotal = (p: PrecioConvenioPrograma) =>
     Number(p.inscripcion) + Number(p.cuota_mensual) * p.meses
@@ -251,20 +254,50 @@ export default function TablaPreciosPrograma({
             {mostrarAgregar && (
               <tr className="bg-blue-50/40">
                 <td className="px-4 py-2">
-                  <select
-                    value={formAgregar.programa_id ?? ""}
-                    onChange={(e) =>
-                      setFormAgregar((f) => ({ ...f, programa_id: Number(e.target.value) || null }))
-                    }
-                    className="w-full border rounded px-2 py-1 text-sm"
-                  >
-                    <option value="">Seleccionar programa...</option>
-                    {programasDisponibles.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nombre_del_programa}
-                      </option>
-                    ))}
-                  </select>
+                  <Popover open={openCombo} onOpenChange={setOpenCombo}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={openCombo}
+                        className="w-full justify-between text-sm font-normal h-8 px-2"
+                      >
+                        <span className="truncate">
+                          {formAgregar.programa_id
+                            ? programasDisponibles.find((p) => p.id === formAgregar.programa_id)?.nombre_del_programa
+                            : "Seleccionar programa..."}
+                        </span>
+                        <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[280px] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Buscar programa..." />
+                        <CommandList>
+                          <CommandEmpty>No se encontró programa.</CommandEmpty>
+                          <CommandGroup>
+                            {programasDisponibles.map((p) => (
+                              <CommandItem
+                                key={p.id}
+                                value={p.nombre_del_programa}
+                                onSelect={() => {
+                                  setFormAgregar((f) => ({ ...f, programa_id: p.id }))
+                                  setOpenCombo(false)
+                                }}
+                              >
+                                <Check
+                                  className={`mr-2 h-4 w-4 ${
+                                    formAgregar.programa_id === p.id ? "opacity-100" : "opacity-0"
+                                  }`}
+                                />
+                                {p.nombre_del_programa}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </td>
                 <td className="px-4 py-2">
                   <input
