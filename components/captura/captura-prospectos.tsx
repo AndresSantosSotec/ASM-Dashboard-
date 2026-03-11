@@ -106,6 +106,29 @@ function traducirCampo(campo: string): string {
   return traducciones[campo] || campo.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()
 }
 
+// Función para traducir mensajes de validación de Laravel al español
+function traducirMensajeValidacion(msg: string): string {
+  const traducciones: [RegExp, string][] = [
+    [/The (.+) has already been taken\.?/i, 'Este valor ya está registrado en el sistema.'],
+    [/The (.+) field is required\.?/i, 'Este campo es obligatorio.'],
+    [/The (.+) must be a valid email address\.?/i, 'Debe ser un correo electrónico válido.'],
+    [/The (.+) must be at least (\d+) characters\.?/i, 'Debe tener al menos $2 caracteres.'],
+    [/The (.+) must not be greater than (\d+) characters\.?/i, 'No debe exceder $2 caracteres.'],
+    [/The (.+) must be an integer\.?/i, 'Debe ser un número entero.'],
+    [/The (.+) must be a number\.?/i, 'Debe ser un número.'],
+    [/The (.+) must be a date\.?/i, 'Debe ser una fecha válida.'],
+    [/The (.+) format is invalid\.?/i, 'El formato no es válido.'],
+    [/The (.+) must be a string\.?/i, 'Debe ser un texto válido.'],
+    [/The selected (.+) is invalid\.?/i, 'El valor seleccionado no es válido.'],
+  ]
+  for (const [regex, reemplazo] of traducciones) {
+    if (regex.test(msg)) {
+      return msg.replace(regex, reemplazo)
+    }
+  }
+  return msg
+}
+
 // Componente principal
 export default function CapturaProspectos() {
   const [loading, setLoading] = useState(false)
@@ -428,10 +451,94 @@ export default function CapturaProspectos() {
         icon: "error",
         title: "Error al crear tarea",
         text: error.response?.data?.message || "No se pudo crear la tarea",
+        confirmButtonText: "Entendido",
       })
     }
   }
 
+  // Verificar duplicados antes de guardar
+  const checkDuplicatesBeforeSubmit = async (data: FormData): Promise<boolean> => {
+    try {
+      const token = localStorage.getItem("token")
+      const response = await axios.post(
+        `${API_BASE_URL}/api/prospectos/check-duplicates`,
+        {
+          nombre: data.nombreCompleto || '',
+          telefono: data.telefono || '',
+          correo: data.correoElectronico || '',
+          genero: data.genero || '',
+          empresa: data.empresaDondeLaboraActualmente || '',
+          puesto: data.puesto || '',
+          origen: data.Origen || '',
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+
+      const duplicates = response.data?.duplicates || []
+      if (duplicates.length === 0) return true // No hay duplicados, continuar
+
+      // Construir tabla HTML con los duplicados encontrados
+      const filas = duplicates.map((d: any) => {
+        const asesor = d.asesor_asignado ? `<span class="text-blue-600 font-semibold">${d.asesor_asignado}</span>` : '<span class="text-gray-400">Sin asignar</span>'
+        return `
+          <tr class="border-b">
+            <td class="px-2 py-1 text-sm">${d.nombre_completo || '—'}</td>
+            <td class="px-2 py-1 text-sm">${d.telefono || '—'}</td>
+            <td class="px-2 py-1 text-sm">${d.correo_electronico || '—'}</td>
+            <td class="px-2 py-1 text-sm">${d.empresa_donde_labora_actualmente || '—'}</td>
+            <td class="px-2 py-1 text-sm text-center"><strong>${d.coincidencia}%</strong></td>
+            <td class="px-2 py-1 text-sm">${asesor}</td>
+            <td class="px-2 py-1 text-sm">${d.status || '—'}</td>
+          </tr>
+        `
+      }).join('')
+
+      const detallesExtra = duplicates.map((d: any) => {
+        if (!d.detalles_coincidencia || d.detalles_coincidencia.length === 0) return ''
+        return `<div class="text-xs text-gray-500 mt-1"><strong>${d.nombre_completo}:</strong> ${d.detalles_coincidencia.join(', ')}</div>`
+      }).filter(Boolean).join('')
+
+      const result = await Swal.fire({
+        icon: "warning",
+        title: "⚠️ Posibles duplicados encontrados",
+        html: `
+          <div class="text-left">
+            <p class="mb-3 text-sm">Se encontraron <strong>${duplicates.length}</strong> prospecto(s) similares en el sistema:</p>
+            <div class="overflow-x-auto max-h-[300px] overflow-y-auto">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="bg-gray-100 border-b-2">
+                    <th class="px-2 py-1 text-xs font-semibold">Nombre</th>
+                    <th class="px-2 py-1 text-xs font-semibold">Teléfono</th>
+                    <th class="px-2 py-1 text-xs font-semibold">Correo</th>
+                    <th class="px-2 py-1 text-xs font-semibold">Empresa</th>
+                    <th class="px-2 py-1 text-xs font-semibold text-center">Coincidencia</th>
+                    <th class="px-2 py-1 text-xs font-semibold">Asesor</th>
+                    <th class="px-2 py-1 text-xs font-semibold">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>${filas}</tbody>
+              </table>
+            </div>
+            ${detallesExtra ? `<div class="mt-3 p-2 bg-gray-50 rounded">${detallesExtra}</div>` : ''}
+            <p class="mt-3 text-sm text-orange-600 font-medium">¿Desea continuar e insertar el prospecto de todas formas? Esto podría generar un registro duplicado.</p>
+          </div>
+        `,
+        width: 800,
+        showCancelButton: true,
+        confirmButtonText: "Sí, guardar de todas formas",
+        cancelButtonText: "Cancelar",
+        confirmButtonColor: "#f59e0b",
+        cancelButtonColor: "#6b7280",
+      })
+
+      return result.isConfirmed
+    } catch (error) {
+      console.error("Error al verificar duplicados:", error)
+      // Si falla la verificación de duplicados, permitir continuar
+      return true
+    }
+  }
 
   // Manejo de envío del formulario
   const onSubmit = async (data: FormData) => {
@@ -463,10 +570,11 @@ export default function CapturaProspectos() {
           cancelButtonText: "Guardar de todos modos",
           confirmButtonColor: "#3b82f6",
           cancelButtonColor: "#6b7280",
-        }).then((result) => {
+        }).then(async (result) => {
           if (result.isDismissed) {
-            // Usuario decidió guardar sin correo ni teléfono
-            continueSubmit(data);
+            // Usuario decidió guardar sin correo ni teléfono - verificar duplicados primero
+            const permitir = await checkDuplicatesBeforeSubmit(data);
+            if (permitir) continueSubmit(data);
           }
         });
         return;
@@ -493,6 +601,10 @@ export default function CapturaProspectos() {
           return; // Usuario quiere agregar el dato faltante
         }
       }
+
+      // Verificar duplicados antes de guardar
+      const permitirGuardar = await checkDuplicatesBeforeSubmit(data);
+      if (!permitirGuardar) return;
 
       // Continuar con el guardado
       await continueSubmit(data);
@@ -540,8 +652,9 @@ export default function CapturaProspectos() {
       
       Swal.fire({
         icon: "success",
-        title: "Guardado",
-        text: "Prospecto guardado exitosamente",
+        title: "¡Guardado!",
+        text: "Prospecto guardado exitosamente.",
+        confirmButtonText: "Aceptar",
       })
       form.reset()
       // Limpiar estados de ubicación
@@ -570,9 +683,10 @@ export default function CapturaProspectos() {
           Object.keys(errors).forEach(campo => {
             const mensajes = Array.isArray(errors[campo]) ? errors[campo] : [errors[campo]]
             mensajes.forEach((msg: string) => {
-              // Traducir nombres de campos al español
+              // Traducir nombres de campos y mensajes al español
               const campoTraducido = traducirCampo(campo)
-              camposConError.push(`• <strong>${campoTraducido}:</strong> ${msg}`)
+              const mensajeTraducido = traducirMensajeValidacion(msg)
+              camposConError.push(`• <strong>${campoTraducido}:</strong> ${mensajeTraducido}`)
             })
           })
           
@@ -597,27 +711,29 @@ export default function CapturaProspectos() {
       }
       
       // Si el error contiene "has already been taken", se reemplaza por un mensaje en español
-      if (errorMessage.toLowerCase().includes("has already been taken")) {
-        errorMessage = "El correo electrónico ya ha sido registrado"
+      if (errorMessage.toLowerCase().includes("has already been taken") || 
+          errorMessage.toLowerCase().includes("ya está registrado")) {
+        errorMessage = "El correo electrónico ya ha sido registrado en el sistema"
       }
       if (
         errorMessage.toLowerCase().includes("correo") &&
-        errorMessage.toLowerCase().includes("unique")
+        (errorMessage.toLowerCase().includes("unique") || errorMessage.toLowerCase().includes("registrado"))
       ) {
         Swal.fire({
           icon: "error",
           title: "Correo ya registrado",
           text:
-            "El correo electrónico ya está asignado o fue registrado previamente. Detalle: " +
-            errorMessage,
+            "El correo electrónico ya está asignado o fue registrado previamente.",
+          confirmButtonText: "Entendido",
         })
       } else {
         Swal.fire({
           icon: "error",
-          title: "Error al guardar prospecto",
+          title: "Error al guardar",
           text:
             "Ocurrió un error al guardar el prospecto. Detalle: " +
             errorMessage,
+          confirmButtonText: "Entendido",
         })
       }
       console.error("❌ Error al guardar prospecto:", errorMessage)
