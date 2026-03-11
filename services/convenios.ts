@@ -35,6 +35,11 @@ export async function toggleActivoConvenio(id: number) {
   return res.data as { success: boolean; activo: boolean; mensaje: string }
 }
 
+export async function eliminarConvenio(id: number) {
+  const res = await api.delete(`/convenios/${id}`)
+  return res.data as { success: boolean; mensaje: string }
+}
+
 // ── Precios por programa ────────────────────────────────
 export async function agregarPrecio(convenioId: number, data: {
   programa_id: number

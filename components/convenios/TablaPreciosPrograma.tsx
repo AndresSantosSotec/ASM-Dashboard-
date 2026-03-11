@@ -115,16 +115,16 @@ export default function TablaPreciosPrograma({
         )}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-gray-100">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-xl border border-gray-100">
+        <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Programa</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Inscripción</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Cuota Mensual</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Meses</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Inversión Total</th>
-              <th className="px-4 py-3 w-24" />
+              <th className="text-left px-3 sm:px-4 py-2 sm:py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Programa</th>
+              <th className="text-right px-3 sm:px-4 py-2 sm:py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Inscripción</th>
+              <th className="text-right px-3 sm:px-4 py-2 sm:py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Cuota Mensual</th>
+              <th className="text-center px-3 sm:px-4 py-2 sm:py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Meses</th>
+              <th className="text-right px-3 sm:px-4 py-2 sm:py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Inversión Total</th>
+              <th className="px-3 sm:px-4 py-2 sm:py-3 w-20 sm:w-24" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">

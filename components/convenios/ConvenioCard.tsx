@@ -1,6 +1,6 @@
 "use client"
 
-import { Handshake, Settings, ToggleLeft, ToggleRight } from "lucide-react"
+import { Handshake, Settings, ToggleLeft, ToggleRight, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { Convenio } from "@/types/convenios"
 
@@ -8,9 +8,10 @@ interface Props {
   convenio: Convenio
   onEditar: () => void
   onToggleActivo: () => void
+  onEliminar: () => void
 }
 
-export default function ConvenioCard({ convenio, onEditar, onToggleActivo }: Props) {
+export default function ConvenioCard({ convenio, onEditar, onToggleActivo, onEliminar }: Props) {
   const totalProgramas = convenio.precios_por_programa?.length ?? 0
 
   const inversionTotal = convenio.precios_por_programa?.reduce(
@@ -25,14 +26,14 @@ export default function ConvenioCard({ convenio, onEditar, onToggleActivo }: Pro
       }`}
     >
       {/* Header */}
-      <div className="p-5 border-b border-gray-50">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#0f2744]/10 flex items-center justify-center flex-shrink-0">
-              <Handshake className="h-5 w-5 text-[#0f2744]" />
+      <div className="p-4 sm:p-5 border-b border-gray-50">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-[#0f2744]/10 flex items-center justify-center flex-shrink-0">
+              <Handshake className="h-4 w-4 sm:h-5 sm:w-5 text-[#0f2744]" />
             </div>
-            <div>
-              <h3 className="font-bold text-gray-900 text-sm">{convenio.nombre}</h3>
+            <div className="min-w-0">
+              <h3 className="font-bold text-gray-900 text-sm truncate">{convenio.nombre}</h3>
               <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">
                 {convenio.descripcion ?? "Sin descripción"}
               </p>
@@ -49,7 +50,7 @@ export default function ConvenioCard({ convenio, onEditar, onToggleActivo }: Pro
       </div>
 
       {/* Stats */}
-      <div className="px-5 py-3 grid grid-cols-2 gap-3">
+      <div className="px-4 sm:px-5 py-3 grid grid-cols-2 gap-3">
         <div>
           <p className="text-xs text-gray-500">Programas</p>
           <p className="font-bold text-lg text-[#0f2744]">{totalProgramas}</p>
@@ -66,12 +67,12 @@ export default function ConvenioCard({ convenio, onEditar, onToggleActivo }: Pro
 
       {/* Preview de programas */}
       {totalProgramas > 0 && (
-        <div className="px-5 pb-3">
+        <div className="px-4 sm:px-5 pb-3">
           <div className="flex flex-wrap gap-1">
             {convenio.precios_por_programa.slice(0, 3).map((p) => (
               <span
                 key={p.programa_id}
-                className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full"
+                className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full truncate max-w-[120px] sm:max-w-[150px]"
               >
                 {p.programa?.nombre_del_programa}
               </span>
@@ -84,7 +85,7 @@ export default function ConvenioCard({ convenio, onEditar, onToggleActivo }: Pro
       )}
 
       {/* Acciones */}
-      <div className="px-5 pb-4 flex items-center gap-2">
+      <div className="px-4 sm:px-5 pb-4 flex items-center gap-2">
         <Button size="sm" variant="outline" onClick={onEditar} className="flex-1 text-xs">
           <Settings className="h-3.5 w-3.5 mr-1" />
           Gestionar
@@ -102,14 +103,23 @@ export default function ConvenioCard({ convenio, onEditar, onToggleActivo }: Pro
           {convenio.activo ? (
             <>
               <ToggleLeft className="h-3.5 w-3.5 mr-1" />
-              Desactivar
+              <span className="hidden sm:inline">Desactivar</span>
             </>
           ) : (
             <>
               <ToggleRight className="h-3.5 w-3.5 mr-1" />
-              Activar
+              <span className="hidden sm:inline">Activar</span>
             </>
           )}
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onEliminar}
+          className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2"
+          title="Eliminar convenio"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </div>
     </div>
