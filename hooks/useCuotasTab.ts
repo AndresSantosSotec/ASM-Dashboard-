@@ -5,10 +5,18 @@ import {
   getKardexData,
   updateCuota,
   deleteCuota,
+  bulkUpdateCuotas,
   type CuotaUpdatePayload,
   type CuotasDashboardMetrics,
   type CuotaProgramaResumen,
 } from "@/services/mantenimientos"
+
+export interface BulkEditFormState {
+  monto: string
+  estado: string
+  fecha_vencimiento: string
+  paid_at: string
+}
 
 export interface CuotaEditFormState {
   fecha_vencimiento: string
@@ -42,12 +50,23 @@ export const useCuotasTab = ({ filters }: UseCuotasTabOptions) => {
     descripcion: "",
   })
 
-  // Estados del modal de editar cuota
+  // Estados del modal de editar cuota (individual)
   const [editingCuota, setEditingCuota] = useState<CuotaProgramaResumen | null>(null)
   const [editFormData, setEditFormData] = useState<CuotaEditFormState>({
     fecha_vencimiento: "",
     monto: "",
     estado: "",
+    paid_at: "",
+  })
+
+  // Estados de selección y edición masiva
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false)
+  const [bulkEditLoading, setBulkEditLoading] = useState(false)
+  const [bulkEditFormData, setBulkEditFormData] = useState<BulkEditFormState>({
+    monto: "",
+    estado: "",
+    fecha_vencimiento: "",
     paid_at: "",
   })
 
@@ -250,6 +269,60 @@ export const useCuotasTab = ({ filters }: UseCuotasTabOptions) => {
     })
   }, [])
 
+  // ── Selección masiva ──────────────────────────────────────────
+  const toggleSelectAll = useCallback((checked: boolean) => {
+    setSelectedIds(checked ? new Set(rows.map((r) => r.id)) : new Set())
+  }, [rows])
+
+  const toggleSelectOne = useCallback((id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }, [])
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
+
+  // Handler para abrir modal de edición masiva
+  const handleOpenBulkEdit = useCallback(() => {
+    setBulkEditFormData({ monto: "", estado: "", fecha_vencimiento: "", paid_at: "" })
+    setShowBulkEditModal(true)
+  }, [])
+
+  // Guardar edición masiva
+  const handleSaveBulkEdit = useCallback(async () => {
+    if (selectedIds.size === 0) return
+
+    const fields: Record<string, any> = {}
+    if (bulkEditFormData.monto !== "") fields.monto = parseFloat(bulkEditFormData.monto)
+    if (bulkEditFormData.estado !== "") fields.estado = bulkEditFormData.estado
+    if (bulkEditFormData.fecha_vencimiento !== "") fields.fecha_vencimiento = bulkEditFormData.fecha_vencimiento
+    if (bulkEditFormData.paid_at !== "") fields.paid_at = bulkEditFormData.paid_at
+
+    if (Object.keys(fields).length === 0) {
+      toast({ title: "Sin cambios", description: "Completa al menos un campo para aplicar.", variant: "destructive" })
+      return
+    }
+
+    setBulkEditLoading(true)
+    try {
+      const result = await bulkUpdateCuotas({ ids: Array.from(selectedIds), fields })
+      toast({ title: "Actualización masiva exitosa", description: result.message })
+      setShowBulkEditModal(false)
+      clearSelection()
+      await loadData()
+    } catch (err: any) {
+      toast({
+        title: "Error en actualización masiva",
+        description: err?.response?.data?.message ?? err.message ?? "Error inesperado",
+        variant: "destructive",
+      })
+    } finally {
+      setBulkEditLoading(false)
+    }
+  }, [selectedIds, bulkEditFormData, toast, loadData, clearSelection])
+
   // Efecto para cargar datos cuando cambian los filtros
   useEffect(() => {
     const controller = new AbortController()
@@ -272,10 +345,23 @@ export const useCuotasTab = ({ filters }: UseCuotasTabOptions) => {
     createCuotaFormData,
     setCreateCuotaFormData,
     
-    // Estados del modal de editar
+    // Estados del modal de editar (individual)
     editingCuota,
     editFormData,
     setEditFormData,
+
+    // Selección y edición masiva
+    selectedIds,
+    toggleSelectAll,
+    toggleSelectOne,
+    clearSelection,
+    showBulkEditModal,
+    setShowBulkEditModal,
+    bulkEditLoading,
+    bulkEditFormData,
+    setBulkEditFormData,
+    handleOpenBulkEdit,
+    handleSaveBulkEdit,
     
     // Funciones principales
     loadData,

@@ -170,6 +170,7 @@ export interface CuotaDetalladaResumen {
   monto: number
   estado: string | null
   paid_at: string | null
+  concepto: string | null
   pagos?: CuotaPagoResumen[]
 }
 
@@ -329,7 +330,7 @@ export interface CuotaUpdatePayload {
   monto?: number
   estado?: string
   paid_at?: string | null
-  observaciones?: string
+  concepto?: string | null
 }
 
 export interface CuotaListResponse {
@@ -383,6 +384,66 @@ export const updateCuota = async (
 
 export const deleteCuota = async (id: number, config?: AxiosRequestConfig): Promise<void> => {
   await api.delete(`/mantenimientos/cuotas/${id}`, config)
+}
+
+export interface BulkUpdateCuotasPayload {
+  ids: number[]
+  fields: {
+    monto?: number
+    estado?: string
+    fecha_vencimiento?: string
+    paid_at?: string | null
+    concepto?: string | null
+  }
+}
+
+export interface BulkUpdateCuotasResponse {
+  message: string
+  affected: number
+}
+
+export const bulkUpdateCuotas = async (
+  payload: BulkUpdateCuotasPayload,
+  config?: AxiosRequestConfig,
+): Promise<BulkUpdateCuotasResponse> => {
+  const response = await api.post<BulkUpdateCuotasResponse>("/mantenimientos/cuotas/bulk-update", payload, config)
+  return response.data
+}
+
+export interface BulkDeleteCuotasPayload {
+  ids: number[]
+}
+
+export interface BulkDeleteCuotasResponse {
+  message: string
+  affected: number
+  details: {
+    cuotas_eliminadas: number
+    kardex_eliminados: number
+    reconciliaciones_eliminadas: number
+  }
+}
+
+export const bulkDeleteCuotas = async (
+  payload: BulkDeleteCuotasPayload,
+  config?: AxiosRequestConfig,
+): Promise<BulkDeleteCuotasResponse> => {
+  const response = await api.post<BulkDeleteCuotasResponse>("/mantenimientos/cuotas/bulk-delete", payload, config)
+  return response.data
+}
+
+export const uploadCuotaComprobante = async (
+  cuotaId: number,
+  file: File,
+  config?: AxiosRequestConfig,
+): Promise<{ message: string; archivo_comprobante: string; kardex_id: number }> => {
+  const formData = new FormData()
+  formData.append('comprobante', file)
+  const response = await api.post(`/mantenimientos/cuotas/${cuotaId}/comprobante`, formData, {
+    ...config,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return response.data
 }
 
 // CRUD operations for Kardex (Movimientos de Pago)

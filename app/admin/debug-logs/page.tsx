@@ -23,9 +23,12 @@ import {
 } from "@/components/ui/dialog"
 import {
   AlertTriangle,
+  ArrowDownUp,
   Bug,
   ChevronDown,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Download,
   FileText,
   Info,
@@ -33,6 +36,7 @@ import {
   Search,
   Trash2,
   XCircle,
+  FilterX,
 } from "lucide-react"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -111,11 +115,13 @@ export default function DebugLogsPage() {
   const [nivelFiltro, setNivelFiltro] = useState("todos")
   const [fechaFiltro, setFechaFiltro] = useState("")
   const [buscar, setBuscar] = useState("")
+  const [ordenFiltro, setOrdenFiltro] = useState<"desc" | "asc">("desc")
   const [loading, setLoading] = useState(false)
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
   const [confirmClear, setConfirmClear] = useState(false)
   const [clearLoading, setClearLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [goToPage, setGoToPage] = useState("")
 
   const fetchArchivos = useCallback(async () => {
     try {
@@ -134,6 +140,7 @@ export default function DebugLogsPage() {
         archivo: archivoSeleccionado,
         per_page: paginacion.per_page,
         pagina,
+        orden: ordenFiltro,
       }
       if (nivelFiltro && nivelFiltro !== "todos") params.nivel = nivelFiltro.toLowerCase()
       if (fechaFiltro) params.fecha = fechaFiltro
@@ -152,13 +159,17 @@ export default function DebugLogsPage() {
     } finally {
       setLoading(false)
     }
-  }, [archivoSeleccionado, nivelFiltro, fechaFiltro, buscar, paginacion.per_page])
+  }, [archivoSeleccionado, nivelFiltro, fechaFiltro, buscar, paginacion.per_page, ordenFiltro])
 
   useEffect(() => {
     fetchArchivos()
+  }, [])
+
+  // Auto-fetch cuando cambian filtros reactivos
+  useEffect(() => {
     fetchLogs(1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [archivoSeleccionado, nivelFiltro, fechaFiltro, ordenFiltro])
 
   const handleBuscar = () => fetchLogs(1)
 
@@ -202,6 +213,21 @@ export default function DebugLogsPage() {
     })
   }
 
+  const handleResetFilters = () => {
+    setNivelFiltro("todos")
+    setFechaFiltro("")
+    setBuscar("")
+    setOrdenFiltro("desc")
+  }
+
+  const handleGoToPage = () => {
+    const p = parseInt(goToPage, 10)
+    if (!isNaN(p) && p >= 1 && p <= totalPages) {
+      fetchLogs(p)
+      setGoToPage("")
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(paginacion.total / paginacion.per_page))
 
   const nivelesSummary = ["ERROR", "CRITICAL", "WARNING", "INFO", "DEBUG"]
@@ -241,7 +267,7 @@ export default function DebugLogsPage() {
           return (
             <button
               key={n}
-              onClick={() => { setNivelFiltro(nivelFiltro === n ? "todos" : n); setTimeout(() => fetchLogs(1), 0) }}
+              onClick={() => setNivelFiltro(nivelFiltro === n ? "todos" : n)}
               className={`flex items-center gap-1 px-3 py-1 rounded-full border text-xs font-medium transition-opacity ${cfg.color} ${nivelFiltro === n ? "ring-2 ring-offset-1 ring-gray-400" : "opacity-80 hover:opacity-100"}`}
             >
               {cfg.icon}
@@ -345,6 +371,31 @@ export default function DebugLogsPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Orden */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 font-medium">Orden</label>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-sm gap-1"
+                onClick={() => setOrdenFiltro(ordenFiltro === "desc" ? "asc" : "desc")}
+              >
+                <ArrowDownUp className="h-3.5 w-3.5" />
+                {ordenFiltro === "desc" ? "Recientes primero" : "Antiguos primero"}
+              </Button>
+            </div>
+
+            {/* Limpiar filtros */}
+            {(nivelFiltro !== "todos" || fechaFiltro || buscar || ordenFiltro !== "desc") && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-transparent font-medium">.</label>
+                <Button variant="ghost" size="sm" className="h-8 text-sm text-gray-500 gap-1" onClick={handleResetFilters}>
+                  <FilterX className="h-3.5 w-3.5" />
+                  Limpiar filtros
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -445,11 +496,22 @@ export default function DebugLogsPage() {
 
       {/* Paginación */}
       {!loading && paginacion.total > 0 && (
-        <div className="flex items-center justify-between text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
           <span className="text-gray-500">
             Mostrando {((paginacion.pagina - 1) * paginacion.per_page) + 1}–{Math.min(paginacion.pagina * paginacion.per_page, paginacion.total)} de {paginacion.total.toLocaleString()}
           </span>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-1">
+            {/* Primera página */}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={paginacion.pagina <= 1}
+              onClick={() => fetchLogs(1)}
+              title="Primera página"
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            {/* Anterior */}
             <Button
               variant="outline"
               size="sm"
@@ -458,9 +520,38 @@ export default function DebugLogsPage() {
             >
               Anterior
             </Button>
-            <div className="flex items-center gap-1 px-2 text-gray-600">
-              {paginacion.pagina} / {totalPages}
-            </div>
+
+            {/* Números de página */}
+            {(() => {
+              const pages: number[] = []
+              const current = paginacion.pagina
+              let start = Math.max(1, current - 2)
+              let end = Math.min(totalPages, current + 2)
+              if (end - start < 4) {
+                if (start === 1) end = Math.min(totalPages, start + 4)
+                else start = Math.max(1, end - 4)
+              }
+              for (let i = start; i <= end; i++) pages.push(i)
+              return (
+                <>
+                  {start > 1 && <span className="px-1 text-gray-400">...</span>}
+                  {pages.map((p) => (
+                    <Button
+                      key={p}
+                      variant={p === current ? "default" : "outline"}
+                      size="sm"
+                      className="min-w-[32px] px-2"
+                      onClick={() => fetchLogs(p)}
+                    >
+                      {p}
+                    </Button>
+                  ))}
+                  {end < totalPages && <span className="px-1 text-gray-400">...</span>}
+                </>
+              )
+            })()}
+
+            {/* Siguiente */}
             <Button
               variant="outline"
               size="sm"
@@ -469,7 +560,37 @@ export default function DebugLogsPage() {
             >
               Siguiente
             </Button>
+            {/* Última página */}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={paginacion.pagina >= totalPages}
+              onClick={() => fetchLogs(totalPages)}
+              title="Última página"
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
           </div>
+
+          {/* Ir a página */}
+          {totalPages > 5 && (
+            <div className="flex items-center gap-1">
+              <span className="text-gray-500 text-xs">Ir a:</span>
+              <Input
+                type="number"
+                min={1}
+                max={totalPages}
+                value={goToPage}
+                onChange={(e) => setGoToPage(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleGoToPage()}
+                className="h-7 w-16 text-sm text-center"
+                placeholder="#"
+              />
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={handleGoToPage}>
+                Ir
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

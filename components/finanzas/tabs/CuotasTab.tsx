@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Edit, Trash2, Plus, DollarSign, Users, TrendingDown, AlertCircle, FileText } from "lucide-react"
+import { Edit, Trash2, Plus, DollarSign, Users, TrendingDown, AlertCircle, FileText, CheckSquare, X } from "lucide-react"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { useCuotasTab } from "@/hooks/useCuotasTab"
 import type { CuotaProgramaResumen } from "@/services/mantenimientos"
@@ -27,28 +28,44 @@ const CuotasTab: React.FC<CuotasTabProps> = ({ filters }) => {
     totals,
     rows,
     lastUpdated,
-    
+
     // Estados del modal de crear
     showCreateCuotaModal,
     setShowCreateCuotaModal,
     createCuotaFormData,
     setCreateCuotaFormData,
-    
-    // Estados del modal de editar
+
+    // Estados del modal de editar (individual)
     editingCuota,
     editFormData,
     setEditFormData,
-    
+
+    // Selección y edición masiva
+    selectedIds,
+    toggleSelectAll,
+    toggleSelectOne,
+    clearSelection,
+    showBulkEditModal,
+    setShowBulkEditModal,
+    bulkEditLoading,
+    bulkEditFormData,
+    setBulkEditFormData,
+    handleOpenBulkEdit,
+    handleSaveBulkEdit,
+
     // Funciones principales
     createCuota,
     deleteCuotaRecord,
-    
+
     // Handlers
     handleCreateCuota,
     handleEditCuota,
     handleSaveEdit,
     handleCancelEdit,
   } = useCuotasTab({ filters })
+
+  const allSelected = rows.length > 0 && selectedIds.size === rows.length
+  const someSelected = selectedIds.size > 0 && selectedIds.size < rows.length
 
   const getBadgeVariant = (estado: string | null) => {
     switch (estado?.toLowerCase()) {
@@ -116,7 +133,7 @@ const CuotasTab: React.FC<CuotasTabProps> = ({ filters }) => {
       {/* Tabla de cuotas */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <CardTitle>Cuotas de Programas</CardTitle>
               <CardDescription>
@@ -127,6 +144,22 @@ const CuotasTab: React.FC<CuotasTabProps> = ({ filters }) => {
                   </span>
                 )}
               </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              {selectedIds.size > 0 && (
+                <>
+                  <span className="text-sm font-medium text-blue-700">
+                    <CheckSquare className="inline h-4 w-4 mr-1" />
+                    {selectedIds.size} cuota{selectedIds.size !== 1 ? "s" : ""} seleccionada{selectedIds.size !== 1 ? "s" : ""}
+                  </span>
+                  <Button size="sm" variant="default" onClick={handleOpenBulkEdit}>
+                    <Edit className="h-4 w-4 mr-1" /> Editar masivo
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={clearSelection}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
             </div>
             <Dialog open={showCreateCuotaModal} onOpenChange={setShowCreateCuotaModal}>
               <DialogTrigger asChild>
@@ -214,6 +247,13 @@ const CuotasTab: React.FC<CuotasTabProps> = ({ filters }) => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={(checked) => toggleSelectAll(!!checked)}
+                      aria-label="Seleccionar todas"
+                    />
+                  </TableHead>
                   <TableHead>Estudiante</TableHead>
                   <TableHead>Programa</TableHead>
                   <TableHead>Cuota N°</TableHead>
@@ -227,13 +267,23 @@ const CuotasTab: React.FC<CuotasTabProps> = ({ filters }) => {
               <TableBody>
                 {rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       No hay cuotas registradas
                     </TableCell>
                   </TableRow>
                 ) : (
                   rows.map((cuota: CuotaProgramaResumen) => (
-                    <TableRow key={cuota.id}>
+                    <TableRow
+                      key={cuota.id}
+                      className={selectedIds.has(cuota.id) ? "bg-blue-50" : undefined}
+                    >
+                      <TableCell className="w-10">
+                        <Checkbox
+                          checked={selectedIds.has(cuota.id)}
+                          onCheckedChange={() => toggleSelectOne(cuota.id)}
+                          aria-label={`Seleccionar cuota ${cuota.numero_cuota}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div>
                           <div className="font-medium">{cuota.prospecto?.nombre}</div>
@@ -381,6 +431,87 @@ const CuotasTab: React.FC<CuotasTabProps> = ({ filters }) => {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal edición masiva */}
+      <Dialog open={showBulkEditModal} onOpenChange={setShowBulkEditModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar {selectedIds.size} cuota{selectedIds.size !== 1 ? "s" : ""} en masa</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mb-2">
+            Solo se aplican los campos que completes. Los campos en blanco no se modifican.
+          </p>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="bulk_monto">Monto</Label>
+              <Input
+                id="bulk_monto"
+                type="number"
+                step="0.01"
+                placeholder="Dejar en blanco para no cambiar"
+                value={bulkEditFormData.monto}
+                onChange={(e) => setBulkEditFormData({ ...bulkEditFormData, monto: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="bulk_estado">Estado</Label>
+              <Select
+                value={bulkEditFormData.estado}
+                onValueChange={(value) => {
+                  const updates: typeof bulkEditFormData = { ...bulkEditFormData, estado: value }
+                  if (value === "pagado" && !bulkEditFormData.paid_at) {
+                    updates.paid_at = new Date().toISOString().split("T")[0]
+                  }
+                  if (value !== "pagado") updates.paid_at = ""
+                  setBulkEditFormData(updates)
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin cambio" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pendiente">Pendiente</SelectItem>
+                  <SelectItem value="pagado">Pagado</SelectItem>
+                  <SelectItem value="vencido">Vencido</SelectItem>
+                  <SelectItem value="cancelado">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="bulk_vencimiento">Fecha de Vencimiento</Label>
+              <Input
+                id="bulk_vencimiento"
+                type="date"
+                value={bulkEditFormData.fecha_vencimiento}
+                onChange={(e) => setBulkEditFormData({ ...bulkEditFormData, fecha_vencimiento: e.target.value })}
+              />
+            </div>
+
+            {bulkEditFormData.estado === "pagado" && (
+              <div>
+                <Label htmlFor="bulk_paid_at">Fecha de Pago</Label>
+                <Input
+                  id="bulk_paid_at"
+                  type="date"
+                  value={bulkEditFormData.paid_at}
+                  onChange={(e) => setBulkEditFormData({ ...bulkEditFormData, paid_at: e.target.value })}
+                />
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShowBulkEditModal(false)} disabled={bulkEditLoading}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveBulkEdit} disabled={bulkEditLoading}>
+                {bulkEditLoading ? "Guardando..." : `Aplicar a ${selectedIds.size} cuota${selectedIds.size !== 1 ? "s" : ""}`}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

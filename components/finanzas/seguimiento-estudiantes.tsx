@@ -26,12 +26,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Plus, Edit, Trash2, DollarSign, Calendar, RefreshCw, FileText } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Search, Plus, Edit, Trash2, DollarSign, Calendar, RefreshCw, FileText, CheckSquare, X } from "lucide-react"
 import {
   getCuotasDashboard,
   createCuota,
   updateCuota,
   deleteCuota,
+  bulkUpdateCuotas,
   type CuotasDashboardEstudiante,
   type CuotaCreatePayload,
   type CuotaUpdatePayload,
@@ -90,6 +92,17 @@ export function SeguimientoEstudiantes() {
   const [showBulkCreateModal, setShowBulkCreateModal] = useState(false)
   const [selectedCuota, setSelectedCuota] = useState<CuotaDetalladaResumen | null>(null)
   const [deletingCuota, setDeletingCuota] = useState(false)
+
+  // Bulk edit states
+  const [selectedCuotaIds, setSelectedCuotaIds] = useState<Set<number>>(new Set())
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false)
+  const [bulkEditLoading, setBulkEditLoading] = useState(false)
+  const [bulkEditForm, setBulkEditForm] = useState({
+    monto: "",
+    estado: "",
+    fecha_vencimiento: "",
+    paid_at: "",
+  })
 
   // Form states for create/edit
   const [formData, setFormData] = useState({
@@ -154,6 +167,7 @@ export function SeguimientoEstudiantes() {
 
   const handleViewCuotas = (estudiante: CuotasDashboardEstudiante) => {
     setSelectedEstudiante(estudiante)
+    setSelectedCuotaIds(new Set())
     setShowCuotasModal(true)
   }
 
@@ -234,7 +248,7 @@ export function SeguimientoEstudiantes() {
         fecha_vencimiento: formData.fecha_vencimiento,
         monto: formData.monto,
         estado: formData.estado,
-        observaciones: formData.observaciones,
+        concepto: formData.observaciones,
         paid_at: formData.estado === "pagado" && formData.paid_at ? formData.paid_at : (formData.estado === "pagado" ? new Date().toISOString().split("T")[0] : null),
       }
 
@@ -346,6 +360,75 @@ export function SeguimientoEstudiantes() {
     } catch (error: any) {
       console.error("Error creating bulk cuotas:", error)
       toast.error(error.response?.data?.message || "Error al crear las cuotas")
+    }
+  }
+
+  // ─── Bulk edit helpers ───────────────────────────────────────────────
+  const cuotasList = selectedEstudiante?.cuotas ?? []
+  const allCuotasSelected = cuotasList.length > 0 && selectedCuotaIds.size === cuotasList.length
+  const someCuotasSelected = selectedCuotaIds.size > 0 && selectedCuotaIds.size < cuotasList.length
+
+  const toggleSelectAllCuotas = (checked: boolean) => {
+    if (checked) {
+      setSelectedCuotaIds(new Set(cuotasList.map((c) => c.id)))
+    } else {
+      setSelectedCuotaIds(new Set())
+    }
+  }
+
+  const toggleSelectCuota = (id: number) => {
+    setSelectedCuotaIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const handleOpenBulkEdit = () => {
+    setBulkEditForm({ monto: "", estado: "", fecha_vencimiento: "", paid_at: "" })
+    setShowBulkEditModal(true)
+  }
+
+  const reloadSelectedEstudiante = async () => {
+    const updatedResponse = await getCuotasDashboard({
+      page: currentPage,
+      per_page: perPage,
+      search: searchQuery || undefined,
+    })
+    setEstudiantes(updatedResponse.estudiantes || [])
+    setPagination(updatedResponse.pagination || null)
+    const updated = updatedResponse.estudiantes.find(
+      (e) => e.estudiante_programa_id === selectedEstudiante?.estudiante_programa_id,
+    )
+    if (updated) setSelectedEstudiante(updated)
+  }
+
+  const submitBulkEdit = async () => {
+    if (selectedCuotaIds.size === 0) return
+    const fields: Record<string, unknown> = {}
+    if (bulkEditForm.monto !== "") fields.monto = parseFloat(bulkEditForm.monto)
+    if (bulkEditForm.estado) fields.estado = bulkEditForm.estado
+    if (bulkEditForm.fecha_vencimiento) fields.fecha_vencimiento = bulkEditForm.fecha_vencimiento
+    if (bulkEditForm.estado === "pagado" && bulkEditForm.paid_at) fields.paid_at = bulkEditForm.paid_at
+
+    if (Object.keys(fields).length === 0) {
+      toast.error("Debe completar al menos un campo para aplicar")
+      return
+    }
+
+    setBulkEditLoading(true)
+    try {
+      const res = await bulkUpdateCuotas({ ids: Array.from(selectedCuotaIds), fields })
+      toast.success(`${res.affected} cuota(s) actualizada(s)`)
+      setShowBulkEditModal(false)
+      setSelectedCuotaIds(new Set())
+      await reloadSelectedEstudiante()
+    } catch (error: any) {
+      console.error("Error bulk editing cuotas:", error)
+      toast.error(error.response?.data?.message || "Error al editar cuotas en masa")
+    } finally {
+      setBulkEditLoading(false)
     }
   }
 
@@ -529,7 +612,7 @@ export function SeguimientoEstudiantes() {
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
               <Button onClick={handleCreateCuota} size="sm">
                 <Plus className="h-4 w-4 mr-2" />
                 Nueva Cuota
@@ -538,12 +621,33 @@ export function SeguimientoEstudiantes() {
                 <Calendar className="h-4 w-4 mr-2" />
                 Generar Múltiples
               </Button>
+              {selectedCuotaIds.size > 0 && (
+                <>
+                  <span className="text-sm font-medium text-blue-700 ml-2">
+                    <CheckSquare className="inline h-4 w-4 mr-1" />
+                    {selectedCuotaIds.size} cuota{selectedCuotaIds.size !== 1 ? "s" : ""} seleccionada{selectedCuotaIds.size !== 1 ? "s" : ""}
+                  </span>
+                  <Button size="sm" onClick={handleOpenBulkEdit}>
+                    <Edit className="h-4 w-4 mr-1" /> Editar masivo
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedCuotaIds(new Set())}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
             </div>
 
             <div className="border rounded-lg max-h-96 overflow-y-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={allCuotasSelected}
+                        onCheckedChange={(checked) => toggleSelectAllCuotas(!!checked)}
+                        aria-label="Seleccionar todas"
+                      />
+                    </TableHead>
                     <TableHead>N°</TableHead>
                     <TableHead>Fecha Vencimiento</TableHead>
                     <TableHead className="text-right">Monto</TableHead>
@@ -556,7 +660,17 @@ export function SeguimientoEstudiantes() {
                 <TableBody>
                   {selectedEstudiante?.cuotas && selectedEstudiante.cuotas.length > 0 ? (
                     selectedEstudiante.cuotas.map((cuota) => (
-                      <TableRow key={cuota.id}>
+                      <TableRow
+                        key={cuota.id}
+                        className={selectedCuotaIds.has(cuota.id) ? "bg-blue-50" : undefined}
+                      >
+                        <TableCell className="w-10">
+                          <Checkbox
+                            checked={selectedCuotaIds.has(cuota.id)}
+                            onCheckedChange={() => toggleSelectCuota(cuota.id)}
+                            aria-label={`Seleccionar cuota ${cuota.numero_cuota}`}
+                          />
+                        </TableCell>
                         <TableCell>{cuota.numero_cuota}</TableCell>
                         <TableCell>{formatDate(cuota.fecha_vencimiento)}</TableCell>
                         <TableCell className="text-right">{formatCurrency(cuota.monto)}</TableCell>
@@ -612,7 +726,7 @@ export function SeguimientoEstudiantes() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center text-muted-foreground">
                         No hay cuotas registradas
                       </TableCell>
                     </TableRow>
@@ -849,6 +963,82 @@ export function SeguimientoEstudiantes() {
               Cancelar
             </Button>
             <Button onClick={submitBulkCreate}>Generar Cuotas</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Edit Modal */}
+      <Dialog open={showBulkEditModal} onOpenChange={setShowBulkEditModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Editar {selectedCuotaIds.size} cuota{selectedCuotaIds.size !== 1 ? "s" : ""} en masa
+            </DialogTitle>
+            <DialogDescription>
+              Solo se aplican los campos que completes. Los campos en blanco no se modifican.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Monto</Label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="Dejar en blanco para no cambiar"
+                value={bulkEditForm.monto}
+                onChange={(e) => setBulkEditForm({ ...bulkEditForm, monto: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Estado</Label>
+              <Select
+                value={bulkEditForm.estado}
+                onValueChange={(value) => {
+                  const updates = { ...bulkEditForm, estado: value }
+                  if (value === "pagado" && !bulkEditForm.paid_at) {
+                    updates.paid_at = new Date().toISOString().split("T")[0]
+                  }
+                  if (value !== "pagado") updates.paid_at = ""
+                  setBulkEditForm(updates)
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin cambio" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pendiente">Pendiente</SelectItem>
+                  <SelectItem value="pagado">Pagado</SelectItem>
+                  <SelectItem value="vencido">Vencido</SelectItem>
+                  <SelectItem value="cancelado">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Fecha de Vencimiento</Label>
+              <Input
+                type="date"
+                value={bulkEditForm.fecha_vencimiento}
+                onChange={(e) => setBulkEditForm({ ...bulkEditForm, fecha_vencimiento: e.target.value })}
+              />
+            </div>
+            {bulkEditForm.estado === "pagado" && (
+              <div>
+                <Label>Fecha de Pago</Label>
+                <Input
+                  type="date"
+                  value={bulkEditForm.paid_at}
+                  onChange={(e) => setBulkEditForm({ ...bulkEditForm, paid_at: e.target.value })}
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkEditModal(false)} disabled={bulkEditLoading}>
+              Cancelar
+            </Button>
+            <Button onClick={submitBulkEdit} disabled={bulkEditLoading}>
+              {bulkEditLoading ? "Guardando..." : `Aplicar a ${selectedCuotaIds.size} cuota${selectedCuotaIds.size !== 1 ? "s" : ""}`}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

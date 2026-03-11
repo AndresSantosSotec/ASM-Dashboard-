@@ -38,7 +38,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Eye, FileText, Loader2, Pencil, Plus, RefreshCw, Trash2, Calendar } from "lucide-react"
+import { Eye, FileText, Loader2, Pencil, Plus, RefreshCw, Trash2, Calendar, CheckSquare, X, Upload } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import { FiltrosCuotas, FiltrosKardex, FiltrosReconciliaciones } from "@/components/finanzas/reportes"
@@ -51,6 +51,9 @@ import {
   createCuota,
   updateCuota,
   deleteCuota,
+  bulkUpdateCuotas,
+  bulkDeleteCuotas,
+  uploadCuotaComprobante,
   createKardex,
   updateKardex,
   deleteKardex,
@@ -221,6 +224,25 @@ export const ReportesFinancieros = () => {
   const [showCreateCuotaModal, setShowCreateCuotaModal] = useState(false)
   const [showEditCuotaModal, setShowEditCuotaModal] = useState(false)
   const [showDeleteCuotaDialog, setShowDeleteCuotaDialog] = useState(false)
+
+  // Bulk edit states for cuotas modal
+  const [selectedCuotaIds, setSelectedCuotaIds] = useState<Set<number>>(new Set())
+  const [showBulkEditCuotaModal, setShowBulkEditCuotaModal] = useState(false)
+  const [showBulkDeleteCuotaDialog, setShowBulkDeleteCuotaDialog] = useState(false)
+  const [bulkEditCuotaLoading, setBulkEditCuotaLoading] = useState(false)
+  const [bulkDeleteCuotaLoading, setBulkDeleteCuotaLoading] = useState(false)
+  const [bulkEditCuotaForm, setBulkEditCuotaForm] = useState({
+    monto: "",
+    estado: "",
+    fecha_vencimiento: "",
+    paid_at: "",
+  })
+
+  // Comprobante file ref for edit modal
+  const comprobanteFileRef = useRef<HTMLInputElement>(null)
+  const [comprobanteFile, setComprobanteFile] = useState<File | null>(null)
+  const [uploadingComprobante, setUploadingComprobante] = useState(false)
+
   const [cuotaCreateForm, setCuotaCreateForm] = useState({
     numero_cuota: 1,
     fecha_vencimiento: "",
@@ -234,6 +256,7 @@ export const ReportesFinancieros = () => {
     monto: 0,
     estado: "pendiente",
     paid_at: "",
+    concepto: "",
   })
 
   // Estados para generación masiva de cuotas
@@ -991,8 +1014,73 @@ export const ReportesFinancieros = () => {
   // Handlers para el modal de cuotas
   const handleViewCuotas = useCallback((estudiante: CuotasDashboardEstudiante) => {
     setSelectedEstudiante(estudiante)
+    setSelectedCuotaIds(new Set())
     setShowCuotasModal(true)
   }, [])
+
+  // Bulk edit helpers for cuotas modal
+  const cuotasModalList = selectedEstudiante?.cuotas ?? []
+  const allCuotasSelected = cuotasModalList.length > 0 && selectedCuotaIds.size === cuotasModalList.length
+
+  const toggleSelectAllCuotas = useCallback((checked: boolean) => {
+    if (checked && selectedEstudiante?.cuotas) {
+      setSelectedCuotaIds(new Set(selectedEstudiante.cuotas.map((c) => c.id)))
+    } else {
+      setSelectedCuotaIds(new Set())
+    }
+  }, [selectedEstudiante])
+
+  const toggleSelectCuota = useCallback((id: number) => {
+    setSelectedCuotaIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const handleOpenBulkEditCuota = useCallback(() => {
+    setBulkEditCuotaForm({ monto: "", estado: "", fecha_vencimiento: "", paid_at: "" })
+    setShowBulkEditCuotaModal(true)
+  }, [])
+
+  const reloadSelectedEstudiante = useCallback(async () => {
+    const params = buildRequestFilters(filtersByTab.cuotas)
+    const cuotasDashboardResponse = await getCuotasDashboard(params)
+    setCuotasDashboard(cuotasDashboardResponse)
+    const updated = cuotasDashboardResponse.estudiantes?.find(
+      (e: CuotasDashboardEstudiante) => e.estudiante_programa_id === selectedEstudiante?.estudiante_programa_id,
+    )
+    if (updated) setSelectedEstudiante(updated)
+  }, [filtersByTab.cuotas, selectedEstudiante])
+
+  const submitBulkEditCuotas = useCallback(async () => {
+    if (selectedCuotaIds.size === 0) return
+    const fields: Record<string, unknown> = {}
+    if (bulkEditCuotaForm.monto !== "") fields.monto = parseFloat(bulkEditCuotaForm.monto)
+    if (bulkEditCuotaForm.estado) fields.estado = bulkEditCuotaForm.estado
+    if (bulkEditCuotaForm.fecha_vencimiento) fields.fecha_vencimiento = bulkEditCuotaForm.fecha_vencimiento
+    if (bulkEditCuotaForm.paid_at) fields.paid_at = bulkEditCuotaForm.paid_at
+
+    if (Object.keys(fields).length === 0) {
+      toast({ title: "Error", description: "Debe completar al menos un campo", variant: "destructive" })
+      return
+    }
+
+    setBulkEditCuotaLoading(true)
+    try {
+      const res = await bulkUpdateCuotas({ ids: Array.from(selectedCuotaIds), fields })
+      toast({ title: "Éxito", description: `${res.affected} cuota(s) actualizada(s)` })
+      setShowBulkEditCuotaModal(false)
+      setSelectedCuotaIds(new Set())
+      await reloadSelectedEstudiante()
+    } catch (error: any) {
+      console.error("Error bulk editing cuotas:", error)
+      toast({ title: "Error", description: error.response?.data?.message || "Error al editar cuotas en masa", variant: "destructive" })
+    } finally {
+      setBulkEditCuotaLoading(false)
+    }
+  }, [selectedCuotaIds, bulkEditCuotaForm, toast, reloadSelectedEstudiante])
 
   const handleCreateCuota = useCallback(() => {
     if (!selectedEstudiante || !selectedEstudiante.estudiante_programa_id) return
@@ -1033,7 +1121,10 @@ export const ReportesFinancieros = () => {
       monto: cuota.monto || 0,
       estado: cuota.estado || "pendiente",
       paid_at: cuota.paid_at ? cuota.paid_at.split(" ")[0].split("T")[0] : "",
+      concepto: cuota.concepto || "",
     })
+    setComprobanteFile(null)
+    if (comprobanteFileRef.current) comprobanteFileRef.current.value = ""
     setShowEditCuotaModal(true)
   }, [])
 
@@ -1188,11 +1279,28 @@ export const ReportesFinancieros = () => {
         fecha_vencimiento: cuotaEditForm.fecha_vencimiento,
         monto: cuotaEditForm.monto,
         estado: cuotaEditForm.estado,
-        paid_at: cuotaEditForm.estado === "pagado" && cuotaEditForm.paid_at ? cuotaEditForm.paid_at : (cuotaEditForm.estado === "pagado" ? new Date().toISOString().split("T")[0] : null),
+        paid_at: cuotaEditForm.paid_at || (cuotaEditForm.estado === "pagado" ? new Date().toISOString().split("T")[0] : null),
+        concepto: cuotaEditForm.concepto || null,
       }
 
       console.log('🔄 Actualizando cuota:', { id: selectedCuota.id, payload })
       await updateCuota(selectedCuota.id, payload)
+
+      // Subir comprobante si se seleccionó un archivo
+      if (comprobanteFile) {
+        setUploadingComprobante(true)
+        try {
+          await uploadCuotaComprobante(selectedCuota.id, comprobanteFile)
+          toast({ title: "Comprobante subido", description: "El comprobante se vinculó al kardex exitosamente" })
+        } catch (err: any) {
+          console.error("Error uploading comprobante:", err)
+          toast({ title: "Advertencia", description: "La cuota se actualizó pero el comprobante no se pudo subir: " + (err.response?.data?.message || err.message), variant: "destructive" })
+        } finally {
+          setUploadingComprobante(false)
+          setComprobanteFile(null)
+          if (comprobanteFileRef.current) comprobanteFileRef.current.value = ""
+        }
+      }
       
       toast({
         title: "Cuota actualizada",
@@ -1266,54 +1374,48 @@ export const ReportesFinancieros = () => {
         })
       }
     }
-  }, [selectedCuota, cuotaEditForm, toast, filtersByTab.cuotas, selectedEstudiante])
+  }, [selectedCuota, cuotaEditForm, comprobanteFile, toast, filtersByTab.cuotas, selectedEstudiante])
 
   const submitDeleteCuota = useCallback(async () => {
     if (!selectedCuota) return
 
+    // Optimistic update: cerrar el diálogo y remover la cuota del estado local inmediatamente
+    const cuotaToDelete = selectedCuota
+    setShowDeleteCuotaDialog(false)
+    setSelectedCuota(null)
+
+    // Actualizar estado local de forma optimista
+    if (selectedEstudiante) {
+      setSelectedEstudiante(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          cuotas: prev.cuotas.filter(c => c.id !== cuotaToDelete.id),
+          cuotas_pendientes: cuotaToDelete.estado === "pendiente"
+            ? (prev.cuotas_pendientes ?? 0) - 1
+            : prev.cuotas_pendientes,
+          cuotas_pagadas: cuotaToDelete.estado === "pagado"
+            ? (prev.cuotas_pagadas ?? 0) - 1
+            : prev.cuotas_pagadas,
+          saldo_pendiente: cuotaToDelete.estado !== "pagado"
+            ? (prev.saldo_pendiente ?? 0) - cuotaToDelete.monto
+            : prev.saldo_pendiente,
+        }
+      })
+    }
+
     try {
-      await deleteCuota(selectedCuota.id)
+      await deleteCuota(cuotaToDelete.id)
       
       toast({
         title: "Cuota eliminada",
         description: "La cuota se ha eliminado exitosamente",
       })
-      
-      setShowDeleteCuotaDialog(false)
-      
-      // Recargar completamente los datos para sincronizar (OPTIMIZADO)
-      setIsRefreshingData(true)
-      try {
-        const params = buildRequestFilters(filtersByTab.cuotas)
-        
-        // ⚡ OPTIMIZACIÓN: Cargar secuencialmente con delays
-        const dashboardResponse = await getKardexDashboard(params)
-        await new Promise(resolve => setTimeout(resolve, 100))
-        
-        const dataResponse = await getKardexData(params)
-        await new Promise(resolve => setTimeout(resolve, 100))
-        
-        const cuotasDashboardResponse = await getCuotasDashboard(params)
 
-        setCuotasTotals(dashboardResponse.cuotas)
-        setCuotasRows(dataResponse.cuotas)
-        setCuotasDashboard(cuotasDashboardResponse)
-        setCuotasLastUpdated(dataResponse.timestamp)
-
-        // Actualizar estudiante seleccionado
-        if (selectedEstudiante?.estudiante_programa_id) {
-          const updatedEstudiante = cuotasDashboardResponse.estudiantes.find(
-            e => e.estudiante_programa_id === selectedEstudiante.estudiante_programa_id
-          )
-          if (updatedEstudiante) {
-            setSelectedEstudiante(updatedEstudiante)
-          }
-        }
-      } catch (error) {
-        console.error('Error al recargar datos después de eliminar cuota:', error)
-      } finally {
-        setIsRefreshingData(false)
-      }
+      // Recargar datos en background sin bloquear la UI
+      reloadSelectedEstudiante().catch(err => 
+        console.error('Error recargando datos después de eliminar:', err)
+      )
       
     } catch (error: any) {
       console.error("Error deleting cuota:", error)
@@ -1322,8 +1424,50 @@ export const ReportesFinancieros = () => {
         description: error.response?.data?.message || "Error al eliminar la cuota",
         variant: "destructive",
       })
+      // Revertir: recargar datos reales
+      reloadSelectedEstudiante().catch(() => {})
     }
-  }, [selectedCuota, toast, filtersByTab.cuotas, selectedEstudiante])
+  }, [selectedCuota, toast, selectedEstudiante, reloadSelectedEstudiante])
+
+  // Handler para eliminación masiva de cuotas
+  const submitBulkDeleteCuotas = useCallback(async () => {
+    if (selectedCuotaIds.size === 0) return
+
+    const idsToDelete = Array.from(selectedCuotaIds)
+
+    // Optimistic update: cerrar diálogo y remover cuotas del estado local
+    setShowBulkDeleteCuotaDialog(false)
+    setBulkDeleteCuotaLoading(true)
+
+    // Actualizar estado local de forma optimista
+    if (selectedEstudiante) {
+      setSelectedEstudiante(prev => {
+        if (!prev) return prev
+        const remaining = prev.cuotas.filter(c => !selectedCuotaIds.has(c.id))
+        return {
+          ...prev,
+          cuotas: remaining,
+        }
+      })
+    }
+    setSelectedCuotaIds(new Set())
+
+    try {
+      const res = await bulkDeleteCuotas({ ids: idsToDelete })
+      toast({ title: "Éxito", description: `${res.affected} cuota(s) eliminada(s)` })
+      // Recargar datos en background
+      reloadSelectedEstudiante().catch(err => 
+        console.error('Error recargando datos después de eliminar masivo:', err)
+      )
+    } catch (error: any) {
+      console.error("Error bulk deleting cuotas:", error)
+      toast({ title: "Error", description: error.response?.data?.message || "Error al eliminar cuotas en masa", variant: "destructive" })
+      // Revertir: recargar datos reales
+      reloadSelectedEstudiante().catch(() => {})
+    } finally {
+      setBulkDeleteCuotaLoading(false)
+    }
+  }, [selectedCuotaIds, selectedEstudiante, toast, reloadSelectedEstudiante])
 
   // Handlers para generación masiva
   const loadAllStudents = useCallback(
@@ -2892,8 +3036,27 @@ export const ReportesFinancieros = () => {
               </Card>
             </div>
 
-            {/* Botón para crear nueva cuota */}
-            <div className="flex justify-end">
+            {/* Botones de acción y selección masiva */}
+            <div className="flex flex-wrap gap-2 items-center justify-between">
+              <div className="flex flex-wrap gap-2 items-center">
+                {selectedCuotaIds.size > 0 && (
+                  <>
+                    <span className="text-sm font-medium text-blue-700">
+                      <CheckSquare className="inline h-4 w-4 mr-1" />
+                      {selectedCuotaIds.size} cuota{selectedCuotaIds.size !== 1 ? "s" : ""} seleccionada{selectedCuotaIds.size !== 1 ? "s" : ""}
+                    </span>
+                    <Button size="sm" onClick={handleOpenBulkEditCuota}>
+                      <Pencil className="h-4 w-4 mr-1" /> Editar masivo
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => setShowBulkDeleteCuotaDialog(true)} disabled={bulkDeleteCuotaLoading}>
+                      <Trash2 className="h-4 w-4 mr-1" /> Eliminar masivo
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setSelectedCuotaIds(new Set())}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
+              </div>
               <Button onClick={handleCreateCuota} size="sm">
                 <Plus className="h-4 w-4 mr-2" />
                 Nueva Cuota
@@ -2905,6 +3068,13 @@ export const ReportesFinancieros = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={allCuotasSelected}
+                        onCheckedChange={(checked) => toggleSelectAllCuotas(!!checked)}
+                        aria-label="Seleccionar todas"
+                      />
+                    </TableHead>
                     <TableHead>N°</TableHead>
                     <TableHead>Fecha Vencimiento</TableHead>
                     <TableHead className="text-right">Monto</TableHead>
@@ -2922,7 +3092,17 @@ export const ReportesFinancieros = () => {
                       const estadoLabel = cuotaEstadoLabels[estado] ?? (estado ? estado.replace(/_/g, " ") : "Sin estado")
 
                       return (
-                        <TableRow key={`cuota-${cuota.id}-${index}`}>
+                        <TableRow
+                          key={`cuota-${cuota.id}-${index}`}
+                          className={selectedCuotaIds.has(cuota.id) ? "bg-blue-50" : undefined}
+                        >
+                          <TableCell className="w-10">
+                            <Checkbox
+                              checked={selectedCuotaIds.has(cuota.id)}
+                              onCheckedChange={() => toggleSelectCuota(cuota.id)}
+                              aria-label={`Seleccionar cuota ${cuota.numero_cuota}`}
+                            />
+                          </TableCell>
                           <TableCell>{cuota.numero_cuota}</TableCell>
                           <TableCell>{formatDate(cuota.fecha_vencimiento)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(cuota.monto)}</TableCell>
@@ -2981,7 +3161,7 @@ export const ReportesFinancieros = () => {
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center text-muted-foreground">
                         No hay cuotas registradas
                       </TableCell>
                     </TableRow>
@@ -2994,6 +3174,81 @@ export const ReportesFinancieros = () => {
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseCuotasModal}>
               Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Edición Masiva de Cuotas */}
+      <Dialog open={showBulkEditCuotaModal} onOpenChange={setShowBulkEditCuotaModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Editar {selectedCuotaIds.size} cuota{selectedCuotaIds.size !== 1 ? "s" : ""} en masa
+            </DialogTitle>
+            <DialogDescription>
+              Solo se aplican los campos que completes. Los campos en blanco no se modifican.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Monto</Label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="Dejar en blanco para no cambiar"
+                value={bulkEditCuotaForm.monto}
+                onChange={(e) => setBulkEditCuotaForm({ ...bulkEditCuotaForm, monto: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Estado</Label>
+              <Select
+                value={bulkEditCuotaForm.estado}
+                onValueChange={(value) => {
+                  const updates = { ...bulkEditCuotaForm, estado: value }
+                  if (value === "pagado" && !bulkEditCuotaForm.paid_at) {
+                    updates.paid_at = new Date().toISOString().split("T")[0]
+                  }
+                  setBulkEditCuotaForm(updates)
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin cambio" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pendiente">Pendiente</SelectItem>
+                  <SelectItem value="pagado">Pagado</SelectItem>
+                  <SelectItem value="vencido">Vencido</SelectItem>
+                  <SelectItem value="cancelado">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Fecha de Vencimiento</Label>
+                <Input
+                  type="date"
+                  value={bulkEditCuotaForm.fecha_vencimiento}
+                  onChange={(e) => setBulkEditCuotaForm({ ...bulkEditCuotaForm, fecha_vencimiento: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Fecha de Pago</Label>
+                <Input
+                  type="date"
+                  value={bulkEditCuotaForm.paid_at}
+                  onChange={(e) => setBulkEditCuotaForm({ ...bulkEditCuotaForm, paid_at: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkEditCuotaModal(false)} disabled={bulkEditCuotaLoading}>
+              Cancelar
+            </Button>
+            <Button onClick={submitBulkEditCuotas} disabled={bulkEditCuotaLoading}>
+              {bulkEditCuotaLoading ? "Guardando..." : `Aplicar a ${selectedCuotaIds.size} cuota${selectedCuotaIds.size !== 1 ? "s" : ""}`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3076,46 +3331,55 @@ export const ReportesFinancieros = () => {
 
       {/* Modal de Editar Cuota */}
       <Dialog open={showEditCuotaModal} onOpenChange={setShowEditCuotaModal}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Editar Cuota</DialogTitle>
             <DialogDescription>Modifique los detalles de la cuota</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label>Número de Cuota</Label>
-              <Input
-                type="number"
-                value={cuotaEditForm.numero_cuota}
-                onChange={(e) => setCuotaEditForm({ ...cuotaEditForm, numero_cuota: parseInt(e.target.value) || 0 })}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Número de Cuota</Label>
+                <Input
+                  type="number"
+                  value={cuotaEditForm.numero_cuota}
+                  onChange={(e) => setCuotaEditForm({ ...cuotaEditForm, numero_cuota: parseInt(e.target.value) || 0 })}
+                />
+              </div>
+              <div>
+                <Label>Monto</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={cuotaEditForm.monto}
+                  onChange={(e) => setCuotaEditForm({ ...cuotaEditForm, monto: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
             </div>
-            <div>
-              <Label>Fecha de Vencimiento</Label>
-              <Input
-                type="date"
-                value={cuotaEditForm.fecha_vencimiento}
-                onChange={(e) => setCuotaEditForm({ ...cuotaEditForm, fecha_vencimiento: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>Monto</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={cuotaEditForm.monto}
-                onChange={(e) => setCuotaEditForm({ ...cuotaEditForm, monto: parseFloat(e.target.value) || 0 })}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Fecha de Vencimiento</Label>
+                <Input
+                  type="date"
+                  value={cuotaEditForm.fecha_vencimiento}
+                  onChange={(e) => setCuotaEditForm({ ...cuotaEditForm, fecha_vencimiento: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Fecha de Pago</Label>
+                <Input
+                  type="date"
+                  value={cuotaEditForm.paid_at}
+                  onChange={(e) => setCuotaEditForm({ ...cuotaEditForm, paid_at: e.target.value })}
+                />
+              </div>
             </div>
             <div>
               <Label>Estado</Label>
               <Select value={cuotaEditForm.estado} onValueChange={(value) => {
-                const updates: any = { ...cuotaEditForm, estado: value }
+                const updates = { ...cuotaEditForm, estado: value }
                 if (value === "pagado" && !cuotaEditForm.paid_at) {
                   updates.paid_at = new Date().toISOString().split("T")[0]
-                }
-                if (value !== "pagado") {
-                  updates.paid_at = ""
                 }
                 setCuotaEditForm(updates)
               }}>
@@ -3130,26 +3394,68 @@ export const ReportesFinancieros = () => {
                 </SelectContent>
               </Select>
             </div>
-            {cuotaEditForm.estado === "pagado" && (
-              <div>
-                <Label>Fecha de Pago</Label>
+            <div>
+              <Label>Concepto / Observaciones (opcional)</Label>
+              <Input
+                value={cuotaEditForm.concepto}
+                onChange={(e) => setCuotaEditForm({ ...cuotaEditForm, concepto: e.target.value })}
+                placeholder="Ej: Mensualidad enero 2026"
+              />
+            </div>
+            <div>
+              <Label>Comprobante de pago</Label>
+              {selectedCuota?.pagos && selectedCuota.pagos.some(p => p.archivo_comprobante) && (
+                <div className="flex gap-1 mb-2">
+                  {selectedCuota.pagos.filter(p => p.archivo_comprobante).map(p => (
+                    <Button
+                      key={p.id}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(`${API_BASE_URL}/storage/${p.archivo_comprobante}`, '_blank')}
+                      title="Ver comprobante actual"
+                    >
+                      <Eye className="h-4 w-4 mr-1 text-blue-600" /> Ver actual
+                    </Button>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-2">
                 <Input
-                  type="date"
-                  value={cuotaEditForm.paid_at}
-                  onChange={(e) => setCuotaEditForm({ ...cuotaEditForm, paid_at: e.target.value })}
+                  ref={comprobanteFileRef}
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.pdf,.webp"
+                  onChange={(e) => setComprobanteFile(e.target.files?.[0] || null)}
+                  className="text-sm"
                 />
+                {comprobanteFile && (
+                  <Button variant="ghost" size="sm" onClick={() => {
+                    setComprobanteFile(null)
+                    if (comprobanteFileRef.current) comprobanteFileRef.current.value = ""
+                  }}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
-            )}
+              <p className="text-xs text-muted-foreground mt-1">
+                JPG, PNG, PDF, WebP. Max 5MB. Se vincula al kardex del estudiante.
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
               setShowEditCuotaModal(false)
               setSelectedCuota(null)
+              setComprobanteFile(null)
+              if (comprobanteFileRef.current) comprobanteFileRef.current.value = ""
             }}>
               Cancelar
             </Button>
-            <Button onClick={submitEditCuota} disabled={!cuotaEditForm.fecha_vencimiento || cuotaEditForm.monto <= 0}>
-              Actualizar Cuota
+            <Button onClick={submitEditCuota} disabled={!cuotaEditForm.fecha_vencimiento || cuotaEditForm.monto <= 0 || uploadingComprobante}>
+              {uploadingComprobante ? (
+                <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Subiendo...</>
+              ) : (
+                "Actualizar Cuota"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3161,13 +3467,35 @@ export const ReportesFinancieros = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción eliminará la cuota permanentemente. Esta acción no se puede deshacer.
+              Esta acción eliminará la cuota y sus registros relacionados (kardex, reconciliaciones) permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={submitDeleteCuota} className="bg-red-600 hover:bg-red-700">
               Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* AlertDialog de Eliminación Masiva de Cuotas */}
+      <AlertDialog open={showBulkDeleteCuotaDialog} onOpenChange={setShowBulkDeleteCuotaDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar {selectedCuotaIds.size} cuota{selectedCuotaIds.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción eliminará las cuotas seleccionadas y todos sus registros relacionados (kardex, reconciliaciones) permanentemente. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleteCuotaLoading}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={submitBulkDeleteCuotas}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={bulkDeleteCuotaLoading}
+            >
+              {bulkDeleteCuotaLoading ? "Eliminando..." : `Eliminar ${selectedCuotaIds.size} cuota${selectedCuotaIds.size !== 1 ? "s" : ""}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
