@@ -215,7 +215,8 @@ export default function CapturaProspectos() {
     const fetchEmpresas = async () => {
       try {
         const response = await axios.get(`${API_BASE_URL}/api/convenios`)
-        setEmpresas(response.data)
+        const data = response.data
+        setEmpresas(Array.isArray(data) ? data : Array.isArray(data.convenios) ? data.convenios : [])
       } catch (error) {
         console.error("❌ Error al obtener empresas:", error)
       }

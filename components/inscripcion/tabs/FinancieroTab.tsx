@@ -82,8 +82,11 @@ export default function FinancieroTab({
   /* ——— Cargar convenios y precios de servicios electrónicos ——— */
   useEffect(() => {
     axios
-      .get<Convenio[]>(`${API_BASE_URL}/api/convenios`)
-      .then(resp => setConvenios(resp.data))
+      .get(`${API_BASE_URL}/api/convenios`)
+      .then(resp => {
+        const data = resp.data
+        setConvenios(Array.isArray(data) ? data : Array.isArray(data.convenios) ? data.convenios : [])
+      })
       .catch(err => {
         console.error("Error cargando convenios:", err)
         setError("No se pudieron cargar los convenios.")

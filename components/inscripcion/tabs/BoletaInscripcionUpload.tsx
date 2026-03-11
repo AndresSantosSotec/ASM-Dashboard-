@@ -497,9 +497,17 @@ export default function BoletaInscripcionUpload({
         </div>
 
         {/* Info */}
-        <Alert className="bg-blue-50 border-blue-200">
+        <Alert className={inscripcionCero ? "bg-orange-50 border-orange-200" : "bg-blue-50 border-blue-200"}>
           <AlertDescription>
-            <strong>Importante:</strong> El comprobante se guardará temporalmente. El pago se procesará y la cuota 0 se marcará como pagada al finalizar la inscripción.
+            {inscripcionCero ? (
+              <>
+                <strong>Importante:</strong> Como la inscripción fue de <strong>Q0</strong>, este comprobante corresponde al <strong>pago de la primera cuota mensual</strong>. El pago se procesará al finalizar el proceso.
+              </>
+            ) : (
+              <>
+                <strong>Importante:</strong> El comprobante se guardará temporalmente. El pago se procesará y la inscripción quedará registrada como pagada al finalizar el proceso.
+              </>
+            )}
           </AlertDescription>
         </Alert>
 
