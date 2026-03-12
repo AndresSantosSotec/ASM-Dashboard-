@@ -1,4 +1,5 @@
 import api from './api'
+import * as XLSX from 'xlsx'
 
 // ========== TIPOS ==========
 export interface ReportFilters {
@@ -66,7 +67,12 @@ export interface LeadDetail {
   email: string
   telefono: string
   estado: string
-  programa: string
+  programas: string
+  cantidad_programas: number
+  inscripcion: number
+  cuota_mensual: number
+  inversion_total: number
+  duracion_meses: number | null
   ciudad: string
   pais: string
   origen: string
@@ -181,6 +187,28 @@ export const getLeadsByAdvisorDetail = async (filters?: ReportFilters): Promise<
 }
 
 /**
+ * 📊 Descargar detalle de leads por asesor como CSV/XLSX desde el backend
+ */
+export const downloadLeadsByAdvisorDetailExport = async (
+  format: 'xlsx' | 'csv',
+  filters?: ReportFilters
+): Promise<void> => {
+  const res = await api.get('/reports/leads-by-advisor-detail/export', {
+    params: { ...filters, format },
+    responseType: 'blob',
+  })
+  const ext = format === 'xlsx' ? 'xlsx' : 'csv'
+  const blob = new Blob([res.data])
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `detalle_leads_por_asesor_${new Date().toISOString().split('T')[0]}.${ext}`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(link.href)
+}
+
+/**
  * 💰 NUEVO: Obtener reporte de comisiones por asesor
  */
 export const getCommissionStats = async (filters?: ReportFilters & { mes?: number; anio?: number }): Promise<{
@@ -197,7 +225,73 @@ export const getCommissionStats = async (filters?: ReportFilters & { mes?: numbe
 }
 
 /**
- * Exportar reporte a PDF/Excel/CSV
+ * Descargar Rendimiento por Asesor como CSV/XLSX desde el backend
+ */
+export const downloadAdvisorStatsExport = async (
+  format: 'xlsx' | 'csv',
+  filters?: ReportFilters
+): Promise<void> => {
+  const res = await api.get('/reports/advisor-stats/export', {
+    params: { ...filters, format },
+    responseType: 'blob',
+  })
+  const ext = format === 'xlsx' ? 'xlsx' : 'csv'
+  const blob = new Blob([res.data])
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `rendimiento_asesores_${new Date().toISOString().split('T')[0]}.${ext}`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(link.href)
+}
+
+/**
+ * Descargar Estadísticas de Leads como CSV/XLSX desde el backend
+ */
+export const downloadLeadStatsExport = async (
+  format: 'xlsx' | 'csv',
+  filters?: ReportFilters
+): Promise<void> => {
+  const res = await api.get('/reports/lead-stats/export', {
+    params: { ...filters, format },
+    responseType: 'blob',
+  })
+  const ext = format === 'xlsx' ? 'xlsx' : 'csv'
+  const blob = new Blob([res.data])
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `estadisticas_leads_${new Date().toISOString().split('T')[0]}.${ext}`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(link.href)
+}
+
+/**
+ * Descargar Análisis de Conversiones como CSV/XLSX desde el backend
+ */
+export const downloadConversionStatsExport = async (
+  format: 'xlsx' | 'csv',
+  filters?: ReportFilters
+): Promise<void> => {
+  const res = await api.get('/reports/conversion-stats/export', {
+    params: { ...filters, format },
+    responseType: 'blob',
+  })
+  const ext = format === 'xlsx' ? 'xlsx' : 'csv'
+  const blob = new Blob([res.data])
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `analisis_conversiones_${new Date().toISOString().split('T')[0]}.${ext}`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(link.href)
+}
+
+/**
+ * Exportar reporte a PDF/Excel/CSV (legacy)
  */
 export const exportReport = async (
   reportType: string,
@@ -350,7 +444,12 @@ export const exportLeadsByAdvisorDetail = (
     'Email',
     'Teléfono',
     'Estado',
-    'Programa de Interés',
+    'Programa(s)',
+    'Cant. Programas',
+    'Inscripción (Q)',
+    'Cuota Mensual (Q)',
+    'Inversión Total (Q)',
+    'Duración (meses)',
     'Ciudad',
     'País',
     'Origen',
@@ -368,7 +467,12 @@ export const exportLeadsByAdvisorDetail = (
     lead.email,
     lead.telefono,
     lead.estado,
-    lead.programa,
+    lead.programas,
+    lead.cantidad_programas,
+    lead.inscripcion,
+    lead.cuota_mensual,
+    lead.inversion_total,
+    lead.duracion_meses ?? '—',
     lead.ciudad,
     lead.pais,
     lead.origen,
@@ -388,7 +492,19 @@ export const exportLeadsByAdvisorDetail = (
 }
 
 /**
- * Exportar a CSV
+ * Escapar valor CSV: envolver en comillas si contiene comas, comillas o saltos de línea
+ */
+const escapeCSV = (value: any): string => {
+  if (value == null) return ''
+  const str = String(value)
+  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+    return '"' + str.replace(/"/g, '""') + '"'
+  }
+  return str
+}
+
+/**
+ * Exportar a CSV (con BOM UTF-8 para compatibilidad con Excel)
  */
 const exportToCSV = (
   data: any[][],
@@ -399,15 +515,17 @@ const exportToCSV = (
 
   // Agregar información del usuario si está disponible
   if (userInfo) {
-    csvContent += `Generado por: ${userInfo.name}\n`
-    csvContent += `Email: ${userInfo.email}\n`
+    csvContent += `Generado por: ${escapeCSV(userInfo.name)}\n`
+    csvContent += `Email: ${escapeCSV(userInfo.email)}\n`
     csvContent += `Fecha: ${new Date().toLocaleString('es-ES')}\n\n`
   }
 
-  // Agregar datos
-  csvContent += data.map(row => row.join(',')).join('\n')
+  // Agregar datos con escape adecuado
+  csvContent += data.map(row => row.map(escapeCSV).join(',')).join('\n')
 
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  // BOM UTF-8 para que Excel reconozca la codificación
+  const BOM = '\uFEFF'
+  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   const url = URL.createObjectURL(blob)
   link.setAttribute('href', url)
@@ -489,7 +607,7 @@ export const downloadCommissionReportExport = async (
 }
 
 /**
- * Exportar a Excel (usando SheetJS/XLSX)
+ * Exportar a Excel real (.xlsx) usando SheetJS
  */
 const exportToExcel = (
   data: any[][],
@@ -497,9 +615,39 @@ const exportToExcel = (
   sheetName: string,
   userInfo?: { name: string; email: string }
 ) => {
-  // Nota: Requiere instalar xlsx: npm install xlsx
-  // Por ahora, exportar como CSV con indicación de que puede abrirse en Excel
-  return exportToCSV(data, filename, userInfo)
+  const rows: any[][] = []
+
+  // Agregar información del usuario si está disponible
+  if (userInfo) {
+    rows.push([`Generado por: ${userInfo.name}`])
+    rows.push([`Email: ${userInfo.email}`])
+    rows.push([`Fecha: ${new Date().toLocaleString('es-ES')}`])
+    rows.push([]) // fila vacía de separación
+  }
+
+  rows.push(...data)
+
+  const wb = XLSX.utils.book_new()
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+
+  // Auto-ajustar ancho de columnas basado en contenido
+  const headerRowIdx = userInfo ? 4 : 0
+  if (rows.length > headerRowIdx) {
+    ws['!cols'] = rows[headerRowIdx].map((_: any, colIdx: number) => {
+      let maxLen = 10
+      for (const row of rows) {
+        const cell = row[colIdx]
+        if (cell != null) {
+          const len = String(cell).length
+          if (len > maxLen) maxLen = len
+        }
+      }
+      return { wch: Math.min(maxLen + 2, 50) }
+    })
+  }
+
+  XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0, 31))
+  XLSX.writeFile(wb, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`)
 }
 
 /**

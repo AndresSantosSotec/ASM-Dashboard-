@@ -36,11 +36,11 @@ import {
   getLeadsByAdvisorDetail,
   getCommissionReport,
   downloadCommissionReportExport,
+  downloadLeadsByAdvisorDetailExport,
+  downloadAdvisorStatsExport,
+  downloadLeadStatsExport,
+  downloadConversionStatsExport,
   exportReport,
-  exportAdvisorStatsLocal,
-  exportLeadStatsLocal,
-  exportConversionStatsLocal,
-  exportLeadsByAdvisorDetail,
   type ReportFilters,
   type AdvisorStats,
   type LeadStats,
@@ -157,15 +157,15 @@ export function Reports() {
       const userEmail = localStorage.getItem('email') || ''
 
       if (format === 'xlsx' || format === 'csv') {
-        // Exportación local
-        if (reportType === 'asesores' && advisorStats.length > 0) {
-          exportAdvisorStatsLocal(advisorStats, format, { name: userName, email: userEmail })
-        } else if (reportType === 'leads' && leadStats) {
-          exportLeadStatsLocal(leadStats, format, { name: userName, email: userEmail })
-        } else if (reportType === 'conversiones' && conversionStats) {
-          exportConversionStatsLocal(conversionStats, format, { name: userName, email: userEmail })
-        } else if (reportType === 'detalle' && leadsDetail.length > 0) {
-          exportLeadsByAdvisorDetail(leadsDetail, format, { name: userName, email: userEmail })
+        // Exportación desde backend para CSV/XLSX real con UTF-8
+        if (reportType === 'asesores') {
+          await downloadAdvisorStatsExport(format, filters)
+        } else if (reportType === 'leads') {
+          await downloadLeadStatsExport(format, filters)
+        } else if (reportType === 'conversiones') {
+          await downloadConversionStatsExport(format, filters)
+        } else if (reportType === 'detalle') {
+          await downloadLeadsByAdvisorDetailExport(format, filters)
         }
 
         toast({
@@ -777,7 +777,10 @@ export function Reports() {
                         <TableHead>Nombre</TableHead>
                         <TableHead>Asesor</TableHead>
                         <TableHead>Estado</TableHead>
-                        <TableHead>Programa</TableHead>
+                        <TableHead>Programa(s)</TableHead>
+                        <TableHead className="text-right">Inscripción</TableHead>
+                        <TableHead className="text-right">Cuota</TableHead>
+                        <TableHead className="text-right">Inversión</TableHead>
                         <TableHead>Ciudad/País</TableHead>
                         <TableHead className="text-right">Interacciones</TableHead>
                         <TableHead className="text-right">Días</TableHead>
@@ -799,7 +802,23 @@ export function Reports() {
                               {lead.estado}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-sm">{lead.programa}</TableCell>
+                          <TableCell className="text-sm max-w-[200px]">
+                            <div>
+                              <p className="truncate" title={lead.programas}>{lead.programas}</p>
+                              {lead.cantidad_programas > 1 && (
+                                <p className="text-xs text-muted-foreground">{lead.cantidad_programas} programas</p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right text-sm">
+                            {lead.inscripcion > 0 ? `Q${lead.inscripcion.toLocaleString('es-GT', { minimumFractionDigits: 2 })}` : '—'}
+                          </TableCell>
+                          <TableCell className="text-right text-sm">
+                            {lead.cuota_mensual > 0 ? `Q${lead.cuota_mensual.toLocaleString('es-GT', { minimumFractionDigits: 2 })}` : '—'}
+                          </TableCell>
+                          <TableCell className="text-right text-sm">
+                            {lead.inversion_total > 0 ? `Q${lead.inversion_total.toLocaleString('es-GT', { minimumFractionDigits: 2 })}` : '—'}
+                          </TableCell>
                           <TableCell className="text-sm">
                             {lead.ciudad}, {lead.pais}
                           </TableCell>

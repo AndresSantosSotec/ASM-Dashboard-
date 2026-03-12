@@ -340,7 +340,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
 
         if (resConvenios.ok) {
           const conveniosData = await resConvenios.json()
-          setConvenios(conveniosData)
+          setConvenios(Array.isArray(conveniosData) ? conveniosData : Array.isArray(conveniosData.convenios) ? conveniosData.convenios : [])
         }
 
         // Cargar departamentos
