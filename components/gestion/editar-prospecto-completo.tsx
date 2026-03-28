@@ -1925,6 +1925,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                             {doc.ruta_archivo && (
                               <div className="flex gap-2 mt-2">
                                 <Button
+                                  type="button"
                                   variant="outline"
                                   size="sm"
                                   onClick={() => setPreviewDoc(doc)}
@@ -1944,6 +1945,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                                 </Button>
                                 {!esBoleta && (
                                   <Button
+                                    type="button"
                                     variant="ghost"
                                     size="sm"
                                     onClick={async () => {
@@ -2156,7 +2158,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
       <ServerFilePreviewModal
         isOpen={!!previewDoc}
         onClose={() => setPreviewDoc(null)}
-        fileUrl={previewDoc ? getDocUrl(previewDoc) : null}
+        fileUrl={previewDoc ? `${API_URL}/documentos/${previewDoc.id}/file` : null}
         fileName={previewDoc?.ruta_archivo?.split("/").pop() || `documento-${previewDoc?.id}`}
         tipoDocumento={previewDoc?.tipo_documento}
         estado={previewDoc?.estado}

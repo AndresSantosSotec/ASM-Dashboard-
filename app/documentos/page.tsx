@@ -32,6 +32,9 @@ import {
   FileText,
   FileImage,
   FileIcon as FilePdf,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -58,6 +61,17 @@ export default function DocumentosPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [tipoFilter, setTipoFilter] = useState<string>("todos")
   const [loading, setLoading] = useState(true)
+
+  // zoom/rotación para vista previa de imágenes
+  const [zoom, setZoom] = useState(1)
+  const [rotation, setRotation] = useState(0)
+  const resetZoom = () => { setZoom(1); setRotation(0) }
+
+  // detectar si un archivo es imagen por extensión
+  const isImageFile = (path: string) => {
+    const ext = path?.split(".").pop()?.toLowerCase() || ""
+    return ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(ext)
+  }
 
   // paginación
   const pageSize = 9
@@ -300,6 +314,7 @@ export default function DocumentosPage() {
                                 <Button
                                   variant="outline"
                                   className="flex-1"
+                                  onClick={resetZoom}
                                 >
                                   Ver Documento
                                 </Button>
@@ -314,15 +329,71 @@ export default function DocumentosPage() {
                                   </DialogDescription>
                                 </DialogHeader>
                                 <div className="flex flex-col gap-4">
-                                  <div className="rounded-lg border overflow-hidden">
-                                    {d.tipo_documento === "image" ? (
-                                      <Image
-                                        src={`${API_BASE_URL}/api/${d.ruta_archivo}`}
-                                        width={800}
-                                        height={600}
-                                        alt={d.tipo_documento}
-                                        className="w-full object-cover"
-                                      />
+                                  {/* Controles de zoom — solo para imágenes */}
+                                  {isImageFile(d.ruta_archivo) && (
+                                    <div className="flex items-center gap-1 justify-end">
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        title="Reducir"
+                                        onClick={() => setZoom((z) => Math.max(z - 0.25, 0.25))}
+                                      >
+                                        <ZoomOut className="h-4 w-4" />
+                                      </Button>
+                                      <span className="text-xs text-gray-500 w-12 text-center select-none">
+                                        {Math.round(zoom * 100)}%
+                                      </span>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        title="Ampliar"
+                                        onClick={() => setZoom((z) => Math.min(z + 0.25, 4))}
+                                      >
+                                        <ZoomIn className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        title="Rotar"
+                                        onClick={() => setRotation((r) => (r + 90) % 360)}
+                                      >
+                                        <RotateCw className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-xs text-gray-400"
+                                        onClick={resetZoom}
+                                      >
+                                        Reset
+                                      </Button>
+                                    </div>
+                                  )}
+
+                                  <div className="rounded-lg border overflow-auto">
+                                    {isImageFile(d.ruta_archivo) ? (
+                                      <div
+                                        className="flex items-center justify-center p-4 bg-gray-50 select-none"
+                                        style={{ minHeight: 300 }}
+                                      >
+                                        <img
+                                          src={`${API_BASE_URL}/storage/${d.ruta_archivo}`}
+                                          alt={d.tipo_documento}
+                                          className="rounded transition-transform duration-200"
+                                          style={{
+                                            maxWidth: "100%",
+                                            maxHeight: 500,
+                                            height: "auto",
+                                            transform: `scale(${zoom}) rotate(${rotation}deg)`,
+                                            transformOrigin: "center center",
+                                          }}
+                                          draggable={false}
+                                        />
+                                      </div>
                                     ) : (
                                       <iframe
                                         src={`${API_BASE_URL}/storage/${d.ruta_archivo}`}

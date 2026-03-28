@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -9,7 +9,7 @@ import { Download, X, Loader2, FileText, Image as ImageIcon, ZoomIn, ZoomOut, Ro
 interface ServerFilePreviewModalProps {
   isOpen: boolean
   onClose: () => void
-  /** URL completa del archivo en el servidor */
+  /** URL pública del archivo (ruta /storage/... o similar) */
   fileUrl: string | null
   /** Nombre del archivo para mostrar y para descargar */
   fileName: string
@@ -17,7 +17,7 @@ interface ServerFilePreviewModalProps {
   tipoDocumento?: string
   /** Estado del documento (pendiente, aprobado, rechazado) */
   estado?: string
-  /** Token de autenticación (si se necesita para la descarga) */
+  /** Mantenido por compatibilidad hacia atrás — ya no se usa */
   authToken?: string | null
 }
 
@@ -32,30 +32,27 @@ export function ServerFilePreviewModal({
 }: ServerFilePreviewModalProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
-  const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(0)
+  /** Blob URL creada al hacer fetch autenticado — se revoca al cerrar/cambiar */
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
 
   // Determinar tipo de archivo
   const extension = fileName?.split(".").pop()?.toLowerCase() || ""
   const isImage = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(extension)
   const isPDF = extension === "pdf"
 
-  // Limpiar blob URL al cerrar
+  // Fetch autenticado del archivo → blob URL para evitar errores 401 en <img>/<iframe>
   useEffect(() => {
-    return () => {
-      if (blobUrl) {
-        URL.revokeObjectURL(blobUrl)
-      }
+    // Revocar blob anterior
+    if (blobUrl) {
+      URL.revokeObjectURL(blobUrl)
+      setBlobUrl(null)
     }
-  }, [blobUrl])
 
-  // Cargar archivo desde el servidor cuando se abre el modal
-  useEffect(() => {
     if (!isOpen || !fileUrl) {
       setLoading(false)
       setError(false)
-      setBlobUrl(null)
       setZoom(1)
       setRotation(0)
       return
@@ -66,39 +63,58 @@ export function ServerFilePreviewModal({
     setZoom(1)
     setRotation(0)
 
+    const token =
+      authToken ??
+      (typeof window !== "undefined" ? localStorage.getItem("token") : null)
+
+    const controller = new AbortController()
+
     const fetchFile = async () => {
       try {
-        const headers: Record<string, string> = {}
-        if (authToken) {
-          headers["Authorization"] = `Bearer ${authToken}`
-        }
+        const headers: HeadersInit = {}
+        if (token) headers["Authorization"] = `Bearer ${token}`
 
-        const res = await fetch(fileUrl, { headers })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const res = await fetch(fileUrl, { headers, signal: controller.signal })
+
+        if (!res.ok) {
+          setError(true)
+          setLoading(false)
+          return
+        }
 
         const blob = await res.blob()
         const url = URL.createObjectURL(blob)
         setBlobUrl(url)
-      } catch (err) {
-        console.error("Error al cargar vista previa:", err)
+
+        // Para PDF el iframe dispara onLoad; para imágenes usamos onLoad del <img>
+        if (isPDF) setLoading(false)
+      } catch (err: any) {
+        if (err?.name === "AbortError") return
+        console.error("Error cargando archivo:", err)
         setError(true)
-      } finally {
         setLoading(false)
       }
     }
 
     fetchFile()
-  }, [isOpen, fileUrl, authToken])
 
-  const handleDownload = useCallback(() => {
-    if (!blobUrl) return
+    return () => {
+      controller.abort()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, fileUrl])
+
+  const handleDownload = () => {
+    // Usar blobUrl si está disponible (ya descargado), si no disparar fetch directo
+    const href = blobUrl ?? fileUrl
+    if (!href) return
     const link = document.createElement("a")
-    link.href = blobUrl
+    link.href = href
     link.download = fileName || "documento"
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-  }, [blobUrl, fileName])
+  }
 
   const handleZoomIn = () => setZoom((z) => Math.min(z + 0.25, 3))
   const handleZoomOut = () => setZoom((z) => Math.max(z - 0.25, 0.25))
@@ -134,7 +150,11 @@ export function ServerFilePreviewModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[95vh] overflow-hidden p-0">
+      <DialogContent
+        className="w-auto max-w-[90vw] min-w-[320px] max-h-[90vh] overflow-hidden p-0"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         {/* Header */}
         <DialogHeader className="px-6 py-4 border-b bg-white">
           <div className="flex items-center justify-between">
@@ -168,7 +188,7 @@ export function ServerFilePreviewModal({
 
             <div className="flex items-center gap-1 flex-shrink-0 ml-4">
               {/* Controles de zoom/rotación para imágenes */}
-              {isImage && blobUrl && !loading && !error && (
+              {isImage && !loading && !error && (
                 <>
                   <Button variant="ghost" size="icon" onClick={handleZoomOut} title="Reducir">
                     <ZoomOut className="h-4 w-4" />
@@ -183,7 +203,7 @@ export function ServerFilePreviewModal({
                   <div className="w-px h-6 bg-gray-200 mx-1" />
                 </>
               )}
-              {blobUrl && (
+              {(blobUrl || fileUrl) && (
                 <Button variant="outline" size="sm" onClick={handleDownload}>
                   <Download className="h-4 w-4 mr-1.5" />
                   Descargar
@@ -197,14 +217,7 @@ export function ServerFilePreviewModal({
         </DialogHeader>
 
         {/* Content */}
-        <div className="overflow-auto bg-gray-100" style={{ maxHeight: "calc(95vh - 100px)" }}>
-          {loading && (
-            <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-              <Loader2 className="h-10 w-10 animate-spin mb-3 text-blue-500" />
-              <p className="text-sm">Cargando vista previa...</p>
-            </div>
-          )}
-
+        <div className="relative overflow-auto bg-gray-100" style={{ maxHeight: "calc(90vh - 80px)" }}>
           {error && (
             <div className="flex flex-col items-center justify-center py-20 text-gray-500">
               <FileText className="h-12 w-12 mb-3 opacity-40" />
@@ -215,39 +228,57 @@ export function ServerFilePreviewModal({
                   variant="outline"
                   size="sm"
                   className="mt-4"
-                  onClick={() => window.open(fileUrl, "_blank")}
+                  onClick={handleDownload}
                 >
                   <Download className="h-4 w-4 mr-1.5" />
-                  Abrir en nueva pestaña
+                  Descargar archivo
                 </Button>
               )}
             </div>
           )}
 
-          {!loading && !error && blobUrl && (
+          {/* Spinner mientras se descarga el blob */}
+          {loading && !error && (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
+            </div>
+          )}
+
+          {!error && blobUrl && (
             <>
               {isImage && (
-                <div className="flex items-center justify-center p-6 min-h-[400px]">
+                <div
+                  className="flex items-center justify-center p-4 overflow-auto select-none"
+                  style={{ cursor: zoom > 1 ? "grab" : "default" }}
+                >
                   <img
                     src={blobUrl}
                     alt={fileName}
-                    className="max-w-full h-auto rounded shadow-lg transition-transform duration-200"
+                    className="block rounded shadow-lg transition-transform duration-200"
                     style={{
+                      maxWidth: "80vw",
+                      maxHeight: "75vh",
+                      width: "auto",
+                      height: "auto",
                       transform: `scale(${zoom}) rotate(${rotation}deg)`,
                       transformOrigin: "center center",
                     }}
-                    onError={() => setError(true)}
+                    onLoad={() => setLoading(false)}
+                    onError={() => { setLoading(false); setError(true) }}
+                    draggable={false}
                   />
                 </div>
               )}
 
               {isPDF && (
-                <iframe
-                  src={blobUrl}
-                  className="w-full border-0"
-                  style={{ height: "calc(95vh - 110px)" }}
-                  title={`Vista previa: ${fileName}`}
-                />
+                <div className="relative" style={{ width: "75vw", height: "80vh" }}>
+                  <iframe
+                    src={blobUrl}
+                    className="w-full h-full border-0"
+                    title={`Vista previa: ${fileName}`}
+                    onLoad={() => setLoading(false)}
+                  />
+                </div>
               )}
 
               {!isImage && !isPDF && (
