@@ -33,6 +33,7 @@ interface ProgramaItem {
   inscripcion: string
   cuota_mensual: string | null       // puede ser null
   convenio_id: number | null         // lo mismo
+  duracion_meses: number             // meses reales del estudiante (no el catálogo)
   programa: {
     id: number
     abreviatura: string
@@ -504,7 +505,7 @@ export function StudentDetails() {
           },
           body: JSON.stringify({
             signature,
-            email: currentUser?.email || student?.email,
+            email: student?.email || currentUser?.email,
             prospecto: student?.name,
             programa: programa?.programa.nombre_del_programa,
             matricula: programa?.inscripcion,
@@ -585,7 +586,7 @@ export function StudentDetails() {
       <p className="text-lg font-semibold mb-4">{student.name}</p>
       <div className="mb-4 max-w-md">
         <Label htmlFor="email">Correo electrónico</Label>
-        <Input id="email" value={currentUser?.email || student.email} readOnly />
+        <Input id="email" value={student.email} readOnly />
       </div>
 
       {/* Información académica: doble/triple titulación o programa único */}
@@ -603,12 +604,12 @@ export function StudentDetails() {
                     ? "Triple titulación (3 carreras)"
                     : `Varias carreras (${programas.length})`}
                 {" · "}
-                Total: {programas.reduce((s, p) => s + (p.programa?.meses ?? 0), 0)} meses
+                Total: {programas.reduce((s, p) => s + (p.duracion_meses ?? p.programa?.meses ?? 0), 0)} meses
               </p>
               <ul className="list-disc list-inside text-sm text-slate-600 space-y-1">
                 {programas.map((p, idx) => (
                   <li key={idx}>
-                    {p.programa.abreviatura} – {p.programa.nombre_del_programa} ({p.programa.meses} meses)
+                    {p.programa.abreviatura} – {p.programa.nombre_del_programa} ({p.duracion_meses ?? p.programa.meses} meses)
                   </li>
                 ))}
               </ul>
@@ -618,7 +619,7 @@ export function StudentDetails() {
               <p className="text-sm text-slate-600">
                 <span className="font-medium">Programa:</span> {programa.programa.abreviatura} – {programa.programa.nombre_del_programa}
                 {" · "}
-                <span className="font-medium">Duración:</span> {programa.programa.meses} meses
+                <span className="font-medium">Duración:</span> {programa.duracion_meses ?? programa.programa.meses} meses
               </p>
             )
           )}
@@ -667,7 +668,7 @@ export function StudentDetails() {
                   {programas.map((p, i) => (
                     <span key={i}>
                       {i > 0 && " · "}
-                      {p.programa.abreviatura} – {p.programa.nombre_del_programa} ({p.programa.meses} meses)
+                      {p.programa.abreviatura} – {p.programa.nombre_del_programa} ({p.duracion_meses ?? p.programa.meses} meses)
                     </span>
                   ))}
                 </strong>
