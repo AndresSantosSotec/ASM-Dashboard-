@@ -70,6 +70,8 @@ export function StudentDetails() {
   const [error, setError] = useState<string | null>(null)
   const [documentos, setDocumentos] = useState<string[]>([])
   const [prospectStatus, setProspectStatus] = useState<string | null>(null)
+  const [moneda, setMoneda] = useState<"GTQ" | "USD">("GTQ")
+  const TASA_CAMBIO = 8
 
   // Firmas guardadas
   interface FirmaGuardada { id: number; nombre: string; imagen_base64: string; es_predeterminada: boolean }
@@ -113,6 +115,7 @@ export function StudentDetails() {
             dpi: json.data.numero_identificacion || "",
           })
           setProspectStatus(json.data.status ?? null)
+          if (json.data.moneda === "USD") setMoneda("USD")
         } catch (err) {
           console.error(err)
         }
@@ -684,10 +687,25 @@ export function StudentDetails() {
             </p>
 
             {/* Datos económicos */}
+            {moneda === "USD" && (
+              <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1 mb-1">
+                💱 Moneda: <strong>Dólares Americanos (USD)</strong> · Tipo de cambio: Q{TASA_CAMBIO}.00 = $1.00 USD
+              </p>
+            )}
             <p>
-              Matrícula: Q{programa.inscripcion}
+              Matrícula:{" "}
+              {moneda === "USD" ? (
+                <><strong>${(parseFloat(String(programa.inscripcion)) / TASA_CAMBIO).toFixed(2)} USD</strong>{" "}<span className="text-gray-500 text-sm">(Q{programa.inscripcion})</span></>
+              ) : (
+                <>Q{programa.inscripcion}</>
+              )}
               <br />
-              Mensualidad: Q{programa.cuota_mensual}
+              Mensualidad:{" "}
+              {moneda === "USD" && programa.cuota_mensual ? (
+                <><strong>${(parseFloat(String(programa.cuota_mensual)) / TASA_CAMBIO).toFixed(2)} USD</strong>{" "}<span className="text-gray-500 text-sm">(Q{programa.cuota_mensual})</span></>
+              ) : (
+                <>Q{programa.cuota_mensual}</>
+              )}
             </p>
 
             {/* Sección extra sólo si convenio_id y cuota_mensual existen */}
@@ -702,7 +720,11 @@ export function StudentDetails() {
                 medios de pago. Si el pago se efectúa por otros medios distintos a
                 los mencionados, la cuota se ajustará de la siguiente manera:
                 <br />
-                <strong>Mensualidad: Q{programa.cuota_mensual}</strong>
+                {moneda === "USD" ? (
+                  <strong>Mensualidad: ${(parseFloat(String(programa.cuota_mensual)) / TASA_CAMBIO).toFixed(2)} USD <span className="text-gray-500 font-normal text-sm">(Q{programa.cuota_mensual})</span></strong>
+                ) : (
+                  <strong>Mensualidad: Q{programa.cuota_mensual}</strong>
+                )}
               </p>
             )}
 

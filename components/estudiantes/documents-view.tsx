@@ -33,6 +33,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/services/api";
+import { downloadConAuth, getEstudianteDocumentoListoUrl } from "@/services/solicitudes-documentos";
 import Swal from "sweetalert2";
 
 interface DocumentoTipo {
@@ -52,12 +53,21 @@ interface SolicitudDocumento {
   banco?: string;
   numero_referencia?: string;
   fecha_recibo?: string;
+  ruta_documento_listo?: string | null;
+  observaciones?: string | null;
 }
 
 export function DocumentsView() {
   const [tiposDocumentos, setTiposDocumentos] = useState<DocumentoTipo[]>([]);
   const [solicitudes, setSolicitudes] = useState<SolicitudDocumento[]>([]);
   const [loading, setLoading] = useState(true);
+  const [moneda, setMoneda] = useState<'GTQ' | 'USD'>('GTQ');
+
+  const TASA_CAMBIO = 8;
+  const esUSD = moneda === 'USD';
+  const fmtMonto = (gtq: number) => esUSD
+    ? `$${(gtq / TASA_CAMBIO).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
+    : `Q${gtq.toFixed(2)}`;
   
   // Estado para el diálogo de solicitud
   const [showRequestDialog, setShowRequestDialog] = useState(false);
@@ -77,9 +87,10 @@ export function DocumentsView() {
   const cargarDatos = async () => {
     try {
       setLoading(true);
-      const [tiposRes, solicitudesRes] = await Promise.all([
+      const [tiposRes, solicitudesRes, estadoRes] = await Promise.all([
         api.get('/estudiante/documentos/tipos'),
         api.get('/estudiante/documentos'),
+        api.get('/estudiante/pagos/estado-cuenta').catch(() => null),
       ]);
 
       if (tiposRes.data.success) {
@@ -88,6 +99,10 @@ export function DocumentsView() {
 
       if (solicitudesRes.data.success) {
         setSolicitudes(solicitudesRes.data.data);
+      }
+
+      if (estadoRes?.data?.prospecto?.moneda) {
+        setMoneda(estadoRes.data.prospecto.moneda);
       }
     } catch (error: any) {
       console.error("Error cargando datos:", error);
@@ -212,9 +227,12 @@ export function DocumentsView() {
     }
   };
 
+  const getSolicitud = (tipoDocumento: string): SolicitudDocumento | null => {
+    return solicitudes.find((s) => s.tipo_documento === tipoDocumento) ?? null;
+  };
+
   const getSolicitudEstado = (tipoDocumento: string) => {
-    const solicitud = solicitudes.find((s) => s.tipo_documento === tipoDocumento);
-    return solicitud?.estado || null;
+    return getSolicitud(tipoDocumento)?.estado || null;
   };
 
   if (loading) {
@@ -243,15 +261,17 @@ export function DocumentsView() {
 
       <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-3">
         {tiposDocumentos.map((documento) => {
-          const estadoSolicitud = getSolicitudEstado(documento.id);
-          const tieneSolicitud = estadoSolicitud !== null;
+          const sol = getSolicitud(documento.id);
+          const estadoSolicitud = sol?.estado ?? null;
+          // Solo bloquea si hay solicitud activa (pendiente o en proceso)
+          const bloqueado = estadoSolicitud === "pendiente" || estadoSolicitud === "en_proceso";
 
           return (
             <Card key={documento.id} className="overflow-hidden">
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-start">
                   <CardTitle className="text-lg font-bold">{documento.nombre}</CardTitle>
-                  {tieneSolicitud && getEstadoBadge(estadoSolicitud)}
+                  {estadoSolicitud && getEstadoBadge(estadoSolicitud)}
                 </div>
                 <CardDescription>{documento.descripcion}</CardDescription>
               </CardHeader>
@@ -270,8 +290,34 @@ export function DocumentsView() {
                   )}
                 </div>
               </CardContent>
-              <CardFooter className="bg-gray-50 pt-2">
-                {!tieneSolicitud ? (
+              <CardFooter className="bg-gray-50 pt-2 flex flex-col gap-2">
+                {/* Botón principal según estado */}
+                {estadoSolicitud === "listo" && sol?.ruta_documento_listo ? (
+                  <Button
+                    className="w-full gap-2"
+                    variant="default"
+                    onClick={() => {
+                      downloadConAuth(
+                        getEstudianteDocumentoListoUrl(sol.id),
+                        `documento_${sol.tipo_documento}.pdf`
+                      ).catch(() =>
+                        Swal.fire('Error', 'No se pudo descargar el documento', 'error')
+                      );
+                    }}
+                  >
+                    <FileText className="h-4 w-4" />
+                    ⬇️ Descargar Documento
+                  </Button>
+                ) : estadoSolicitud === "listo" ? (
+                  <div className="w-full text-center text-xs text-green-700 bg-green-50 border border-green-200 rounded-md p-2">
+                    ✅ Listo — pasa a recogerlo o espera la notificación
+                  </div>
+                ) : bloqueado ? (
+                  <Button disabled variant="outline" className="w-full">
+                    {estadoSolicitud === "pendiente" && "⏳ Pendiente de revisión"}
+                    {estadoSolicitud === "en_proceso" && "🔄 En proceso..."}
+                  </Button>
+                ) : (
                   <Button
                     onClick={() => handleSolicitar(documento)}
                     className="w-full"
@@ -279,15 +325,17 @@ export function DocumentsView() {
                   >
                     {documento.requiere_pago ? "Solicitar y Pagar" : "Solicitar"}
                   </Button>
-                ) : estadoSolicitud === "listo" ? (
-                  <Button className="w-full" variant="default">
-                    <FileText className="mr-2 h-4 w-4" /> Descargar
-                  </Button>
-                ) : (
-                  <Button disabled variant="outline" className="w-full">
-                    {estadoSolicitud === "pendiente" && "Pendiente de revisión"}
-                    {estadoSolicitud === "en_proceso" && "En proceso..."}
-                    {estadoSolicitud === "rechazado" && "Rechazado"}
+                )}
+
+                {/* Botón secundario: solicitar de nuevo si ya fue entregado o rechazado */}
+                {(estadoSolicitud === "listo" || estadoSolicitud === "rechazado") && (
+                  <Button
+                    onClick={() => handleSolicitar(documento)}
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    {estadoSolicitud === "rechazado" ? "🔄 Solicitar nuevamente" : "📋 Solicitar nueva copia"}
                   </Button>
                 )}
               </CardFooter>
@@ -313,17 +361,18 @@ export function DocumentsView() {
                   <AlertCircle className="h-4 w-4" />
                   <AlertTitle>Costo del documento</AlertTitle>
                   <AlertDescription>
-                    Este documento tiene un costo fijo de Q{selectedDocument.monto.toFixed(2)}.
-                    Debe subir la boleta de banco con los siguientes datos:
+                    Este documento tiene un costo fijo de <strong>{fmtMonto(selectedDocument.monto)}</strong>.
+                    {esUSD && <span className="text-emerald-700"> (Equiv. Q{selectedDocument.monto.toFixed(2)} GTQ)</span>}
+                    {" "}Debe subir la boleta de banco con los siguientes datos:
                   </AlertDescription>
                 </Alert>
 
                 <div className="space-y-3">
                   <div>
-                    <Label htmlFor="monto">Monto (Fijo)</Label>
+                    <Label htmlFor="monto">Monto {esUSD ? '(USD)' : '(Fijo)'}</Label>
                     <Input
                       id="monto"
-                      value={`Q${selectedDocument.monto.toFixed(2)}`}
+                      value={fmtMonto(selectedDocument.monto)}
                       disabled
                       className="bg-gray-100"
                     />

@@ -13,8 +13,24 @@ const COLORS = {
   lightGray: [236, 240, 241] as RGB,
 }
 
-const fmtMoney = (n: number | undefined | null) =>
-  `Q ${(Number(n || 0)).toLocaleString('es-GT', { minimumFractionDigits: 2 })}`
+const TASA_CAMBIO = 8
+
+// Formatea monto. Si esUSD=true devuelve "$X.XX USD" con equivalente GTQ entre paréntesis.
+const fmtMoney = (n: number | undefined | null, esUSD = false): string => {
+  const gtq = Number(n || 0)
+  if (esUSD) {
+    const usd = gtq / TASA_CAMBIO
+    return `$${usd.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
+  }
+  return `Q ${gtq.toLocaleString('es-GT', { minimumFractionDigits: 2 })}`
+}
+
+// Devuelve "$X.XX USD\n(Q Y.YY)" para celdas de tabla con doble moneda
+const fmtMoneyDual = (n: number | undefined | null): string => {
+  const gtq = Number(n || 0)
+  const usd = gtq / TASA_CAMBIO
+  return `$${usd.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD (Q ${gtq.toLocaleString('es-GT', { minimumFractionDigits: 2 })})`
+}
 
 const fmtDate = (d?: string | number | Date | null) =>
   d ? new Date(d).toLocaleDateString('es-GT') : '—'
@@ -175,18 +191,23 @@ export const generateDetailedAccountStatePDF = async (
   footerImagePath: string = '/recursos/Logos_Mesa.png'
 ) => {
   const doc = new jsPDF()
+  const esUSD = (data.student?.moneda ?? 'GTQ') === 'USD'
+  const fmt = (n: number | undefined | null) => esUSD ? fmtMoneyDual(n) : fmtMoney(n)
 
   // Cargar imágenes con rutas por defecto
   const headerImage = await loadImageAsBase64(headerImagePath)
   const footerImage = await loadImageAsBase64(footerImagePath)
 
-  // Defaults para TODAS las tablas
-  ;(doc as any).autoTableSetDefaults({
+  // Defaults para TODAS las tablas — autoTableSetDefaults fue eliminado en v3+
+  const tblDefaults = {
     margin: { top: CONTENT_TOP, bottom: FOOTER_HEIGHT + 8, left: LEFT, right: RIGHT },
     styles: { font: 'helvetica', fontSize: 10 },
     didDrawPage: () => drawHeaderFooter(doc, headerImage, footerImage),
-    pageBreak: 'auto',
-  })
+    pageBreak: 'auto' as const,
+  }
+
+  // Dibujar header/footer en la primera página
+  drawHeaderFooter(doc, headerImage, footerImage)
 
   // ===== Sección: Información del estudiante =====
   let y = CONTENT_TOP
@@ -214,14 +235,27 @@ export const generateDetailedAccountStatePDF = async (
   
   const name = data.student?.name ?? '—'
   const carnet = data.student?.carnet ?? 'No asignado'
-  // 🔥 CORRECCIÓN: Buscar email en el campo correcto
   const email = data.student?.email ?? (data.student as any)?.correo ?? ''
 
   y += 8
   doc.text(`Nombre: ${name}`, LEFT + 5, y)
+
+  // Badge de moneda USD en la esquina superior derecha del bloque info
+  if (esUSD) {
+    doc.setFillColor(209, 250, 229) // emerald-100
+    doc.setDrawColor(52, 211, 153)  // emerald-400
+    doc.roundedRect(LEFT + CONTENT_WIDTH - 42, y - 6, 38, 8, 2, 2, 'FD')
+    doc.setTextColor(4, 120, 87)    // emerald-700
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Moneda: USD · Q8=$1', LEFT + CONTENT_WIDTH - 41, y - 1)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(11)
+    doc.setTextColor(...COLORS.secondary)
+  }
+
   y += 7
   doc.text(`Carnet: ${carnet}`, LEFT + 5, y)
-  // 🔥 Solo mostrar email si existe
   if (email && email.trim() !== '') {
     doc.text(`Email: ${email}`, LEFT + 90, y)
   }
@@ -282,8 +316,8 @@ export const generateDetailedAccountStatePDF = async (
   )
 
   const summaryRows: any[] = [
-    ['Total Pagado', fmtMoney(totalPaid), 'Aplicado'],
-    ['Saldo Pendiente', fmtMoney(totalPending), totalPending > 0 ? 'Pendiente' : 'Completo'],
+    ['Total Pagado', fmt(totalPaid), 'Aplicado'],
+    ['Saldo Pendiente', fmt(totalPending), totalPending > 0 ? 'Pendiente' : 'Completo'],
     ['Pagos Atrasados', String(data.balance?.latePayments ?? 0),
       (data.balance?.latePayments ?? 0) > 0 ? 'Requiere Atención' : 'Al Día'],
   ]
@@ -296,9 +330,17 @@ export const generateDetailedAccountStatePDF = async (
     summaryRows.push(['Próximo Vencimiento', fmtDate(data.balance.nextDueDate), days])
   }
 
+  // Fila extra con equivalencia GTQ si es USD
+  if (esUSD) {
+    summaryRows.push([
+      { content: 'Tipo de cambio aplicado: Q8.00 por cada $1.00 USD', colSpan: 3, styles: { fontStyle: 'italic' as const, fontSize: 8, textColor: [100, 100, 100] as RGB, fillColor: [241, 245, 249] as RGB } }
+    ])
+  }
+
   autoTable(doc, {
+    ...tblDefaults,
     startY: y,
-    head: [['Concepto', 'Monto/Fecha', 'Estado']],
+    head: [['Concepto', esUSD ? 'Monto (USD · GTQ)' : 'Monto / Fecha', 'Estado']],
     body: summaryRows,
     theme: 'grid',
     headStyles: {
@@ -346,7 +388,7 @@ export const generateDetailedAccountStatePDF = async (
       return [
         programaNombre ? `[${programaNombre}] ${concepto}` : concepto,
         fmtDate(p.dueDate),
-        fmtMoney(Number(p.amount || 0)), // Solo monto base
+        fmt(Number(p.amount || 0)),
         p.status === 'vencido' ? `Vencido${p.daysLate ? ` (${p.daysLate}d)` : ''}` : 'Pendiente',
       ]
     })
@@ -358,20 +400,21 @@ export const generateDetailedAccountStatePDF = async (
 
     if (totalMora > 0) {
       pendingRows.push(
-        ['', '', '', ''], // Fila vacía
-        ['', 'Mora (recargo único):', fmtMoney(totalMora), ''], // Mora única Q50
-        ['', 'TOTAL A PAGAR:', fmtMoney(totalConMora), ''] // Total con mora
+        ['', '', '', ''],
+        ['', 'Mora (recargo único):', fmt(totalMora), ''],
+        ['', 'TOTAL A PAGAR:', fmt(totalConMora), '']
       )
     } else {
       pendingRows.push(
-        ['', '', '', ''], // Fila vacía
-        ['', 'TOTAL PENDIENTE:', fmtMoney(totalPendiente), '']
+        ['', '', '', ''],
+        ['', 'TOTAL PENDIENTE:', fmt(totalPendiente), '']
       )
     }
 
     autoTable(doc, {
+      ...tblDefaults,
       startY: y,
-      head: [['Concepto', 'Vencimiento', 'Monto', 'Estado']],
+      head: [['Concepto', 'Vencimiento', esUSD ? 'Monto (USD · GTQ)' : 'Monto', 'Estado']],
       body: pendingRows,
       theme: 'striped',
       headStyles: {
@@ -382,9 +425,9 @@ export const generateDetailedAccountStatePDF = async (
       },
       bodyStyles: { fontSize: 9 },
       columnStyles: {
-        0: { cellWidth: 75 },
-        1: { cellWidth: 28 },
-        2: { cellWidth: 28, halign: 'right' },
+        0: { cellWidth: esUSD ? 55 : 75 },
+        1: { cellWidth: 25 },
+        2: { cellWidth: esUSD ? 50 : 28, halign: 'right' },
         3: { cellWidth: 29, halign: 'center' },
       },
       didParseCell: (data: any) => {
@@ -472,27 +515,25 @@ export const generateDetailedAccountStatePDF = async (
         const historyRows = historialPrograma.map(h => {
           const esEspecial = (h as any).es_especial === true
           let concepto = h.concept ?? '—'
-          if (esEspecial) {
-            concepto = `[*] ${concepto}`
-          }
+          if (esEspecial) concepto = `[*] ${concepto}`
           return [
             fmtDate(h.paymentDate),
             concepto,
             h.method ?? '—',
             h.reference ?? '—',
-            fmtMoney(h.amount),
+            fmt(h.amount),
           ]
         })
 
-        // Subtotal del programa
         const subtotalPrograma = historialPrograma.reduce((sum, h) => sum + Number(h.amount || 0), 0)
         historyRows.push(
-          ['', '', '', 'Subtotal:', fmtMoney(subtotalPrograma)]
+          ['', '', '', 'Subtotal:', fmt(subtotalPrograma)]
         )
 
         autoTable(doc, {
+          ...tblDefaults,
           startY: y,
-          head: [['Fecha', 'Concepto', 'Método', 'Referencia', 'Monto']],
+          head: [['Fecha', 'Concepto', 'Método', 'Referencia', esUSD ? 'Monto (USD · GTQ)' : 'Monto']],
           body: historyRows,
           theme: 'striped',
           headStyles: {
@@ -503,15 +544,14 @@ export const generateDetailedAccountStatePDF = async (
           },
           bodyStyles: { fontSize: 9 },
           columnStyles: {
-            0: { cellWidth: 25 },
-            1: { cellWidth: 65 },
-            2: { cellWidth: 25, halign: 'center' },
-            3: { cellWidth: 30, halign: 'center' },
-            4: { cellWidth: 25, halign: 'right' },
+            0: { cellWidth: 23 },
+            1: { cellWidth: esUSD ? 47 : 65 },
+            2: { cellWidth: 22, halign: 'center' },
+            3: { cellWidth: 23, halign: 'center' },
+            4: { cellWidth: esUSD ? 45 : 25, halign: 'right' },
           },
           styles: { overflow: 'linebreak' },
           didParseCell: (data: any) => {
-            // Resaltar fila de subtotal
             if (data.row.index === historyRows.length - 1) {
               data.cell.styles.fontStyle = 'bold'
               data.cell.styles.fillColor = [230, 255, 230] as RGB
@@ -532,7 +572,7 @@ export const generateDetailedAccountStatePDF = async (
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(12)
       doc.setTextColor(0, 100, 0)
-      doc.text(`TOTAL PAGADO (todos los programas): ${fmtMoney(totalPagadoGeneral)}`, LEFT, y)
+      doc.text(`TOTAL PAGADO (todos los programas): ${fmt(totalPagadoGeneral)}`, LEFT, y)
       y += 8
 
     } else {
@@ -552,27 +592,25 @@ export const generateDetailedAccountStatePDF = async (
       const historyRows = historyOrdenado.map(h => {
         const esEspecial = (h as any).es_especial === true
         let concepto = h.concept ?? '—'
-        if (esEspecial) {
-          concepto = `[*] ${concepto}`
-        }
+        if (esEspecial) concepto = `[*] ${concepto}`
         return [
           fmtDate(h.paymentDate),
           concepto,
           h.method ?? '—',
           h.reference ?? '—',
-          fmtMoney(h.amount),
+          fmt(h.amount),
         ]
       })
 
-      // Total pagado
       historyRows.push(
         ['', '', '', '', ''],
-        ['', '', '', 'TOTAL PAGADO:', fmtMoney(totalPagadoGeneral)]
+        ['', '', '', 'TOTAL PAGADO:', fmt(totalPagadoGeneral)]
       )
 
       autoTable(doc, {
+        ...tblDefaults,
         startY: y,
-        head: [['Fecha', 'Concepto', 'Método', 'Referencia', 'Monto']],
+        head: [['Fecha', 'Concepto', 'Método', 'Referencia', esUSD ? 'Monto (USD · GTQ)' : 'Monto']],
         body: historyRows,
         theme: 'striped',
         headStyles: {
@@ -583,15 +621,14 @@ export const generateDetailedAccountStatePDF = async (
         },
         bodyStyles: { fontSize: 9 },
         columnStyles: {
-          0: { cellWidth: 25 },
-          1: { cellWidth: 65 },
-          2: { cellWidth: 25, halign: 'center' },
-          3: { cellWidth: 30, halign: 'center' },
-          4: { cellWidth: 25, halign: 'right' },
+          0: { cellWidth: 23 },
+          1: { cellWidth: esUSD ? 47 : 65 },
+          2: { cellWidth: 22, halign: 'center' },
+          3: { cellWidth: 23, halign: 'center' },
+          4: { cellWidth: esUSD ? 45 : 25, halign: 'right' },
         },
         styles: { overflow: 'linebreak' },
         didParseCell: (data: any) => {
-          // Resaltar fila de total
           const rowCount = historyRows.length
           if (data.row.index >= rowCount - 2) {
             data.cell.styles.fontStyle = 'bold'

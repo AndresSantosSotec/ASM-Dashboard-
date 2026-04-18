@@ -56,6 +56,7 @@ const INITIAL_LABORAL: DatosLaborales = {
 }
 
 const INITIAL_FINANCIERO: DatosFinancieros = {
+  moneda: "GTQ",
   inscripcion: "1,000.00", cuotaMensual: "1,400.00", cantidadMeses: "18",
   inversionTotal: "26,200.00", formaPago: "debito", referencia: "",
   aceptaTerminos: false, tieneConvenio: false
@@ -387,6 +388,7 @@ export default function RegistrationForm() {
         formaPago: (dup.metodo_pago as DatosFinancieros["formaPago"]) || prev.formaPago,
         convenioId: dup.convenio_pago_id || undefined,
         tieneConvenio: !!dup.convenio_pago_id,
+        moneda: dup.moneda ?? prev.moneda,
       }))
     }
 

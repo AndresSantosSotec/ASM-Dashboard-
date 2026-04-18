@@ -69,6 +69,7 @@ interface FichaInscripcion {
     cuota_mensual: number
     duracion_meses: number
     inversion_total: number
+    moneda?: string
   }
   servicios_electronicos: {
     cantidad_cursos: number
@@ -336,6 +337,8 @@ export default function FirmarContratoPage() {
   if (!contrato || !prospecto) return null
 
   const datos = contrato.datos_contrato
+  const TASA_CAMBIO = 8
+  const esUSD = fichaInscripcion?.datos_financieros?.moneda === "USD"
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900" style={{ colorScheme: 'light' }}>
@@ -517,6 +520,11 @@ export default function FirmarContratoPage() {
               💰 Datos Financieros
             </div>
             <div className="border border-slate-300 rounded-b-md mb-5 overflow-hidden">
+              {esUSD && (
+                <div className="px-3 py-2 bg-emerald-50 border-b border-emerald-200 text-xs text-emerald-700 font-medium">
+                  💱 Moneda: <strong>Dólares Americanos (USD)</strong> · Tipo de cambio: Q{TASA_CAMBIO}.00 = $1.00 USD
+                </div>
+              )}
               <table className="w-full text-sm">
                 <tbody>
                   <tr className="border-b border-slate-200">
@@ -528,20 +536,38 @@ export default function FirmarContratoPage() {
                     <td className="p-3">{fichaInscripcion.datos_financieros.forma_pago}</td>
                   </tr>
                   <tr className="border-b border-slate-200">
-                    <td className="p-3 bg-slate-50 font-bold text-[#1e264d]">Inscripción (Q)</td>
-                    <td className="p-3 bg-amber-50 font-bold">Q{Number(fichaInscripcion.datos_financieros.inscripcion).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-3 bg-slate-50 font-bold text-[#1e264d]">{esUSD ? "Inscripción" : "Inscripción (Q)"}</td>
+                    <td className="p-3 bg-amber-50 font-bold">
+                      {esUSD ? (
+                        <>${(Number(fichaInscripcion.datos_financieros.inscripcion) / TASA_CAMBIO).toLocaleString('es-GT', { minimumFractionDigits: 2 })} USD <span className="text-slate-400 font-normal text-xs">(Q{Number(fichaInscripcion.datos_financieros.inscripcion).toLocaleString('es-GT', { minimumFractionDigits: 2 })})</span></>
+                      ) : (
+                        <>Q{Number(fichaInscripcion.datos_financieros.inscripcion).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</>
+                      )}
+                    </td>
                   </tr>
                   <tr className="border-b border-slate-200">
-                    <td className="p-3 bg-slate-50 font-bold text-[#1e264d]">Cuota mensual (Q)</td>
-                    <td className="p-3 bg-amber-50 font-bold">Q{Number(fichaInscripcion.datos_financieros.cuota_mensual).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-3 bg-slate-50 font-bold text-[#1e264d]">{esUSD ? "Cuota mensual" : "Cuota mensual (Q)"}</td>
+                    <td className="p-3 bg-amber-50 font-bold">
+                      {esUSD ? (
+                        <>${(Number(fichaInscripcion.datos_financieros.cuota_mensual) / TASA_CAMBIO).toLocaleString('es-GT', { minimumFractionDigits: 2 })} USD <span className="text-slate-400 font-normal text-xs">(Q{Number(fichaInscripcion.datos_financieros.cuota_mensual).toLocaleString('es-GT', { minimumFractionDigits: 2 })})</span></>
+                      ) : (
+                        <>Q{Number(fichaInscripcion.datos_financieros.cuota_mensual).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</>
+                      )}
+                    </td>
                   </tr>
                   <tr className="border-b border-slate-200">
                     <td className="p-3 bg-slate-50 font-bold text-[#1e264d]">Cantidad en meses</td>
                     <td className="p-3">{fichaInscripcion.datos_financieros.duracion_meses} meses</td>
                   </tr>
                   <tr>
-                    <td className="p-3 bg-slate-50 font-bold text-[#1e264d]">Inversión total (Q)</td>
-                    <td className="p-3 bg-amber-50 font-bold">Q{Number(fichaInscripcion.datos_financieros.inversion_total).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-3 bg-slate-50 font-bold text-[#1e264d]">{esUSD ? "Inversión total" : "Inversión total (Q)"}</td>
+                    <td className="p-3 bg-amber-50 font-bold">
+                      {esUSD ? (
+                        <>${(Number(fichaInscripcion.datos_financieros.inversion_total) / TASA_CAMBIO).toLocaleString('es-GT', { minimumFractionDigits: 2 })} USD <span className="text-slate-400 font-normal text-xs">(Q{Number(fichaInscripcion.datos_financieros.inversion_total).toLocaleString('es-GT', { minimumFractionDigits: 2 })})</span></>
+                      ) : (
+                        <>Q{Number(fichaInscripcion.datos_financieros.inversion_total).toLocaleString('es-GT', { minimumFractionDigits: 2 })}</>
+                      )}
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -562,26 +588,24 @@ export default function FirmarContratoPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b border-slate-200">
-                    <td className="p-2 bg-slate-50 font-semibold">Proyecto Final</td>
-                    <td className="p-2 text-center">Q1,600.00</td>
-                    <td className="p-2 text-center">Q1,760.00</td>
-                  </tr>
-                  <tr className="border-b border-slate-200">
-                    <td className="p-2 bg-slate-50 font-semibold">Graduación</td>
-                    <td className="p-2 text-center">Q2,845.00</td>
-                    <td className="p-2 text-center">Q3,129.50</td>
-                  </tr>
-                  <tr className="border-b border-slate-200">
-                    <td className="p-2 bg-slate-50 font-semibold">Gastos de Título</td>
-                    <td className="p-2 text-center">Q3,999.00</td>
-                    <td className="p-2 text-center">Q4,398.90</td>
-                  </tr>
-                  <tr className="border-b border-slate-200">
-                    <td className="p-2 bg-slate-50 font-semibold">Certificación Internacional</td>
-                    <td className="p-2 text-center">Q2,000.00</td>
-                    <td className="p-2 text-center">Q2,200.00</td>
-                  </tr>
+                  {[
+                    { concepto: "Proyecto Final",            transfer: 1600,  otro: 1760 },
+                    { concepto: "Graduación",                transfer: 2845,  otro: 3129.5 },
+                    { concepto: "Gastos de Título",          transfer: 3999,  otro: 4398.9 },
+                    { concepto: "Certificación Internacional",transfer: 2000,  otro: 2200 },
+                  ].map((row, i) => (
+                    <tr key={i} className="border-b border-slate-200">
+                      <td className="p-2 bg-slate-50 font-semibold">{row.concepto}</td>
+                      <td className="p-2 text-center">
+                        Q{row.transfer.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                        {esUSD && <div className="text-emerald-600 text-xs font-semibold">${(row.transfer / TASA_CAMBIO).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</div>}
+                      </td>
+                      <td className="p-2 text-center">
+                        Q{row.otro.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                        {esUSD && <div className="text-emerald-600 text-xs font-semibold">${(row.otro / TASA_CAMBIO).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</div>}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
 
@@ -616,8 +640,14 @@ export default function FirmarContratoPage() {
                     return (
                       <tr className="border-b border-slate-200">
                         <td className="p-2 bg-slate-50 font-semibold">Programa de {servicio.cantidad_cursos} cursos</td>
-                        <td className="p-2 text-center">Q{transfer.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-2 text-center">Q{otro.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-2 text-center">
+                          Q{transfer.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                          {esUSD && <div className="text-emerald-600 text-xs font-semibold">${(transfer / TASA_CAMBIO).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</div>}
+                        </td>
+                        <td className="p-2 text-center">
+                          Q{otro.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                          {esUSD && <div className="text-emerald-600 text-xs font-semibold">${(otro / TASA_CAMBIO).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</div>}
+                        </td>
                       </tr>
                     );
                   })()}

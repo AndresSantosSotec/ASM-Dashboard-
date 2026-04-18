@@ -230,6 +230,48 @@ export default function FinancieroTab({
 
       {/* — Formulario — */}
       <div className="grid gap-6 md:grid-cols-2">
+
+        {/* 💱 Selector de Moneda */}
+        <div className="md:col-span-2">
+          <div className="flex items-start gap-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
+            <div className="flex-1 space-y-2">
+              <Label className="text-blue-900 font-semibold">
+                Tipo de moneda del estudiante <RequiredAsterisk />
+              </Label>
+              <Select
+                value={datos.moneda ?? "GTQ"}
+                onValueChange={v => setDatos(d => ({ ...d, moneda: v as "GTQ" | "USD" }))}
+                disabled={loading}
+              >
+                <SelectTrigger className="w-64 border-blue-300">
+                  <SelectValue placeholder="Seleccionar moneda" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="GTQ">Q Quetzales (GTQ)</SelectItem>
+                  <SelectItem value="USD">$ Dólares (USD)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1 text-sm text-blue-800 space-y-1">
+              {datos.moneda === "USD" ? (
+                <>
+                  <p className="font-semibold text-green-800">Estudiante en dólares (USD)</p>
+                  <p>• Los montos se <strong>ingresan en quetzales</strong> en este formulario.</p>
+                  <p>• El sistema mostrará el equivalente en USD usando la <strong>tasa fija de Q8 = $1</strong>.</p>
+                  <p>• Al estudiante le aparecerán los montos en <strong>dólares</strong> en su plan de pagos.</p>
+                  <p className="text-orange-700">• <strong>No se cobra mora</strong> a estudiantes USD.</p>
+                </>
+              ) : (
+                <>
+                  <p className="font-semibold">Estudiante en quetzales (GTQ)</p>
+                  <p>• Todos los montos se muestran y cobran en <strong>quetzales</strong>.</p>
+                  <p>• Se aplican las reglas de mora normales.</p>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
         <div className="space-y-2">
           <Label>
             ¿Posee convenio corporativo? <RequiredAsterisk />
@@ -300,10 +342,18 @@ export default function FinancieroTab({
 
       {/* — Costos dinámicos — */}
       <div className={`mt-6 grid gap-4 md:grid-cols-4 ${loading ? "opacity-50" : ""}`}>
+        {/* Nota para USD: los montos se ingresan en Q */}
+        {datos.moneda === "USD" && (
+          <div className="md:col-span-4 rounded bg-green-50 border border-green-200 px-4 py-2 text-sm text-green-800">
+            <strong>Estudiante USD:</strong> ingresa los montos en quetzales (Q). El equivalente en dólares se calculará automáticamente con la tasa fija de <strong>Q8 = $1</strong>.
+          </div>
+        )}
         <div>
           <InputWithLabel
             id="ins"
-            label="Inscripción (Q)"
+            label={datos.moneda === "USD"
+              ? `Inscripción (Q) ≈ $${(parseFloat(String(datos.inscripcion || "0").replace(/,/g, "")) / 8).toFixed(2)}`
+              : "Inscripción (Q)"}
             value={datos.inscripcion}
             placeholder={datos.inscripcionCero ? "0.00" : sugeridos.inscripcion}
             onChange={datos.inscripcionCero ? undefined : (v) => setDatos((d) => ({ ...d, inscripcion: v }))}
@@ -358,7 +408,9 @@ export default function FinancieroTab({
         </div>
         <InputWithLabel
           id="cuo"
-          label="Cuota mensual (Q)"
+          label={datos.moneda === "USD"
+            ? `Cuota mensual (Q) ≈ $${(parseFloat(String(datos.cuotaMensual || "0").replace(/,/g, "")) / 8).toFixed(2)}`
+            : "Cuota mensual (Q)"}
           value={datos.cuotaMensual}
           placeholder={sugeridos.cuota}
           onChange={(v) => setDatos((d) => ({ ...d, cuotaMensual: v }))}
@@ -373,7 +425,9 @@ export default function FinancieroTab({
         />
         <InputWithLabel
           id="inv"
-          label="Inversión total (Q)"
+          label={datos.moneda === "USD"
+            ? `Inversión total (Q) ≈ $${(parseFloat(datos.inversionTotal || "0") / 8).toFixed(2)}`
+            : "Inversión total (Q)"}
           value={datos.inversionTotal}
           readOnly
           bold
@@ -414,15 +468,26 @@ export default function FinancieroTab({
         programa={programa}
         telefono={telefono}
         email={email}
+        moneda={datos.moneda}
       />
 
       {/* — Tablas fijas — */}
       <div className="mt-8 rounded-lg bg-blue-50 p-4">
         <h3 className="mb-3 font-semibold text-blue-900">INVERSIÓN ADICIONAL OBLIGATORIA</h3>
+        {datos.moneda === "USD" && (
+          <p className="mb-2 text-xs text-blue-600">Los montos en paréntesis son el equivalente en dólares (÷8)</p>
+        )}
         <TableSimple
           titulo="Gastos finales"
           head={["", "Transferencia / Depósito", "Otro método"]}
-          rows={gastosFinales.map(g => [g.concepto, g.transfer, g.otro])}
+          rows={gastosFinales.map(g => {
+            const pQ = (s: string) => parseFloat(s.replace(/[Q,]/g, "")) || 0
+            return [
+              g.concepto,
+              datos.moneda === "USD" ? `${g.transfer} ($${(pQ(g.transfer) / 8).toFixed(2)})` : g.transfer,
+              datos.moneda === "USD" ? `${g.otro} ($${(pQ(g.otro) / 8).toFixed(2)})` : g.otro,
+            ]
+          })}
         />
         <TableSimple
           titulo="Servicios electrónicos"
@@ -449,7 +514,12 @@ export default function FinancieroTab({
               mostrar.sort((a, b) => parseInt(a.curso) - parseInt(b.curso));
             }
 
-            return mostrar.map(s => [`Programa de ${s.curso} cursos`, s.transfer, s.otro]);
+            const pQ = (s: string) => parseFloat(s.replace(/[Q,]/g, "")) || 0
+            return mostrar.map(s => [
+              `Programa de ${s.curso} cursos`,
+              datos.moneda === "USD" ? `${s.transfer} ($${(pQ(s.transfer) / 8).toFixed(2)})` : s.transfer,
+              datos.moneda === "USD" ? `${s.otro} ($${(pQ(s.otro) / 8).toFixed(2)})` : s.otro,
+            ]);
           })()}
         />
         <SmallPrint />

@@ -76,6 +76,7 @@ interface Props {
   programa?: string
   telefono?: string
   email?: string
+  moneda?: "GTQ" | "USD"
 }
 
 const numberToWords = (num: number): string => {
@@ -128,7 +129,7 @@ const amountToWords = (amount: string): string => {
 export default function ReciboPagoGenerator({
   open, onOpenChange, elevatedZIndex, studentName, nit, monto, concepto,
   formaPago, cuotaMensual, cantidadMeses, inversionTotal, convenioNombre,
-  programa, telefono, email,
+  programa, telefono, email, moneda,
 }: Props) {
   const today = new Date().toISOString().split("T")[0]
   const printRef = useRef<HTMLDivElement>(null)
@@ -139,6 +140,7 @@ export default function ReciboPagoGenerator({
   // Cache de logos en base64 para que la descarga/impresión sea rápida (se precargan al abrir el modal)
   const [logoHeaderB64, setLogoHeaderB64] = useState<string | null>(null)
   const [logoFooterB64, setLogoFooterB64] = useState<string | null>(null)
+  const [verEnDolares, setVerEnDolares] = useState(moneda === "USD")
 
   // Mapear forma de pago del sistema al recibo
   const mapFormaPago = (fp?: string): "Efectivo" | "Tarjeta" | "Cheque" | "Boleta" => {
@@ -261,6 +263,8 @@ export default function ReciboPagoGenerator({
     return () => { cancelled = true }
   }, [open])
 
+  useEffect(() => { setVerEnDolares(moneda === "USD") }, [moneda])
+
   // Generar siguiente número de recibo vía API
   const generarNumeroRecibo = async () => {
     setGenerandoNumero(true)
@@ -375,6 +379,11 @@ export default function ReciboPagoGenerator({
 
   const handleDownloadPDF = async () => {
     setIsPrinting(true)
+    const _esUSD = verEnDolares
+    const _simbol = _esUSD ? "$" : "Q."
+    const _convQ = (v: string) => { const n = parseFloat(String(v || "0").replace(/,/g, "")) || 0; return _esUSD ? (n / 8).toFixed(2) : n.toFixed(2) }
+    const _totalDisp = _convQ(recibo.total || "0")
+    const _cantLetras = _esUSD ? amountToWords((parseFloat(recibo.total || "0") / 8).toFixed(2)) + " dólares" : recibo.cantidadLetras
     try {
       // Usar logos en caché si ya se precargaron; si no, cargarlos ahora (en paralelo con registrarRecibo)
       const [headerLogoB64, footerLogoB64] = await Promise.all([
@@ -440,9 +449,9 @@ export default function ReciboPagoGenerator({
       doc.text(formattedDate, 80, line2Y)
 
       doc.setFont("helvetica", "bold")
-      doc.text("Q", 480, line2Y)
+      doc.text(_simbol, 480, line2Y)
       doc.setFont("helvetica", "normal")
-      const totalStr = parseFloat(recibo.total).toFixed(2)
+      const totalStr = _totalDisp
       doc.text(totalStr, 520, line2Y)
 
       const line3Y = line2Y + 20
@@ -455,7 +464,7 @@ export default function ReciboPagoGenerator({
       doc.setFont("helvetica", "bold")
       doc.text("La cantidad de:", 40, line4Y)
       doc.setFont("helvetica", "normal")
-      doc.text(recibo.cantidadLetras || "", 125, line4Y)
+      doc.text(_cantLetras || "", 125, line4Y)
 
       // --- Table ---
       let tableY = line4Y + 25
@@ -488,7 +497,7 @@ export default function ReciboPagoGenerator({
         doc.line(40 + colWidth1, tableY, 40 + colWidth1, tableY + rowHeight)
 
         doc.text(item.label, 45, tableY + 14)
-        const valStr = `Q. ${item.value ? parseFloat(item.value).toFixed(2) : "________"}`
+        const valStr = `${_simbol} ${item.value ? _convQ(item.value) : "________"}`
         doc.text(valStr, 560, tableY + 14, { align: "right" })
 
         tableY += rowHeight
@@ -556,7 +565,13 @@ export default function ReciboPagoGenerator({
       footerY += 25
       doc.setFontSize(12)
       doc.setFont("helvetica", "bold")
-      doc.text(`Total Q. ${parseFloat(recibo.total).toFixed(2)}`, 40, footerY)
+      doc.text(`Total ${_simbol} ${_totalDisp}`, 40, footerY)
+      if (_esUSD) {
+        footerY += 14
+        doc.setFontSize(8)
+        doc.setFont("helvetica", "normal")
+        doc.text("Tipo de cambio: Q8.00 = $1.00 USD", 40, footerY)
+      }
 
       footerY += 30
       doc.setFontSize(9)
@@ -583,6 +598,11 @@ export default function ReciboPagoGenerator({
 
   const handlePrint = async () => {
     setIsPrinting(true)
+    const _esUSD = verEnDolares
+    const _simbol = _esUSD ? "$" : "Q."
+    const _convQ = (v: string) => { const n = parseFloat(String(v || "0").replace(/,/g, "")) || 0; return _esUSD ? (n / 8).toFixed(2) : n.toFixed(2) }
+    const _totalDisp = _convQ(recibo.total || "0")
+    const _cantLetras = _esUSD ? amountToWords((parseFloat(recibo.total || "0") / 8).toFixed(2)) + " dólares" : recibo.cantidadLetras
     try {
       // Usar logos en caché si están; si no, cargarlos
       const [headerLogoB64, footerLogoB64] = await Promise.all([
@@ -653,25 +673,25 @@ export default function ReciboPagoGenerator({
         </div>
         <div class="info-row">
           <span><strong>Fecha</strong> ${new Date(recibo.fecha + "T12:00:00").toLocaleDateString("es-GT", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
-          <span><strong>Q</strong>${recibo.total}</span>
+          <span><strong>${_simbol}</strong>${_totalDisp}</span>
         </div>
         <div class="info-row">
           <span><strong>Recibimos de:</strong> ${recibo.recibidoDe}</span>
         </div>
         <div class="info-row">
-          <span><strong>La cantidad de:</strong> ${recibo.cantidadLetras}</span>
+          <span><strong>La cantidad de:</strong> ${_cantLetras}</span>
         </div>
 
         <table class="concepto-table">
           <thead><tr><th colspan="2">Concepto</th></tr></thead>
           <tbody>
-            <tr><td>Matrícula</td><td class="amount-cell">Q. ${recibo.matricula || "________"}</td></tr>
-            <tr><td>Mensualidad</td><td class="amount-cell">Q. ${recibo.mensualidad || "________"}</td></tr>
-            <tr><td>Mora</td><td class="amount-cell">Q. ${recibo.mora || "________"}</td></tr>
-            <tr><td>Graduación</td><td class="amount-cell">Q. ${recibo.graduacion || "________"}</td></tr>
-            <tr><td>Títulos</td><td class="amount-cell">Q. ${recibo.titulos || "________"}</td></tr>
-            <tr><td>Proyecto de Grado</td><td class="amount-cell">Q. ${recibo.proyectoGrado || "________"}</td></tr>
-            <tr><td>Otros:</td><td class="amount-cell">Q. ${recibo.otros || "________"}</td></tr>
+            <tr><td>Matrícula</td><td class="amount-cell">${_simbol} ${recibo.matricula ? _convQ(recibo.matricula) : "________"}</td></tr>
+            <tr><td>Mensualidad</td><td class="amount-cell">${_simbol} ${recibo.mensualidad ? _convQ(recibo.mensualidad) : "________"}</td></tr>
+            <tr><td>Mora</td><td class="amount-cell">${_simbol} ${recibo.mora ? _convQ(recibo.mora) : "________"}</td></tr>
+            <tr><td>Graduación</td><td class="amount-cell">${_simbol} ${recibo.graduacion ? _convQ(recibo.graduacion) : "________"}</td></tr>
+            <tr><td>Títulos</td><td class="amount-cell">${_simbol} ${recibo.titulos ? _convQ(recibo.titulos) : "________"}</td></tr>
+            <tr><td>Proyecto de Grado</td><td class="amount-cell">${_simbol} ${recibo.proyectoGrado ? _convQ(recibo.proyectoGrado) : "________"}</td></tr>
+            <tr><td>Otros:</td><td class="amount-cell">${_simbol} ${recibo.otros ? _convQ(recibo.otros) : "________"}</td></tr>
           </tbody>
         </table>
 
@@ -689,7 +709,8 @@ export default function ReciboPagoGenerator({
         
         ${recibo.observaciones ? `<div class="observaciones"><strong>Observaciones:</strong> ${recibo.observaciones}</div>` : ''}
 
-        <div style="font-weight: bold; margin-top: 10px; font-size: 11pt;">Total Q. ${parseFloat(recibo.total).toFixed(2)}</div>
+        <div style="font-weight: bold; margin-top: 10px; font-size: 11pt;">Total ${_simbol} ${_totalDisp}</div>
+        ${_esUSD ? '<p style="font-size: 8pt; color: #555; margin: 2px 0;">Tipo de cambio: Q8.00 = $1.00 USD</p>' : ''}
 
         <p class="no-devolucion">No hacemos devoluciones de pago.</p>
         
@@ -707,6 +728,12 @@ export default function ReciboPagoGenerator({
     } finally {
       setIsPrinting(false)
     }
+  }
+
+  const _previewSim = verEnDolares ? "$" : "Q"
+  const _previewConv = (val: string) => {
+    const n = parseFloat(String(val || "0").replace(/,/g, "")) || 0
+    return verEnDolares ? (n / 8).toFixed(2) : (val || "0.00")
   }
 
   return (
@@ -746,10 +773,10 @@ export default function ReciboPagoGenerator({
               <p className="text-xs"><strong>Recibo Serie "A"</strong> Nº <span className="text-red-600 font-bold">{recibo.reciboNo || "0000"}</span></p>
               <div className="flex justify-between text-xs">
                 <span><strong>Fecha:</strong> {new Date(recibo.fecha + "T12:00:00").toLocaleDateString("es-GT")}</span>
-                <span className="font-bold">Q{recibo.total || "0.00"}</span>
+                <span className="font-bold">{_previewSim}{_previewConv(recibo.total || "0")}</span>
               </div>
               <p className="text-xs"><strong>Recibimos de:</strong> {recibo.recibidoDe || "________________"}</p>
-              <p className="text-xs"><strong>La cantidad de:</strong> {recibo.cantidadLetras || "________________"}</p>
+              <p className="text-xs"><strong>La cantidad de:</strong> {recibo.cantidadLetras || "________________"}{verEnDolares && recibo.total ? ` (÷8 = ${_previewSim}${_previewConv(recibo.total)})` : ""}</p>
             </div>
 
             <div className="border border-black rounded p-0 text-xs mb-4">
@@ -759,19 +786,19 @@ export default function ReciboPagoGenerator({
               </div>
               <div className="grid grid-cols-[1fr_120px] border-b border-black">
                 <div className="p-1 px-3 border-r border-black">Matrícula:</div>
-                <div className="p-1 px-3 text-right">Q{recibo.matricula || "0.00"}</div>
+                <div className="p-1 px-3 text-right">{_previewSim}{_previewConv(recibo.matricula || "0")}</div>
               </div>
               <div className="grid grid-cols-[1fr_120px] border-b border-black">
                 <div className="p-1 px-3 border-r border-black">Mensualidad:</div>
-                <div className="p-1 px-3 text-right">Q{recibo.mensualidad || "0.00"}</div>
+                <div className="p-1 px-3 text-right">{_previewSim}{_previewConv(recibo.mensualidad || "0")}</div>
               </div>
               <div className="grid grid-cols-[1fr_120px] border-b border-black">
                 <div className="p-1 px-3 border-r border-black">Otros:</div>
-                <div className="p-1 px-3 text-right">Q{recibo.otros || "0.00"}</div>
+                <div className="p-1 px-3 text-right">{_previewSim}{_previewConv(recibo.otros || "0")}</div>
               </div>
               <div className="grid grid-cols-[1fr_120px]">
                 <div className="p-1 px-3 border-r border-black font-bold">Total General:</div>
-                <div className="p-1 px-3 text-right font-bold">Q{recibo.total || "0.00"}</div>
+                <div className="p-1 px-3 text-right font-bold">{_previewSim}{_previewConv(recibo.total || "0")}</div>
               </div>
             </div>
 
@@ -929,9 +956,20 @@ export default function ReciboPagoGenerator({
         </div>
 
         <DialogFooter className="mt-6 flex justify-between sm:justify-between">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant={verEnDolares ? "default" : "outline"}
+              size="sm"
+              onClick={() => setVerEnDolares(v => !v)}
+              className={verEnDolares ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "border-emerald-500 text-emerald-700"}
+              title="Cambiar visualización de moneda en el recibo"
+            >
+              {verEnDolares ? "$ Dólares" : "Q Quetzales"}
+            </Button>
+          </div>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={handlePrint} disabled={registrando || isPrinting}>
               <Printer className="mr-2 h-4 w-4" />

@@ -307,15 +307,15 @@ export function PaymentsView() {
         fecha_recibo: receiptForm.fecha_recibo 
       })
 
-      if (response.success || response.estado_cuota === 'pagado') {
+      if (response.estado_cuota === 'pagado') {
         toast({
-          title: "¡Pago Procesado Automáticamente!",
-          description: "Su pago ha sido procesado exitosamente. La cuota ha sido marcada como pagada.",
+          title: "¡Cuota registrada como pagada!",
+          description: "Tu recibo fue recibido y la cuota queda marcada como pagada. Finanzas verificará el comprobante.",
         })
       } else {
         toast({
-          title: "Recibo enviado",
-          description: response.message || "El recibo se envió correctamente. Se revisará en las próximas 48 horas.",
+          title: "Recibo enviado a revisión",
+          description: "Tu comprobante fue recibido. Un administrador lo revisará y aprobará una vez conciliado.",
         })
       }
 
@@ -351,6 +351,14 @@ export function PaymentsView() {
               ? `Esta boleta ya fue utilizada el ${formatDateGT(fechaUso)} para la cuota ${cuotaNumero} del programa ${programa} por un monto de ${formatCurrencyGT(Number(monto))}.`
               : (error.userMessage || "Esta boleta/archivo ya fue utilizado anteriormente.")
           )
+        } else if (error.code === "CUOTA_NOT_IN_ORDER") {
+          toast({
+            title: "Orden de pago incorrecto",
+            description: error.message || "Debe pagar las cuotas en orden. Verifique cuál es la siguiente cuota a pagar.",
+            variant: "destructive"
+          })
+          await loadPaymentData(true)
+          setShowReceiptUpload(false)
         } else if (error.code === "CUOTA_ALREADY_PAID") {
           toast({
             title: "Cuota ya Pagada",
@@ -402,8 +410,8 @@ export function PaymentsView() {
       case "pagado": return "Pagado"
       case "aprobado": return "Aprobado"
       case "pendiente": return "Pendiente"
-      case "en_revision":
-      case "pendiente_revision": return "En Revisión"
+      case "en_revision": return "En Revisión"
+      case "pendiente_revision": return "Pago Enviado"
       case "rechazado": return "Rechazado"
       default: return "Pendiente"
     }
@@ -516,6 +524,17 @@ export function PaymentsView() {
     )
   }, [uploadFile, receiptForm, validationError, isValidating])
 
+  // 💡 Moneda USD — tasa fija 1 USD = 8 GTQ. Los montos se almacenan en GTQ.
+  const TASA_CAMBIO = 8
+  const esUSD = accountSummary?.prospecto?.moneda === "USD"
+  const fmtMonto = (gtq: number): string => {
+    if (esUSD) {
+      const usd = gtq / TASA_CAMBIO
+      return `$${usd.toLocaleString("es-GT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
+    }
+    return `Q${gtq.toLocaleString("es-GT", { minimumFractionDigits: 2 })}`
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -529,7 +548,14 @@ export function PaymentsView() {
     <div className="space-y-6">
       {/* Header + Refresh */}
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Gestión de Pagos</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold">Gestión de Pagos</h2>
+          {esUSD && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-medium">
+              💱 Moneda: USD &middot; Q{TASA_CAMBIO} por $1
+            </span>
+          )}
+        </div>
         <Button
           variant="outline"
           onClick={handleManualRefresh}
@@ -547,7 +573,7 @@ export function PaymentsView() {
           <Card>
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-green-600">
-                Q{accountSummary.resumen.monto_pagado.toLocaleString()}
+                {fmtMonto(accountSummary.resumen.monto_pagado)}
               </div>
               <p className="text-sm text-muted-foreground">Total Pagado</p>
             </CardContent>
@@ -555,7 +581,7 @@ export function PaymentsView() {
           <Card>
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-orange-600">
-                Q{accountSummary.resumen.monto_pendiente.toLocaleString()}
+                {fmtMonto(accountSummary.resumen.monto_pendiente)}
               </div>
               <p className="text-sm text-muted-foreground">Total Pendiente</p>
             </CardContent>
@@ -620,10 +646,15 @@ export function PaymentsView() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pb-2">
-                    <div className="text-2xl font-bold">Q{payment.monto.toLocaleString()}</div>
+                    <div className="text-2xl font-bold">{fmtMonto(payment.monto)}</div>
+                    {esUSD && (
+                      <p className="text-xs text-emerald-600 mt-0.5">
+                        Q{payment.monto.toLocaleString("es-GT", { minimumFractionDigits: 2 })} GTQ
+                      </p>
+                    )}
                     {typeof (payment as any).total_with_late_fee === "number" && (payment as any).total_with_late_fee > payment.monto && (
                       <p className="text-sm text-muted-foreground mt-2">
-                        Con mora: Q{(payment as any).total_with_late_fee.toLocaleString()}
+                        Con mora: {fmtMonto((payment as any).total_with_late_fee)}
                         {typeof (payment as any).months_overdue === "number" ? ` • ${(payment as any).months_overdue} mes(es) atraso` : ''}
                       </p>
                     )}
@@ -731,10 +762,15 @@ export function PaymentsView() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pb-2">
-                    <div className="text-2xl font-bold">Q{payment.monto.toLocaleString()}</div>
+                    <div className="text-2xl font-bold">{fmtMonto(payment.monto)}</div>
+                    {esUSD && (
+                      <p className="text-xs text-emerald-600 mt-0.5">
+                        Q{payment.monto.toLocaleString("es-GT", { minimumFractionDigits: 2 })} GTQ
+                      </p>
+                    )}
                     {typeof (payment as any).total_with_late_fee === "number" && (payment as any).total_with_late_fee >= payment.monto && (
                       <p className="text-sm text-muted-foreground mt-2">
-                        Con mora: Q{(payment as any).total_with_late_fee.toLocaleString()}
+                        Con mora: {fmtMonto((payment as any).total_with_late_fee)}
                         {typeof (payment as any).months_overdue === "number" ? ` • ${(payment as any).months_overdue} mes(es)` : ''}
                         {(payment as any).urgent ? " • URGENTE" : ""}
                       </p>
@@ -813,7 +849,7 @@ export function PaymentsView() {
                         <TableCell className="font-medium">
                           Cuota {payment.cuota?.numero_cuota} - {payment.estudiante_programa?.programa?.nombre_del_programa || 'Programa no disponible'}
                         </TableCell>
-                        <TableCell>Q{payment.monto_pagado.toLocaleString()}</TableCell>
+                        <TableCell>{fmtMonto(payment.monto_pagado)}</TableCell>
                         <TableCell>{formatDate(payment.fecha_pago)}</TableCell>
                         <TableCell>
                           {payment.metodo_pago === 'transferencia_bancaria' ? 'Transferencia Bancaria' : payment.metodo_pago}
@@ -902,13 +938,17 @@ export function PaymentsView() {
             )}
 
             <div className="grid gap-2">
-              <Label htmlFor="amount">Monto a Pagar (Q)</Label>
+              <Label htmlFor="amount">Monto a Pagar {esUSD ? "(USD)" : "(Q)"}</Label>
               {/* 🆕 Campo de monto de solo lectura - el estudiante NO puede modificarlo */}
               <div className="relative">
                 <Input
                   id="amount"
                   type="text"
-                  value={formatCurrencyGT(receiptForm.monto)}
+                  value={
+                    esUSD
+                      ? `$${(receiptForm.monto / TASA_CAMBIO).toLocaleString("es-GT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
+                      : formatCurrencyGT(receiptForm.monto)
+                  }
                   readOnly
                   disabled
                   className="bg-gray-50 border-gray-200 text-gray-900 font-semibold text-lg cursor-not-allowed pr-10"
@@ -917,13 +957,19 @@ export function PaymentsView() {
                   <span className="text-gray-500 text-sm">🔒</span>
                 </div>
               </div>
+              {esUSD && (
+                <div className="text-xs text-emerald-700 bg-emerald-50 p-2 rounded border border-emerald-200">
+                  💱 Debe depositar <strong>{formatCurrencyGT(receiptForm.monto)}</strong> en quetzales al banco (tasa Q{TASA_CAMBIO} por $1)
+                </div>
+              )}
               <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-xs">
                 <span className="text-muted-foreground">
-                  Monto total de la cuota: <strong className="text-gray-900">{formatCurrencyGT(allowedMax)}</strong>
+                  Monto total de la cuota: <strong className="text-gray-900">{fmtMonto(allowedMax)}</strong>
+                  {esUSD && <span className="text-gray-500 ml-1">({formatCurrencyGT(allowedMax)} GTQ)</span>}
                 </span>
               </div>
               <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded border border-blue-200">
-                <strong>Nota:</strong> El monto es fijo y no puede ser modificado. Debe pagar el monto completo de la cuota.
+                <strong>Nota:</strong> El monto es fijo y no puede ser modificado. Debe pagar el monto completo de la cuota{esUSD ? " en quetzales al banco" : ""}.
               </p>
             </div>
 

@@ -37,6 +37,7 @@ export interface DuplicateProspect {
   metodo_pago: string
   monto_inscripcion: string
   convenio_pago_id: number | null
+  moneda?: "GTQ" | "USD"
   coincidencia: number
   detalles_coincidencia: string[]
 }

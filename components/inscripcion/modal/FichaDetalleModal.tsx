@@ -96,6 +96,7 @@ export default function FichaDetalleModal({
   ]
 
   const camposFinancieros: [string, any][] = [
+    ["Moneda", financieros.moneda === "USD" ? "$ Dólares (USD)" : (financieros.moneda === "GTQ" ? "Q Quetzales (GTQ)" : financieros.moneda ?? "GTQ")],
     ["Método de pago", financieros.formaPago],
     ["Convenio", financieros.convenioNombre],
     ["Inscripción", financieros.inscripcion],
@@ -332,10 +333,12 @@ export default function FichaDetalleModal({
   }
 
   // Descargar ficha de inscripción en PDF
-  const handleDescargarFicha = async () => {
+  const handleDescargarFicha = async (monedaOpc?: "GTQ" | "USD") => {
     try {
       const token = localStorage.getItem("token")
-      const res = await fetch(`${API_BASE_URL}/api/prospectos/${ficha.id}/ficha-pdf`, {
+      const monedaFicha = monedaOpc ?? financieros.moneda ?? "GTQ"
+      const params = monedaFicha === "USD" ? "?moneda=USD" : "?moneda=GTQ"
+      const res = await fetch(`${API_BASE_URL}/api/prospectos/${ficha.id}/ficha-pdf${params}`, {
         headers: {
           Authorization: token ? `Bearer ${token}` : "",
         },
@@ -346,7 +349,8 @@ export default function FichaDetalleModal({
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `ficha-inscripcion-${ficha.id}.pdf`
+      const sufijo = monedaFicha === "USD" ? "-usd" : ""
+      a.download = `ficha-inscripcion-${ficha.id}${sufijo}.pdf`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
@@ -543,14 +547,37 @@ export default function FichaDetalleModal({
               value="financieros"
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4"
             >
-              {camposFinancieros.map(([label, val], i) => (
-                <div key={i} className="p-2 border rounded">
-                  <Label>{label}</Label>
-                  <p className="mt-1">
-                    {val === null || val === undefined || val === "" ? "—" : val}
-                  </p>
+              {/* Badge y nota cuando el estudiante es USD */}
+              {financieros.moneda === "USD" && (
+                <div className="sm:col-span-2 lg:col-span-3 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 flex items-start gap-3">
+                  <span className="text-emerald-700 text-lg font-bold mt-0.5">$</span>
+                  <div>
+                    <p className="text-emerald-800 font-semibold text-sm">Estudiante en dólares (USD)</p>
+                    <p className="text-emerald-700 text-xs mt-0.5">
+                      Los montos están almacenados en quetzales. Tipo de cambio fijo: <strong>Q8.00 = $1.00 USD</strong>. Sin mora aplicable.
+                    </p>
+                  </div>
                 </div>
-              ))}
+              )}
+
+              {camposFinancieros.map(([label, val], i) => {
+                const esMontoQ = ["Inscripción", "Cuota mensual", "Inversión total"].includes(label)
+                const numQ = esMontoQ ? parseFloat(String(val || "0").replace(/,/g, "")) || 0 : 0
+                const esUSD = financieros.moneda === "USD"
+                return (
+                  <div key={i} className="p-2 border rounded">
+                    <Label>{label}{esUSD && esMontoQ ? " (Q)" : ""}</Label>
+                    <p className="mt-1 font-medium">
+                      {val === null || val === undefined || val === "" ? "—" : (esMontoQ ? `Q ${numQ.toFixed(2)}` : val)}
+                    </p>
+                    {esUSD && esMontoQ && numQ > 0 && (
+                      <p className="text-emerald-700 text-xs mt-0.5 font-semibold">
+                        ≈ ${(numQ / 8).toFixed(2)} USD
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
             </TabsContent>
 
             {/* PROGRAMAS INSCRITOS */}
@@ -716,7 +743,7 @@ export default function FichaDetalleModal({
 
           {/* Botones de descarga */}
           <div className="flex justify-between items-center gap-2">
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button
                 variant="outline"
                 size="sm"
@@ -725,14 +752,36 @@ export default function FichaDetalleModal({
                 <FileText className="mr-2 h-4 w-4" />
                 Plan de Pagos
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDescargarFicha}
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                Descargar Ficha
-              </Button>
+              {financieros.moneda === "USD" ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDescargarFicha("GTQ")}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Ficha (Q)
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDescargarFicha("USD")}
+                    className="border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Ficha ($)
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDescargarFicha()}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Descargar Ficha
+                </Button>
+              )}
               <Button
                 variant={contratoInfo?.hayFirmas ? "default" : "outline"}
                 size="sm"

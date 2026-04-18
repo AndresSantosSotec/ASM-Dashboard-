@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import api from "@/services/api"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -35,6 +36,13 @@ interface EstadoCuentaProps {
 export function EstadoCuenta({ estudianteId, nombreEstudiante = "Estudiante" }: EstadoCuentaProps) {
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState("actual")
   const [cargando, setCargando] = useState(false)
+  const [moneda, setMoneda] = useState<'GTQ' | 'USD'>('GTQ')
+
+  useEffect(() => {
+    api.get('/estudiante/pagos/estado-cuenta')
+      .then(r => { if (r.data?.prospecto?.moneda) setMoneda(r.data.prospecto.moneda) })
+      .catch(() => {})
+  }, [])
 
   // Datos de ejemplo - En producción estos vendrían de una API
   const pagos: Pago[] = [
@@ -81,6 +89,12 @@ export function EstadoCuenta({ estudianteId, nombreEstudiante = "Estudiante" }: 
   const totalPagado = pagos.filter((p) => p.estado === "pagado").reduce((sum, p) => sum + p.monto, 0)
   const totalPendiente = pagos.filter((p) => p.estado === "pendiente").reduce((sum, p) => sum + p.monto, 0)
   const totalVencido = pagos.filter((p) => p.estado === "vencido").reduce((sum, p) => sum + p.monto, 0)
+
+  const TASA_CAMBIO = 8
+  const esUSD = moneda === 'USD'
+  const fmtMonto = (gtq: number) => esUSD
+    ? `$${(gtq / TASA_CAMBIO).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
+    : `Q ${gtq.toLocaleString('es-GT')}`
 
   // Función para descargar estado de cuenta
   const descargarEstadoCuenta = () => {
@@ -141,7 +155,7 @@ export function EstadoCuenta({ estudianteId, nombreEstudiante = "Estudiante" }: 
             <CardTitle className="text-sm font-medium">Total Pagado</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Q {totalPagado.toLocaleString("es-GT")}</div>
+            <div className="text-2xl font-bold">{fmtMonto(totalPagado)}</div>
             <div className="text-xs text-muted-foreground mt-1">
               Último pago: {pagos.filter((p) => p.estado === "pagado").slice(-1)[0]?.fecha || "N/A"}
             </div>
@@ -152,7 +166,7 @@ export function EstadoCuenta({ estudianteId, nombreEstudiante = "Estudiante" }: 
             <CardTitle className="text-sm font-medium">Pendiente de Pago</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Q {totalPendiente.toLocaleString("es-GT")}</div>
+            <div className="text-2xl font-bold">{fmtMonto(totalPendiente)}</div>
             <div className="text-xs text-muted-foreground mt-1">
               Próximo vencimiento: {pagos.filter((p) => p.estado === "pendiente")[0]?.fechaVencimiento || "N/A"}
             </div>
@@ -163,7 +177,7 @@ export function EstadoCuenta({ estudianteId, nombreEstudiante = "Estudiante" }: 
             <CardTitle className="text-sm font-medium">Pagos Vencidos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Q {totalVencido.toLocaleString("es-GT")}</div>
+            <div className="text-2xl font-bold">{fmtMonto(totalVencido)}</div>
             <div className="text-xs text-muted-foreground mt-1">
               {totalVencido > 0 ? "Contacte a administración" : "Sin pagos vencidos"}
             </div>
@@ -233,7 +247,7 @@ export function EstadoCuenta({ estudianteId, nombreEstudiante = "Estudiante" }: 
                                 : "Vencido"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">Q {pago.monto.toLocaleString("es-GT")}</TableCell>
+                        <TableCell className="text-right">{fmtMonto(pago.monto)}</TableCell>
                       </TableRow>
                     ))}
                 </TableBody>
@@ -277,7 +291,7 @@ export function EstadoCuenta({ estudianteId, nombreEstudiante = "Estudiante" }: 
                                 : "Vencido"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">Q {pago.monto.toLocaleString("es-GT")}</TableCell>
+                        <TableCell className="text-right">{fmtMonto(pago.monto)}</TableCell>
                       </TableRow>
                     ))}
                 </TableBody>
@@ -286,7 +300,7 @@ export function EstadoCuenta({ estudianteId, nombreEstudiante = "Estudiante" }: 
             <CardFooter className="bg-muted/50 p-3">
               <div className="flex justify-between w-full items-center">
                 <span className="text-sm font-medium">Total pendiente:</span>
-                <span className="font-bold">Q {totalPendiente.toLocaleString("es-GT")}</span>
+                <span className="font-bold">{fmtMonto(totalPendiente)}</span>
               </div>
             </CardFooter>
           </Card>
@@ -325,7 +339,7 @@ export function EstadoCuenta({ estudianteId, nombreEstudiante = "Estudiante" }: 
                               : "Pendiente"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">Q {curso.costo.toLocaleString("es-GT")}</TableCell>
+                      <TableCell className="text-right">{fmtMonto(curso.costo)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

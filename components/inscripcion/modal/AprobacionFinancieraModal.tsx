@@ -344,10 +344,12 @@ export default function AprobacionFinancieraModal({
       })()
   }, [isOpen, ficha.id])
 
-  const handleDescargarPDF = async () => {
+  const handleDescargarPDF = async (monedaOpc?: "GTQ" | "USD") => {
     try {
       const token = localStorage.getItem("token")
-      const res = await fetch(`${API_BASE_URL}/api/prospectos/${ficha.id}/ficha-pdf`, {
+      const monedaFicha = monedaOpc ?? financieros?.moneda ?? "GTQ"
+      const params = monedaFicha === "USD" ? "?moneda=USD" : "?moneda=GTQ"
+      const res = await fetch(`${API_BASE_URL}/api/prospectos/${ficha.id}/ficha-pdf${params}`, {
         headers: {
           Authorization: token ? `Bearer ${token}` : "",
         },
@@ -358,7 +360,8 @@ export default function AprobacionFinancieraModal({
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `ficha-${ficha.id}.pdf`
+      const sufijo = monedaFicha === "USD" ? "-usd" : ""
+      a.download = `ficha-${ficha.id}${sufijo}.pdf`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
@@ -413,10 +416,23 @@ export default function AprobacionFinancieraModal({
                 <FileText className="mr-2 h-4 w-4" />
                 Plan de Pagos
               </Button>
-              <Button variant="outline" size="sm" onClick={handleDescargarPDF}>
-                <FileText className="mr-2 h-4 w-4" />
-                Descargar Ficha
-              </Button>
+              {financieros?.moneda === "USD" ? (
+                <>
+                  <Button variant="outline" size="sm" onClick={() => handleDescargarPDF("GTQ")}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Ficha (Q)
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleDescargarPDF("USD")} className="border-emerald-500 text-emerald-700 hover:bg-emerald-50">
+                    <FileText className="mr-2 h-4 w-4" />
+                    Ficha ($)
+                  </Button>
+                </>
+              ) : (
+                <Button variant="outline" size="sm" onClick={() => handleDescargarPDF()}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Descargar Ficha
+                </Button>
+              )}
               {/* ✅ Renderizado condicional - solo muestra si hay contrato válido */}
               {contratoInfo?.ambasFirmas && (
                 <Button

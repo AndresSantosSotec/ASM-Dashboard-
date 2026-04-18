@@ -36,6 +36,13 @@ export default function StudentAccountModal({ open, onOpenChange, prospectoId }:
     return sumaBase + moraTotal
   }
 
+  // 💱 Conversión USD: tasa fija 8 GTQ = 1 USD
+  const TASA_USD = 8
+  const esUSD = data?.student?.moneda === 'USD'
+  const formatQ = (v: number) => `Q${v.toLocaleString('es-GT', { minimumFractionDigits: 2 })}`
+  const formatUSD = (v: number) => `$${(v / TASA_USD).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+  const formatMonto = (v: number) => esUSD ? `${formatQ(v)} / ${formatUSD(v)}` : formatQ(v)
+
   const handleGeneratePDF = async () => {
     if (!data) return
     try {
@@ -73,6 +80,10 @@ export default function StudentAccountModal({ open, onOpenChange, prospectoId }:
                     <CardDescription>Situación actual de pagos</CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
+                    {/* 💱 Badge moneda USD */}
+                    {data.student.moneda === 'USD' && (
+                      <Badge className="bg-green-600 text-white text-xs">$ USD</Badge>
+                    )}
                     {data.balance.isBlocked ? (
                       <Badge variant="destructive">Cuenta Bloqueada</Badge>
                     ) : data.balance.warningLevel > 0 ? (
@@ -114,8 +125,13 @@ export default function StudentAccountModal({ open, onOpenChange, prospectoId }:
                 <div>
                   <h4 className="text-sm text-muted-foreground">Saldo Pendiente</h4>
                   <div className="text-2xl font-bold">
-                    Q{totalPending().toLocaleString("es-GT", { minimumFractionDigits: 2 })}
+                    {formatQ(totalPending())}
                   </div>
+                  {esUSD && (
+                    <div className="text-sm text-green-700 font-medium">
+                      {formatUSD(totalPending())} <span className="text-xs text-muted-foreground">(tasa Q8=$1)</span>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <h4 className="text-sm text-muted-foreground">Próximo vencimiento</h4>
@@ -253,7 +269,8 @@ export default function StudentAccountModal({ open, onOpenChange, prospectoId }:
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          Q{p.amount.toLocaleString('es-GT',{ minimumFractionDigits: 2 })}
+                          {formatQ(p.amount)}
+                          {esUSD && <div className="text-xs text-green-700">{formatUSD(p.amount)}</div>}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -265,7 +282,7 @@ export default function StudentAccountModal({ open, onOpenChange, prospectoId }:
                           Mora (recargo único):
                         </TableCell>
                         <TableCell className="text-right">
-                          Q{(data.balance.totalMora ?? 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                          {formatQ(data.balance.totalMora ?? 0)}
                         </TableCell>
                       </TableRow>
                       <TableRow className="font-bold">
@@ -273,7 +290,8 @@ export default function StudentAccountModal({ open, onOpenChange, prospectoId }:
                           Total a pagar:
                         </TableCell>
                         <TableCell className="text-right text-lg">
-                          Q{totalPending().toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                          {formatQ(totalPending())}
+                          {esUSD && <div className="text-sm text-green-700 font-medium">{formatUSD(totalPending())} <span className="text-xs text-muted-foreground">(tasa Q8=$1)</span></div>}
                         </TableCell>
                       </TableRow>
                     </tfoot>

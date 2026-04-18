@@ -18,6 +18,7 @@ import Swal from "sweetalert2"
 import JSZip from "jszip"
 
 const API_URL = `${API_BASE_URL}/api`
+const TASA_CAMBIO = 8
 
 interface DetallesProspectoProps {
   prospectoId: string
@@ -571,16 +572,32 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
               {/* ══════ TAB: DATOS FINANCIEROS ══════ */}
               <TabsContent value="financiero" className="space-y-4 mt-4">
                 <SectionTitle icon={CreditCard} title="Información Financiera" />
+                {/* Moneda badge */}
+                {prospecto.moneda === "USD" && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
+                    💱 <span className="font-semibold">Moneda: Dólares (USD)</span> · Tipo de cambio: Q{TASA_CAMBIO} por $1
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <InfoRow icon={CreditCard} label="Moneda" value={
+                    prospecto.moneda === "USD" ? "Dólares (USD)" : "Quetzales (GTQ)"
+                  } />
                   <InfoRow icon={CreditCard} label="Método de Pago" value={
                     (prospecto.metodo_pago || prospecto.forma_pago || "").toString().trim() || "—"
                   } />
                   <InfoRow icon={CreditCard} label="Monto Inscripción" value={
-                    (prospecto.monto_inscripcion != null && prospecto.monto_inscripcion !== "" && Number(prospecto.monto_inscripcion) >= 0)
-                      ? `Q ${Number(prospecto.monto_inscripcion).toLocaleString("es-GT", { minimumFractionDigits: 2 })}`
-                      : (prospecto.programas?.[0]?.inscripcion != null && prospecto.programas[0].inscripcion !== "")
-                        ? `Q ${Number(prospecto.programas[0].inscripcion).toLocaleString("es-GT", { minimumFractionDigits: 2 })}`
-                        : "—"
+                    (() => {
+                      const raw = prospecto.monto_inscripcion != null && prospecto.monto_inscripcion !== "" && Number(prospecto.monto_inscripcion) >= 0
+                        ? Number(prospecto.monto_inscripcion)
+                        : prospecto.programas?.[0]?.inscripcion != null && prospecto.programas[0].inscripcion !== ""
+                          ? Number(prospecto.programas[0].inscripcion)
+                          : null
+                      if (raw === null) return "—"
+                      if (prospecto.moneda === "USD") {
+                        return `$${(raw / TASA_CAMBIO).toLocaleString("es-GT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD (Q${raw.toLocaleString("es-GT", { minimumFractionDigits: 2 })})`
+                      }
+                      return `Q ${raw.toLocaleString("es-GT", { minimumFractionDigits: 2 })}`
+                    })()
                   } />
                   {(prospecto.convenio || prospecto.programas?.[0]?.convenio) && (
                     <InfoRow icon={FileText} label="Convenio de Pago" value={
@@ -594,37 +611,39 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
                   <>
                     <SectionTitle icon={CreditCard} title="Programas inscritos (montos)" />
                     <div className="grid grid-cols-1 gap-3">
-                      {prospecto.programas.map((ep: any, idx: number) => (
-                        <Card key={idx} className="p-4 border-gray-200">
-                          <h5 className="text-sm font-semibold text-gray-800 mb-3">
-                            {ep.programa?.abreviatura ? `${ep.programa.abreviatura} – ` : ""}{ep.programa?.nombre_del_programa || "Programa"}
-                          </h5>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                            <div className="bg-slate-50 rounded-lg p-2">
-                              <p className="text-xs text-gray-500">Inscripción</p>
-                              <p className="font-semibold text-gray-900">
-                                Q {(Number(ep.inscripcion) || 0).toLocaleString("es-GT", { minimumFractionDigits: 2 })}
-                              </p>
+                      {prospecto.programas.map((ep: any, idx: number) => {
+                        const esUSD = prospecto.moneda === "USD"
+                        const fmtAmt = (amt: any) => {
+                          const n = Number(amt) || 0
+                          if (esUSD) return `$${(n / TASA_CAMBIO).toLocaleString("es-GT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD (Q${n.toLocaleString("es-GT", { minimumFractionDigits: 2 })})`
+                          return `Q ${n.toLocaleString("es-GT", { minimumFractionDigits: 2 })}`
+                        }
+                        return (
+                          <Card key={idx} className="p-4 border-gray-200">
+                            <h5 className="text-sm font-semibold text-gray-800 mb-3">
+                              {ep.programa?.abreviatura ? `${ep.programa.abreviatura} – ` : ""}{ep.programa?.nombre_del_programa || "Programa"}
+                            </h5>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                              <div className="bg-slate-50 rounded-lg p-2">
+                                <p className="text-xs text-gray-500">Inscripción</p>
+                                <p className="font-semibold text-gray-900 text-xs leading-tight mt-0.5">{fmtAmt(ep.inscripcion)}</p>
+                              </div>
+                              <div className="bg-slate-50 rounded-lg p-2">
+                                <p className="text-xs text-gray-500">Cuota mensual</p>
+                                <p className="font-semibold text-gray-900 text-xs leading-tight mt-0.5">{fmtAmt(ep.cuota_mensual)}</p>
+                              </div>
+                              <div className="bg-slate-50 rounded-lg p-2">
+                                <p className="text-xs text-gray-500">Duración</p>
+                                <p className="font-semibold text-gray-900">{ep.duracion_meses ?? "—"} meses</p>
+                              </div>
+                              <div className="bg-slate-50 rounded-lg p-2">
+                                <p className="text-xs text-gray-500">Inversión total</p>
+                                <p className="font-semibold text-gray-900 text-xs leading-tight mt-0.5">{fmtAmt(ep.inversion_total)}</p>
+                              </div>
                             </div>
-                            <div className="bg-slate-50 rounded-lg p-2">
-                              <p className="text-xs text-gray-500">Cuota mensual</p>
-                              <p className="font-semibold text-gray-900">
-                                Q {(Number(ep.cuota_mensual) || 0).toLocaleString("es-GT", { minimumFractionDigits: 2 })}
-                              </p>
-                            </div>
-                            <div className="bg-slate-50 rounded-lg p-2">
-                              <p className="text-xs text-gray-500">Duración</p>
-                              <p className="font-semibold text-gray-900">{ep.duracion_meses ?? "—"} meses</p>
-                            </div>
-                            <div className="bg-slate-50 rounded-lg p-2">
-                              <p className="text-xs text-gray-500">Inversión total</p>
-                              <p className="font-semibold text-gray-900">
-                                Q {(Number(ep.inversion_total) || 0).toLocaleString("es-GT", { minimumFractionDigits: 2 })}
-                              </p>
-                            </div>
-                          </div>
-                        </Card>
-                      ))}
+                          </Card>
+                        )
+                      })}
                     </div>
                   </>
                 )}
@@ -659,6 +678,10 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
                           const totalPagado = tieneCuotas
                             ? ep.cuotas.filter((c: any) => c.estado?.toLowerCase() === "pagado").reduce((s: number, c: any) => s + (Number(c.monto) || 0), 0)
                             : 0
+                          const esUSD = prospecto.moneda === "USD"
+                          const fmtCuota = (n: number) => esUSD
+                            ? `$${(n / TASA_CAMBIO).toLocaleString("es-GT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : `Q ${n.toLocaleString("es-GT", { minimumFractionDigits: 2 })}`
 
                           return (
                             <Card key={idx} className="p-4 border-gray-200">
@@ -670,15 +693,15 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
                                   <div className="grid grid-cols-3 gap-3 mb-3">
                                     <div className="bg-blue-50 rounded-lg p-2 text-center">
                                       <p className="text-xs text-gray-500">Total</p>
-                                      <p className="text-sm font-bold text-blue-800">Q {totalCuotas.toLocaleString("es-GT", { minimumFractionDigits: 2 })}</p>
+                                      <p className="text-sm font-bold text-blue-800">{fmtCuota(totalCuotas)}</p>
                                     </div>
                                     <div className="bg-green-50 rounded-lg p-2 text-center">
                                       <p className="text-xs text-gray-500">Pagado</p>
-                                      <p className="text-sm font-bold text-green-800">Q {totalPagado.toLocaleString("es-GT", { minimumFractionDigits: 2 })}</p>
+                                      <p className="text-sm font-bold text-green-800">{fmtCuota(totalPagado)}</p>
                                     </div>
                                     <div className="bg-red-50 rounded-lg p-2 text-center">
                                       <p className="text-xs text-gray-500">Pendiente</p>
-                                      <p className="text-sm font-bold text-red-800">Q {(totalCuotas - totalPagado).toLocaleString("es-GT", { minimumFractionDigits: 2 })}</p>
+                                      <p className="text-sm font-bold text-red-800">{fmtCuota(totalCuotas - totalPagado)}</p>
                                     </div>
                                   </div>
                                   <div className="overflow-x-auto">
@@ -698,7 +721,7 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
                                             <td className="p-2">{cuota.numero_cuota}</td>
                                             <td className="p-2">{cuota.concepto || `Cuota ${cuota.numero_cuota}`}</td>
                                             <td className="p-2">{cuota.fecha_vencimiento ? new Date(cuota.fecha_vencimiento).toLocaleDateString("es-GT") : "—"}</td>
-                                            <td className="p-2 text-right">Q {Number(cuota.monto || 0).toLocaleString("es-GT", { minimumFractionDigits: 2 })}</td>
+                                            <td className="p-2 text-right">{fmtCuota(Number(cuota.monto || 0))}</td>
                                             <td className="p-2 text-center">
                                               <Badge
                                                 variant="outline"
@@ -720,7 +743,7 @@ export default function DetallesProspecto({ prospectoId, onClose }: DetallesPros
                                 </>
                               ) : (
                                 <div className="text-sm text-gray-500 py-2">
-                                  Sin plan de cuotas generado. Inscripción: Q {(Number(ep.inscripcion) || 0).toLocaleString("es-GT", { minimumFractionDigits: 2 })} · Cuota mensual: Q {(Number(ep.cuota_mensual) || 0).toLocaleString("es-GT", { minimumFractionDigits: 2 })} · {ep.duracion_meses ?? "—"} meses.
+                                  Sin plan de cuotas generado. Inscripción: {fmtCuota(Number(ep.inscripcion) || 0)} · Cuota mensual: {fmtCuota(Number(ep.cuota_mensual) || 0)} · {ep.duracion_meses ?? "—"} meses.
                                 </div>
                               )}
                             </Card>

@@ -39,6 +39,7 @@ interface ProspectoCompleto {
   pais_nombre: string | null
   departamento_nombre: string | null
   municipio_nombre: string | null
+  moneda?: string
 }
 
 interface EditarProspectoCompletoProps {
@@ -97,6 +98,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
     pais_nombre: "",
     departamento_nombre: "",
     municipio_nombre: "",
+    moneda: "GTQ",
   })
 
   // Estados de datos de ficha
@@ -167,6 +169,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           pais_nombre: data.pais_nombre || "",
           departamento_nombre: data.departamento_nombre || "",
           municipio_nombre: data.municipio_nombre || "",
+          moneda: data.moneda || "GTQ",
         })
 
         // Usar programas inscritos directamente del prospecto (eager-loaded)
@@ -658,6 +661,8 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
         telefonoCorporativo: datosLaborales.telefonoCorporativo || null,
         direccionEmpresa: datosLaborales.direccionEmpresa || null,
         sectorEmpresa: datosLaborales.sectorEmpresa || null,
+        // Moneda
+        moneda: formData.moneda || "GTQ",
       }
 
       const res = await fetch(`${API_URL}/prospectos/${prospectoId}`, {
@@ -1702,6 +1707,28 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                         <SelectItem value="tarjeta">Tarjeta</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1 flex items-center gap-2">
+                      Moneda
+                      {hasField(formData.moneda) && <CheckCircle className="h-4 w-4 text-green-500" />}
+                    </label>
+                    <Select
+                      value={formData.moneda || "GTQ"}
+                      onValueChange={(v) => handleChange("moneda", v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar moneda" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="GTQ">Quetzales (Q)</SelectItem>
+                        <SelectItem value="USD">Dólares ($)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Los montos se almacenan en GTQ. Al seleccionar USD se mostrará la equivalencia en dólares (1 USD = 8 GTQ).
+                    </p>
                   </div>
 
                   <div className={`md:col-span-2 grid grid-cols-4 gap-4 ${calculandoPrecios ? "opacity-50" : ""}`}>

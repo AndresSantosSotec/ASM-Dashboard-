@@ -181,6 +181,7 @@ async function buildFromProspecto(
       cuotaMensual,
       inversionTotal,
       cantidadMeses,
+      moneda: prospecto.moneda ?? 'GTQ',
     },
     programas: prospecto.programas || [],
     documentos,
@@ -234,6 +235,7 @@ export async function fetchFicha(id: number): Promise<FichaDetalle> {
       ...data.financieros,
       convenioNombre:
         data.financieros?.convenioNombre || data.financieros?.convenio?.nombre,
+      moneda: data.financieros?.moneda ?? 'GTQ',
     }
 
     return {

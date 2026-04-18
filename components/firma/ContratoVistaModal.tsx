@@ -60,6 +60,7 @@ interface ContratoData {
     anio_graduacion?: string
     cantidad_cursos_aprobados?: number
     // Datos financieros
+    moneda?: string
     forma_pago?: string
     servicios_electronicos?: Array<{
       cantidad_cursos: number
@@ -91,6 +92,9 @@ export default function ContratoVistaModal({
   const [loading, setLoading] = useState(true)
   const [contrato, setContrato] = useState<ContratoData | null>(null)
   const [fichaVisible, setFichaVisible] = useState(false)
+  const TASA_CAMBIO = 8
+
+  const esUSD = contrato?.prospecto?.moneda === "USD"
   const [serviciosElectronicos, setServiciosElectronicos] = useState<Array<{
     cantidad_cursos: number
     precio_transferencia: number
@@ -225,11 +229,25 @@ export default function ContratoVistaModal({
                   <>
                     <div>
                       <span className="text-gray-600">Inscripción:</span>
-                      <p className="font-medium">Q{Number(contrato.prospecto.programas[0].inscripcion).toFixed(2)}</p>
+                      {esUSD ? (
+                        <p className="font-medium">
+                          ${(Number(contrato.prospecto.programas[0].inscripcion) / TASA_CAMBIO).toFixed(2)} USD
+                          <span className="text-gray-400 text-xs ml-1">(Q{Number(contrato.prospecto.programas[0].inscripcion).toFixed(2)})</span>
+                        </p>
+                      ) : (
+                        <p className="font-medium">Q{Number(contrato.prospecto.programas[0].inscripcion).toFixed(2)}</p>
+                      )}
                     </div>
                     <div>
                       <span className="text-gray-600">Mensualidad:</span>
-                      <p className="font-medium">Q{Number(contrato.prospecto.programas[0].cuota_mensual).toFixed(2)}</p>
+                      {esUSD ? (
+                        <p className="font-medium">
+                          ${(Number(contrato.prospecto.programas[0].cuota_mensual) / TASA_CAMBIO).toFixed(2)} USD
+                          <span className="text-gray-400 text-xs ml-1">(Q{Number(contrato.prospecto.programas[0].cuota_mensual).toFixed(2)})</span>
+                        </p>
+                      ) : (
+                        <p className="font-medium">Q{Number(contrato.prospecto.programas[0].cuota_mensual).toFixed(2)}</p>
+                      )}
                     </div>
                     {contrato.prospecto.programas[0].convenio && (
                       <div className="col-span-2">
@@ -344,6 +362,11 @@ export default function ContratoVistaModal({
                   {/* ── Datos Financieros / Programas ── */}
                   <div>
                     <p className="font-semibold text-gray-700 mb-2 border-b pb-1">Datos Financieros</p>
+                    {esUSD && (
+                      <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1 mb-2">
+                        💱 Moneda: <strong>Dólares Americanos (USD)</strong> · Tipo de cambio: Q{TASA_CAMBIO}.00 = $1.00 USD
+                      </p>
+                    )}
                     {contrato.prospecto?.forma_pago && (
                       <p className="mb-2"><span className="text-gray-500">Forma de pago: </span><span className="font-medium capitalize">{contrato.prospecto.forma_pago}</span></p>
                     )}
@@ -356,8 +379,28 @@ export default function ContratoVistaModal({
                               {" — "}{ep.programa?.abreviatura || ep.programa?.nombre_del_programa}
                             </p>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                              <div><span className="text-gray-500">Inscripción:</span><p className="font-medium">Q{Number(ep.inscripcion).toFixed(2)}</p></div>
-                              <div><span className="text-gray-500">Mensualidad:</span><p className="font-medium">Q{Number(ep.cuota_mensual).toFixed(2)}</p></div>
+                              <div>
+                                <span className="text-gray-500">Inscripción:</span>
+                                {esUSD ? (
+                                  <p className="font-medium">
+                                    ${(Number(ep.inscripcion) / TASA_CAMBIO).toFixed(2)} USD
+                                    <span className="text-gray-400 text-xs ml-1">(Q{Number(ep.inscripcion).toFixed(2)})</span>
+                                  </p>
+                                ) : (
+                                  <p className="font-medium">Q{Number(ep.inscripcion).toFixed(2)}</p>
+                                )}
+                              </div>
+                              <div>
+                                <span className="text-gray-500">Mensualidad:</span>
+                                {esUSD ? (
+                                  <p className="font-medium">
+                                    ${(Number(ep.cuota_mensual) / TASA_CAMBIO).toFixed(2)} USD
+                                    <span className="text-gray-400 text-xs ml-1">(Q{Number(ep.cuota_mensual).toFixed(2)})</span>
+                                  </p>
+                                ) : (
+                                  <p className="font-medium">Q{Number(ep.cuota_mensual).toFixed(2)}</p>
+                                )}
+                              </div>
                               {(ep.duracion_meses ?? ep.programa?.meses) && (
                                 <div><span className="text-gray-500">Duración:</span><p className="font-medium">{ep.duracion_meses ?? ep.programa?.meses} meses</p></div>
                               )}

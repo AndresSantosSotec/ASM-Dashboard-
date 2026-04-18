@@ -85,6 +85,7 @@ export interface DatosAcademicos {
 }
 
 export interface DatosFinancieros {
+  moneda: "GTQ" | "USD";  // 💱 Moneda del estudiante. GTQ por defecto. Tasa fija 8 GTQ/USD.
   inscripcion: string;
   cuotaMensual: string;
   cantidadMeses: string;

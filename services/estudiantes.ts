@@ -50,6 +50,7 @@ export type AccountData = {
     carnet?: string
     email?: string  // 🔥 NUEVO: Email del estudiante
     telefono?: string | null  // 🔥 NUEVO: Teléfono
+    moneda?: "GTQ" | "USD"  // 💱 Moneda del estudiante (GTQ por defecto). Tasa fija 8 GTQ/USD.
   }
   programas?: Array<{  // 🔥 NUEVO: Lista de programas
     id: number

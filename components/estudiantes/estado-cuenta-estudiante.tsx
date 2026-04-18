@@ -103,7 +103,8 @@ export function EstadoCuentaEstudiante() {
           id: prospecto?.id || prospectoId || 0,
           name: studentName,
           carnet: studentCarnet,
-          email: studentEmail
+          email: studentEmail,
+          moneda: (prospecto?.moneda ?? (accountSummary as any)?.prospecto?.moneda ?? 'GTQ') as 'GTQ' | 'USD',
         },
         balance: {
           isBlocked: accountSummary.resumen?.is_blocked ?? false, // ✅ Del backend
@@ -233,6 +234,16 @@ export function EstadoCuentaEstudiante() {
   const cuotasPendientes = accountSummary?.resumen?.cuotas_pendientes || 0
   const cuotasPagadas = accountSummary?.resumen?.cuotas_pagadas || 0
 
+  const TASA_CAMBIO = 8
+  const esUSD = (accountSummary as any)?.prospecto?.moneda === 'USD'
+  const fmtMonto = (gtq: number): string => {
+    if (esUSD) {
+      const usd = gtq / TASA_CAMBIO
+      return `$${usd.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
+    }
+    return `Q${gtq.toLocaleString('es-GT', { minimumFractionDigits: 2 })}`
+  }
+
   return (
     <>
       <div className="space-y-6">
@@ -244,9 +255,16 @@ export function EstadoCuentaEstudiante() {
                 <h2 className="text-2xl font-bold text-blue-900 dark:text-blue-100">
                   Resumen Financiero
                 </h2>
-                <p className="text-sm text-muted-foreground">
-                  Información actualizada de tu cuenta estudiantil
-                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm text-muted-foreground">
+                    Información actualizada de tu cuenta estudiantil
+                  </p>
+                  {esUSD && (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-700">
+                      💱 Moneda: USD · Q8 por $1
+                    </span>
+                  )}
+                </div>
               </div>
               <Button onClick={handleGeneratePDF} variant="outline" size="sm">
                 <Download className="w-4 h-4 mr-2" />
@@ -264,7 +282,7 @@ export function EstadoCuentaEstudiante() {
                 <div>
                   <p className="text-sm text-muted-foreground">Total a Cobrar</p>
                   <p className="text-2xl font-bold">
-                    Q{totalCobrado.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                    {fmtMonto(totalCobrado)}
                   </p>
                 </div>
                 <DollarSign className="w-8 h-8 text-blue-500" />
@@ -278,7 +296,7 @@ export function EstadoCuentaEstudiante() {
                 <div>
                   <p className="text-sm text-muted-foreground">Total Pagado</p>
                   <p className="text-2xl font-bold text-green-600">
-                    Q{totalPagado.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                    {fmtMonto(totalPagado)}
                   </p>
                 </div>
                 <CreditCard className="w-8 h-8 text-green-500" />
@@ -292,7 +310,7 @@ export function EstadoCuentaEstudiante() {
                 <div>
                   <p className="text-sm text-muted-foreground">Balance Pendiente</p>
                   <p className={`text-2xl font-bold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    Q{balance.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                    {fmtMonto(balance)}
                   </p>
                 </div>
                 <TrendingUp className={`w-8 h-8 ${balance > 0 ? 'text-red-500' : 'text-green-500'}`} />
@@ -323,7 +341,7 @@ export function EstadoCuentaEstudiante() {
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Tienes un balance pendiente de <strong>Q{balance.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</strong>. 
+              Tienes un balance pendiente de <strong>{fmtMonto(balance)}</strong>. 
               Por favor realiza tu pago para mantener tu cuenta al día.
             </AlertDescription>
           </Alert>
@@ -366,19 +384,22 @@ export function EstadoCuentaEstudiante() {
                 <TableRow>
                   <TableCell className="font-medium">Total a Cobrar</TableCell>
                   <TableCell className="text-right font-mono">
-                    Q{totalCobrado.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                    {fmtMonto(totalCobrado)}
+                    {esUSD && <div className="text-xs text-muted-foreground">Q{totalCobrado.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</div>}
                   </TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell className="font-medium text-green-600">Total Pagado</TableCell>
                   <TableCell className="text-right font-mono text-green-600">
-                    Q{totalPagado.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                    {fmtMonto(totalPagado)}
+                    {esUSD && <div className="text-xs text-muted-foreground">Q{totalPagado.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</div>}
                   </TableCell>
                 </TableRow>
                 <TableRow className="border-t-2">
                   <TableCell className="font-bold">Balance Pendiente</TableCell>
                   <TableCell className={`text-right font-mono font-bold text-lg ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    Q{balance.toLocaleString('es-GT', { minimumFractionDigits: 2 })}
+                    {fmtMonto(balance)}
+                    {esUSD && <div className="text-xs text-muted-foreground font-normal">Q{balance.toLocaleString('es-GT', { minimumFractionDigits: 2 })}</div>}
                   </TableCell>
                 </TableRow>
               </TableBody>

@@ -268,13 +268,21 @@ export function SeguimientoCobros() {
                         <Checkbox id={`select-${student.id}`} />
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium">{student.name}</div>
+                        <div className="font-medium flex items-center gap-1">
+                          {student.name}
+                          {student.moneda === 'USD' && (
+                            <span className="text-xs font-semibold text-green-700 bg-green-100 rounded px-1">$USD</span>
+                          )}
+                        </div>
                         <div className="text-xs text-muted-foreground">
                           {student.id} - {student.program}
                         </div>
                       </TableCell>
                       <TableCell>
                         <div>Q{student.totalDebt.toLocaleString()}</div>
+                        {student.moneda === 'USD' && (
+                          <div className="text-xs text-green-700">${(student.totalDebt / 8).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+                        )}
                         <div className="text-xs text-muted-foreground">
                           {student.lateMonths} {student.lateMonths === 1 ? "mes" : "meses"}
                         </div>

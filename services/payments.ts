@@ -63,6 +63,7 @@ export interface AccountSummary {
     nombre_completo: string
     carnet: string
     correo_electronico?: string
+    moneda?: "GTQ" | "USD"
   }
 }
 
