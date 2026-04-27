@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import { 
   Sparkles, 
@@ -23,7 +24,9 @@ import {
   X,
   Download,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  CreditCard,
+  RefreshCw
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import NotificationsPanel from "@/components/dashboard/NotificationsPanel"
@@ -246,6 +249,24 @@ export default function WelcomeView() {
   const [mesSel, setMesSel] = useState(hoy.getMonth() + 1)
   const [anoSel, setAnoSel] = useState(hoy.getFullYear())
 
+  // — Estado: Últimos carnets generados —
+  const [ultimosCarnets, setUltimosCarnets] = useState<{id:number; carnet:string; nombre_completo:string; updated_at:string}[]>([])
+  const [ultimosCarnetsSiguiente, setUltimosCarnetsSiguiente] = useState('')
+  const [ultimosCarnetsTotal, setUltimosCarnetsTotal] = useState(0)
+  const [ultimosCarnetsPage, setUltimosCarnetsPage] = useState(1)
+  const [ultimosCarnetsLastPage, setUltimosCarnetsLastPage] = useState(1)
+  const [ultimosCarnetsLoading, setUltimosCarnetsLoading] = useState(false)
+  const ultimosCarnetsPerPage = 10
+
+  // — Estado: Últimos carnets Moodle —
+  const [ultimosMoodle, setUltimosMoodle] = useState<{id:number; carnet:string; nombre_completo:string; email:string; fecha_creacion:string; suspendido:boolean}[]>([])
+  const [ultimosMoodleTotal, setUltimosMoodleTotal] = useState(0)
+  const [ultimosMoodlePage, setUltimosMoodlePage] = useState(1)
+  const [ultimosMoodleLastPage, setUltimosMoodleLastPage] = useState(1)
+  const [ultimosMoodleLoading, setUltimosMoodleLoading] = useState(false)
+  const [ultimosMoodleDisponible, setUltimosMoodleDisponible] = useState(true)
+  const ultimosMoodlePerPage = 10
+
   useEffect(() => {
     // Actualizar reloj cada minuto
     const timer = setInterval(() => {
@@ -258,10 +279,59 @@ export default function WelcomeView() {
     return () => clearInterval(timer)
   }, [])
 
+  // Cargar últimos carnets generados
+  const cargarUltimosCarnets = async (page = 1) => {
+    try {
+      setUltimosCarnetsLoading(true)
+      const token = localStorage.getItem("token")
+      const res = await api.get('/gen-credenciales/ultimos-carnets', {
+        params: { limit: ultimosCarnetsPerPage, page },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      const d = res.data
+      setUltimosCarnets(d.data || [])
+      setUltimosCarnetsTotal(d.total || 0)
+      setUltimosCarnetsPage(d.page || 1)
+      setUltimosCarnetsLastPage(d.last_page || 1)
+      setUltimosCarnetsSiguiente(d.siguiente_carnet || '')
+    } catch (e) {
+      console.warn('No se pudieron cargar últimos carnets', e)
+    } finally {
+      setUltimosCarnetsLoading(false)
+    }
+  }
+
+  useEffect(() => { cargarUltimosCarnets(ultimosCarnetsPage) }, [ultimosCarnetsPage])
+
+  // Cargar últimos carnets de Moodle
+  const cargarUltimosMoodle = async (page = 1) => {
+    try {
+      setUltimosMoodleLoading(true)
+      const token = localStorage.getItem("token")
+      const anio = new Date().getFullYear().toString()
+      const res = await api.get('/gen-credenciales/ultimos-carnets-moodle', {
+        params: { limit: ultimosMoodlePerPage, page, anio },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      const d = res.data
+      setUltimosMoodle(d.data || [])
+      setUltimosMoodleTotal(d.total || 0)
+      setUltimosMoodlePage(d.page || 1)
+      setUltimosMoodleLastPage(d.last_page || 1)
+      setUltimosMoodleDisponible(d.moodle_disponible !== false)
+    } catch (e) {
+      console.warn('No se pudieron cargar carnets de Moodle', e)
+      setUltimosMoodleDisponible(false)
+    } finally {
+      setUltimosMoodleLoading(false)
+    }
+  }
+
+  useEffect(() => { cargarUltimosMoodle(ultimosMoodlePage) }, [ultimosMoodlePage])
+
   // Cargar inscritos cuando cambie mes/año
   useEffect(() => {
-    const cargarInscritos = async () => {
-      try {
+    const cargarInscritos = async () => {      try {
         setInscritosLoading(true)
         const res = await fetchInscritosPorMes(mesSel, anoSel)
         if (res.success) {
@@ -1755,6 +1825,164 @@ export default function WelcomeView() {
           </CardContent>
         </Card>
       )}
+
+      {/* Widget: Últimos carnets generados */}
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-2 pb-3">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-blue-600" />
+              Últimos carnets generados
+            </CardTitle>
+            <CardDescription>
+              Sistema: {ultimosCarnetsTotal} carnet{ultimosCarnetsTotal !== 1 ? 's' : ''} en {new Date().getFullYear()}
+              {ultimosCarnetsSiguiente && (
+                <span className="ml-2 text-emerald-600 font-medium">
+                  · Siguiente: <strong>{ultimosCarnetsSiguiente}</strong>
+                </span>
+              )}
+            </CardDescription>
+          </div>
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => { cargarUltimosCarnets(ultimosCarnetsPage); cargarUltimosMoodle(ultimosMoodlePage) }}
+              disabled={ultimosCarnetsLoading && ultimosMoodleLoading}
+              title="Recargar"
+            >
+              <RefreshCw className={`h-4 w-4 ${(ultimosCarnetsLoading || ultimosMoodleLoading) ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="sistema" className="w-full">
+            <TabsList className="mb-3 h-8">
+              <TabsTrigger value="sistema" className="text-xs px-3">
+                Sistema ({ultimosCarnetsTotal})
+              </TabsTrigger>
+              <TabsTrigger value="moodle" className="text-xs px-3">
+                Moodle {ultimosMoodleDisponible ? `(${ultimosMoodleTotal})` : '(no disponible)'}
+              </TabsTrigger>
+            </TabsList>
+
+            {/* ── Tab Sistema ── */}
+            <TabsContent value="sistema">
+              {ultimosCarnetsLoading ? (
+                <div className="space-y-2">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="h-9 bg-gray-100 rounded animate-pulse" />
+                  ))}
+                </div>
+              ) : ultimosCarnets.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No hay carnets generados este año todavía
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-muted-foreground">
+                        <th className="text-left py-2 pr-4 font-medium w-28">Carnet</th>
+                        <th className="text-left py-2 font-medium">Nombre</th>
+                        <th className="text-right py-2 pl-4 font-medium w-32 hidden sm:table-cell">Fecha</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ultimosCarnets.map((item) => (
+                        <tr key={item.id} className="border-b last:border-0 hover:bg-muted/30">
+                          <td className="py-2 pr-4">
+                            <Badge variant="secondary" className="font-mono text-xs">
+                              {item.carnet}
+                            </Badge>
+                          </td>
+                          <td className="py-2 truncate max-w-[200px]">{item.nombre_completo || '—'}</td>
+                          <td className="py-2 pl-4 text-xs text-muted-foreground text-right hidden sm:table-cell">
+                            {item.updated_at ? new Date(item.updated_at).toLocaleDateString('es-GT') : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {ultimosCarnetsLastPage > 1 && (
+                    <PaginationControls
+                      currentPage={ultimosCarnetsPage}
+                      totalPages={ultimosCarnetsLastPage}
+                      onPageChange={(p) => setUltimosCarnetsPage(p)}
+                    />
+                  )}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* ── Tab Moodle ── */}
+            <TabsContent value="moodle">
+              {!ultimosMoodleDisponible ? (
+                <div className="flex flex-col items-center gap-2 py-6 text-muted-foreground">
+                  <AlertCircle className="h-8 w-8 text-orange-400" />
+                  <p className="text-sm text-center">Moodle no disponible en este momento</p>
+                  <Button variant="outline" size="sm" onClick={() => cargarUltimosMoodle(1)}>
+                    <RefreshCw className="h-3.5 w-3.5 mr-1" /> Reintentar
+                  </Button>
+                </div>
+              ) : ultimosMoodleLoading ? (
+                <div className="space-y-2">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="h-9 bg-gray-100 rounded animate-pulse" />
+                  ))}
+                </div>
+              ) : ultimosMoodle.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No hay usuarios Moodle registrados este año todavía
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-muted-foreground">
+                        <th className="text-left py-2 pr-4 font-medium w-32">Usuario</th>
+                        <th className="text-left py-2 font-medium">Nombre</th>
+                        <th className="text-left py-2 pl-4 font-medium hidden md:table-cell">Email</th>
+                        <th className="text-right py-2 pl-4 font-medium w-24 hidden sm:table-cell">Creación</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ultimosMoodle.map((item) => (
+                        <tr key={item.id} className="border-b last:border-0 hover:bg-muted/30">
+                          <td className="py-2 pr-4">
+                            <Badge
+                              variant={item.suspendido ? 'destructive' : 'secondary'}
+                              className="font-mono text-xs"
+                            >
+                              {item.carnet}
+                            </Badge>
+                          </td>
+                          <td className="py-2 truncate max-w-[180px]">{item.nombre_completo || '—'}</td>
+                          <td className="py-2 pl-4 text-xs text-muted-foreground truncate max-w-[180px] hidden md:table-cell">
+                            {item.email || '—'}
+                          </td>
+                          <td className="py-2 pl-4 text-xs text-muted-foreground text-right hidden sm:table-cell">
+                            {item.fecha_creacion
+                              ? new Date(parseInt(item.fecha_creacion) * 1000).toLocaleDateString('es-GT')
+                              : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {ultimosMoodleLastPage > 1 && (
+                    <PaginationControls
+                      currentPage={ultimosMoodlePage}
+                      totalPages={ultimosMoodleLastPage}
+                      onPageChange={(p) => setUltimosMoodlePage(p)}
+                    />
+                  )}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
 
       {/* Accesos Rápidos */}
       <Card>
