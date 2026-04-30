@@ -1366,14 +1366,47 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
 
                   <div>
                     <label className="block text-sm font-medium mb-1 flex items-center gap-2">
-                      Día de Estudio
+                      Días que estudiará
                       {hasField(datosAcademicos.diaEstudio) && <CheckCircle className="h-4 w-4 text-green-500" />}
                     </label>
-                    <Input
-                      value={datosAcademicos.diaEstudio || ""}
-                      onChange={(e) => setDatosAcademicos(prev => ({ ...prev, diaEstudio: e.target.value }))}
-                      placeholder="Ej: lunes, martes"
-                    />
+                    {(() => {
+                      const diasDisponibles = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"]
+                      const seleccionados = datosAcademicos.diaEstudio
+                        ? datosAcademicos.diaEstudio.split(",").map(d => d.trim()).filter(Boolean)
+                        : []
+                      const toggleDia = (dia: string) => {
+                        const next = seleccionados.includes(dia)
+                          ? seleccionados.filter(d => d !== dia)
+                          : [...seleccionados, dia]
+                        setDatosAcademicos(prev => ({ ...prev, diaEstudio: next.join(", ") }))
+                      }
+                      return (
+                        <>
+                          <div className="grid grid-cols-2 gap-2 border p-3 rounded-md">
+                            {diasDisponibles.map((dia) => {
+                              const activo = seleccionados.includes(dia)
+                              return (
+                                <button
+                                  type="button"
+                                  key={dia}
+                                  onClick={() => toggleDia(dia)}
+                                  className={`text-sm p-2 rounded border ${
+                                    activo
+                                      ? "bg-blue-600 text-white border-blue-700"
+                                      : "bg-white border-gray-300 text-gray-700"
+                                  }`}
+                                >
+                                  {dia.charAt(0).toUpperCase() + dia.slice(1)}
+                                </button>
+                              )
+                            })}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Seleccionados: {datosAcademicos.diaEstudio || "Ninguno"}
+                          </p>
+                        </>
+                      )
+                    })()}
                   </div>
                 </div>
 
