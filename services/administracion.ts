@@ -101,9 +101,19 @@ export const exportAdministracionDashboard = async (formato: 'xlsx' | 'csv' | 'j
       responseType: 'blob', // Importante: especificar que esperamos un blob
     })
 
+    const normalizeHeader = (value: unknown): string | undefined => {
+      if (typeof value === 'string') return value
+      if (Array.isArray(value)) return value.find((item): item is string => typeof item === 'string')
+      return undefined
+    }
+
+    const contentType =
+      normalizeHeader(response.headers?.['content-type']) ||
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
     // Crear blob del response
     const blob = new Blob([response.data], { 
-      type: response.headers['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      type: contentType
     })
 
     // Verificar que el blob tiene contenido
@@ -115,7 +125,7 @@ export const exportAdministracionDashboard = async (formato: 'xlsx' | 'csv' | 'j
     const url = window.URL.createObjectURL(blob)
 
     // Obtener nombre del archivo desde headers o usar default
-    const contentDisposition = response.headers['content-disposition']
+    const contentDisposition = normalizeHeader(response.headers?.['content-disposition'])
     let filename = `dashboard_administrativo_${new Date().toISOString().split('T')[0]}.${formato}`
 
     if (contentDisposition) {
