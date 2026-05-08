@@ -1,5 +1,14 @@
 import api from "./api"
 
+const getHeaderString = (value: unknown): string | undefined => {
+  if (typeof value === "string") return value
+  if (Array.isArray(value)) {
+    const firstString = value.find((item): item is string => typeof item === "string")
+    return firstString
+  }
+  return undefined
+}
+
 export type MatriculaDateRange = "all" | "month" | "quarter" | "semester" | "year" | "custom"
 
 export interface MatriculaReportFilters {
@@ -184,7 +193,7 @@ export const exportMatriculaReport = async (payload: MatriculaExportPayload): Pr
     responseType: "blob",
   })
 
-  const contentType = response.headers["content-type"] || "application/octet-stream"
+  const contentType = getHeaderString(response.headers["content-type"]) || "application/octet-stream"
   const normalizedContentType = contentType.toLowerCase()
   const isZipResponse = normalizedContentType.includes("zip")
   const isExcelResponse = normalizedContentType.includes("spreadsheet") || normalizedContentType.includes("excel")
@@ -205,10 +214,10 @@ export const exportMatriculaReport = async (payload: MatriculaExportPayload): Pr
     throw new Error("El archivo exportado está vacío")
   }
 
-  const contentDisposition = response.headers["content-disposition"]
+  const contentDisposition = getHeaderString(response.headers["content-disposition"])
   let filename = `reporte_matricula_${new Date().toISOString().replace(/[:]/g, "-")}.${defaultExtension}`
 
-  if (typeof contentDisposition === "string") {
+  if (contentDisposition) {
     const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
     if (filenameMatch && filenameMatch[1]) {
       filename = filenameMatch[1].replace(/['"]/g, "")

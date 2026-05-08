@@ -163,10 +163,9 @@ const vistaSchema = z.object({
   submenu: z.string().optional().nullable(),
   view_path: z.string().min(1, "La ruta de la vista es requerida"),
   status: z.boolean().default(true),
-  order_num: z.preprocess(
-    (a) => Number(a),
-    z.number({ invalid_type_error: "El orden debe ser un número" })
-  ),
+  order_num: z.coerce
+    .number({ invalid_type_error: "El orden debe ser un número" })
+    .int("El orden debe ser un número entero"),
   icono: z.string().optional(),
 });
 

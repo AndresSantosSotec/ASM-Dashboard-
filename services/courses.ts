@@ -70,6 +70,15 @@ const mapCourseToApi = (data: Partial<CourseInput> & { status?: Course['status']
   return payload
 }
 
+const getHeaderString = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) {
+    const firstString = value.find((item): item is string => typeof item === 'string')
+    return firstString
+  }
+  return undefined
+}
+
 export const fetchCourses = async (programId?: number) => {
   const perPage = 200
   let page = 1
@@ -321,7 +330,9 @@ export const exportCursosCSV = async (carnet: string): Promise<Blob> => {
     )
     
     // Verificar el content-type de la respuesta
-    const contentType = res.headers['content-type'] || res.headers['Content-Type']
+    const contentType =
+      getHeaderString(res.headers['content-type']) ||
+      getHeaderString((res.headers as any)['Content-Type'])
     
     // Si la respuesta es JSON, es un error
     if (contentType && contentType.includes('application/json')) {
@@ -385,7 +396,9 @@ export const exportCursosMasivoCSV = async (carnets: string[]): Promise<Blob> =>
     )
     
     // Verificar el content-type de la respuesta
-    const contentType = res.headers['content-type'] || res.headers['Content-Type']
+    const contentType =
+      getHeaderString(res.headers['content-type']) ||
+      getHeaderString((res.headers as any)['Content-Type'])
     
     // Si la respuesta es JSON, es un error
     if (contentType && contentType.includes('application/json')) {
@@ -402,8 +415,12 @@ export const exportCursosMasivoCSV = async (carnets: string[]): Promise<Blob> =>
     }
     
     // Verificar headers de información adicional (para logs)
-    const totalProcesados = res.headers['x-total-procesados'] || res.headers['X-Total-Procesados']
-    const totalErrores = res.headers['x-total-errores'] || res.headers['X-Total-Errores']
+    const totalProcesados =
+      getHeaderString(res.headers['x-total-procesados']) ||
+      getHeaderString((res.headers as any)['X-Total-Procesados'])
+    const totalErrores =
+      getHeaderString(res.headers['x-total-errores']) ||
+      getHeaderString((res.headers as any)['X-Total-Errores'])
     
     if (totalProcesados && totalErrores) {
       console.log(`📊 Exportación masiva completada: ${totalProcesados} procesados, ${totalErrores} errores`)

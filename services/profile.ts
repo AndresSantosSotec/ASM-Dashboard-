@@ -1,6 +1,17 @@
 import api from './api'
 
 // ===============================
+// HELPERS
+// ===============================
+
+function getHeaderString(value: unknown): string | undefined {
+  if (value == null) return undefined
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) return value.join(', ')
+  return String(value)
+}
+
+// ===============================
 // TIPOS
 // ===============================
 
@@ -208,7 +219,7 @@ export async function descargarHistorialPDF(): Promise<void> {
   link.href = url
   
   // Obtener el nombre del archivo del header Content-Disposition
-  const contentDisposition = response.headers['content-disposition']
+  const contentDisposition = getHeaderString(response.headers?.['content-disposition'])
   let filename = 'Historial_Academico.pdf'
   
   if (contentDisposition) {

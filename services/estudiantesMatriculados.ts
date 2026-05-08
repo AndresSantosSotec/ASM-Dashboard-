@@ -1,5 +1,14 @@
 import api from "./api"
 
+const getHeaderString = (value: unknown): string | undefined => {
+  if (typeof value === "string") return value
+  if (Array.isArray(value)) {
+    const firstString = value.find((item): item is string => typeof item === "string")
+    return firstString
+  }
+  return undefined
+}
+
 // Types for enrolled students API
 export interface EstudianteMatriculado {
   id?: number
@@ -115,7 +124,7 @@ export const exportarEstudiantesMatriculados = async (
 
     // Create blob from response
     const contentType =
-      response.headers["content-type"] || "application/octet-stream"
+      getHeaderString(response.headers["content-type"]) || "application/octet-stream"
     const blob = new Blob([response.data], { type: contentType })
 
     // Verify blob has content
@@ -124,10 +133,10 @@ export const exportarEstudiantesMatriculados = async (
     }
 
     // Get filename from headers or use default
-    const contentDisposition = response.headers["content-disposition"]
+    const contentDisposition = getHeaderString(response.headers["content-disposition"])
     let filename = `estudiantes_matriculados_${new Date().toISOString().split("T")[0]}.${payload.formato}`
 
-    if (typeof contentDisposition === "string") {
+    if (contentDisposition) {
       const filenameMatch = contentDisposition.match(
         /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/
       )
