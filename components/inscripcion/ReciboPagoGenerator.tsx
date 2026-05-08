@@ -406,7 +406,7 @@ export default function ReciboPagoGenerator({
 
       // --- Header ---
       if (headerLogoB64) {
-        doc.addImage(headerLogoB64, 'JPEG', 40, 30, 100, 40, undefined, 'FAST')
+        doc.addImage(headerLogoB64, 'JPEG', 40, 34, 78, 30, undefined, 'FAST')
       }
 
       // Información Institucional (Centrado)
@@ -584,7 +584,7 @@ export default function ReciboPagoGenerator({
       doc.text("Firma y nombre de quien recibe", 450, footerY + 12, { align: "center" })
 
       if (footerLogoB64) {
-        doc.addImage(footerLogoB64, 'PNG', 260, footerY + 30, 100, 30, undefined, 'FAST')
+        doc.addImage(footerLogoB64, 'PNG', 266, footerY + 30, 86, 24, undefined, 'FAST')
       }
 
       doc.save(`Recibo-${recibo.reciboNo}.pdf`)
@@ -628,10 +628,16 @@ export default function ReciboPagoGenerator({
         <style>
           @page { size: letter; margin: 1cm 1.5cm; }
           body { font-family: 'Arial', sans-serif; font-size: 10pt; color: #000; margin: 0; padding: 20px; }
+          .logo-bar { display: flex; justify-content: center; align-items: center; min-height: 48px; margin-bottom: 8px; }
+          .logo-bar img { height: 42px; width: auto; max-width: 190px; object-fit: contain; display: block; }
+          .gold-line { height: 1px; background: #d8c07a; margin: 4px 0 10px 0; }
           .header-container { position: relative; text-align: center; margin-bottom: 20px; }
-          .header-logo { position: absolute; left: 0; top: 0; height: 50px; }
+          .header-logo { position: absolute; left: 0; top: 0; height: 34px; max-width: 125px; object-fit: contain; }
           .header-info h1 { font-size: 14pt; margin: 0; font-weight: bold; }
           .header-info p { margin: 1px 0; font-size: 8.5pt; }
+          .header { text-align: center; margin-bottom: 12px; }
+          .header h1 { margin: 0; font-size: 24px; line-height: 1; }
+          .header p { margin: 2px 0; }
           .data-line { margin: 4px 0; line-height: 1.4; }
           .data-row { display: flex; justify-content: space-between; margin: 4px 0; }
           .concepto-table { width: 100%; border-collapse: collapse; margin: 15px 0; border: 1.2px solid #000; }
@@ -644,7 +650,7 @@ export default function ReciboPagoGenerator({
           .signature-box { margin-top: 50px; text-align: right; }
           .signature-line { border-top: 1px solid #000; width: 220px; margin-left: auto; text-align: center; padding-top: 5px; font-size: 9pt; }
           .footer-logos { margin-top: 40px; text-align: center; }
-          .footer-logos img { height: 35px; }
+          .footer-logos img { height: 26px; max-width: 180px; object-fit: contain; }
           .no-devolucion { font-size: 8pt; font-weight: bold; margin-top: 10px; }
           .observaciones { margin: 10px 0; font-size: 9pt; font-style: italic; }
           @media print {
@@ -654,13 +660,13 @@ export default function ReciboPagoGenerator({
       </head>
       <body onload="setTimeout(function(){ window.print(); window.close(); }, 800)">
         <div class="logo-bar">
-          <img src="${headerSrc}" alt="Gaia Business School" />
+          <img src="${headerSrc}" alt="American School of Management" />
         </div>
         <div class="gold-line"></div>
         <div class="header">
-          <h1>GAIA</h1>
-          <p style="font-size: 8pt; letter-spacing: 2px;">BUSINESS SCHOOL</p>
-          <p><strong>Gaia Business School</strong></p>
+          <h1>AMERICAN</h1>
+          <p style="font-size: 8pt; letter-spacing: 2px;">SCHOOL OF MANAGEMENT</p>
+          <p><strong>American School of Management</strong></p>
           <p>Torre Tigo, Km. 9.5 Carretera al Salvador, Oficina 6C</p>
           <p>Cel. 5486-2301</p>
         </div>
@@ -758,7 +764,7 @@ export default function ReciboPagoGenerator({
               <img
                 src={resolveAssetUrl("/recursos/Logos-02.png")}
                 alt="ASM Logo"
-                className="absolute left-0 top-0 h-12 w-auto"
+                className="absolute left-0 top-0 h-8 w-auto"
                 onError={(e) => (e.currentTarget.style.display = "none")}
               />
               <h2 className="text-xl font-bold m-0 leading-tight">AMERICAN</h2>
@@ -812,7 +818,7 @@ export default function ReciboPagoGenerator({
               <img
                 src={resolveAssetUrl("/recursos/Logos_Mesa.png")}
                 alt="Footer Logos"
-                className="h-8 w-auto mx-auto mb-1 opacity-80"
+                className="h-6 w-auto mx-auto mb-1 opacity-80"
                 onError={(e) => (e.currentTarget.style.display = "none")}
               />
             </div>

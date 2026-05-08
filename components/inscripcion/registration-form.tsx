@@ -93,6 +93,51 @@ export default function RegistrationForm() {
 
   const [documentos, setDocumentos] = useState<Documento[]>(DOCUMENTOS_DEFAULT)
 
+  const crearProspectoRapidoDesdeFicha = useCallback(async () => {
+    const fechaHoy = new Date().toISOString().split("T")[0]
+    const payload = {
+      fecha: fechaHoy,
+      nombreCompleto: (datosPersonales.nombre || "").trim(),
+      telefono: (datosPersonales.telefono || "").trim() || null,
+      correoElectronico: (datosPersonales.emailPersonal || "").trim() || null,
+      genero: "No especificado",
+      paisNombre: datosPersonales.paisOrigen || null,
+      departamentoNombre: datosLaborales.departamento || null,
+      correoCorporativo: (datosPersonales.emailCorporativo || "").trim() || null,
+      numeroIdentificacion: (datosPersonales.dpi || "").trim() || null,
+      fechaNacimiento: datosPersonales.fechaNacimiento || null,
+      direccionResidencia: (datosPersonales.direccion || "").trim() || null,
+      empresaDondeLaboraActualmente: (datosLaborales.empresa || "").trim() || null,
+      puesto: (datosLaborales.puesto || "").trim() || null,
+      telefonoCorporativo: (datosLaborales.telefonoCorporativo || "").trim() || null,
+      direccionEmpresa: (datosLaborales.direccionEmpresa || "").trim() || null,
+      ultimoTituloObtenido: datosAcademicos.ultimoTitulo || null,
+      institucionTitulo: (datosAcademicos.institucionAnterior || "").trim() || null,
+      anioGraduacion: datosAcademicos.añoGraduacion ? Number(datosAcademicos.añoGraduacion) : null,
+      cantidadCursosAprobados: datosAcademicos.cursosAprobados ? Number(datosAcademicos.cursosAprobados) : null,
+      modalidad: datosAcademicos.modalidad || null,
+      fechaInicioEspecifica: datosAcademicos.fechaInicioEspecifica || null,
+      fechaTallerReduccion: datosAcademicos.fechaTallerInduccion || null,
+      fechaTallerIntegracion: datosAcademicos.fechaTallerIntegracion || null,
+      medioConocimientoInstitucion: datosAcademicos.medioConocio || null,
+      metodoPago: datosFinancieros.formaPago || null,
+      diaEstudio: datosAcademicos.diaEstudio || null,
+      interes: datosAcademicos.titulo1 || datosAcademicos.programa || null,
+      status: "Preinscripción",
+      moneda: datosFinancieros.moneda || "GTQ",
+    }
+
+    const response = await api.post("/prospectos", payload)
+    const nuevoId = response?.data?.data?.id
+
+    if (!nuevoId) {
+      throw new Error("No se pudo obtener el ID del prospecto recién creado.")
+    }
+
+    setProspectoId(nuevoId)
+    return Number(nuevoId)
+  }, [datosPersonales, datosLaborales, datosAcademicos, datosFinancieros])
+
   // ── Sistema de borradores (máx. 3 por asesor) ──────────────────────────────
   const {
     drafts,
@@ -205,8 +250,15 @@ export default function RegistrationForm() {
         }))
 
         // Siempre traer datos financieros del programa principal (lo integrado en Alerta Alumno Nuevo)
-        setDatosFinancieros((prev) => ({
-          ...prev,
+        setDatosFinancieros((prev) => {
+          const convenioIdCargado =
+            data.convenio_pago_id ??
+            primerPrograma?.convenio_id ??
+            primerPrograma?.convenio?.id ??
+            prev.convenioId
+
+          return {
+            ...prev,
           inscripcion:
             primerPrograma != null && primerPrograma.inscripcion != null && String(primerPrograma.inscripcion).trim() !== ""
               ? String(primerPrograma.inscripcion)
@@ -226,9 +278,10 @@ export default function RegistrationForm() {
               ? String(primerPrograma.duracion_meses)
               : prev.cantidadMeses,
           formaPago: (data.metodo_pago as DatosFinancieros["formaPago"]) || prev.formaPago,
-          convenioId: data.convenio_pago_id ?? prev.convenioId,
-          tieneConvenio: !!data.convenio_pago_id || prev.tieneConvenio,
-        }))
+          convenioId: convenioIdCargado,
+          tieneConvenio: !!convenioIdCargado || prev.tieneConvenio,
+          }
+        })
         setPreserveFinancialFromProspect(true)
       })
       .catch(() => {
@@ -413,6 +466,46 @@ export default function RegistrationForm() {
     if (isSubmitting) return
     setIsSubmitting(true)
     try {
+      const teniaProspectoPrevio = !!prospectoId
+      let prospectoIdFinal = prospectoId
+
+      if (!prospectoIdFinal) {
+        const decision = await Swal.fire({
+          icon: "warning",
+          title: "No hay prospecto seleccionado",
+          html: "No puedes finalizar sin un prospecto. ¿Deseas crearlo ahora con los datos de esta ficha?",
+          showCancelButton: true,
+          confirmButtonText: "Crear prospecto y continuar",
+          cancelButtonText: "Cancelar",
+          confirmButtonColor: "#16a34a",
+        })
+
+        if (!decision.isConfirmed) {
+          setIsSubmitting(false)
+          return
+        }
+
+        try {
+          prospectoIdFinal = await crearProspectoRapidoDesdeFicha()
+          await Swal.fire({
+            icon: "success",
+            title: "Prospecto creado",
+            text: "Se creó el prospecto y se continuará con la inscripción.",
+            timer: 1700,
+            showConfirmButton: false,
+          })
+        } catch (createError: any) {
+          const backendMsg = createError?.response?.data?.message || createError?.response?.data?.error
+          await Swal.fire({
+            icon: "error",
+            title: "No se pudo crear el prospecto",
+            text: backendMsg || "Completa los datos requeridos o selecciona un prospecto existente.",
+          })
+          setIsSubmitting(false)
+          return
+        }
+      }
+
       // Garantizar que inversionTotal tenga un valor numérico antes de enviar.
       // Si el usuario no pasó por la tab financiera o el campo es undefined/vacío,
       // lo calculamos aquí: cuotaMensual * cantidadMeses + inscripcion.
@@ -432,7 +525,7 @@ export default function RegistrationForm() {
       const response = await api.post(
         `/inscripciones/finalizar`,
         {
-          personales: { ...datosPersonales, id: prospectoId },
+          personales: { ...datosPersonales, id: prospectoIdFinal },
           laborales: datosLaborales,
           academicos: datosAcademicos,
           financieros: financierosPayload,
@@ -451,7 +544,7 @@ export default function RegistrationForm() {
       // Los documentos se suben en tiempo real desde DocumentosTab.handleFileChange,
       // así que aquí solo subimos los que no se subieron aún (archivos sin prospectoId previo).
       // Si prospectoId existía antes (retroceso/reinscripción) los docs ya se subieron en real-time.
-      if (!prospectoId) {
+      if (!teniaProspectoPrevio) {
         // Solo si es prospecto NUEVO (sin ID previo) necesitamos subir los archivos aquí
         const docsToUpload = documentos.filter(
           (d) => d.archivos && d.archivos.length > 0 && d.id !== 'inscripcion'

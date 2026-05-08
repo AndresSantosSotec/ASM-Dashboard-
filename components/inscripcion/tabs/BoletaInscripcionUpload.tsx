@@ -149,6 +149,17 @@ export default function BoletaInscripcionUpload({
   }
 
   const handleSubmit = async () => {
+    const prospectoIdSafe = Number(prospectoId)
+    if (!Number.isFinite(prospectoIdSafe) || prospectoIdSafe <= 0) {
+      await Swal.fire({
+        icon: "warning",
+        title: "Prospecto no seleccionado",
+        text: "Debes seleccionar o crear un prospecto antes de guardar la boleta.",
+        confirmButtonText: "Entendido",
+      })
+      return
+    }
+
     if (!datos.numeroBoleta.trim()) {
       Swal.fire("Error", "Ingrese el número de boleta", "error")
       return
@@ -193,7 +204,7 @@ export default function BoletaInscripcionUpload({
       }
 
       const formData = new FormData()
-      formData.append("prospecto_id", prospectoId.toString())
+      formData.append("prospecto_id", String(prospectoIdSafe))
       formData.append("tipo_documento", "inscripcion")
       formData.append("file", archivoRef.current)
 
@@ -512,7 +523,7 @@ export default function BoletaInscripcionUpload({
         </Alert>
 
         {/* Botón */}
-        <Button className="w-full" onClick={handleSubmit} disabled={isUploading}>
+        <Button className="w-full" onClick={handleSubmit} disabled={isUploading || !Number.isFinite(Number(prospectoId)) || Number(prospectoId) <= 0}>
           {isUploading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -525,6 +536,12 @@ export default function BoletaInscripcionUpload({
             </>
           )}
         </Button>
+
+        {(!Number.isFinite(Number(prospectoId)) || Number(prospectoId) <= 0) && (
+          <p className="text-xs text-amber-700">
+            Selecciona o crea un prospecto para habilitar la carga de boleta.
+          </p>
+        )}
       </div>
 
       <FilePreviewModal

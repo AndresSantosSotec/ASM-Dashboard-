@@ -85,6 +85,7 @@
     "react-to-print": "^3.0.6",
     "recharts": "2.15.0",
     "sonner": "^1.7.1",
+    "styled-components": "^6.4.1",
     "sweetalert2": "^11.23.0",
     "swr": "^2.3.6",
     "tailwind-merge": "^2.6.0",
