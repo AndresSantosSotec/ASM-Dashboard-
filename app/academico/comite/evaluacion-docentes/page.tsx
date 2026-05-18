@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { fuzzyMatch } from "@/lib/search"
 import {
   Award,
   Search,
@@ -121,11 +122,8 @@ export default function EvaluacionDocentes() {
   const [areasDestacadas, setAreasDestacadas] = useState<string[]>([])
   const [areasMejora, setAreasMejora] = useState<string[]>([])
 
-  const docentesFiltrados = docentes.filter(
-    (docente) =>
-      docente.nombre.toLowerCase().includes(filtro.toLowerCase()) ||
-      docente.departamento.toLowerCase().includes(filtro.toLowerCase()) ||
-      docente.especialidad.toLowerCase().includes(filtro.toLowerCase()),
+  const docentesFiltrados = docentes.filter((docente) =>
+    fuzzyMatch([docente.nombre, docente.departamento, docente.especialidad], filtro)
   )
 
   const handleSeleccionarDocente = (docente: any) => {

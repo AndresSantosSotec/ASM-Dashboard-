@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { fuzzyMatch } from "@/lib/search"
 import axios from "axios"
 import Swal from "sweetalert2"
 import { Button } from "@/components/ui/button"
@@ -120,15 +121,10 @@ export default function GestionUsuarios() {
 
   // Filtrar usuarios con múltiples criterios (con defaults seguros)
   const filteredUsuarios = usuarios.filter((usuario) => {
-    const uname = String(usuario?.username ?? "").toLowerCase()
-    const email = String(usuario?.email ?? "").toLowerCase()
-    const role = String(usuario?.rol ?? usuario?.role ?? "").toLowerCase()
-    const search = searchTerm.toLowerCase()
-
-    const matchesSearch =
-      uname.includes(search) ||
-      email.includes(search) ||
-      role.includes(search)
+    const matchesSearch = fuzzyMatch(
+      [String(usuario?.username ?? ''), String(usuario?.email ?? ''), String(usuario?.rol ?? usuario?.role ?? '')],
+      searchTerm
+    )
 
     const fullName = `${usuario?.first_name ?? ""} ${usuario?.last_name ?? ""}`.trim().toLowerCase()
     const matchesFullName = fullName.includes(fullNameFilter.toLowerCase())

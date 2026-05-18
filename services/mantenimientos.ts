@@ -13,6 +13,7 @@ export interface MantenimientosFilters {
   fecha_fin?: string
   mes?: number | string // 🆕 Filtrar por mes (1-12)
   ano?: number | string // 🆕 Filtrar por año (YYYY)
+  q?: string
   limit?: number
   page?: number
   per_page?: number
@@ -481,7 +482,14 @@ export const getKardex = async (
     ...(config ?? {}),
     params: sanitizeParams(params),
   })
-  return response.data
+  const payload = response.data ?? {}
+  if (Array.isArray(payload.kardex)) {
+    return { data: payload.kardex, pagination: payload.pagination }
+  }
+  return {
+    data: Array.isArray(payload.data) ? payload.data : [],
+    pagination: payload.pagination,
+  }
 }
 
 export const getKardexById = async (id: number, config?: AxiosRequestConfig): Promise<KardexPagoResumen> => {
@@ -540,7 +548,14 @@ export const getReconciliaciones = async (
     ...(config ?? {}),
     params: sanitizeParams(params),
   })
-  return response.data
+  const payload = response.data ?? {}
+  if (Array.isArray(payload.reconciliaciones)) {
+    return { data: payload.reconciliaciones, pagination: payload.pagination }
+  }
+  return {
+    data: Array.isArray(payload.data) ? payload.data : [],
+    pagination: payload.pagination,
+  }
 }
 
 export const getReconciliacionById = async (
@@ -572,7 +587,159 @@ export const deleteReconciliacion = async (id: number, config?: AxiosRequestConf
   await api.delete(`/mantenimientos/reconciliaciones/${id}`, config)
 }
 
-// 🔍 Obtener estudiante_programa para Select (más simple que búsqueda)
+// � VINCULACIÓN MANUAL DE CONCILIACIONES
+
+export interface ConciliacionPendiente {
+  id: number
+  bank: string | null
+  reference: string | null
+  amount: number
+  date: string | null
+  status: string | null
+  prospecto: ProspectoResumen | null
+}
+
+export interface KardexSugerencia {
+  id: number
+  match_percentage: number
+  fecha_pago: string | null
+  monto_pagado: number
+  numero_boleta: string | null
+  banco: string | null
+  estado_pago: string | null
+  prospecto: ProspectoResumen | null
+  programa: ProgramaResumen | null
+}
+
+export const getConciliacionesPendientes = async (
+  search?: string,
+  config?: AxiosRequestConfig,
+): Promise<{ conciliaciones: ConciliacionPendiente[] }> => {
+  const params = new URLSearchParams()
+  if (search && search.trim()) {
+    params.append('q', search.trim())
+  }
+  const queryString = params.toString()
+  const url = `/mantenimientos/reconciliaciones-pendientes${queryString ? '?' + queryString : ''}`
+  const response = await api.get(url, config)
+  return response.data
+}
+
+export const buscarKardexParaVincular = async (
+  conciliacionId: number,
+  search?: string,
+  config?: AxiosRequestConfig,
+): Promise<{
+  conciliacion: {
+    id: number
+    bank: string | null
+    reference: string | null
+    amount: number
+    date: string | null
+  }
+  sugerencias: KardexSugerencia[]
+}> => {
+  const params = new URLSearchParams()
+  params.append('conciliacion_id', String(conciliacionId))
+  if (search && search.trim()) {
+    params.append('q', search.trim())
+  }
+  const response = await api.get(`/mantenimientos/buscar-kardex-para-vincular?${params.toString()}`, config)
+  return response.data
+}
+
+export const vincularConciliacionManual = async (
+  conciliacionId: number,
+  kardexPagoId: number,
+  config?: AxiosRequestConfig,
+): Promise<{ message: string }> => {
+  const response = await api.post(
+    '/mantenimientos/vincular-conciliacion-manual',
+    {
+      conciliacion_id: conciliacionId,
+      kardex_pago_id: kardexPagoId,
+    },
+    config,
+  )
+  return response.data
+}
+
+export const desvincularConciliacion = async (
+  conciliacionId: number,
+  config?: AxiosRequestConfig,
+): Promise<{ message: string }> => {
+  const response = await api.post(`/mantenimientos/desvincular-conciliacion/${conciliacionId}`, {}, config)
+  return response.data
+}
+// 📜 HISTORIAL DE AUDITORÍA
+
+export interface HistorialVinculacion {
+  id: number
+  action: string
+  fecha: string
+  usuario: {
+    id: number
+    nombre: string
+    email: string
+  } | null
+  conciliacion: {
+    id: number
+    banco: string | null
+    referencia: string | null
+    monto: number
+    fecha: string | null
+  } | null
+  kardex: {
+    id: number
+    numero_boleta: string | null
+    banco: string | null
+    monto: number
+    fecha: string | null
+  } | null
+  prospecto: {
+    id: number
+    nombre: string
+    carnet: string | null
+  } | null
+  status_anterior: string | null
+  status_nuevo: string | null
+  observaciones: string | null
+  metadata: any
+}
+
+export interface HistorialVinculacionesFilters {
+  conciliacion_id?: number
+  kardex_pago_id?: number
+  prospecto_id?: number
+  action?: string
+  user_id?: number
+  q?: string
+  fecha_desde?: string
+  fecha_hasta?: string
+  limit?: number
+}
+
+export const getHistorialVinculaciones = async (
+  filters?: HistorialVinculacionesFilters,
+  config?: AxiosRequestConfig,
+): Promise<{ historial: HistorialVinculacion[] }> => {
+  const params = new URLSearchParams()
+  if (filters?.conciliacion_id) params.append('conciliacion_id', String(filters.conciliacion_id))
+  if (filters?.kardex_pago_id) params.append('kardex_pago_id', String(filters.kardex_pago_id))
+  if (filters?.prospecto_id) params.append('prospecto_id', String(filters.prospecto_id))
+  if (filters?.action) params.append('action', filters.action)
+  if (filters?.user_id) params.append('user_id', String(filters.user_id))
+  if (filters?.q) params.append('q', filters.q)
+  if (filters?.fecha_desde) params.append('fecha_desde', filters.fecha_desde)
+  if (filters?.fecha_hasta) params.append('fecha_hasta', filters.fecha_hasta)
+  if (filters?.limit) params.append('limit', String(filters.limit))
+
+  const queryString = params.toString()
+  const url = `/mantenimientos/historial-vinculaciones${queryString ? '?' + queryString : ''}`
+  const response = await api.get(url, config)
+  return response.data
+}
+// �🔍 Obtener estudiante_programa para Select (más simple que búsqueda)
 export interface EstudianteProgramaSelect {
   estudiante_programa_id: number
   prospecto_id: number

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { fuzzyMatch } from "@/lib/search"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -185,7 +186,7 @@ export default function ReportesPage() {
   // Filtrar estudiantes según criterios
   const filteredStudents = students.filter((student) => {
     if (program !== "all" && student.program !== program) return false
-    if (searchTerm && !student.name.toLowerCase().includes(searchTerm.toLowerCase())) return false
+    if (searchTerm && !fuzzyMatch(student.name, searchTerm)) return false
     return true
   })
 

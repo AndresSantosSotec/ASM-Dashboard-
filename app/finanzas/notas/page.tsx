@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo } from "react"
+import { fuzzyMatch } from "@/lib/search"
 import { toast } from "@/hooks/use-toast"
 import { Search, Plus, Edit, Trash2, User, Mail, Phone, FileText, AlertCircle, ChevronDown, ChevronRight, Eye, CheckCircle2, Receipt, ChevronLeft } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
@@ -469,13 +470,11 @@ export default function NotasPagoPage() {
   // Filtrar estudiantes
   const estudiantesFiltrados = useMemo(() => {
     if (!searchQuery.trim()) return estudiantes
-
-    const query = searchQuery.toLowerCase()
-    return estudiantes.filter(est => 
-      est.carnet.toLowerCase().includes(query) ||
-      est.nombre_completo.toLowerCase().includes(query) ||
-      (est.correo_electronico && est.correo_electronico.toLowerCase().includes(query)) ||
-      (est.programa && est.programa.abreviatura.toLowerCase().includes(query))
+    return estudiantes.filter(est =>
+      fuzzyMatch(
+        [est.carnet, est.nombre_completo, est.correo_electronico ?? '', est.programa?.abreviatura ?? ''],
+        searchQuery
+      )
     )
   }, [estudiantes, searchQuery])
 

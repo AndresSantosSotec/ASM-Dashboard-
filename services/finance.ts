@@ -490,7 +490,7 @@ export const deleteCollectionLog = async (id: string | number) => {
 }
 
 export const fetchCollectionData = async (params?: any) => {
-  const res = await api.get("/finance/collections", { params })
+  const res = await api.get("/collections/late-payments", { params })
   return res.data
 }
 

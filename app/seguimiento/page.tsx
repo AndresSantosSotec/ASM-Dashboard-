@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { fuzzyMatch } from "@/lib/search";
 import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import Swal from "sweetalert2";
@@ -207,7 +208,7 @@ export default function SeguimientoPage() {
   // Optimización: memorizar prospectos filtrados para evitar recalcular en cada render
   const filteredProspectos = useMemo(() => {
     return prospectos.filter((p) => {
-      const matchesNombre = (p.nombre || "").toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesNombre = fuzzyMatch(p.nombre || "", searchTerm);
       const matchesEmail = (p.email || "").toLowerCase().includes(emailFilter.toLowerCase());
       const matchesTelefono = (p.telefono || "").includes(phoneFilter);
       const matchesEstado = estadoFilter === "all" ? true : p.estado === estadoFilter;

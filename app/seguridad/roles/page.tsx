@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { fuzzyMatch } from "@/lib/search"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -80,10 +81,8 @@ export default function RolesPermisos() {
   ]
 
   // Filtrar roles según la búsqueda
-  const filteredRoles = roles.filter(
-    (rol) =>
-      rol.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rol.descripcion.toLowerCase().includes(searchTerm.toLowerCase()),
+  const filteredRoles = roles.filter((rol) =>
+    fuzzyMatch([rol.nombre, rol.descripcion], searchTerm)
   )
 
   // Módulos del sistema para la matriz de permisos

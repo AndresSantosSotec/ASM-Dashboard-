@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { fuzzyMatch } from "@/lib/search"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -206,9 +207,7 @@ export default function MoodleCoursesPage() {
       const bySelected =
         showMode === "all" || selectedCourses.has(c.id)
 
-      const byText = c.fullname
-        .toLowerCase()
-        .includes(search.toLowerCase())
+      const byText = fuzzyMatch(c.fullname, search)
       
       // Log del primer curso que falla
       if (courses.indexOf(c) === 0) {

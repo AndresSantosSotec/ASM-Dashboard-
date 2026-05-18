@@ -26,6 +26,7 @@ import {
   ChevronRight,
   ChevronsRight,
   Info,
+  Link2,
 } from "lucide-react"
 
 // Diálogo errores
@@ -663,12 +664,20 @@ export default function ConciliacionClient() {
               Revisa, concilia y exporta pagos desde estados bancarios y Kardex.
             </p>
           </div>
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/dashboard">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Volver al inicio
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="default" size="sm" asChild>
+              <Link href="/finanzas/Tareas?tab=reconciliation">
+                <Link2 className="mr-2 h-4 w-4" />
+                Vincular Conciliación Manual
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/dashboard">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Volver al inicio
+              </Link>
+            </Button>
+          </div>
         </div>
         <div className="mt-3 text-xs text-muted-foreground flex items-center gap-2">
           <Info className="h-3.5 w-3.5" />

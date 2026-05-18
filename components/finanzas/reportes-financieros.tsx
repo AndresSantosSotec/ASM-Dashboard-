@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react"
+import Link from "next/link"
 import axios from "axios"
 import {
   Card,
@@ -38,7 +39,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Eye, FileText, Loader2, Pencil, Plus, RefreshCw, Trash2, Calendar, CheckSquare, X, Upload } from "lucide-react"
+import { Eye, FileText, Loader2, Pencil, Plus, RefreshCw, Trash2, Calendar, CheckSquare, X, Upload, Link2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import { FiltrosCuotas, FiltrosKardex, FiltrosReconciliaciones } from "@/components/finanzas/reportes"
@@ -2437,10 +2438,18 @@ export const ReportesFinancieros = () => {
                       : "sin información"}
                   </CardDescription>
                 </div>
-                <Button onClick={handleCreateReconciliacion}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nueva Reconciliación
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href="/finanzas/Tareas?tab=reconciliation">
+                      <Link2 className="mr-2 h-4 w-4" />
+                      Vincular Manual
+                    </Link>
+                  </Button>
+                  <Button onClick={handleCreateReconciliacion}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Nueva Reconciliación
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">

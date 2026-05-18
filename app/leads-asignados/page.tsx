@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { fuzzyMatch } from "@/lib/search"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Filter } from "lucide-react"
@@ -174,10 +175,7 @@ export default function GestionProspectos() {
   // Filtrado por búsqueda y estado
   const filteredProspectos = useMemo(() => {
     return prospectos.filter((p) => {
-      const matchesSearch =
-        p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.telefono.toLowerCase().includes(searchTerm.toLowerCase())
+      const matchesSearch = fuzzyMatch([p.nombre, p.email, p.telefono], searchTerm)
       const matchesEstado =
         estadoFilter === "todos"
           ? true

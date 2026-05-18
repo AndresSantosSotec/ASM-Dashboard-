@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { fuzzyMatch } from "@/lib/search"
 import { Search, Ban } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,10 +23,8 @@ export default function InactivarEstudiantes() {
       .catch((err) => console.error(err))
   }, [])
 
-  const filtered = students.filter(
-    (s) =>
-      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.carnet.toLowerCase().includes(searchTerm.toLowerCase())
+  const filtered = students.filter((s) =>
+    fuzzyMatch([s.name, s.carnet], searchTerm)
   )
 
   const toggleSelectAll = (checked: boolean) => {

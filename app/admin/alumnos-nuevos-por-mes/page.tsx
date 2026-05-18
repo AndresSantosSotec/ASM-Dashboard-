@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import { fuzzyMatch } from "@/lib/search"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -167,7 +168,7 @@ export default function AlumnosNuevosPorMesPage() {
   const filteredStudents = useMemo(() => {
     return newStudents.filter((student) => {
       if (program !== "all" && student.program !== program) return false
-      if (debouncedSearchTerm && !student.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) return false
+      if (debouncedSearchTerm && !fuzzyMatch(student.name, debouncedSearchTerm)) return false
       return true
     })
   }, [program, debouncedSearchTerm])

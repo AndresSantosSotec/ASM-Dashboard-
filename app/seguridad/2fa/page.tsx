@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { fuzzyMatch } from "@/lib/search"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -89,12 +90,8 @@ export default function Autenticacion2FA() {
   ]
 
   // Filtrar usuarios según la búsqueda
-  const filteredUsuarios = usuarios.filter(
-    (usuario) =>
-      usuario.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      usuario.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      usuario.rol.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      usuario.metodo2fa.toLowerCase().includes(searchTerm.toLowerCase()),
+  const filteredUsuarios = usuarios.filter((usuario) =>
+    fuzzyMatch([usuario.nombre, usuario.email, usuario.rol, usuario.metodo2fa], searchTerm)
   )
 
   // Estadísticas

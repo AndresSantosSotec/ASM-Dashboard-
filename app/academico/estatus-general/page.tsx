@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { fuzzyMatch } from "@/lib/search"
 import {
   Search,
   Download,
@@ -220,10 +221,7 @@ export default function EstatusGeneral() {
 
   // Filtrar estudiantes
   const filteredStudents = students.filter((student) => {
-    const matchesSearch =
-      student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.program.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.email.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSearch = fuzzyMatch([student.name, student.program, student.email], searchTerm)
 
     const matchesStatus = statusFilter === "all" || student.status === statusFilter
     const matchesFinancial = financialFilter === "all" || student.financialStatus === financialFilter

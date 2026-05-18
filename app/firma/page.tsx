@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo } from "react"
+import { fuzzyMatch } from "@/lib/search"
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import {
@@ -209,9 +210,8 @@ export default function FirmaPage() {
     
     // Apply search filter
     if (searchTerm) {
-      const term = searchTerm.toLowerCase()
-      filtered = filtered.filter(e => 
-        e.prospecto.nombre_completo?.toLowerCase().includes(term)
+      filtered = filtered.filter(e =>
+        fuzzyMatch(e.prospecto.nombre_completo ?? '', searchTerm)
       )
     }
     
@@ -783,10 +783,8 @@ function ProspectosPendientes() {
     )
 
   const filtered = useMemo(() => {
-    const term = searchTerm.toLowerCase()
     return prospectos.filter(p =>
-      (p.nombre_completo?.toLowerCase() ?? '').includes(term) ||
-      (p.correo_electronico?.toLowerCase() ?? '').includes(term)
+      fuzzyMatch([p.nombre_completo ?? '', p.correo_electronico ?? ''], searchTerm)
     )
   }, [prospectos, searchTerm])
 

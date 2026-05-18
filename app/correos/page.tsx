@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { fuzzyMatch } from "@/lib/search"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -141,10 +142,7 @@ export default function GestionProspectosEmail() {
   // Filtrado de prospectos según búsqueda y filtro de estado
   const filteredProspectos = useMemo(() => {
     return prospectos.filter((p) => {
-      const matchesSearch =
-        p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.telefono.toLowerCase().includes(searchTerm)
+      const matchesSearch = fuzzyMatch([p.nombre, p.email, p.telefono], searchTerm)
       const matchesEstado =
         estadoFilter === "todos"
           ? true

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { fuzzyMatch } from "@/lib/search"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -67,11 +68,8 @@ export default function GestionLeads() {
       return
     }
 
-    const filteredLeads = leadsIniciales.filter(
-      (lead) =>
-        lead.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        lead.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        lead.telefono.includes(searchTerm),
+    const filteredLeads = leadsIniciales.filter((lead) =>
+      fuzzyMatch([lead.nombre, lead.email, lead.telefono], searchTerm)
     )
 
     setLeads(filteredLeads)

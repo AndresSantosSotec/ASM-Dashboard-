@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
+import { fuzzyMatch } from "@/lib/search"
 import { Header } from "@/components/header"
 import {
   Card,
@@ -154,8 +155,7 @@ export default function DocumentosPage() {
 
   // --- FILTRADO / ORDEN / DEDUPE ---
   let filtered = documentos.filter((d) => {
-    const nombre = d.prospecto.nombre_completo.toLowerCase()
-    const matchesSearch = nombre.includes(searchTerm.toLowerCase())
+    const matchesSearch = fuzzyMatch(d.prospecto.nombre_completo, searchTerm)
     const matchesTab = tab === "todos" ? true : d.estado === tab
     const matchesTipo =
       tipoFilter === "todos" ? true : d.tipo_documento === tipoFilter

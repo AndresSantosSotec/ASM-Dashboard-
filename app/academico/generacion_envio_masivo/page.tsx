@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fuzzyMatch } from "@/lib/search";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -313,10 +314,8 @@ export default function GeneracionEnvioMasivoPage() {
     setSelectedIds(newSelected);
   };
 
-  const filteredProspectos = prospectos.filter(p => 
-    p.nombre_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.correo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.carnet.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredProspectos = prospectos.filter(p =>
+    fuzzyMatch([p.nombre_completo, p.correo, p.carnet], searchTerm)
   );
 
   const fetchBatchStats = async (batchId: string) => {

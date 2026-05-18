@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { fuzzyMatch } from "@/lib/search";
 import axios from "axios";
 import { Header } from "@/components/header";
 import {
@@ -154,9 +155,7 @@ export default function PeriodosInscripcionPage() {
   useEffect(() => {
     let tmp = [...periodos];
     if (search) {
-      tmp = tmp.filter(p =>
-        p.nombre.toLowerCase().includes(search.toLowerCase())
-      );
+      tmp = tmp.filter(p => fuzzyMatch(p.nombre, search));
     }
     if (filterEstado !== "Todos") {
       tmp = tmp.filter(p => p.estado === filterEstado);

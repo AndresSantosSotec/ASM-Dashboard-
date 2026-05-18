@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { fuzzyMatch } from "@/lib/search"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -68,11 +69,8 @@ const estudiantes = [
 export default function AlumnosPage() {
   const [searchTerm, setSearchTerm] = useState("")
 
-  const filteredEstudiantes = estudiantes.filter(
-    (estudiante) =>
-      estudiante.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      estudiante.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      estudiante.id.toLowerCase().includes(searchTerm.toLowerCase()),
+  const filteredEstudiantes = estudiantes.filter((estudiante) =>
+    fuzzyMatch([estudiante.nombre, estudiante.email, estudiante.id], searchTerm)
   )
 
   return (
