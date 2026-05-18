@@ -135,8 +135,9 @@ export default function GestionUsuarios() {
       (activeTab === "inactivos" && !Boolean(usuario?.is_active))
 
     const roleFilterLower = roleFilter.toLowerCase()
+    const userRole = (usuario?.rol ?? usuario?.role ?? '').toLowerCase()
     const matchesRole =
-      roleFilterLower === "todos" || role === roleFilterLower
+      roleFilterLower === "todos" || userRole === roleFilterLower
 
     let matchesDate = true
     if (startDate && usuario?.created_at) {
