@@ -117,6 +117,7 @@ export interface ReconciliationRecordResumen {
   amount: number
   date: string | null
   status: string | null
+  kardex_pago_id: number | null // ID del kardex de pago vinculado (null si no está vinculado)
   mes?: number | null // 🆕 Mes de referencia (1-12)
   ano?: number | null // 🆕 Año de referencia (YYYY)
   mes_pago?: string | null // 🆕 Mes del pago como texto (ej: "Octubre")
