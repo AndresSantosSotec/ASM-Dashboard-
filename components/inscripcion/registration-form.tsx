@@ -521,13 +521,25 @@ export default function RegistrationForm() {
         inversionTotal: invFinal.toFixed(2),
       }
 
+      // En reinscripción solo se debe procesar el programa principal.
+      const academicosPayload = datosPersonales.esReinscripcion
+        ? {
+            ...datosAcademicos,
+            titulo1: datosAcademicos.titulo1 || datosAcademicos.programa,
+            titulo2: "",
+            titulo2_duracion: "",
+            titulo3: "",
+            titulo3_duracion: "",
+          }
+        : datosAcademicos
+
       // 1. Finalizar inscripción (crear prospecto y estudiante_programa)
       const response = await api.post(
         `/inscripciones/finalizar`,
         {
           personales: { ...datosPersonales, id: prospectoIdFinal },
           laborales: datosLaborales,
-          academicos: datosAcademicos,
+          academicos: academicosPayload,
           financieros: financierosPayload,
         }
       );

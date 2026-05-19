@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react"
 import { fuzzyMatch } from "@/lib/search"
 import { toast } from "@/hooks/use-toast"
-import { Search, Plus, Edit, Trash2, User, Mail, Phone, FileText, AlertCircle, ChevronDown, ChevronRight, Eye, CheckCircle2, Receipt, ChevronLeft } from "lucide-react"
+import { Search, Plus, Edit, Trash2, User, Mail, Phone, FileText, AlertCircle, ChevronDown, ChevronRight, Eye, CheckCircle2, Receipt, ChevronLeft, Download } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -142,6 +142,116 @@ export default function NotasPagoPage() {
   // Estado para confirmación de eliminación
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [notaToDelete, setNotaToDelete] = useState<{ nota: NotaPago; carnet: string } | null>(null)
+
+  // Estados para importación masiva
+  const [importModalOpen, setImportModalOpen] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [skipErrors, setSkipErrors] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<any>(null)
+
+  // Descargar plantilla de importación
+  const handleDownloadTemplate = async () => {
+    try {
+      const token = localStorage.getItem("token")
+      const r = await fetch(`${API_NOTAS}/template`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+
+      if (!r.ok) {
+        throw new Error(`Error HTTP: ${r.status}`)
+      }
+
+      const blob = await r.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.setAttribute("download", "plantilla_notas_pago.xlsx")
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+
+      toast({
+        title: "Plantilla descargada",
+        description: "Se ha descargado la plantilla de importación correctamente.",
+      })
+    } catch (err: any) {
+      console.error("Error descargando plantilla:", err)
+      toast({
+        title: "Error",
+        description: "No se pudo descargar la plantilla: " + err.message,
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Enviar archivo de importación
+  const handleImportFile = async () => {
+    if (!importFile) {
+      toast({
+        title: "Error",
+        description: "Por favor, selecciona un archivo para importar.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setImporting(true)
+    setImportResult(null)
+
+    try {
+      const token = localStorage.getItem("token")
+      const formData = new FormData()
+      formData.append("file", importFile)
+      formData.append("skip_errors", skipErrors ? "1" : "0")
+
+      const r = await fetch(`${API_NOTAS}/import`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`
+          // No establecer Content-Type aquí para que el navegador configure el boundary correcto de multipart/form-data
+        },
+        body: formData
+      })
+
+      const json = await r.json()
+
+      if (json.success || r.status === 207 || r.status === 422) {
+        setImportResult(json)
+        
+        if (json.success) {
+          toast({
+            title: "Importación completada",
+            description: json.message || "Se han importado las notas correctamente.",
+          })
+          // Recargar lista de estudiantes con notas
+          await loadEstudiantes(1)
+          setImportFile(null)
+          // No cerramos el modal inmediatamente si queremos mostrar la previsualización/resultado
+        } else {
+          toast({
+            title: "Importación parcial o fallida",
+            description: json.message || "Hubo errores al procesar el archivo.",
+            variant: "destructive",
+          })
+        }
+      } else {
+        throw new Error(json.message || "Error al importar el archivo")
+      }
+    } catch (err: any) {
+      console.error("Error importando notas:", err)
+      toast({
+        title: "Error",
+        description: "No se pudo procesar la importación: " + err.message,
+        variant: "destructive",
+      })
+    } finally {
+      setImporting(false)
+    }
+  }
 
   // Nomenclaturas predefinidas
   const nomenclaturas = [
@@ -497,10 +607,24 @@ export default function NotasPagoPage() {
                   )}
                 </CardDescription>
               </div>
-              <Button onClick={() => openCreateModal()} className="shadow-md hover:shadow-lg transition-shadow">
-                <Plus className="h-4 w-4 mr-2" />
-                Agregar Nota
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => {
+                    setImportModalOpen(true)
+                    setImportFile(null)
+                    setImportResult(null)
+                  }} 
+                  variant="outline" 
+                  className="shadow-sm border-2 hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Importar Masivo
+                </Button>
+                <Button onClick={() => openCreateModal()} className="shadow-md hover:shadow-lg transition-shadow">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Agregar Nota
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="pt-6">
@@ -1028,6 +1152,242 @@ export default function NotasPagoPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Modal de Importación Masiva */}
+        <Dialog open={importModalOpen} onOpenChange={(open) => {
+          setImportModalOpen(open)
+          if (!open) {
+            setImportFile(null)
+            setImportResult(null)
+            setSkipErrors(false)
+          }
+        }}>
+          <DialogContent className="sm:max-w-[850px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                <FileText className="h-5 w-5 text-blue-600" />
+                Importar Notas de Pago Masivamente
+              </DialogTitle>
+              <DialogDescription>
+                Carga un archivo Excel (.xlsx, .xls) o CSV con las notas de pago. El sistema vinculará automáticamente las notas a los estudiantes usando el correlativo de su carnet.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-6 py-4">
+              {/* Sección de descarga de plantilla */}
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-lg p-4 flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold text-blue-950 dark:text-blue-200">Plantilla de Ejemplo</h4>
+                  <p className="text-xs text-blue-900/70 dark:text-blue-300/70 mt-1">
+                    Descarga el formato correcto con columnas predefinidas y ejemplos.
+                  </p>
+                </div>
+                <Button 
+                  onClick={handleDownloadTemplate} 
+                  variant="outline" 
+                  size="sm" 
+                  className="bg-white hover:bg-blue-100 dark:bg-gray-800 dark:hover:bg-blue-900 border-blue-200 text-blue-700 dark:text-blue-300"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Descargar Plantilla
+                </Button>
+              </div>
+
+              {/* Selector de Archivo */}
+              {!importResult && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="file-upload" className="font-medium text-gray-700 dark:text-gray-300">
+                      Seleccionar Archivo (Excel o CSV)
+                    </Label>
+                    <Input 
+                      id="file-upload" 
+                      type="file" 
+                      accept=".csv,.xlsx,.xls" 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) setImportFile(file)
+                      }}
+                      className="cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="skip-errors" 
+                      checked={skipErrors}
+                      onCheckedChange={(checked) => setSkipErrors(!!checked)}
+                    />
+                    <label 
+                      htmlFor="skip-errors"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      Omitir errores y continuar con los registros válidos
+                    </label>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setImportModalOpen(false)}
+                      disabled={importing}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button 
+                      onClick={handleImportFile}
+                      disabled={importing || !importFile}
+                    >
+                      {importing ? (
+                        <>
+                          <span className="inline-block animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                          Procesando...
+                        </>
+                      ) : (
+                        "Iniciar Importación"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Resultados de la Importación */}
+              {importResult && (
+                <div className="space-y-6">
+                  {/* Resumen */}
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border text-center">
+                      <p className="text-xs text-muted-foreground font-medium uppercase">Procesados</p>
+                      <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-100">
+                        {importResult.summary?.total_procesados ?? 0}
+                      </p>
+                    </div>
+                    <div className="bg-green-50 dark:bg-green-950/20 p-3 rounded-lg border border-green-200 dark:border-green-900/50 text-center">
+                      <p className="text-xs text-green-700 dark:text-green-400 font-medium uppercase">Éxito</p>
+                      <p className="text-2xl font-bold mt-1 text-green-700 dark:text-green-400">
+                        {importResult.summary?.exitosos ?? 0}
+                      </p>
+                    </div>
+                    <div className="bg-red-50 dark:bg-red-950/20 p-3 rounded-lg border border-red-200 dark:border-red-900/50 text-center">
+                      <p className="text-xs text-red-700 dark:text-red-400 font-medium uppercase">Errores</p>
+                      <p className="text-2xl font-bold mt-1 text-red-700 dark:text-red-400">
+                        {importResult.summary?.errores ?? 0}
+                      </p>
+                    </div>
+                    <div className="bg-amber-50 dark:bg-amber-950/20 p-3 rounded-lg border border-amber-200 dark:border-amber-900/50 text-center">
+                      <p className="text-xs text-amber-700 dark:text-amber-400 font-medium uppercase">Huérfanos</p>
+                      <p className="text-2xl font-bold mt-1 text-amber-700 dark:text-amber-400">
+                        {importResult.summary?.advertencias ?? 0}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Detalle de Errores Críticos */}
+                  {importResult.errors && importResult.errors.length > 0 && (
+                    <div className="border border-red-200 dark:border-red-900/50 rounded-lg overflow-hidden">
+                      <div className="bg-red-50 dark:bg-red-950/20 px-4 py-2 border-b border-red-200 dark:border-red-900/50 flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                        <h5 className="font-semibold text-red-900 dark:text-red-200 text-sm">Errores de Validación/Procesamiento</h5>
+                      </div>
+                      <div className="max-h-[150px] overflow-y-auto p-3 space-y-1.5 text-xs">
+                        {importResult.errors.map((err: any, idx: number) => (
+                          <div key={idx} className="flex gap-2 text-red-800 dark:text-red-300">
+                            <span className="font-bold">Fila {err.row}:</span>
+                            <span>{err.carnet ? `[${err.carnet}] ` : ""}{err.error}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Detalle de Advertencias (Huérfanos) */}
+                  {importResult.warnings && importResult.warnings.length > 0 && (
+                    <div className="border border-amber-200 dark:border-amber-900/50 rounded-lg overflow-hidden">
+                      <div className="bg-amber-50 dark:bg-amber-950/20 px-4 py-2 border-b border-amber-200 dark:border-amber-900/50 flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                        <h5 className="font-semibold text-amber-900 dark:text-amber-200 text-sm">Notas sin Estudiante Vinculado (Huérfanas)</h5>
+                      </div>
+                      <div className="max-h-[150px] overflow-y-auto p-3 space-y-1.5 text-xs">
+                        {importResult.warnings.map((warn: any, idx: number) => (
+                          <div key={idx} className="flex gap-2 text-amber-800 dark:text-amber-300">
+                            <span className="font-bold">Fila {warn.row}:</span>
+                            <span>{warn.message}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tabla de Importados Correctamente */}
+                  {importResult.data && importResult.data.length > 0 && (
+                    <div className="space-y-2">
+                      <h5 className="font-semibold text-sm text-gray-700 dark:text-gray-300">Detalle de Registros Procesados</h5>
+                      <div className="border rounded-lg overflow-hidden max-h-[250px] overflow-y-auto">
+                        <Table>
+                          <TableHeader className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
+                            <TableRow>
+                              <TableHead className="w-[60px]">Fila</TableHead>
+                              <TableHead className="w-[120px]">Carnet Orig.</TableHead>
+                              <TableHead className="w-[120px]">Carnet Vinc.</TableHead>
+                              <TableHead>Estudiante / Nombre</TableHead>
+                              <TableHead className="w-[120px]">Categoría</TableHead>
+                              <TableHead>Resumen Nota</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {importResult.data.map((item: any, idx: number) => (
+                              <TableRow key={idx}>
+                                <TableCell className="font-medium">{item.row}</TableCell>
+                                <TableCell className="font-mono text-xs">{item.carnet_ingresado}</TableCell>
+                                <TableCell className="font-mono text-xs font-semibold">{item.carnet_vinculado}</TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-sm">{item.alumno}</span>
+                                    {item.vinculado ? (
+                                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-950/20 dark:text-green-400 dark:border-green-900 text-[10px] py-0 px-1.5">
+                                        Vinculado
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900 text-[10px] py-0 px-1.5">
+                                        Huérfano
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  {item.nomenclatura ? (
+                                    <Badge variant="secondary" className="text-[10px]">{item.nomenclatura}</Badge>
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs">-</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
+                                  {item.nota_preview}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end pt-2 border-t">
+                    <Button 
+                      onClick={() => {
+                        setImportModalOpen(false)
+                        setImportResult(null)
+                        setImportFile(null)
+                      }}
+                    >
+                      Cerrar
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )

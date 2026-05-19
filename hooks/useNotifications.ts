@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import axios from 'axios';
 import {
   fetchNotifications,
   markNotificationAsRead,
@@ -29,6 +30,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [totalCount, setTotalCount] = useState<number>(0);
+  const hasLoggedUnreadNetworkError = useRef(false);
 
   // Cargar notificaciones
   const loadNotifications = useCallback(
@@ -58,7 +60,21 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     try {
       const count = await getUnreadCount();
       setUnreadCount(count);
+      hasLoggedUnreadNetworkError.current = false;
     } catch (err) {
+      const isNetworkError = axios.isAxiosError(err) && !err.response;
+
+      if (isNetworkError) {
+        setUnreadCount(0);
+
+        // Evita ruido constante cuando el backend no está disponible.
+        if (!hasLoggedUnreadNetworkError.current) {
+          console.warn('No se pudo obtener unread count (sin conexión con backend). Se usa 0 temporalmente.');
+          hasLoggedUnreadNetworkError.current = true;
+        }
+        return;
+      }
+
       console.error('Error loading unread count:', err);
     }
   }, []);

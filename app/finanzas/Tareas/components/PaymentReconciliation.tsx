@@ -9,10 +9,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, Link as LinkIcon, FileText, PlusCircle, Loader2, CheckCircle2, Unlink, AlertCircle, History, User, Calendar, Info, TrendingUp, Clock, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { Search, Link as LinkIcon, FileText, PlusCircle, Loader2, CheckCircle2, Unlink, AlertCircle, History, User, Calendar, Info, TrendingUp, Clock, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Database } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
+import { getKardexPendientes } from "@/services/finance"
 import {
   createReconciliacion,
   getKardex,
@@ -54,6 +55,9 @@ const PaymentReconciliation = () => {
   const [amount, setAmount] = useState("")
   const [date, setDate] = useState("")
 
+  const [filterStatus, setFilterStatus] = useState("todos")
+  const [filterBank, setFilterBank] = useState("todos")
+
   const [kardexQuery, setKardexQuery] = useState("")
   const [kardexLoading, setKardexLoading] = useState(false)
   const [kardexOptions, setKardexOptions] = useState<KardexPagoResumen[]>([])
@@ -76,9 +80,23 @@ const PaymentReconciliation = () => {
   const [searchHistorial, setSearchHistorial] = useState("")
   const [activeTab, setActiveTab] = useState("conciliaciones")
 
+  // Estado de Kardex sin conciliar
+  const [kardexPendientesList, setKardexPendientesList] = useState<any[]>([])
+  const [loadingKardexPendientes, setLoadingKardexPendientes] = useState(false)
+  const [filterBankKardex, setFilterBankKardex] = useState("todos")
+  const [filterDateKardex, setFilterDateKardex] = useState("")
+  const [filterCutoffDateKardex, setFilterCutoffDateKardex] = useState("")
+  const [filterBoletaKardex, setFilterBoletaKardex] = useState("")
+  const [filterMontoKardex, setFilterMontoKardex] = useState("")
+  const [filterAlumnoKardex, setFilterAlumnoKardex] = useState("")
+
   // Estado de paginación
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(20)
+
+  // Estado de paginación para Kardex
+  const [currentPageKardex, setCurrentPageKardex] = useState(1)
+  const [itemsPerPageKardex, setItemsPerPageKardex] = useState(20)
 
   const loadReconciliaciones = async () => {
     setLoadingRecords(true)
@@ -329,6 +347,22 @@ const PaymentReconciliation = () => {
     }
   }
 
+  const loadKardexPendientesTab = async () => {
+    setLoadingKardexPendientes(true)
+    try {
+      const response = await getKardexPendientes({ per_page: 500 })
+      setKardexPendientesList(response.results ?? [])
+    } catch (error: any) {
+      toast({
+        title: "Error al cargar Kardex sin conciliar",
+        description: error?.response?.data?.message || error?.message || "No se pudieron cargar los registros.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingKardexPendientes(false)
+    }
+  }
+
   const loadHistorial = async () => {
     setLoadingHistorial(true)
     try {
@@ -344,6 +378,42 @@ const PaymentReconciliation = () => {
       setLoadingHistorial(false)
     }
   }
+
+  const filteredKardexPendientes = useMemo(() => {
+    return kardexPendientesList.filter((k) => {
+      // Filtro de banco
+      if (filterBankKardex !== "todos" && k.input?.banco !== filterBankKardex) return false
+
+      // Filtro de fecha específica
+      if (filterDateKardex && k.input?.fechaPago !== filterDateKardex) return false
+
+      // Filtro de fecha de corte
+      if (filterCutoffDateKardex && k.input?.fechaPago) {
+        if (k.input.fechaPago > filterCutoffDateKardex) return false
+      }
+
+      // Filtro de boleta (recibo)
+      if (filterBoletaKardex && !k.input?.recibo?.toLowerCase().includes(filterBoletaKardex.toLowerCase())) return false
+
+      // Filtro de monto
+      if (filterMontoKardex && !String(k.input?.monto || "").includes(filterMontoKardex)) return false
+
+      // Filtro de alumno / carnet
+      if (filterAlumnoKardex) {
+        const searchVal = filterAlumnoKardex.toLowerCase()
+        const matchAlumno = k.input?.alumno?.toLowerCase().includes(searchVal)
+        const matchCarnet = k.input?.carnet?.toLowerCase().includes(searchVal)
+        if (!matchAlumno && !matchCarnet) return false
+      }
+
+      return true
+    })
+  }, [kardexPendientesList, filterBankKardex, filterDateKardex, filterCutoffDateKardex, filterBoletaKardex, filterMontoKardex, filterAlumnoKardex])
+
+  const uniqueBanksKardex = useMemo(() => {
+    const banks = new Set(kardexPendientesList.map(k => k.input?.banco).filter(Boolean))
+    return Array.from(banks) as string[]
+  }, [kardexPendientesList])
 
   const filteredHistorial = useMemo(() => {
     if (!searchHistorial.trim()) return historial
@@ -365,6 +435,11 @@ const PaymentReconciliation = () => {
     )
   }, [historial, searchHistorial])
 
+  const uniqueBanks = useMemo(() => {
+    const banks = new Set(records.map(r => r.bank).filter(Boolean))
+    return Array.from(banks) as string[]
+  }, [records])
+
   const filteredPendientes = useMemo(() => {
     if (!searchPendientes.trim()) return pendientes
     return pendientes.filter((c) =>
@@ -383,6 +458,10 @@ const PaymentReconciliation = () => {
 
   const filteredRecords = useMemo(() => {
     return records.filter((r) => {
+      if (filterStatus === "conciliado" && !r.kardex_pago_id) return false
+      if (filterStatus === "pendiente" && r.kardex_pago_id) return false
+      if (filterBank !== "todos" && r.bank !== filterBank) return false
+
       const prospectName = (r.prospecto as any)?.nombre_completo || r.prospecto?.nombre || ""
       const prospectCarnet = (r.prospecto as any)?.carnet || ""
       return fuzzyMatch(
@@ -397,9 +476,9 @@ const PaymentReconciliation = () => {
         searchTerm,
       )
     })
-  }, [records, searchTerm])
+  }, [records, searchTerm, filterStatus, filterBank])
 
-  // Paginación
+  // Paginación principal
   const totalPages = Math.ceil(filteredRecords.length / itemsPerPage)
   const paginatedRecords = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage
@@ -407,10 +486,22 @@ const PaymentReconciliation = () => {
     return filteredRecords.slice(startIndex, endIndex)
   }, [filteredRecords, currentPage, itemsPerPage])
 
+  // Paginación Kardex
+  const totalPagesKardex = Math.ceil(filteredKardexPendientes.length / itemsPerPageKardex)
+  const paginatedKardex = useMemo(() => {
+    const startIndex = (currentPageKardex - 1) * itemsPerPageKardex
+    const endIndex = startIndex + itemsPerPageKardex
+    return filteredKardexPendientes.slice(startIndex, endIndex)
+  }, [filteredKardexPendientes, currentPageKardex, itemsPerPageKardex])
+
   // Resetear a página 1 cuando cambia el filtro
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm])
+  }, [searchTerm, filterStatus, filterBank])
+
+  useEffect(() => {
+    setCurrentPageKardex(1)
+  }, [filterBankKardex, filterDateKardex, filterCutoffDateKardex, filterBoletaKardex, filterMontoKardex, filterAlumnoKardex])
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -418,9 +509,44 @@ const PaymentReconciliation = () => {
     }
   }
 
+  const goToPageKardex = (page: number) => {
+    if (page >= 1 && page <= totalPagesKardex) {
+      setCurrentPageKardex(page)
+    }
+  }
+
+  const handleActionKardex = (kardexItem: any) => {
+    // Fill "Create" form
+    setBank(kardexItem.input?.banco || "")
+    setReference(kardexItem.input?.recibo || "")
+    setAmount(String(kardexItem.input?.monto || ""))
+    if (kardexItem.input?.fechaPago) setDate(kardexItem.input.fechaPago)
+
+    setSelectedKardex({
+      id: kardexItem.kardex_id,
+      numero_boleta: kardexItem.input?.recibo,
+      monto_pagado: kardexItem.input?.monto,
+      banco: kardexItem.input?.banco,
+      fecha_pago: kardexItem.input?.fechaPago,
+      prospecto: { nombre: kardexItem.input?.alumno, carnet: kardexItem.input?.carnet }
+    } as any)
+
+    setSearchTerm(kardexItem.input?.recibo || "")
+    setFilterStatus("pendiente")
+    setActiveTab("conciliaciones")
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+
+    toast({
+      title: "Kardex seleccionado",
+      description: "Puede crear la conciliación llenando los datos restantes arriba, o vincularla a una pendiente en la lista inferior.",
+    })
+  }
+
   useEffect(() => {
     if (activeTab === "historial" && historial.length === 0) {
       loadHistorial()
+    } else if (activeTab === "kardex_pendientes" && kardexPendientesList.length === 0) {
+      loadKardexPendientesTab()
     }
   }, [activeTab])
 
@@ -437,6 +563,10 @@ const PaymentReconciliation = () => {
         <TabsTrigger value="historial">
           <History className="h-4 w-4 mr-2" />
           Historial de Vinculaciones
+        </TabsTrigger>
+        <TabsTrigger value="kardex_pendientes">
+          <Database className="h-4 w-4 mr-2" />
+          Kardex sin Conciliar
         </TabsTrigger>
       </TabsList>
 
@@ -595,14 +725,39 @@ const PaymentReconciliation = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Buscar por referencia, banco, alumno, carnet o estado..." 
-              className="pl-9"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input 
+                placeholder="Buscar (ref, banco, alumno)..." 
+                className="pl-9"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger>
+                <SelectValue placeholder="Estado de Vinculación" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos los estados</SelectItem>
+                <SelectItem value="conciliado">Vinculados</SelectItem>
+                <SelectItem value="pendiente">Pendientes</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={filterBank} onValueChange={setFilterBank}>
+              <SelectTrigger>
+                <SelectValue placeholder="Banco" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos los bancos</SelectItem>
+                {uniqueBanks.map(banco => (
+                  <SelectItem key={banco} value={banco}>{banco}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Información de paginación y controles */}
@@ -1155,6 +1310,235 @@ const PaymentReconciliation = () => {
             <h4 className="font-medium">Sin historial</h4>
             <p className="text-sm text-muted-foreground">
               No hay registros de auditoría o no hay coincidencias con el filtro.
+            </p>
+          </div>
+        )}
+      </TabsContent>
+
+      {/* 📜 Pestaña de Kardex sin Conciliar */}
+      <TabsContent value="kardex_pendientes" className="space-y-6">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground">Fecha Pago (Específica)</label>
+              <Input 
+                type="date"
+                value={filterDateKardex}
+                onChange={(e) => setFilterDateKardex(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground">Fecha de Corte (Hasta)</label>
+              <Input 
+                type="date"
+                value={filterCutoffDateKardex}
+                onChange={(e) => setFilterCutoffDateKardex(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground">Banco</label>
+              <Select value={filterBankKardex} onValueChange={setFilterBankKardex}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos los bancos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos los bancos</SelectItem>
+                  {uniqueBanksKardex.map(banco => (
+                    <SelectItem key={banco} value={banco}>{banco}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground">Boleta</label>
+              <Input 
+                placeholder="Buscar por boleta..." 
+                value={filterBoletaKardex}
+                onChange={(e) => setFilterBoletaKardex(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground">Monto</label>
+              <Input 
+                placeholder="Buscar por monto..." 
+                value={filterMontoKardex}
+                onChange={(e) => setFilterMontoKardex(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground">Alumno / Carnet</label>
+              <Input 
+                placeholder="Buscar alumno..." 
+                value={filterAlumnoKardex}
+                onChange={(e) => setFilterAlumnoKardex(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setFilterBankKardex("todos")
+                setFilterDateKardex("")
+                setFilterCutoffDateKardex("")
+                setFilterBoletaKardex("")
+                setFilterMontoKardex("")
+                setFilterAlumnoKardex("")
+              }}
+            >
+              Limpiar Filtros
+            </Button>
+            <Button onClick={loadKardexPendientesTab} variant="outline" disabled={loadingKardexPendientes}>
+              {loadingKardexPendientes ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2" />}
+              Actualizar
+            </Button>
+          </div>
+        </div>
+
+        {loadingKardexPendientes ? (
+          <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed rounded-lg">
+            <Loader2 className="h-12 w-12 text-muted-foreground mb-4 opacity-20 animate-spin" />
+            <h4 className="font-medium">Cargando Kardex sin conciliar...</h4>
+            <p className="text-sm text-muted-foreground">Obteniendo registros del servidor.</p>
+          </div>
+        ) : filteredKardexPendientes.length > 0 ? (
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                Mostrando <strong>{((currentPageKardex - 1) * itemsPerPageKardex) + 1}</strong> a{" "}
+                <strong>{Math.min(currentPageKardex * itemsPerPageKardex, filteredKardexPendientes.length)}</strong> de{" "}
+                <strong>{filteredKardexPendientes.length}</strong> pagos del Kardex
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Mostrar:</span>
+                <Select value={String(itemsPerPageKardex)} onValueChange={(v) => {
+                  setItemsPerPageKardex(Number(v))
+                  setCurrentPageKardex(1)
+                }}>
+                  <SelectTrigger className="w-20 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="rounded-md border mt-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fecha Pago</TableHead>
+                    <TableHead>Boleta</TableHead>
+                    <TableHead>Banco</TableHead>
+                    <TableHead>Monto</TableHead>
+                    <TableHead>Alumno</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedKardex.map((k) => (
+                    <TableRow key={k.kardex_id}>
+                      <TableCell className="text-sm">{k.input?.fechaPago ? formatDate(k.input.fechaPago) : '-'}</TableCell>
+                      <TableCell className="font-mono text-xs">{k.input?.recibo || '-'}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{k.input?.banco || '-'}</TableCell>
+                      <TableCell className="font-medium">Q {Number(k.input?.monto || 0).toFixed(2)}</TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="text-sm">{k.input?.alumno || 'Sin nombre'}</div>
+                          <div className="text-xs text-muted-foreground">{k.input?.carnet || '-'}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
+                          onClick={() => handleActionKardex(k)}
+                        >
+                          <LinkIcon className="h-3 w-3 mr-1" />
+                          Crear / Vincular
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            
+            {/* Controles de paginación Kardex */}
+            {filteredKardexPendientes.length > 0 && totalPagesKardex > 1 && (
+              <div className="flex items-center justify-between border-t pt-4 mt-4">
+                <div className="text-sm text-muted-foreground">
+                  Página <strong>{currentPageKardex}</strong> de <strong>{totalPagesKardex}</strong>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPageKardex(1)}
+                    disabled={currentPageKardex === 1}
+                    title="Primera página"
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPageKardex(currentPageKardex - 1)}
+                    disabled={currentPageKardex === 1}
+                    title="Página anterior"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={totalPagesKardex}
+                      value={currentPageKardex}
+                      onChange={(e) => {
+                        const page = Number(e.target.value)
+                        if (page >= 1 && page <= totalPagesKardex) {
+                          goToPageKardex(page)
+                        }
+                      }}
+                      className="w-16 h-8 text-center"
+                    />
+                    <span className="text-sm text-muted-foreground">de {totalPagesKardex}</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPageKardex(currentPageKardex + 1)}
+                    disabled={currentPageKardex === totalPagesKardex}
+                    title="Página siguiente"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPageKardex(totalPagesKardex)}
+                    disabled={currentPageKardex === totalPagesKardex}
+                    title="Última página"
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed rounded-lg">
+            <Database className="h-12 w-12 text-muted-foreground mb-4 opacity-20" />
+            <h4 className="font-medium">Sin registros</h4>
+            <p className="text-sm text-muted-foreground">
+              No hay pagos en Kardex pendientes de conciliar o no hay coincidencias con el filtro.
             </p>
           </div>
         )}
