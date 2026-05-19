@@ -291,9 +291,15 @@ export default function PersonalTab({
             <Checkbox
               id="esReinscripcion"
               checked={datos.esReinscripcion || false}
-              onCheckedChange={(checked) => 
-                setDatos({ ...datos, esReinscripcion: checked as boolean })
-              }
+              onCheckedChange={(checked) => {
+                const isChecked = checked as boolean
+                setDatos({
+                  ...datos,
+                  esReinscripcion: isChecked,
+                  // Si se activa reinscripción, desactivar doble titulación (son mutuamente excluyentes)
+                  esDobleTitulacion: isChecked ? false : datos.esDobleTitulacion,
+                })
+              }}
             />
             <Label htmlFor="esReinscripcion" className="cursor-pointer">
               Es Reinscripción
@@ -302,6 +308,39 @@ export default function PersonalTab({
           <p className="text-sm text-muted-foreground">
             Marque esta casilla si el estudiante ya estuvo inscrito anteriormente y se está reinscribiendo a un nuevo programa.
             Al marcar esta opción, se mantendrá su plan de pagos anterior y se creará uno nuevo para el programa actual.
+          </p>
+        </div>
+
+        {/* Doble / Triple Titulación */}
+        <div className="space-y-2 md:col-span-2">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="esDobleTitulacion"
+              checked={datos.esDobleTitulacion || false}
+              disabled={datos.esReinscripcion === true}
+              onCheckedChange={(checked) => {
+                const isChecked = checked as boolean
+                setDatos({
+                  ...datos,
+                  esDobleTitulacion: isChecked,
+                  // Si se activa doble titulación, desactivar reinscripción
+                  esReinscripcion: isChecked ? false : datos.esReinscripcion,
+                })
+              }}
+            />
+            <Label
+              htmlFor="esDobleTitulacion"
+              className={`cursor-pointer ${datos.esReinscripcion ? "text-muted-foreground" : ""}`}
+            >
+              Es Doble / Triple Titulación
+            </Label>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Marque esta casilla si el estudiante se inscribe a 2 o 3 programas simultáneamente (inscripción múltiple).
+            El sistema detecta automáticamente si es <strong>Doble</strong> (2 programas) o <strong>Triple</strong> (3 programas) según cuántos estén completos en el tab académico.
+            {datos.esReinscripcion && (
+              <span className="text-amber-600 font-medium"> (Desactivado: no compatible con Reinscripción)</span>
+            )}
           </p>
         </div>
 

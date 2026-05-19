@@ -37,7 +37,7 @@ import { API_BASE_URL } from "@/utils/apiConfig"
 const INITIAL_PERSONAL: DatosPersonales = {
   nombre: "", paisOrigen: "", paisResidencia: "", telefono: "",
   dpi: "", emailPersonal: "", emailCorporativo: "",
-  fechaNacimiento: "", direccion: "", esReinscripcion: false
+  fechaNacimiento: "", direccion: "", esReinscripcion: false, esDobleTitulacion: false
 }
 
 const INITIAL_ACADEMICO: DatosAcademicos = {
@@ -521,7 +521,9 @@ export default function RegistrationForm() {
         inversionTotal: invFinal.toFixed(2),
       }
 
-      // En reinscripción solo se debe procesar el programa principal.
+      // En reinscripción solo se debe procesar el programa principal (título1).
+      // En doble titulación se pasan todos los programas normalmente.
+      // Sin flag → comportamiento estándar (también todos los programas).
       const academicosPayload = datosPersonales.esReinscripcion
         ? {
             ...datosAcademicos,

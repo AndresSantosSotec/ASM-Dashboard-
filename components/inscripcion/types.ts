@@ -49,6 +49,7 @@ export interface DatosPersonales {
   fechaNacimiento: string; // ISO: "yyyy-MM-dd"
   direccion: string;
   esReinscripcion?: boolean;
+  esDobleTitulacion?: boolean;
 }
 
 export interface DatosLaborales {
