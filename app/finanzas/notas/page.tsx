@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react"
 import { fuzzyMatch } from "@/lib/search"
 import { toast } from "@/hooks/use-toast"
-import { Search, Plus, Edit, Trash2, User, Mail, Phone, FileText, AlertCircle, ChevronDown, ChevronRight, Eye, CheckCircle2, Receipt, ChevronLeft, Download } from "lucide-react"
+import { Search, Plus, Edit, Trash2, User, Mail, Phone, FileText, AlertCircle, ChevronDown, ChevronRight, Eye, CheckCircle2, Receipt, ChevronLeft, Download, Upload } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -227,7 +227,8 @@ export default function NotasPagoPage() {
             title: "Importación completada",
             description: json.message || "Se han importado las notas correctamente.",
           })
-          // Recargar lista de estudiantes con notas
+          // Limpiar cache de notas y recargar lista
+          setNotasPorCarnet({})
           await loadEstudiantes(1)
           setImportFile(null)
           // No cerramos el modal inmediatamente si queremos mostrar la previsualización/resultado
@@ -292,13 +293,17 @@ export default function NotasPagoPage() {
     }
   }
 
-  // Cargar notas de un estudiante
+  // Cargar notas de un estudiante (usa cache para la primera carga)
   const loadNotas = async (carnet: string) => {
     if (notasPorCarnet[carnet]) {
       // Ya están cargadas
       return
     }
+    await reloadNotas(carnet)
+  }
 
+  // Forzar recarga de notas ignorando el cache
+  const reloadNotas = async (carnet: string) => {
     setLoadingNotas(prev => new Set(prev).add(carnet))
     try {
       const r = await safeFetch(`${API_NOTAS}/${carnet}`)
@@ -451,8 +456,8 @@ export default function NotasPagoPage() {
             variant: "default",
           })
           setModalOpen(false)
-          // Recargar notas del estudiante
-          await loadNotas(carnetFinal)
+          // Forzar recarga de notas del estudiante (sin cache)
+          await reloadNotas(carnetFinal)
           // Recargar lista de estudiantes
           await loadEstudiantes(currentPage)
         } else {
@@ -552,8 +557,8 @@ export default function NotasPagoPage() {
           description: "La nota se ha eliminado correctamente",
           variant: "default",
         })
-        // Recargar notas del estudiante
-        await loadNotas(notaToDelete.carnet)
+        // Forzar recarga de notas del estudiante (sin cache)
+        await reloadNotas(notaToDelete.carnet)
         // Recargar lista de estudiantes (mantener página actual)
         await loadEstudiantes(currentPage)
       } else {
@@ -617,7 +622,7 @@ export default function NotasPagoPage() {
                   variant="outline" 
                   className="shadow-sm border-2 hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
-                  <Download className="h-4 w-4 mr-2" />
+                  <Upload className="h-4 w-4 mr-2" />
                   Importar Masivo
                 </Button>
                 <Button onClick={() => openCreateModal()} className="shadow-md hover:shadow-lg transition-shadow">
