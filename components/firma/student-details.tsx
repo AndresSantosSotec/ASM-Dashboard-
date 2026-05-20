@@ -34,6 +34,7 @@ interface ProgramaItem {
   cuota_mensual: string | null       // puede ser null
   convenio_id: number | null         // lo mismo
   duracion_meses: number             // meses reales del estudiante (no el catálogo)
+  created_at: string                 // fecha de inscripción (para detectar reinscripción)
   programa: {
     id: number
     abreviatura: string
@@ -83,6 +84,30 @@ export function StudentDetails() {
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   // Alias al primer programa (si existe)
   const programa = programas[0]
+
+  // ——— Detectar tipo de inscripción por diferencia de fechas de creación ———
+  // created_at = fecha en que se inscribió al programa (NO fecha_inicio del programa)
+  // ≤30 días entre inscripciones = DOBLE / TRIPLE TITULACIÓN
+  // >30 días = REINSCRIPCIÓN → mostrar solo el programa más reciente
+  const programasOrdenados = [...programas].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  )
+  const primerProgramaFecha = programasOrdenados[0]
+  const ultimoProgramaFecha = programasOrdenados[programasOrdenados.length - 1]
+  const diasDiferenciaInscripcion = programas.length > 1
+    ? Math.round(
+        Math.abs(
+          (new Date(ultimoProgramaFecha.created_at).getTime() - new Date(primerProgramaFecha.created_at).getTime())
+          / (1000 * 60 * 60 * 24)
+        )
+      )
+    : 0
+  const esReinscripcion = programas.length > 1 && diasDiferenciaInscripcion > 30
+  // Para reinscripción: solo el programa más reciente; para doble/triple: todos ordenados
+  const programasAMostrar = esReinscripcion ? [ultimoProgramaFecha] : programasOrdenados
+  // Programa financiero: el relevante para matrícula/mensualidad en la vista previa
+  const programaFinanciero = programasAMostrar[0] ?? programa
+  // ————————————————————————————————————————
 
   // Fecha formateada una vez para coincidir con PDF
   const formattedDate = new Date().toLocaleDateString("es-GT", {
@@ -473,11 +498,11 @@ export function StudentDetails() {
               email: student?.email, // ✅ Email del prospecto (estudiante)
               email_asesor: currentUser?.email, // ✅ Email del asesor
               dpi: student?.dpi || "No proporcionado", // ✅ Incluir DPI
-              programa: programa?.programa.nombre_del_programa,
-              programa_abreviatura: programa?.programa.abreviatura,
-              matricula: programa?.inscripcion,
-              mensualidad: programa?.cuota_mensual,
-              convenio_id: programa?.convenio_id,
+              programa: programaFinanciero?.programa.nombre_del_programa,
+              programa_abreviatura: programaFinanciero?.programa.abreviatura,
+              matricula: programaFinanciero?.inscripcion,
+              mensualidad: programaFinanciero?.cuota_mensual,
+              convenio_id: programaFinanciero?.convenio_id,
               asesor: currentUser
                 ? `${currentUser.first_name} ${currentUser.last_name}`
                 : "",
@@ -510,9 +535,9 @@ export function StudentDetails() {
             signature,
             email: student?.email || currentUser?.email,
             prospecto: student?.name,
-            programa: programa?.programa.nombre_del_programa,
-            matricula: programa?.inscripcion,
-            mensualidad: programa?.cuota_mensual,
+            programa: programaFinanciero?.programa.nombre_del_programa,
+            matricula: programaFinanciero?.inscripcion,
+            mensualidad: programaFinanciero?.cuota_mensual,
             asesor: currentUser
               ? `${currentUser.first_name} ${currentUser.last_name}`
               : "",
@@ -592,25 +617,30 @@ export function StudentDetails() {
         <Input id="email" value={student.email} readOnly />
       </div>
 
-      {/* Información académica: doble/triple titulación o programa único */}
+      {/* Información académica: detecta reinscripción vs doble/triple titulación por fecha de creación */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Información académica</CardTitle>
         </CardHeader>
         <CardContent>
-          {programas.length > 1 ? (
+          {esReinscripcion && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-2">
+              🔄 <strong>Reinscripción detectada</strong> ({diasDiferenciaInscripcion} días entre inscripciones) — mostrando solo el programa más reciente.
+            </p>
+          )}
+          {programasAMostrar.length > 1 ? (
             <>
               <p className="text-sm font-semibold text-slate-700 mb-2">
-                {programas.length === 2
+                {programasAMostrar.length === 2
                   ? "Doble titulación (2 carreras)"
-                  : programas.length === 3
+                  : programasAMostrar.length === 3
                     ? "Triple titulación (3 carreras)"
-                    : `Varias carreras (${programas.length})`}
+                    : `Varias carreras (${programasAMostrar.length})`}
                 {" · "}
-                Total: {programas.reduce((s, p) => s + (p.duracion_meses ?? p.programa?.meses ?? 0), 0)} meses
+                Total: {programasAMostrar.reduce((s, p) => s + (p.duracion_meses ?? p.programa?.meses ?? 0), 0)} meses
               </p>
               <ul className="list-disc list-inside text-sm text-slate-600 space-y-1">
-                {programas.map((p, idx) => (
+                {programasAMostrar.map((p, idx) => (
                   <li key={idx}>
                     {p.programa.abreviatura} – {p.programa.nombre_del_programa} ({p.duracion_meses ?? p.programa.meses} meses)
                   </li>
@@ -618,11 +648,11 @@ export function StudentDetails() {
               </ul>
             </>
           ) : (
-            programa && (
+            programaFinanciero && (
               <p className="text-sm text-slate-600">
-                <span className="font-medium">Programa:</span> {programa.programa.abreviatura} – {programa.programa.nombre_del_programa}
+                <span className="font-medium">Programa:</span> {programaFinanciero.programa.abreviatura} – {programaFinanciero.programa.nombre_del_programa}
                 {" · "}
-                <span className="font-medium">Duración:</span> {programa.duracion_meses ?? programa.programa.meses} meses
+                <span className="font-medium">Duración:</span> {programaFinanciero.duracion_meses ?? programaFinanciero.programa.meses} meses
               </p>
             )
           )}
@@ -663,12 +693,12 @@ export function StudentDetails() {
             <p>
               Me comprometo a mantener de manera estrictamente confidencial los
               precios corporativos otorgados por American School of Management para
-              {programas.length > 1 ? " cursar mis programas:" : " cursar mi programa de:"}
+              {programasAMostrar.length > 1 ? " cursar mis programas:" : " cursar mi programa de:"}
             </p>
             <p>
-              {programas.length > 1 ? (
+              {programasAMostrar.length > 1 ? (
                 <strong>
-                  {programas.map((p, i) => (
+                  {programasAMostrar.map((p, i) => (
                     <span key={i}>
                       {i > 0 && " · "}
                       {p.programa.abreviatura} – {p.programa.nombre_del_programa} ({p.duracion_meses ?? p.programa.meses} meses)
@@ -677,13 +707,13 @@ export function StudentDetails() {
                 </strong>
               ) : (
                 <strong>
-                  {programa.programa.nombre_del_programa} ({programa.programa.abreviatura})
+                  {programaFinanciero.programa.nombre_del_programa} ({programaFinanciero.programa.abreviatura})
                 </strong>
               )}
             </p>
             <p>
               Asimismo, entiendo y acepto que mi participación en el acto de
-              graduación {programas.length > 1 ? "de dichos programas" : "de dicho programa"} es obligatoria e indispensable.
+              graduación {programasAMostrar.length > 1 ? "de dichos programas" : "de dicho programa"} es obligatoria e indispensable.
             </p>
 
             {/* Datos económicos */}
@@ -695,21 +725,21 @@ export function StudentDetails() {
             <p>
               Matrícula:{" "}
               {moneda === "USD" ? (
-                <><strong>${(parseFloat(String(programa.inscripcion)) / TASA_CAMBIO).toFixed(2)} USD</strong>{" "}<span className="text-gray-500 text-sm">(Q{programa.inscripcion})</span></>
+                <><strong>${(parseFloat(String(programaFinanciero.inscripcion)) / TASA_CAMBIO).toFixed(2)} USD</strong>{" "}<span className="text-gray-500 text-sm">(Q{programaFinanciero.inscripcion})</span></>
               ) : (
-                <>Q{programa.inscripcion}</>
+                <>Q{programaFinanciero.inscripcion}</>
               )}
               <br />
               Mensualidad:{" "}
-              {moneda === "USD" && programa.cuota_mensual ? (
-                <><strong>${(parseFloat(String(programa.cuota_mensual)) / TASA_CAMBIO).toFixed(2)} USD</strong>{" "}<span className="text-gray-500 text-sm">(Q{programa.cuota_mensual})</span></>
+              {moneda === "USD" && programaFinanciero.cuota_mensual ? (
+                <><strong>${(parseFloat(String(programaFinanciero.cuota_mensual)) / TASA_CAMBIO).toFixed(2)} USD</strong>{" "}<span className="text-gray-500 text-sm">(Q{programaFinanciero.cuota_mensual})</span></>
               ) : (
-                <>Q{programa.cuota_mensual}</>
+                <>Q{programaFinanciero.cuota_mensual}</>
               )}
             </p>
 
             {/* Sección extra sólo si convenio_id y cuota_mensual existen */}
-            {programa.convenio_id != null && programa.cuota_mensual != null && (
+            {programaFinanciero.convenio_id != null && programaFinanciero.cuota_mensual != null && (
               <p>
                 Asimismo, acepto que, en caso de divulgar este precio y las
                 condiciones preferenciales relacionadas con la duración del programa,
@@ -721,9 +751,9 @@ export function StudentDetails() {
                 los mencionados, la cuota se ajustará de la siguiente manera:
                 <br />
                 {moneda === "USD" ? (
-                  <strong>Mensualidad: ${(parseFloat(String(programa.cuota_mensual)) / TASA_CAMBIO).toFixed(2)} USD <span className="text-gray-500 font-normal text-sm">(Q{programa.cuota_mensual})</span></strong>
+                  <strong>Mensualidad: ${(parseFloat(String(programaFinanciero.cuota_mensual)) / TASA_CAMBIO).toFixed(2)} USD <span className="text-gray-500 font-normal text-sm">(Q{programaFinanciero.cuota_mensual})</span></strong>
                 ) : (
-                  <strong>Mensualidad: Q{programa.cuota_mensual}</strong>
+                  <strong>Mensualidad: Q{programaFinanciero.cuota_mensual}</strong>
                 )}
               </p>
             )}
