@@ -34,15 +34,12 @@ const PaymentReconciliation = () => {
   // Función para formatear fechas de YYYY-MM-DD a DD/MM/YYYY
   const formatDate = (dateString: string | null | undefined): string => {
     if (!dateString) return '-'
-    try {
-      const date = new Date(dateString)
-      const day = String(date.getDate()).padStart(2, '0')
-      const month = String(date.getMonth() + 1).padStart(2, '0')
-      const year = date.getFullYear()
-      return `${day}/${month}/${year}`
-    } catch {
-      return dateString
-    }
+    // Parsear YYYY-MM-DD directamente sin usar new Date() para evitar
+    // que JavaScript interprete la fecha como UTC medianoche y la
+    // retroceda un día en zonas UTC- (Guatemala = UTC-6)
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateString)
+    if (match) return `${match[3]}/${match[2]}/${match[1]}`
+    return dateString
   }
 
   const [records, setRecords] = useState<ReconciliationRecordResumen[]>([])
@@ -57,6 +54,8 @@ const PaymentReconciliation = () => {
 
   const [filterStatus, setFilterStatus] = useState("todos")
   const [filterBank, setFilterBank] = useState("todos")
+  const [filterDateFrom, setFilterDateFrom] = useState("")
+  const [filterDateTo, setFilterDateTo] = useState("")
 
   const [kardexQuery, setKardexQuery] = useState("")
   const [kardexLoading, setKardexLoading] = useState(false)
@@ -85,6 +84,8 @@ const PaymentReconciliation = () => {
   const [loadingSinconciliar, setLoadingSinconciliar] = useState(false)
   const [searchSinconciliar, setSearchSinconciliar] = useState("")
   const [filterBankSinconciliar, setFilterBankSinconciliar] = useState("todos")
+  const [filterDateFromSinconciliar, setFilterDateFromSinconciliar] = useState("")
+  const [filterDateToSinconciliar, setFilterDateToSinconciliar] = useState("")
 
   // Estado de Kardex sin conciliar
   const [kardexPendientesList, setKardexPendientesList] = useState<any[]>([])
@@ -107,7 +108,7 @@ const PaymentReconciliation = () => {
   const loadReconciliaciones = async () => {
     setLoadingRecords(true)
     try {
-      const response = await getReconciliaciones({ limit: 100 })
+      const response = await getReconciliaciones({ limit: 5000 })
       setRecords(response.data ?? [])
     } catch (error: any) {
       toast({
@@ -147,6 +148,26 @@ const PaymentReconciliation = () => {
     const timeout = setTimeout(fetchKardex, 300)
     return () => clearTimeout(timeout)
   }, [kardexQuery])
+
+  // Auto-búsqueda en sugerencias del modal de vinculación con debounce
+  useEffect(() => {
+    if (!selectedConciliacion || !modalOpen) return
+    const term = searchSugerencias.trim()
+    // Si el campo queda vacío, buscar con la referencia original
+    const buscarCon = term.length > 0 ? term : (selectedConciliacion.reference || "")
+    const timeout = setTimeout(async () => {
+      setLoadingSugerencias(true)
+      try {
+        const response = await buscarKardexParaVincular(selectedConciliacion.id, buscarCon)
+        setSugerencias(response.sugerencias ?? [])
+      } catch {
+        // silencioso; el botón manual sigue disponible
+      } finally {
+        setLoadingSugerencias(false)
+      }
+    }, 400)
+    return () => clearTimeout(timeout)
+  }, [searchSugerencias, selectedConciliacion, modalOpen])
 
   const handleSelectKardex = (item: KardexPagoResumen) => {
     setSelectedKardex(item)
@@ -243,8 +264,10 @@ const PaymentReconciliation = () => {
   }
 
   const openVinculacionModalWithRecord = async (record: ReconciliationRecordResumen) => {
+    const termInicial = record.reference || ""
     setModalOpen(true)
     setSelectedConciliacion(record as any)
+    setSearchSugerencias(termInicial)   // pre-llena con el número de boleta/referencia
     setLoadingPendientes(true)
     setLoadingSugerencias(true)
     try {
@@ -252,8 +275,8 @@ const PaymentReconciliation = () => {
       const responsePendientes = await getConciliacionesPendientes()
       setPendientes(responsePendientes.conciliaciones ?? [])
       
-      // Cargar sugerencias para el registro seleccionado
-      const responseSugerencias = await buscarKardexParaVincular(record.id, "")
+      // Buscar en kardex usando la referencia como término inicial
+      const responseSugerencias = await buscarKardexParaVincular(record.id, termInicial)
       setSugerencias(responseSugerencias.sugerencias ?? [])
     } catch (error: any) {
       toast({
@@ -276,10 +299,12 @@ const PaymentReconciliation = () => {
   }
 
   const handleSelectConciliacionPendiente = async (conciliacion: ConciliacionPendiente) => {
+    const termInicial = conciliacion.reference || ""
     setSelectedConciliacion(conciliacion)
+    setSearchSugerencias(termInicial)   // pre-llena con la referencia
     setLoadingSugerencias(true)
     try {
-      const response = await buscarKardexParaVincular(conciliacion.id, "")
+      const response = await buscarKardexParaVincular(conciliacion.id, termInicial)
       setSugerencias(response.sugerencias ?? [])
     } catch (error: any) {
       toast({
@@ -467,6 +492,8 @@ const PaymentReconciliation = () => {
   const filteredSinconciliar = useMemo(() => {
     return sinconciliarList.filter((c) => {
       if (filterBankSinconciliar !== "todos" && c.bank !== filterBankSinconciliar) return false
+      if (filterDateFromSinconciliar && c.date && c.date < filterDateFromSinconciliar) return false
+      if (filterDateToSinconciliar && c.date && c.date > filterDateToSinconciliar) return false
       if (!searchSinconciliar.trim()) return true
       const q = searchSinconciliar.toLowerCase()
       return (
@@ -477,7 +504,7 @@ const PaymentReconciliation = () => {
         (c.prospecto?.carnet || "").toLowerCase().includes(q)
       )
     })
-  }, [sinconciliarList, filterBankSinconciliar, searchSinconciliar])
+  }, [sinconciliarList, filterBankSinconciliar, searchSinconciliar, filterDateFromSinconciliar, filterDateToSinconciliar])
 
   const uniqueBanksSinconciliar = useMemo(() => {
     const banks = new Set(sinconciliarList.map(c => c.bank).filter(Boolean))
@@ -505,6 +532,8 @@ const PaymentReconciliation = () => {
       if (filterStatus === "conciliado" && !r.kardex_pago_id) return false
       if (filterStatus === "pendiente" && r.kardex_pago_id) return false
       if (filterBank !== "todos" && r.bank !== filterBank) return false
+      if (filterDateFrom && r.date && r.date < filterDateFrom) return false
+      if (filterDateTo && r.date && r.date > filterDateTo) return false
 
       const prospectName = (r.prospecto as any)?.nombre_completo || r.prospecto?.nombre || ""
       const prospectCarnet = (r.prospecto as any)?.carnet || ""
@@ -520,7 +549,7 @@ const PaymentReconciliation = () => {
         searchTerm,
       )
     })
-  }, [records, searchTerm, filterStatus, filterBank])
+  }, [records, searchTerm, filterStatus, filterBank, filterDateFrom, filterDateTo])
 
   // Paginación principal
   const totalPages = Math.ceil(filteredRecords.length / itemsPerPage)
@@ -541,7 +570,7 @@ const PaymentReconciliation = () => {
   // Resetear a página 1 cuando cambia el filtro
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, filterStatus, filterBank])
+  }, [searchTerm, filterStatus, filterBank, filterDateFrom, filterDateTo])
 
   useEffect(() => {
     setCurrentPageKardex(1)
@@ -781,7 +810,7 @@ const PaymentReconciliation = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
@@ -814,6 +843,42 @@ const PaymentReconciliation = () => {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Filtros de fecha */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground">Fecha desde</label>
+              <Input
+                type="date"
+                value={filterDateFrom}
+                onChange={(e) => setFilterDateFrom(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground">Fecha hasta (corte)</label>
+              <Input
+                type="date"
+                value={filterDateTo}
+                onChange={(e) => setFilterDateTo(e.target.value)}
+              />
+            </div>
+            {(filterDateFrom || filterDateTo || filterStatus !== "todos" || filterBank !== "todos" || searchTerm) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground self-end"
+                onClick={() => {
+                  setFilterDateFrom("")
+                  setFilterDateTo("")
+                  setFilterStatus("todos")
+                  setFilterBank("todos")
+                  setSearchTerm("")
+                }}
+              >
+                Limpiar filtros
+              </Button>
+            )}
           </div>
 
           {/* Información de paginación y controles */}
@@ -1253,31 +1318,68 @@ const PaymentReconciliation = () => {
         </Alert>
 
         {/* Filtros */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por banco, referencia, monto…"
-              className="pl-9"
-              value={searchSinconciliar}
-              onChange={(e) => setSearchSinconciliar(e.target.value)}
-            />
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por banco, referencia, monto…"
+                className="pl-9"
+                value={searchSinconciliar}
+                onChange={(e) => setSearchSinconciliar(e.target.value)}
+              />
+            </div>
+            <Select value={filterBankSinconciliar} onValueChange={setFilterBankSinconciliar}>
+              <SelectTrigger className="w-52">
+                <SelectValue placeholder="Todos los bancos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos los bancos</SelectItem>
+                {uniqueBanksSinconciliar.map(b => (
+                  <SelectItem key={b} value={b}>{b}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" onClick={loadSinconciliar} disabled={loadingSinconciliar}>
+              {loadingSinconciliar ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+              Actualizar
+            </Button>
           </div>
-          <Select value={filterBankSinconciliar} onValueChange={setFilterBankSinconciliar}>
-            <SelectTrigger className="w-52">
-              <SelectValue placeholder="Todos los bancos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos los bancos</SelectItem>
-              {uniqueBanksSinconciliar.map(b => (
-                <SelectItem key={b} value={b}>{b}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button variant="outline" onClick={loadSinconciliar} disabled={loadingSinconciliar}>
-            {loadingSinconciliar ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
-            Actualizar
-          </Button>
+
+          {/* Filtros de fecha */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground">Fecha desde</label>
+              <Input
+                type="date"
+                value={filterDateFromSinconciliar}
+                onChange={(e) => setFilterDateFromSinconciliar(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground">Fecha hasta (corte)</label>
+              <Input
+                type="date"
+                value={filterDateToSinconciliar}
+                onChange={(e) => setFilterDateToSinconciliar(e.target.value)}
+              />
+            </div>
+            {(filterDateFromSinconciliar || filterDateToSinconciliar || filterBankSinconciliar !== "todos" || searchSinconciliar) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground self-end"
+                onClick={() => {
+                  setFilterDateFromSinconciliar("")
+                  setFilterDateToSinconciliar("")
+                  setFilterBankSinconciliar("todos")
+                  setSearchSinconciliar("")
+                }}
+              >
+                Limpiar filtros
+              </Button>
+            )}
+          </div>
         </div>
 
         {loadingSinconciliar ? (
@@ -1290,7 +1392,7 @@ const PaymentReconciliation = () => {
             <CheckCircle2 className="h-12 w-12 text-green-400 mb-4 opacity-60" />
             <h4 className="font-medium">Sin registros pendientes</h4>
             <p className="text-sm text-muted-foreground">
-              {searchSinconciliar || filterBankSinconciliar !== "todos"
+              {searchSinconciliar || filterBankSinconciliar !== "todos" || filterDateFromSinconciliar || filterDateToSinconciliar
                 ? "No hay coincidencias con los filtros aplicados."
                 : "¡Todos los registros importados ya están vinculados!"}
             </p>

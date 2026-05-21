@@ -733,7 +733,7 @@ export default function NotasPagoPage() {
                           {estudiante.ultima_fecha_pago ? (
                             <div className="space-y-1">
                               <div className="text-sm font-medium text-green-600 dark:text-green-400">
-                                {new Date(estudiante.ultima_fecha_pago).toLocaleDateString('es-GT')}
+                                {new Date(estudiante.ultima_fecha_pago + 'T12:00:00').toLocaleDateString('es-GT')}
                               </div>
                               {estudiante.ultimo_monto_pago && (
                                 <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">
@@ -768,7 +768,7 @@ export default function NotasPagoPage() {
                           </div>
                           {estudiante.fecha_factura_emitida && (
                             <div className="text-xs text-muted-foreground mt-1.5">
-                              {new Date(estudiante.fecha_factura_emitida).toLocaleDateString('es-GT')}
+                              {new Date(estudiante.fecha_factura_emitida + 'T12:00:00').toLocaleDateString('es-GT')}
                             </div>
                           )}
                         </TableCell>
@@ -776,7 +776,7 @@ export default function NotasPagoPage() {
                           {estudiante.ultima_nota_fecha ? (
                             <div className="space-y-1.5">
                               <div className="text-sm font-medium">
-                                {new Date(estudiante.ultima_nota_fecha).toLocaleDateString('es-GT')}
+                                {new Date(estudiante.ultima_nota_fecha + 'T12:00:00').toLocaleDateString('es-GT')}
                               </div>
                               {estudiante.ultima_nota_nomenclatura && (
                                 <Badge variant="outline" className="text-xs">

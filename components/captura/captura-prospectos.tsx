@@ -241,22 +241,26 @@ export default function CapturaProspectos() {
     }
 
     const token = localStorage.getItem("token")
-    fetch(`${API_BASE_URL}/api/users/role/7`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-      .then(r => r.json())
-      .then(json => {
-        const users: any[] = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : []
-        setAsesores(
-          users.map(u => ({
+    const headers = token ? { Authorization: `Bearer ${token}` } : {}
+    Promise.all([
+      fetch(`${API_BASE_URL}/api/users/role/7`, { headers }).then(r => r.json()).catch(() => []),
+      fetch(`${API_BASE_URL}/api/users/role/4`, { headers }).then(r => r.json()).catch(() => []),
+    ]).then(([json7, json4]) => {
+      const toList = (json: any): any[] =>
+        Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : []
+      const merged = [...toList(json7), ...toList(json4)]
+      const unique = merged.filter((u, i, arr) => arr.findIndex(x => x.id === u.id) === i)
+      setAsesores(
+        unique
+          .map(u => ({
             id: u.id,
             nombre:
               u.full_name ??
               (u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username ?? "—"),
           }))
-        )
-      })
-      .catch(() => setAsesores([]))
+          .sort((a, b) => a.nombre.localeCompare(b.nombre))
+      )
+    })
   }, [])
 
   // Cargar países al montar el componente

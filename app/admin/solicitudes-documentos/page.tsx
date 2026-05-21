@@ -110,7 +110,10 @@ function EstadoBadge({ estado }: { estado: EstadoSolicitud }) {
 
 function fmtFecha(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("es-GT", {
+  // Forzar noon local para evitar que YYYY-MM-DD se parsee como UTC
+  // medianoche y retroceda un día en Guatemala (UTC-6)
+  const safe = iso.length === 10 ? iso + "T12:00:00" : iso;
+  return new Date(safe).toLocaleDateString("es-GT", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

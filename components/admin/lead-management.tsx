@@ -113,24 +113,29 @@ export default function GestionProspectos() {
       .finally(() => setLoading(false))
   }, [estadoFilter])
 
-  // carga de asesores
+  // carga de asesores (rol 7 = Asesor) + administrativos (rol 4) que también pueden recibir prospectos
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/users/role/7`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-    })
-      .then(r => r.json())
-      .then(json => {
-        const users: any[] = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : []
-        setAsesores(
-          users.map(u => ({
+    const headers = { Authorization: `Bearer ${localStorage.getItem("token")}` }
+    Promise.all([
+      fetch(`${API_BASE_URL}/api/users/role/7`, { headers }).then(r => r.json()).catch(() => []),
+      fetch(`${API_BASE_URL}/api/users/role/4`, { headers }).then(r => r.json()).catch(() => []),
+    ]).then(([json7, json4]) => {
+      const toList = (json: any): any[] =>
+        Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : []
+      const merged = [...toList(json7), ...toList(json4)]
+      // Deduplicar por id
+      const unique = merged.filter((u, i, arr) => arr.findIndex(x => x.id === u.id) === i)
+      setAsesores(
+        unique
+          .map(u => ({
             id: u.id,
             nombre:
               u.full_name ??
               (u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username ?? "—"),
           }))
-        )
-      })
-      .catch(() => setAsesores([]))
+          .sort((a, b) => a.nombre.localeCompare(b.nombre))
+      )
+    })
   }, [])
 
   // reasignar

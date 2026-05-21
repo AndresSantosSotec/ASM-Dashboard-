@@ -105,8 +105,9 @@ const formatDate = (value?: string | null) => {
   if (!value) {
     return "—"
   }
-
-  const parsedDate = new Date(value)
+  // Forzar noon local para evitar UTC midnight → día anterior en UTC-
+  const safe = value.length === 10 ? value + "T12:00:00" : value
+  const parsedDate = new Date(safe)
   if (Number.isNaN(parsedDate.getTime())) {
     return value
   }

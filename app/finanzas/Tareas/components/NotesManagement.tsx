@@ -403,7 +403,7 @@ const NotesManagement = () => {
                           {est.ultima_nota_fecha ? (
                             <div className="space-y-0.5">
                               <p className="text-gray-600 dark:text-gray-400">
-                                {new Date(est.ultima_nota_fecha).toLocaleDateString('es-GT')}
+                                {new Date(est.ultima_nota_fecha + 'T12:00:00').toLocaleDateString('es-GT')}
                                 {est.ultima_nota_nomenclatura && (
                                   <Badge variant="outline" className="ml-2 text-[10px]">{est.ultima_nota_nomenclatura}</Badge>
                                 )}
