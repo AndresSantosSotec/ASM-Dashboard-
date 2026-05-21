@@ -80,6 +80,12 @@ const PaymentReconciliation = () => {
   const [searchHistorial, setSearchHistorial] = useState("")
   const [activeTab, setActiveTab] = useState("conciliaciones")
 
+  // Estado de Conciliaciones sin conciliar (prospecto_id = null)
+  const [sinconciliarList, setSinconciliarList] = useState<ConciliacionPendiente[]>([])
+  const [loadingSinconciliar, setLoadingSinconciliar] = useState(false)
+  const [searchSinconciliar, setSearchSinconciliar] = useState("")
+  const [filterBankSinconciliar, setFilterBankSinconciliar] = useState("todos")
+
   // Estado de Kardex sin conciliar
   const [kardexPendientesList, setKardexPendientesList] = useState<any[]>([])
   const [loadingKardexPendientes, setLoadingKardexPendientes] = useState(false)
@@ -116,6 +122,7 @@ const PaymentReconciliation = () => {
 
   useEffect(() => {
     loadReconciliaciones()
+    loadSinconciliar()   // precarga el badge de sin conciliar
   }, [])
 
   useEffect(() => {
@@ -314,6 +321,7 @@ const PaymentReconciliation = () => {
       })
       closeVinculacionModal()
       await loadReconciliaciones()
+      if (activeTab === "sin_conciliar") await loadSinconciliar()
     } catch (error: any) {
       toast({
         title: "Error al vincular",
@@ -344,6 +352,22 @@ const PaymentReconciliation = () => {
         description: error?.response?.data?.message || error?.message,
         variant: "destructive",
       })
+    }
+  }
+
+  const loadSinconciliar = async () => {
+    setLoadingSinconciliar(true)
+    try {
+      const response = await getConciliacionesPendientes()
+      setSinconciliarList(response.conciliaciones ?? [])
+    } catch (error: any) {
+      toast({
+        title: "Error al cargar registros sin conciliar",
+        description: error?.response?.data?.message || error?.message || "No se pudieron cargar los registros.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingSinconciliar(false)
     }
   }
 
@@ -439,6 +463,26 @@ const PaymentReconciliation = () => {
     const banks = new Set(records.map(r => r.bank).filter(Boolean))
     return Array.from(banks) as string[]
   }, [records])
+
+  const filteredSinconciliar = useMemo(() => {
+    return sinconciliarList.filter((c) => {
+      if (filterBankSinconciliar !== "todos" && c.bank !== filterBankSinconciliar) return false
+      if (!searchSinconciliar.trim()) return true
+      const q = searchSinconciliar.toLowerCase()
+      return (
+        (c.reference || "").toLowerCase().includes(q) ||
+        (c.bank || "").toLowerCase().includes(q) ||
+        String(c.amount || "").includes(q) ||
+        (c.prospecto?.nombre || "").toLowerCase().includes(q) ||
+        (c.prospecto?.carnet || "").toLowerCase().includes(q)
+      )
+    })
+  }, [sinconciliarList, filterBankSinconciliar, searchSinconciliar])
+
+  const uniqueBanksSinconciliar = useMemo(() => {
+    const banks = new Set(sinconciliarList.map(c => c.bank).filter(Boolean))
+    return Array.from(banks) as string[]
+  }, [sinconciliarList])
 
   const filteredPendientes = useMemo(() => {
     if (!searchPendientes.trim()) return pendientes
@@ -547,6 +591,8 @@ const PaymentReconciliation = () => {
       loadHistorial()
     } else if (activeTab === "kardex_pendientes" && kardexPendientesList.length === 0) {
       loadKardexPendientesTab()
+    } else if (activeTab === "sin_conciliar") {
+      loadSinconciliar()
     }
   }, [activeTab])
 
@@ -560,6 +606,15 @@ const PaymentReconciliation = () => {
           <FileText className="h-4 w-4 mr-2" />
           Conciliaciones
         </TabsTrigger>
+        <TabsTrigger value="sin_conciliar" className="relative">
+          <AlertCircle className="h-4 w-4 mr-2 text-amber-500" />
+          Sin Conciliar
+          {sinconciliarList.length > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1">
+              {sinconciliarList.length}
+            </span>
+          )}
+        </TabsTrigger>
         <TabsTrigger value="historial">
           <History className="h-4 w-4 mr-2" />
           Historial de Vinculaciones
@@ -570,7 +625,8 @@ const PaymentReconciliation = () => {
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="conciliaciones" className="space-y-6">
+      {/* forceMount evita que Radix desmonte el Dialog cuando el tab no está activo */}
+      <TabsContent value="conciliaciones" className="space-y-6" forceMount>
       
       {/* Alert informativo */}
       <Alert className="bg-blue-50 border-blue-200">
@@ -1183,6 +1239,119 @@ const PaymentReconciliation = () => {
           </div>
         </DialogContent>
       </Dialog>
+      </TabsContent>
+
+      {/* ⚠️ Pestaña de Conciliaciones Sin Conciliar */}
+      <TabsContent value="sin_conciliar" className="space-y-6">
+        <Alert className="bg-amber-50 border-amber-200">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <AlertTitle className="text-amber-900">Registros Importados Sin Vincular</AlertTitle>
+          <AlertDescription className="text-amber-800">
+            Estos registros tienen <strong>prospecto_id = null</strong> — fueron importados del banco pero aún no se han relacionado con ningún estudiante en el Kardex.
+            Use el botón <strong>Vincular</strong> para asignarlos.
+          </AlertDescription>
+        </Alert>
+
+        {/* Filtros */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por banco, referencia, monto…"
+              className="pl-9"
+              value={searchSinconciliar}
+              onChange={(e) => setSearchSinconciliar(e.target.value)}
+            />
+          </div>
+          <Select value={filterBankSinconciliar} onValueChange={setFilterBankSinconciliar}>
+            <SelectTrigger className="w-52">
+              <SelectValue placeholder="Todos los bancos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos los bancos</SelectItem>
+              {uniqueBanksSinconciliar.map(b => (
+                <SelectItem key={b} value={b}>{b}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" onClick={loadSinconciliar} disabled={loadingSinconciliar}>
+            {loadingSinconciliar ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+            Actualizar
+          </Button>
+        </div>
+
+        {loadingSinconciliar ? (
+          <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed rounded-lg">
+            <Loader2 className="h-12 w-12 text-muted-foreground mb-4 opacity-20 animate-spin" />
+            <h4 className="font-medium">Cargando registros sin conciliar…</h4>
+          </div>
+        ) : filteredSinconciliar.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed rounded-lg">
+            <CheckCircle2 className="h-12 w-12 text-green-400 mb-4 opacity-60" />
+            <h4 className="font-medium">Sin registros pendientes</h4>
+            <p className="text-sm text-muted-foreground">
+              {searchSinconciliar || filterBankSinconciliar !== "todos"
+                ? "No hay coincidencias con los filtros aplicados."
+                : "¡Todos los registros importados ya están vinculados!"}
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-md border">
+            <div className="bg-amber-50/50 px-4 py-2 border-b flex items-center justify-between">
+              <span className="text-sm font-medium text-amber-900">
+                {filteredSinconciliar.length} registro{filteredSinconciliar.length !== 1 ? "s" : ""} sin vincular
+              </span>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead>Banco</TableHead>
+                  <TableHead>Referencia</TableHead>
+                  <TableHead>Monto</TableHead>
+                  <TableHead>Estudiante</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead className="text-right">Acción</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredSinconciliar.map((c) => (
+                  <TableRow key={c.id} className="bg-amber-50/20 hover:bg-amber-50/50">
+                    <TableCell className="text-sm">{formatDate(c.date)}</TableCell>
+                    <TableCell className="font-medium">{c.bank || '-'}</TableCell>
+                    <TableCell className="font-mono text-xs">{c.reference || '-'}</TableCell>
+                    <TableCell className="font-semibold">Q {Number(c.amount || 0).toFixed(2)}</TableCell>
+                    <TableCell>
+                      {c.prospecto ? (
+                        <div>
+                          <div className="text-sm">{(c.prospecto as any).nombre_completo || c.prospecto.nombre}</div>
+                          <div className="text-xs text-muted-foreground">{c.prospecto.carnet}</div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-amber-600 italic font-medium">Sin identificar</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-amber-700 border-amber-400 bg-amber-50 capitalize">
+                        {c.status || 'imported'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={() => openVinculacionModalWithRecord(c as any)}
+                      >
+                        <LinkIcon className="h-3 w-3 mr-1" />
+                        Vincular
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </TabsContent>
 
       {/* 📜 Pestaña de Historial */}
