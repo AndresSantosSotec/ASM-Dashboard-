@@ -36,7 +36,7 @@ import {
 import { useRouter } from "next/navigation"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import Swal from "sweetalert2"
-import { CheckCircle, Clock, User, Calendar, GraduationCap, Eye, XCircle, ArrowLeft, Loader2, AlertCircle, FileText } from "lucide-react"
+import { CheckCircle, Clock, User, Calendar, GraduationCap, Eye, XCircle, ArrowLeft, Loader2, AlertCircle, FileText, ArrowRight, RefreshCw } from "lucide-react"
 import { ServerFilePreviewModal } from "@/components/ui/server-file-preview-modal"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
@@ -80,6 +80,37 @@ interface Prospecto {
   }>
 }
 
+interface ProspectoAprobacion {
+  id: number
+  prospecto_id: number
+  prospecto_nombre: string
+  prospecto_correo: string
+  prospecto_carnet: string | null
+  asesor_nombre: string
+  fase_aprobacion: string
+  estado_fase: string
+  porcentaje_avance: number
+  fecha_ingreso: string
+  fecha_limite_fase: string | null
+  dias_en_fase: number
+  dias_restantes: number
+  prioridad: string
+}
+
+const faseBadgeClass = (fase: string) => {
+  if (fase === "Credenciales") return "bg-emerald-100 text-emerald-800"
+  if (fase === "Financiera") return "bg-purple-100 text-purple-800"
+  if (fase === "Académica" || fase === "Academica") return "bg-blue-100 text-blue-800"
+  return "bg-slate-100 text-slate-800"
+}
+
+const progressColor = (pct: number) => {
+  if (pct >= 75) return "bg-green-500"
+  if (pct >= 50) return "bg-blue-500"
+  if (pct >= 25) return "bg-yellow-500"
+  return "bg-red-500"
+}
+
 export default function AprobacionAlertaAlumnoNuevoPage() {
   const router = useRouter()
   const [prospectos, setProspectos] = useState<Prospecto[]>([])
@@ -89,6 +120,14 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
   const [selectedProspecto, setSelectedProspecto] = useState<Prospecto | null>(null)
   const [isModalOpen, setModalOpen] = useState(false)
   const [processingId, setProcessingId] = useState<number | null>(null)
+
+  // Pipeline de aprobación (otros estados)
+  const [pipeline, setPipeline] = useState<ProspectoAprobacion[]>([])
+  const [loadingPipeline, setLoadingPipeline] = useState(false)
+  const [processingPipelineId, setProcessingPipelineId] = useState<number | null>(null)
+  const [filtroFase, setFiltroFase] = useState<string>("todas")
+  const [filtroDiasPipeline, setFiltroDiasPipeline] = useState<number>(0)
+  const [activeTab, setActiveTab] = useState("alertas")
 
   // Estado para documentos del prospecto
   const [documentosProspecto, setDocumentosProspecto] = useState<any[]>([])
@@ -101,6 +140,70 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
   useEffect(() => {
     cargarPendientes()
   }, [])
+
+  useEffect(() => {
+    if (activeTab === "pipeline") cargarPipeline()
+  }, [activeTab])
+
+  const cargarPipeline = async () => {
+    setLoadingPipeline(true)
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/prospectos-aprobacion`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error("Error al cargar pipeline")
+      const data = await res.json()
+      setPipeline(data.prospectos_aprobacion || [])
+    } catch (err) {
+      console.error("Error:", err)
+      Swal.fire({ icon: "error", title: "Error", text: "No se pudo cargar la lista de prospectos en aprobación" })
+    } finally {
+      setLoadingPipeline(false)
+    }
+  }
+
+  const handleEnviarACredencialesDesdeOtroEstado = async (prospectoId: number, nombre: string) => {
+    const { value: comentarios } = await Swal.fire({
+      title: "Enviar a Generación de Credenciales",
+      html: `<p class="mb-3">¿Confirmas el avance de <strong>${nombre}</strong> directamente a <strong>Generación de Credenciales</strong>?</p><p class="text-sm text-gray-500">Esta acción omitirá las aprobaciones pendientes.</p>`,
+      input: "textarea",
+      inputLabel: "Comentarios (opcional)",
+      inputPlaceholder: "Describe el motivo para dar salida a este prospecto...",
+      showCancelButton: true,
+      confirmButtonText: "Confirmar",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#059669",
+    })
+    if (comentarios === undefined) return
+
+    setProcessingPipelineId(prospectoId)
+    try {
+      const token = localStorage.getItem("token")
+      const res = await fetch(
+        `${API_BASE_URL}/api/alerta-alumno-nuevo/prospecto/${prospectoId}/enviar-a-credenciales`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ comentarios: comentarios || null }),
+        }
+      )
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || "Error al procesar")
+      await Swal.fire({
+        icon: "success",
+        title: "¡Listo!",
+        text: `${nombre} fue enviado a Generación de Credenciales`,
+        timer: 2500,
+        showConfirmButton: false,
+      })
+      cargarPipeline()
+    } catch (err: any) {
+      Swal.fire({ icon: "error", title: "Error", text: err.message || "No se pudo completar la acción" })
+    } finally {
+      setProcessingPipelineId(null)
+    }
+  }
 
   const cargarPendientes = async () => {
     setLoading(true)
@@ -528,9 +631,17 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
     )
   }
 
+  const pipelineFiltrado = pipeline.filter((p) => {
+    const pasaFase = filtroFase === "todas" || p.fase_aprobacion === filtroFase
+    const pasaDias = filtroDiasPipeline === 0 || p.dias_en_fase >= filtroDiasPipeline
+    return pasaFase && pasaDias
+  })
+
+  const fasesPipeline = ["todas", ...Array.from(new Set(pipeline.map((p) => p.fase_aprobacion)))]
+
   return (
     <div className="space-y-6">
-      {/* 🆕 Identificador visual de Alerta Alumno Nuevo */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg p-4 shadow-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -549,6 +660,29 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
           </Badge>
         </div>
       </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-2 max-w-sm">
+          <TabsTrigger value="alertas">
+            Alerta Alumno Nuevo
+            {filteredProspectos.length > 0 && (
+              <Badge className="ml-2 bg-yellow-500 text-white text-xs px-1.5 py-0">
+                {filteredProspectos.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="pipeline">
+            Pendientes en Pipeline
+            {pipeline.length > 0 && (
+              <Badge className="ml-2 bg-purple-500 text-white text-xs px-1.5 py-0">
+                {pipeline.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ══════ Tab 1: Alerta Alumno Nuevo ══════ */}
+        <TabsContent value="alertas" className="space-y-4 mt-4">
 
       {/* Filtros */}
       <div className="flex flex-col sm:flex-row sm:items-end gap-4">
@@ -734,6 +868,148 @@ export default function AprobacionAlertaAlumnoNuevoPage() {
           </Button>
         </CardFooter>
       </Card>
+
+        </TabsContent>
+
+        {/* ══════ Tab 2: Pipeline de Aprobación ══════ */}
+        <TabsContent value="pipeline" className="mt-4">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Prospectos atascados en aprobación</CardTitle>
+                  <CardDescription>
+                    Prospectos pendientes en el pipeline Comercial → Académica → Financiera → Credenciales.
+                    Puedes enviarlos directamente a Generación de Credenciales.
+                  </CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={cargarPipeline} disabled={loadingPipeline}>
+                  {loadingPipeline ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                  Actualizar
+                </Button>
+              </div>
+              {/* Filtros */}
+              <div className="flex flex-wrap gap-2 mt-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Fase:</span>
+                  {fasesPipeline.map((f) => (
+                    <Button key={f} size="sm" variant={filtroFase === f ? "default" : "outline"} onClick={() => setFiltroFase(f)} className="h-7 text-xs px-2">
+                      {f.charAt(0).toUpperCase() + f.slice(1)}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 ml-2">
+                  <span className="text-sm text-muted-foreground">Mín. días:</span>
+                  {[0, 3, 5, 7, 10].map((d) => (
+                    <Button key={d} size="sm" variant={filtroDiasPipeline === d ? "default" : "outline"} onClick={() => setFiltroDiasPipeline(d)} className="h-7 text-xs px-2">
+                      {d === 0 ? "Todos" : `+${d}d`}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {loadingPipeline ? (
+                <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Cargando prospectos...</span>
+                </div>
+              ) : pipelineFiltrado.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <CheckCircle className="h-12 w-12 mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">
+                    {pipeline.length === 0
+                      ? "No hay prospectos en proceso de aprobación"
+                      : "Ningún prospecto coincide con los filtros aplicados"}
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Prospecto</TableHead>
+                        <TableHead>Carnet</TableHead>
+                        <TableHead>Asesor</TableHead>
+                        <TableHead>Fase Actual</TableHead>
+                        <TableHead>Progreso</TableHead>
+                        <TableHead className="text-center">Días en Fase</TableHead>
+                        <TableHead className="text-center">Fecha Límite</TableHead>
+                        <TableHead className="text-center">Acción</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pipelineFiltrado.map((item) => {
+                        const pct = item.porcentaje_avance ?? 0
+                        const isProcessing = processingPipelineId === item.prospecto_id
+                        return (
+                          <TableRow key={item.id}>
+                            <TableCell>
+                              <div className="font-medium">{item.prospecto_nombre}</div>
+                              <div className="text-xs text-muted-foreground">{item.prospecto_correo}</div>
+                            </TableCell>
+                            <TableCell>
+                              {item.prospecto_carnet ? (
+                                <Badge variant="outline" className="font-mono">{item.prospecto_carnet}</Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">Sin carnet</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm">{item.asesor_nombre}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className={faseBadgeClass(item.fase_aprobacion)}>
+                                {item.fase_aprobacion}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <div className="w-20 bg-gray-200 rounded-full h-2">
+                                  <div
+                                    className={`h-2 rounded-full transition-all ${progressColor(pct)}`}
+                                    style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs text-muted-foreground">{pct}%</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <span className={item.dias_en_fase >= 7 ? "font-semibold text-red-600" : item.dias_en_fase >= 4 ? "font-semibold text-amber-600" : ""}>
+                                {item.dias_en_fase} día{item.dias_en_fase !== 1 ? "s" : ""}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-center text-xs text-muted-foreground">
+                              {item.fecha_limite_fase
+                                ? new Date(item.fecha_limite_fase).toLocaleDateString("es-GT")
+                                : "Sin límite"}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                                disabled={isProcessing}
+                                onClick={() => handleEnviarACredencialesDesdeOtroEstado(item.prospecto_id, item.prospecto_nombre)}
+                              >
+                                {isProcessing ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowRight className="h-3 w-3" />}
+                                {isProcessing ? "..." : "Credenciales"}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+              {pipelineFiltrado.length > 0 && (
+                <div className="px-4 py-2 text-xs text-muted-foreground border-t">
+                  Mostrando {pipelineFiltrado.length} de {pipeline.length} prospectos en aprobación
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Modal de detalle - Simple por ahora */}
       {selectedProspecto && isModalOpen && (
