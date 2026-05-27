@@ -1,0 +1,38 @@
+{
+  "files": {
+    "components/finanzas/dashboard-financiero.tsx": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 2469
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-25T20:19:43.014Z"
+    },
+    "components/finanzas/CuotasDashboardTab.tsx": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 507
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-25T18:54:41.133Z"
+    },
+    "types/dashboard.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 81
+        }
+      ],
+      "importsChanged": false,
+      "lastEdit": "2026-05-25T20:19:43.423Z"
+    }
+  },
+  "turnCycles": 0,
+  "maxCycles": 3,
+  "lastUpdated": "2026-05-25T20:19:43.424Z",
+  "sessionId": "lens-mph57nem-0fe5033d"
+}

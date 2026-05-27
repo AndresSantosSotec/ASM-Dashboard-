@@ -6,14 +6,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import TaskList from './components/TaskList';
 import PaymentReconciliation from './components/PaymentReconciliation';
-import Reports from './components/Reports';
 import NotesManagement from './components/NotesManagement';
-import Filters from './components/Filters';
-import { ClipboardList, Replace, FileText, StickyNote, Filter } from 'lucide-react';
+import ReportesLitePanel from './components/ReportesLitePanel';
+import { ClipboardList, Replace, StickyNote, LayoutPanelTop } from 'lucide-react';
 
 const FinancialDashboard = () => {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
+  const viewParam = searchParams.get('view');
   const [activeTab, setActiveTab] = useState(tabParam || 'tasks');
 
   useEffect(() => {
@@ -34,27 +34,27 @@ const FinancialDashboard = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4">
-        <TabsList className="grid w-full grid-cols-5 lg:w-[600px]">
-          <TabsTrigger value="tasks" className="flex items-center gap-2">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 md:grid-cols-4 lg:w-full">
+          <TabsTrigger value="tasks" className="flex items-center justify-center gap-2 whitespace-nowrap px-2 py-2 text-xs md:text-sm">
             <ClipboardList className="h-4 w-4" />
             <span className="hidden sm:inline">Tareas</span>
           </TabsTrigger>
-          <TabsTrigger value="reconciliation" className="flex items-center gap-2">
+          <TabsTrigger value="reconciliation" className="flex items-center justify-center gap-2 whitespace-nowrap px-2 py-2 text-xs md:text-sm">
             <Replace className="h-4 w-4" />
             <span className="hidden sm:inline">Conciliación</span>
           </TabsTrigger>
-          <TabsTrigger value="reports" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline">Reportes</span>
-          </TabsTrigger>
-          <TabsTrigger value="notes" className="flex items-center gap-2">
+
+          <TabsTrigger value="notes" className="flex items-center justify-center gap-2 whitespace-nowrap px-2 py-2 text-xs md:text-sm">
             <StickyNote className="h-4 w-4" />
             <span className="hidden sm:inline">Notas</span>
           </TabsTrigger>
-          <TabsTrigger value="filters" className="flex items-center gap-2">
-            <Filter className="h-4 w-4" />
-            <span className="hidden sm:inline">Filtros</span>
+
+          <TabsTrigger value="overview" className="flex items-center justify-center gap-2 whitespace-nowrap px-2 py-2 text-xs md:text-sm">
+            <LayoutPanelTop className="h-4 w-4" />
+            <span className="hidden lg:inline">Mantenimientos Financieros (Lite)</span>
+            <span className="hidden sm:inline lg:hidden">Mantenimientos (Lite)</span>
           </TabsTrigger>
+
         </TabsList>
 
         <TabsContent value="tasks" className="space-y-4">
@@ -76,28 +76,16 @@ const FinancialDashboard = () => {
             <CardHeader>
               <CardTitle>Conciliación Bancaria</CardTitle>
               <CardDescription>
-                Carga de archivos y empalme automático con boletas de alumnos.
+                Vistas separadas para Conciliación, Historial y Kardex sin conciliar con flujo guiado.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <PaymentReconciliation />
+              <PaymentReconciliation initialView={viewParam} />
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="reports">
-          <Card>
-            <CardHeader>
-              <CardTitle>Reportes Consolidados</CardTitle>
-              <CardDescription>
-                Visualización de pagos, deudas y estados de cuenta según el banco.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Reports />
-            </CardContent>
-          </Card>
-        </TabsContent>
+
 
         <TabsContent value="notes">
           <Card>
@@ -113,19 +101,21 @@ const FinancialDashboard = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="filters">
+        <TabsContent value="overview" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Configuración de Filtros</CardTitle>
+              <CardTitle>Mantenimientos Financieros (Lite)</CardTitle>
               <CardDescription>
-                Estandarización de búsqueda por fechas, cursos y montos.
+                Secciones de Kardex, Conciliaciones y Cuotas integradas en Tareas con carga diferida por módulo.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Filters />
+              <ReportesLitePanel />
             </CardContent>
           </Card>
         </TabsContent>
+
+
       </Tabs>
     </div>
   );

@@ -38,9 +38,12 @@ interface EstudianteConNotas {
   correo_electronico: string | null
   programa: { nombre: string; abreviatura: string } | null
   total_notas: number
+  ultima_fecha_pago?: string | null
   ultima_nota_fecha: string | null
   ultima_nota_preview: string | null
   ultima_nota_nomenclatura: string | null
+  factura_emitida?: boolean
+  fecha_factura_emitida?: string | null
 }
 
 interface EstudianteBusqueda {
@@ -86,6 +89,7 @@ const NotesManagement = () => {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [notasPorCarnet, setNotasPorCarnet] = useState<Record<string, NotaPago[]>>({})
   const [loadingNotas, setLoadingNotas] = useState<Set<string>>(new Set())
+  const [loadingFactura, setLoadingFactura] = useState<Set<string>>(new Set())
 
   // ── Modal crear/editar nota ──────────────────────────────────────────────
   const [modalOpen, setModalOpen] = useState(false)
@@ -153,6 +157,49 @@ const NotesManagement = () => {
     const next = new Set(expandedRows)
     if (next.has(carnet)) { next.delete(carnet) } else { next.add(carnet); await loadNotas(carnet) }
     setExpandedRows(next)
+  }
+
+  const handleToggleFacturaEmitida = async (carnet: string, facturaEmitida: boolean) => {
+    setLoadingFactura(prev => new Set(prev).add(carnet))
+    try {
+      const r = await apiFetch(`${API_NOTAS}/${encodeURIComponent(carnet)}/factura-emitida`, {
+        method: "POST",
+        body: JSON.stringify({ factura_emitida: facturaEmitida }),
+      })
+      const json = await r.json()
+      if (!json.success) throw new Error(json.message || "No se pudo actualizar factura emitida")
+
+      setEstudiantes(prev =>
+        prev.map(e =>
+          e.carnet === carnet
+            ? {
+                ...e,
+                factura_emitida: facturaEmitida,
+                fecha_factura_emitida: json?.data?.fecha_factura_emitida ?? null,
+              }
+            : e,
+        ),
+      )
+
+      toast({
+        title: facturaEmitida ? "Factura marcada" : "Factura desmarcada",
+        description: facturaEmitida
+          ? "Se registró como emitida para este estudiante."
+          : "Se quitó el estado de factura emitida.",
+      })
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "No se pudo actualizar factura emitida",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingFactura(prev => {
+        const next = new Set(prev)
+        next.delete(carnet)
+        return next
+      })
+    }
   }
 
   // ── Búsqueda de estudiantes en modal ─────────────────────────────────────
@@ -334,6 +381,10 @@ const NotesManagement = () => {
         </div>
       </div>
 
+      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        Factura emitida se reinicia automáticamente al iniciar cada mes (a partir del día 1).
+      </div>
+
       {/* ── Tabla de estudiantes ── */}
       <Card className="shadow-sm">
         <CardContent className="p-0">
@@ -360,7 +411,9 @@ const NotesManagement = () => {
                   <TableHead className="w-10" />
                   <TableHead>Estudiante</TableHead>
                   <TableHead className="hidden md:table-cell">Programa</TableHead>
-                  <TableHead className="w-24 text-center">Notas</TableHead>
+                  <TableHead className="w-28 text-center">Total Notas</TableHead>
+                  <TableHead className="w-40">Última Fecha Pago</TableHead>
+                  <TableHead className="w-52">Factura emitida</TableHead>
                   <TableHead className="hidden lg:table-cell">Última nota</TableHead>
                   <TableHead className="w-24 text-right">Acciones</TableHead>
                 </TableRow>
@@ -399,11 +452,39 @@ const NotesManagement = () => {
                         <TableCell className="text-center">
                           <Badge variant="secondary" className="font-bold">{est.total_notas}</Badge>
                         </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {est.ultima_fecha_pago
+                            ? new Date(est.ultima_fecha_pago.replace(' ', 'T')).toLocaleDateString('es-GT')
+                            : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-start gap-2">
+                            <Checkbox
+                              id={`factura-${est.carnet}`}
+                              checked={!!est.factura_emitida}
+                              disabled={loadingFactura.has(est.carnet)}
+                              onCheckedChange={checked => handleToggleFacturaEmitida(est.carnet, !!checked)}
+                            />
+                            <div className="text-xs">
+                              <label htmlFor={`factura-${est.carnet}`} className="font-medium cursor-pointer">
+                                {est.factura_emitida ? "Emitida" : "Pendiente"}
+                              </label>
+                              <p className="text-muted-foreground">
+                                {est.fecha_factura_emitida
+                                  ? `Desde ${new Date(est.fecha_factura_emitida).toLocaleDateString('es-GT')}`
+                                  : "Sin fecha de emisión"}
+                              </p>
+                            </div>
+                            {loadingFactura.has(est.carnet) && (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground mt-0.5" />
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="hidden lg:table-cell text-xs text-muted-foreground max-w-[220px]">
                           {est.ultima_nota_fecha ? (
                             <div className="space-y-0.5">
                               <p className="text-gray-600 dark:text-gray-400">
-                                {new Date(est.ultima_nota_fecha + 'T12:00:00').toLocaleDateString('es-GT')}
+                                {new Date(est.ultima_nota_fecha.replace(' ', 'T')).toLocaleDateString('es-GT')}
                                 {est.ultima_nota_nomenclatura && (
                                   <Badge variant="outline" className="ml-2 text-[10px]">{est.ultima_nota_nomenclatura}</Badge>
                                 )}
@@ -422,7 +503,7 @@ const NotesManagement = () => {
                       {/* Fila expandida con detalle de notas */}
                       {expanded && (
                         <TableRow>
-                          <TableCell colSpan={6} className="bg-blue-50/40 dark:bg-blue-950/20 py-3 px-6">
+                          <TableCell colSpan={8} className="bg-blue-50/40 dark:bg-blue-950/20 py-3 px-6">
                             {isLoading ? (
                               <div className="flex items-center gap-2 py-4 text-muted-foreground">
                                 <Loader2 className="animate-spin h-4 w-4" /><span className="text-sm">Cargando notas…</span>

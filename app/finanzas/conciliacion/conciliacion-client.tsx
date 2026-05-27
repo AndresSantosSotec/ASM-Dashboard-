@@ -27,10 +27,13 @@ import {
   ChevronsRight,
   Info,
   Link2,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react"
 
 // Diálogo errores
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { buscarKardexParaVincular, vincularConciliacionManual } from "@/services/mantenimientos"
 
 // ✅ services centralizados
   import {
@@ -61,6 +64,7 @@ type ParsedRow = {
 type ReconcileStatus = "conciliado" | "monto_difiere" | "boleta_duplicada" | "sin_coincidencia" | "error"
 
 type PreviewResultItem = {
+  id?: number
   index: number
   input: ParsedRow
   status: ReconcileStatus
@@ -178,6 +182,22 @@ export default function ConciliacionClient() {
 
   const [previewPendientes, setPreviewPendientes] = useState<PreviewResponse | null>(null)
   const [previewConciliados, setPreviewConciliados] = useState<PreviewResponse | null>(null)
+  const [showVincularDialog, setShowVincularDialog] = useState(false)
+  const [vincularTarget, setVincularTarget] = useState<PreviewResultItem | null>(null)
+  const [vincularSearch, setVincularSearch] = useState("")
+  const [vincularLoading, setVincularLoading] = useState(false)
+  const [vinculando, setVinculando] = useState(false)
+  const [vincularSugerencias, setVincularSugerencias] = useState<Array<{
+    id: number
+    match_percentage: number
+    numero_boleta: string | null
+    banco: string | null
+    monto_pagado: number
+    fecha_pago: string | null
+    estado_pago: string | null
+    prospecto?: { nombre?: string; carnet?: string } | null
+    programa?: { nombre?: string } | null
+  }>>([])
 
   // ====== Estados de paginación (separados por tab) ======
   const [pagePend, setPagePend] = useState(1)
@@ -381,6 +401,56 @@ export default function ConciliacionClient() {
       loadPendientesFromKardex()
     } else if (activeTab === "conciliados") {
       loadConciliadosFromKardex()
+    }
+  }
+
+  const abrirVinculacionManual = async (item: PreviewResultItem) => {
+    if (!item.id) {
+      setErrorMsg("Este registro no tiene ID de conciliación para vincular manualmente.")
+      return
+    }
+
+    setVincularTarget(item)
+    setVincularSearch("")
+    setVincularSugerencias([])
+    setShowVincularDialog(true)
+
+    try {
+      setVincularLoading(true)
+      const res = await buscarKardexParaVincular(item.id)
+      setVincularSugerencias(res.sugerencias || [])
+    } catch (err: any) {
+      setErrorMsg(err?.message || "No se pudieron cargar sugerencias de Kardex.")
+    } finally {
+      setVincularLoading(false)
+    }
+  }
+
+  const buscarSugerenciasVinculacion = async () => {
+    if (!vincularTarget?.id) return
+    try {
+      setVincularLoading(true)
+      const res = await buscarKardexParaVincular(vincularTarget.id, vincularSearch)
+      setVincularSugerencias(res.sugerencias || [])
+    } catch (err: any) {
+      setErrorMsg(err?.message || "No se pudieron buscar sugerencias.")
+    } finally {
+      setVincularLoading(false)
+    }
+  }
+
+  const ejecutarVinculacionManual = async (kardexPagoId: number) => {
+    if (!vincularTarget?.id) return
+
+    try {
+      setVinculando(true)
+      await vincularConciliacionManual(vincularTarget.id, kardexPagoId)
+      setShowVincularDialog(false)
+      await loadConciliadosFromKardex()
+    } catch (err: any) {
+      setErrorMsg(err?.message || "No se pudo vincular la conciliación con Kardex.")
+    } finally {
+      setVinculando(false)
     }
   }
 
@@ -941,13 +1011,15 @@ export default function ConciliacionClient() {
                       <TableHead className="text-right">Monto</TableHead>
                       <TableHead>Fecha</TableHead>
                       <TableHead>Estado</TableHead>
+                      <TableHead>Vinculación Kardex</TableHead>
                       <TableHead>Programa</TableHead>
                       <TableHead>Cuota #</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody className="[&>tr:nth-child(even)]:bg-muted/20">
                     {loading ? (
-                      <SkeletonRows cols={10} rows={8} />
+                      <SkeletonRows cols={12} rows={8} />
                     ) : concPage.total ? (
                       concPage.slice.map((item) => (
                         <TableRow key={item.index}>
@@ -965,13 +1037,33 @@ export default function ConciliacionClient() {
                               conciliado
                             </Badge>
                           </TableCell>
+                          <TableCell>
+                            {item.kardex_id ? (
+                              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                                <CheckCircle2 className="h-3 w-3 mr-1" />Vinculado
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                                Sin vínculo
+                              </Badge>
+                            )}
+                          </TableCell>
                           <TableCell className="text-xs">{item.programa ?? "-"}</TableCell>
                           <TableCell>{item.numero_cuota ?? "-"}</TableCell>
+                          <TableCell className="text-right">
+                            {!item.kardex_id && item.id ? (
+                              <Button size="sm" variant="outline" onClick={() => abrirVinculacionManual(item)}>
+                                Vincular
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center text-sm text-muted-foreground py-10">
+                        <TableCell colSpan={12} className="text-center text-sm text-muted-foreground py-10">
                           {loading ? "Cargando..." : "No hay registros conciliados"}
                         </TableCell>
                       </TableRow>
@@ -1161,6 +1253,62 @@ export default function ConciliacionClient() {
           </div>
           <DialogFooter>
             <Button onClick={() => setShowErrorsDialog(false)}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showVincularDialog} onOpenChange={setShowVincularDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Vincular Conciliación con Kardex</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded border p-3 text-sm bg-muted/20">
+              <div><strong>Ref:</strong> {vincularTarget?.input?.recibo || "-"}</div>
+              <div><strong>Monto:</strong> {formatQ(vincularTarget?.input?.monto)}</div>
+              <div><strong>Fecha:</strong> {formatDate(vincularTarget?.input?.fechaPago)}</div>
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                placeholder="Buscar boleta, carnet o nombre..."
+                value={vincularSearch}
+                onChange={(e) => setVincularSearch(e.target.value)}
+              />
+              <Button variant="outline" onClick={buscarSugerenciasVinculacion} disabled={vincularLoading}>
+                {vincularLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
+              </Button>
+            </div>
+
+            <div className="max-h-72 overflow-auto border rounded">
+              {vincularSugerencias.length === 0 ? (
+                <div className="p-4 text-sm text-muted-foreground">No hay sugerencias para vincular.</div>
+              ) : (
+                <div className="divide-y">
+                  {vincularSugerencias.map((s) => (
+                    <div key={s.id} className="p-3 flex items-center justify-between gap-3">
+                      <div className="text-sm">
+                        <div className="font-medium">Boleta: {s.numero_boleta || "-"} | Banco: {s.banco || "-"}</div>
+                        <div className="text-muted-foreground">
+                          Q {Number(s.monto_pagado || 0).toFixed(2)} | {formatDate(s.fecha_pago || undefined)} | {s.estado_pago || "-"}
+                        </div>
+                        <div className="text-muted-foreground">
+                          {(s.prospecto as any)?.nombre || ""} {(s.prospecto as any)?.carnet ? `(${(s.prospecto as any).carnet})` : ""}
+                        </div>
+                      </div>
+                      <Button onClick={() => ejecutarVinculacionManual(s.id)} disabled={vinculando}>
+                        {vinculando ? <Loader2 className="h-4 w-4 animate-spin" /> : "Vincular"}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowVincularDialog(false)}>
+              Cerrar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

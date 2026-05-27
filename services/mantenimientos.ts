@@ -273,6 +273,55 @@ export const getKardexData = async (
   return response.data
 }
 
+export interface MantenimientosLiteOptionSet {
+  bancos?: string[]
+  estados?: string[]
+}
+
+export interface MantenimientosLiteResponse {
+  timestamp: string
+  module: 'kardex' | 'reconciliaciones' | 'cuotas'
+  filters: Record<string, unknown>
+  summary: {
+    total: number
+    monto_total: number
+    aprobados?: number
+    pendientes?: number
+    conciliados?: number
+    pagadas?: number
+  }
+  options: MantenimientosLiteOptionSet
+  rows: Array<KardexPagoResumen | ReconciliationRecordResumen | CuotaProgramaResumen>
+  pagination: {
+    current_page: number
+    per_page: number
+    total: number
+    total_pages: number
+    from: number | null
+    to: number | null
+  }
+}
+
+export const getMantenimientosFinancierosLite = async (
+  params?: MantenimientosFilters & {
+    module?: 'kardex' | 'reconciliaciones' | 'cuotas'
+    estado_pago?: string
+    estado_reconciliacion?: string
+    estado_cuota?: string
+    banco?: string
+    page?: number
+    per_page?: number
+  },
+  config?: AxiosRequestConfig,
+): Promise<MantenimientosLiteResponse> => {
+  const response = await api.get<MantenimientosLiteResponse>('/mantenimientos/financieros-lite', {
+    ...(config ?? {}),
+    params: sanitizeParams(params),
+  })
+
+  return response.data
+}
+
 export const getCuotasDashboard = async (
   params?: MantenimientosFilters,
   config?: AxiosRequestConfig,
@@ -600,6 +649,29 @@ export interface ConciliacionPendiente {
   prospecto: ProspectoResumen | null
 }
 
+export interface RevisionManualKardexMatch {
+  id: number
+  numero_boleta: string | null
+  banco: string | null
+  monto_pagado: number
+  fecha_pago: string | null
+  estado_pago: string | null
+}
+
+export interface ConciliacionRevisionManual {
+  id: number
+  bank: string | null
+  reference: string | null
+  amount: number
+  date: string | null
+  status: string | null
+  review_status: string | null
+  prospecto_id: number | null
+  kardex_pago_id: number | null
+  match_count: number
+  matches: RevisionManualKardexMatch[]
+}
+
 export interface KardexSugerencia {
   id: number
   match_percentage: number
@@ -622,6 +694,20 @@ export const getConciliacionesPendientes = async (
   }
   const queryString = params.toString()
   const url = `/mantenimientos/reconciliaciones-pendientes${queryString ? '?' + queryString : ''}`
+  const response = await api.get(url, config)
+  return response.data
+}
+
+export const getConciliacionesRevisionManual = async (
+  search?: string,
+  config?: AxiosRequestConfig,
+): Promise<{ conciliaciones: ConciliacionRevisionManual[]; total: number }> => {
+  const params = new URLSearchParams()
+  if (search && search.trim()) {
+    params.append('q', search.trim())
+  }
+  const queryString = params.toString()
+  const url = `/mantenimientos/reconciliaciones-revision-manual${queryString ? '?' + queryString : ''}`
   const response = await api.get(url, config)
   return response.data
 }
@@ -672,6 +758,50 @@ export const desvincularConciliacion = async (
   const response = await api.post(`/mantenimientos/desvincular-conciliacion/${conciliacionId}`, {}, config)
   return response.data
 }
+
+// 🔍 DUPLICADOS DE CONCILIACIONES
+
+export interface DuplicadoRegistro {
+  id: number
+  reference: string | null
+  bank: string | null
+  amount: number
+  date: string | null
+  status: string | null
+  created_at: string | null
+  prospecto_id: number | null
+  nombre_alumno: string | null
+  carnet: string | null
+}
+
+export interface DuplicadoGrupo {
+  reference: string
+  total: number
+  montos_distintos: boolean
+  conservar_id: number
+  registros: DuplicadoRegistro[]
+}
+
+export interface DuplicadosResponse {
+  resumen: { grupos_duplicados: number; registros_extra: number }
+  grupos: DuplicadoGrupo[]
+}
+
+export const getReconciliacionesDuplicados = async (
+  config?: AxiosRequestConfig,
+): Promise<DuplicadosResponse> => {
+  const response = await api.get('/mantenimientos/reconciliaciones-duplicados', config)
+  return response.data
+}
+
+export const bulkDeleteReconciliaciones = async (
+  ids: number[],
+  config?: AxiosRequestConfig,
+): Promise<{ message: string; eliminados: number; ignorados: number }> => {
+  const response = await api.post('/mantenimientos/reconciliaciones-bulk-delete', { ids }, config)
+  return response.data
+}
+
 // 📜 HISTORIAL DE AUDITORÍA
 
 export interface HistorialVinculacion {
@@ -868,6 +998,83 @@ export interface CuotasPendientesAsistenteResponse {
   total_pendiente: number
 }
 
+export interface KardexDesajusteMensualidadRow {
+  kardex_id: number
+  fecha_pago: string | null
+  numero_boleta: string | null
+  banco: string | null
+  estado_pago: string | null
+  monto_pagado: number
+  mensualidad_referencia: number
+  es_mensualidad: boolean
+  desajuste: boolean
+  prospecto: {
+    id: number | null
+    nombre: string | null
+    carnet: string | null
+  }
+  programa: {
+    id: number | null
+    nombre: string | null
+  }
+  cuota_actual: {
+    id: number
+    numero_cuota: number
+    concepto: string | null
+    monto: number
+    estado: string | null
+  } | null
+  cuota_sugerida: {
+    id: number
+    numero_cuota: number
+    concepto: string | null
+    monto: number
+    estado: string | null
+  } | null
+}
+
+export interface KardexDesajustesMensualidadResponse {
+  ok: boolean
+  data: KardexDesajusteMensualidadRow[]
+  pagination: {
+    current_page: number
+    per_page: number
+    total: number
+    total_pages: number
+  }
+}
+
+export interface ReasignacionServicioResponse {
+  ok: boolean
+  message: string
+  data: {
+    kardex_id: number
+    reconciliation_record_id?: number | null
+    monto_pagado?: number
+    mensualidad_referencia?: number
+    sin_cambios?: boolean
+    mensaje?: string
+    cuota_actual?: {
+      id: number
+      numero_cuota: number
+      concepto: string | null
+      monto: number
+    }
+    cuota_anterior?: {
+      id: number
+      numero_cuota: number
+      concepto: string | null
+      monto: number
+    }
+    cuota_destino?: {
+      id: number
+      numero_cuota: number
+      concepto: string | null
+      monto: number
+    }
+  }
+}
+
 /**
  * Crear pago mediante el asistente unificado
  */
@@ -890,5 +1097,45 @@ export const getCuotasPendientesAsistente = async (
     ...(config ?? {}),
     params: { estudiante_programa_id: estudianteProgramaId },
   })
+  return response.data
+}
+
+export const getKardexDesajustesMensualidad = async (
+  params?: { programa_id?: number; search?: string; page?: number; per_page?: number },
+  config?: AxiosRequestConfig,
+): Promise<KardexDesajustesMensualidadResponse> => {
+  const response = await api.get<KardexDesajustesMensualidadResponse>(
+    "/mantenimientos/kardex/desajustes-mensualidad",
+    {
+      ...(config ?? {}),
+      params,
+    },
+  )
+  return response.data
+}
+
+export const reasignarKardexAServicio = async (
+  kardexId: number,
+  payload?: { cuota_destino_id?: number; motivo?: string },
+  config?: AxiosRequestConfig,
+): Promise<ReasignacionServicioResponse> => {
+  const response = await api.post<ReasignacionServicioResponse>(
+    `/mantenimientos/kardex/${kardexId}/reasignar-servicio`,
+    payload ?? {},
+    config,
+  )
+  return response.data
+}
+
+export const reasignarConciliacionAServicio = async (
+  conciliacionId: number,
+  payload?: { cuota_destino_id?: number; motivo?: string },
+  config?: AxiosRequestConfig,
+): Promise<ReasignacionServicioResponse> => {
+  const response = await api.post<ReasignacionServicioResponse>(
+    `/mantenimientos/reconciliaciones/${conciliacionId}/reasignar-servicio`,
+    payload ?? {},
+    config,
+  )
   return response.data
 }

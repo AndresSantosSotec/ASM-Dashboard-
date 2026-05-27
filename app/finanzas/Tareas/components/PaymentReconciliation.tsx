@@ -9,9 +9,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, Link as LinkIcon, FileText, PlusCircle, Loader2, CheckCircle2, Unlink, AlertCircle, History, User, Calendar, Info, TrendingUp, Clock, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Database } from 'lucide-react'
+import { Search, Link as LinkIcon, FileText, PlusCircle, Loader2, CheckCircle2, Unlink, AlertCircle, History, User, Calendar, Info, TrendingUp, Clock, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Database, Copy, Trash2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "@/hooks/use-toast"
 import { getKardexPendientes } from "@/services/finance"
 import {
@@ -19,18 +20,28 @@ import {
   getKardex,
   getReconciliaciones,
   getConciliacionesPendientes,
+  getConciliacionesRevisionManual,
   buscarKardexParaVincular,
   vincularConciliacionManual,
   desvincularConciliacion,
   getHistorialVinculaciones,
+  getReconciliacionesDuplicados,
+  bulkDeleteReconciliaciones,
   type KardexPagoResumen,
   type ReconciliationRecordResumen,
   type ConciliacionPendiente,
+  type ConciliacionRevisionManual,
   type KardexSugerencia,
   type HistorialVinculacion,
+  type DuplicadoGrupo,
+  type DuplicadosResponse,
 } from "@/services/mantenimientos"
 
-const PaymentReconciliation = () => {
+type PaymentReconciliationProps = {
+  initialView?: string | null
+}
+
+const PaymentReconciliation = ({ initialView }: PaymentReconciliationProps) => {
   // Función para formatear fechas de YYYY-MM-DD a DD/MM/YYYY
   const formatDate = (dateString: string | null | undefined): string => {
     if (!dateString) return '-'
@@ -77,7 +88,13 @@ const PaymentReconciliation = () => {
   const [historial, setHistorial] = useState<HistorialVinculacion[]>([])
   const [loadingHistorial, setLoadingHistorial] = useState(false)
   const [searchHistorial, setSearchHistorial] = useState("")
-  const [activeTab, setActiveTab] = useState("conciliaciones")
+  const [activeTab, setActiveTab] = useState("sin_conciliar")
+
+  const normalizeView = (view?: string | null) => {
+    const allowed = new Set(["sin_conciliar", "kardex_pendientes", "historial", "conciliaciones", "revision_manual"])
+    if (view && allowed.has(view)) return view
+    return "sin_conciliar"
+  }
 
   // Estado de Conciliaciones sin conciliar (prospecto_id = null)
   const [sinconciliarList, setSinconciliarList] = useState<ConciliacionPendiente[]>([])
@@ -86,6 +103,11 @@ const PaymentReconciliation = () => {
   const [filterBankSinconciliar, setFilterBankSinconciliar] = useState("todos")
   const [filterDateFromSinconciliar, setFilterDateFromSinconciliar] = useState("")
   const [filterDateToSinconciliar, setFilterDateToSinconciliar] = useState("")
+
+  // Estado de revisión manual (prospecto_id null con match probable)
+  const [manualReviewList, setManualReviewList] = useState<ConciliacionRevisionManual[]>([])
+  const [loadingManualReview, setLoadingManualReview] = useState(false)
+  const [searchManualReview, setSearchManualReview] = useState("")
 
   // Estado de Kardex sin conciliar
   const [kardexPendientesList, setKardexPendientesList] = useState<any[]>([])
@@ -105,11 +127,27 @@ const PaymentReconciliation = () => {
   const [currentPageKardex, setCurrentPageKardex] = useState(1)
   const [itemsPerPageKardex, setItemsPerPageKardex] = useState(20)
 
+  // Total real de conciliaciones en BD (puede superar el límite cargado)
+  const [totalRealCount, setTotalRealCount] = useState<number | null>(null)
+
+  // Estado del panel de duplicados
+  const [duplicadosOpen, setDuplicadosOpen] = useState(false)
+  const [duplicadosData, setDuplicadosData] = useState<DuplicadosResponse | null>(null)
+  const [loadingDuplicados, setLoadingDuplicados] = useState(false)
+  const [selectedToDelete, setSelectedToDelete] = useState<Set<number>>(new Set())
+  const [deletingDuplicados, setDeletingDuplicados] = useState(false)
+  // Filtros dentro del dialog de duplicados
+  const [dupFilterRef, setDupFilterRef] = useState("")
+  const [dupFilterBank, setDupFilterBank] = useState("todos")
+
   const loadReconciliaciones = async () => {
     setLoadingRecords(true)
     try {
       const response = await getReconciliaciones({ limit: 5000 })
       setRecords(response.data ?? [])
+      if (response.pagination?.total != null) {
+        setTotalRealCount(response.pagination.total)
+      }
     } catch (error: any) {
       toast({
         title: "Error al cargar conciliaciones",
@@ -121,10 +159,79 @@ const PaymentReconciliation = () => {
     }
   }
 
+  const loadDuplicados = async () => {
+    setLoadingDuplicados(true)
+    setSelectedToDelete(new Set())
+    try {
+      const data = await getReconciliacionesDuplicados()
+      setDuplicadosData(data)
+    } catch (error: any) {
+      toast({
+        title: "Error al detectar duplicados",
+        description: error?.response?.data?.message || error?.message || "No se pudieron detectar los duplicados.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingDuplicados(false)
+    }
+  }
+
+  const handleDeleteDuplicados = async () => {
+    if (selectedToDelete.size === 0) return
+    setDeletingDuplicados(true)
+    try {
+      const result = await bulkDeleteReconciliaciones(Array.from(selectedToDelete))
+      toast({
+        title: "Duplicados eliminados",
+        description: `Se eliminaron ${result.eliminados} registro(s).${result.ignorados > 0 ? ` (${result.ignorados} ignorado(s) por estar vinculados)` : ''}`,
+      })
+      setSelectedToDelete(new Set())
+      // Recargar duplicados y la lista principal
+      await Promise.all([loadDuplicados(), loadReconciliaciones()])
+    } catch (error: any) {
+      toast({
+        title: "Error al eliminar duplicados",
+        description: error?.response?.data?.message || error?.message || "No se pudieron eliminar los duplicados.",
+        variant: "destructive",
+      })
+    } finally {
+      setDeletingDuplicados(false)
+    }
+  }
+
+  const toggleSelectDuplicate = (id: number) => {
+    setSelectedToDelete(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const selectAllExtras = () => {
+    if (!duplicadosData) return
+    const extras = new Set<number>()
+    const gruposFiltrados = duplicadosData.grupos.filter(g => {
+      const matchRef = !dupFilterRef || g.reference.toLowerCase().includes(dupFilterRef.toLowerCase())
+      return matchRef
+    })
+    gruposFiltrados.forEach(g => {
+      g.registros.forEach(r => {
+        if (r.id !== g.conservar_id) extras.add(r.id)
+      })
+    })
+    setSelectedToDelete(extras)
+  }
+
   useEffect(() => {
     loadReconciliaciones()
     loadSinconciliar()   // precarga el badge de sin conciliar
+    loadManualReview()   // precarga contador de revisión manual
   }, [])
+
+  useEffect(() => {
+    setActiveTab(normalizeView(initialView))
+  }, [initialView])
 
   useEffect(() => {
     const fetchKardex = async () => {
@@ -396,6 +503,22 @@ const PaymentReconciliation = () => {
     }
   }
 
+  const loadManualReview = async (search?: string) => {
+    setLoadingManualReview(true)
+    try {
+      const response = await getConciliacionesRevisionManual(search)
+      setManualReviewList(response.conciliaciones ?? [])
+    } catch (error: any) {
+      toast({
+        title: "Error al cargar revisión manual",
+        description: error?.response?.data?.message || error?.message || "No se pudieron cargar los registros.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingManualReview(false)
+    }
+  }
+
   const loadKardexPendientesTab = async () => {
     setLoadingKardexPendientes(true)
     try {
@@ -512,41 +635,51 @@ const PaymentReconciliation = () => {
   }, [sinconciliarList])
 
   const filteredPendientes = useMemo(() => {
-    if (!searchPendientes.trim()) return pendientes
-    return pendientes.filter((c) =>
-      fuzzyMatch(
-        [
-          c.reference || "",
-          c.bank || "",
-          String(c.amount || ""),
-          c.prospecto?.nombre || "",
-          c.prospecto?.carnet || "",
-        ],
-        searchPendientes,
-      ),
-    )
+    const term = searchPendientes.trim().toLowerCase()
+    if (!term) return pendientes
+    return pendientes.filter((c) => {
+      return (
+        (c.reference || "").toLowerCase().includes(term) ||
+        (c.bank || "").toLowerCase().includes(term) ||
+        String(c.amount || "").includes(term) ||
+        (c.prospecto?.nombre || "").toLowerCase().includes(term) ||
+        (c.prospecto?.carnet || "").toLowerCase().includes(term)
+      )
+    })
   }, [pendientes, searchPendientes])
 
+  const filteredManualReview = useMemo(() => {
+    const term = searchManualReview.trim().toLowerCase()
+    if (!term) return manualReviewList
+    return manualReviewList.filter((c) => {
+      return (
+        (c.reference || "").toLowerCase().includes(term) ||
+        (c.bank || "").toLowerCase().includes(term) ||
+        String(c.amount || "").includes(term) ||
+        String(c.match_count || "").includes(term)
+      )
+    })
+  }, [manualReviewList, searchManualReview])
+
   const filteredRecords = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
     return records.filter((r) => {
       if (filterStatus === "conciliado" && !r.kardex_pago_id) return false
       if (filterStatus === "pendiente" && r.kardex_pago_id) return false
       if (filterBank !== "todos" && r.bank !== filterBank) return false
       if (filterDateFrom && r.date && r.date < filterDateFrom) return false
       if (filterDateTo && r.date && r.date > filterDateTo) return false
+      if (!term) return true
 
-      const prospectName = (r.prospecto as any)?.nombre_completo || r.prospecto?.nombre || ""
-      const prospectCarnet = (r.prospecto as any)?.carnet || ""
-      return fuzzyMatch(
-        [
-          r.reference || "",
-          r.bank || "",
-          String(r.amount || ""),
-          prospectName,
-          prospectCarnet,
-          r.status || "",
-        ],
-        searchTerm,
+      const prospectName = ((r.prospecto as any)?.nombre_completo || r.prospecto?.nombre || "").toLowerCase()
+      const prospectCarnet = ((r.prospecto as any)?.carnet || "").toLowerCase()
+      return (
+        (r.reference || "").toLowerCase().includes(term) ||
+        (r.bank || "").toLowerCase().includes(term) ||
+        String(r.amount || "").includes(term) ||
+        prospectName.includes(term) ||
+        prospectCarnet.includes(term) ||
+        (r.status || "").toLowerCase().includes(term)
       )
     })
   }, [records, searchTerm, filterStatus, filterBank, filterDateFrom, filterDateTo])
@@ -620,6 +753,8 @@ const PaymentReconciliation = () => {
       loadHistorial()
     } else if (activeTab === "kardex_pendientes" && kardexPendientesList.length === 0) {
       loadKardexPendientesTab()
+    } else if (activeTab === "revision_manual") {
+      loadManualReview(searchManualReview)
     } else if (activeTab === "sin_conciliar") {
       loadSinconciliar()
     }
@@ -630,27 +765,45 @@ const PaymentReconciliation = () => {
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Alert className="bg-slate-50 border-slate-200">
+        <Info className="h-4 w-4 text-slate-600" />
+        <AlertTitle className="text-slate-900">Flujo recomendado de trabajo</AlertTitle>
+        <AlertDescription className="text-slate-700 text-sm">
+          1) Conciliaciones Sin Conciliar. 2) Kardex Sin Conciliar. 3) Historial de Vinculaciones.
+          4) Conciliaciones generales y Revisión Manual cuando aplique.
+        </AlertDescription>
+      </Alert>
+
       <TabsList>
-        <TabsTrigger value="conciliaciones">
-          <FileText className="h-4 w-4 mr-2" />
-          Conciliaciones
-        </TabsTrigger>
         <TabsTrigger value="sin_conciliar" className="relative">
           <AlertCircle className="h-4 w-4 mr-2 text-amber-500" />
-          Sin Conciliar
+          Conciliaciones Sin Conciliar
           {sinconciliarList.length > 0 && (
             <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1">
               {sinconciliarList.length}
             </span>
           )}
         </TabsTrigger>
-        <TabsTrigger value="historial">
-          <History className="h-4 w-4 mr-2" />
-          Historial de Vinculaciones
-        </TabsTrigger>
         <TabsTrigger value="kardex_pendientes">
           <Database className="h-4 w-4 mr-2" />
-          Kardex sin Conciliar
+          Kardex Sin Conciliar
+        </TabsTrigger>
+        <TabsTrigger value="historial">
+          <History className="h-4 w-4 mr-2" />
+          Historial
+        </TabsTrigger>
+        <TabsTrigger value="conciliaciones">
+          <FileText className="h-4 w-4 mr-2" />
+          Conciliaciones
+        </TabsTrigger>
+        <TabsTrigger value="revision_manual" className="relative">
+          <AlertCircle className="h-4 w-4 mr-2 text-red-500" />
+          Revisión Manual
+          {manualReviewList.length > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1">
+              {manualReviewList.length}
+            </span>
+          )}
         </TabsTrigger>
       </TabsList>
 
@@ -676,10 +829,28 @@ const PaymentReconciliation = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Conciliaciones</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Conciliaciones</CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs gap-1 border-orange-300 text-orange-700 hover:bg-orange-50"
+                onClick={() => { setDuplicadosOpen(true); loadDuplicados() }}
+              >
+                <Copy className="h-3 w-3" />
+                Detectar duplicadas
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{records.length}</div>
+            <div className="text-2xl font-bold">
+              {totalRealCount != null ? totalRealCount.toLocaleString() : records.length.toLocaleString()}
+            </div>
+            {totalRealCount != null && records.length < totalRealCount && (
+              <p className="text-xs text-amber-600 mt-1">
+                Mostrando {records.length.toLocaleString()} de {totalRealCount.toLocaleString()}
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card className="border-amber-200 bg-amber-50">
@@ -707,6 +878,235 @@ const PaymentReconciliation = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* ====== DIALOG DUPLICADOS ====== */}
+      <Dialog open={duplicadosOpen} onOpenChange={(open) => { setDuplicadosOpen(open); if (!open) { setDupFilterRef(""); setDupFilterBank("todos") } }}>
+        <DialogContent className="max-w-5xl w-full" style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <Copy className="h-5 w-5 text-orange-500" />
+              Conciliaciones Duplicadas Sin Vincular
+            </DialogTitle>
+            <DialogDescription className="space-y-1">
+              <span className="block">
+                Detecta registros sin vincular que comparten el mismo <strong>número de referencia</strong>.
+                Pueden ser importaciones duplicadas del mismo pago bancario.
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                ⚠️ Grupos con <strong>montos distintos</strong> pueden ser pagos agrupados del banco (varios alumnos bajo la misma referencia) — revisa antes de eliminar.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingDuplicados ? (
+            <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Analizando duplicados…
+            </div>
+          ) : !duplicadosData ? null : duplicadosData.grupos.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-3 text-green-700">
+              <CheckCircle2 className="h-10 w-10" />
+              <p className="font-semibold text-base">No se encontraron referencias duplicadas</p>
+              <p className="text-xs text-center text-muted-foreground max-w-sm">
+                Todos los registros sin vincular tienen un número de referencia único.
+                No hay conciliaciones duplicadas en este momento.
+              </p>
+            </div>
+          ) : (() => {
+            // Grupos filtrados según búsqueda activa
+            const gruposFiltrados = duplicadosData.grupos.filter(g => {
+              const matchRef = !dupFilterRef || g.reference.toLowerCase().includes(dupFilterRef.toLowerCase())
+              return matchRef
+            })
+
+            const extrasEnFiltro = gruposFiltrados.reduce((acc, g) =>
+              acc + g.registros.filter(r => r.id !== g.conservar_id).length, 0)
+
+            const todosExtrasSeleccionados = extrasEnFiltro > 0 &&
+              gruposFiltrados.every(g => g.registros.filter(r => r.id !== g.conservar_id).every(r => selectedToDelete.has(r.id)))
+
+            return (
+              <>
+                {/* Resumen */}
+                <div className="shrink-0 flex items-center gap-4 p-3 bg-orange-50 border border-orange-200 rounded-md text-sm">
+                  <span className="font-semibold text-orange-800">
+                    {duplicadosData.resumen.grupos_duplicados} grupo(s) duplicados
+                  </span>
+                  <span className="text-orange-400">·</span>
+                  <span className="text-orange-700">{duplicadosData.resumen.registros_extra} registros extra eliminables</span>
+                  {dupFilterRef && (
+                    <>
+                      <span className="text-orange-400">·</span>
+                      <span className="text-blue-700 font-medium">Filtro activo: {gruposFiltrados.length} grupo(s)</span>
+                    </>
+                  )}
+                </div>
+
+                {/* ── FILTROS ── */}
+                <div className="shrink-0 flex gap-2 flex-wrap items-end">
+                  <div className="flex-1 min-w-[160px]">
+                    <label className="text-xs text-muted-foreground mb-1 block">Buscar por referencia</label>
+                    <div className="relative">
+                      <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        value={dupFilterRef}
+                        onChange={e => setDupFilterRef(e.target.value)}
+                        placeholder="Ej: 448002"
+                        className="pl-7 h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+                  {dupFilterRef && (
+                    <Button variant="ghost" size="sm" className="text-xs h-8" onClick={() => setDupFilterRef("")}>
+                      Limpiar filtro
+                    </Button>
+                  )}
+                </div>
+
+                {/* ── ACCIONES MASIVAS ── */}
+                <div className="shrink-0 flex items-center gap-2 flex-wrap border-t pt-2">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-medium">
+                    <Checkbox
+                      checked={todosExtrasSeleccionados}
+                      onCheckedChange={(checked) => {
+                        const extras = gruposFiltrados.flatMap(g =>
+                          g.registros.filter(r => r.id !== g.conservar_id).map(r => r.id)
+                        )
+                        setSelectedToDelete(prev => {
+                          const next = new Set(prev)
+                          extras.forEach(id => checked ? next.add(id) : next.delete(id))
+                          return next
+                        })
+                      }}
+                    />
+                    Seleccionar todos los extras {dupFilterRef ? 'filtrados' : ''} ({extrasEnFiltro})
+                  </label>
+
+                  {selectedToDelete.size > 0 && (
+                    <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setSelectedToDelete(new Set())}>
+                      Quitar selección ({selectedToDelete.size})
+                    </Button>
+                  )}
+
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={selectedToDelete.size === 0 || deletingDuplicados}
+                    onClick={handleDeleteDuplicados}
+                    className="text-xs gap-1 ml-auto"
+                  >
+                    {deletingDuplicados ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                    {selectedToDelete.size > 0 ? `Eliminar ${selectedToDelete.size} seleccionada(s)` : 'Eliminar seleccionadas'}
+                  </Button>
+                </div>
+
+                {/* ── LISTA DE GRUPOS (scrollable) ── */}
+                <div className="overflow-y-auto flex-1 space-y-3 pr-1">
+                  {gruposFiltrados.length === 0 ? (
+                    <p className="text-center text-sm text-muted-foreground py-8">Sin grupos que coincidan con los filtros.</p>
+                  ) : gruposFiltrados.map((grupo) => {
+                    const extrasGrupo = grupo.registros.filter(r => r.id !== grupo.conservar_id)
+                    const todosGrupoSel = extrasGrupo.length > 0 && extrasGrupo.every(r => selectedToDelete.has(r.id))
+                    return (
+                      <div key={grupo.reference} className="border rounded-md overflow-hidden">
+                        {/* Header del grupo */}
+                        <div className="bg-orange-50 px-3 py-2 flex items-center gap-2 text-sm font-medium text-orange-900">
+                          <Checkbox
+                            title="Seleccionar todos los duplicados de este grupo"
+                            checked={todosGrupoSel}
+                            onCheckedChange={(checked) => {
+                              setSelectedToDelete(prev => {
+                                const next = new Set(prev)
+                                extrasGrupo.forEach(r => checked ? next.add(r.id) : next.delete(r.id))
+                                return next
+                              })
+                            }}
+                            className="shrink-0"
+                          />
+                          <Copy className="h-4 w-4 shrink-0" />
+                          <span>Ref: <span className="font-mono">{grupo.reference}</span></span>
+                          {grupo.montos_distintos && (
+                            <Badge variant="outline" className="border-yellow-400 text-yellow-700 text-xs">
+                              ⚠️ Pagos agrupados
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="ml-auto border-orange-300 text-orange-700 text-xs shrink-0">
+                            {grupo.total} registros · {extrasGrupo.length} extra(s)
+                          </Badge>
+                        </div>
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="text-xs bg-gray-50">
+                              <TableHead className="w-10 text-center">✓</TableHead>
+                              <TableHead>ID</TableHead>
+                              <TableHead>Fecha</TableHead>
+                              <TableHead>Alumno / Carnet</TableHead>
+                              <TableHead>Estado</TableHead>
+                              <TableHead>Importado</TableHead>
+                              <TableHead>Tipo</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {grupo.registros.map((reg) => {
+                              const isOriginal = reg.id === grupo.conservar_id
+                              const isChecked = selectedToDelete.has(reg.id)
+                              return (
+                                <TableRow
+                                  key={reg.id}
+                                  className={isOriginal ? 'bg-green-50' : isChecked ? 'bg-red-50' : 'hover:bg-gray-50 cursor-pointer'}
+                                  onClick={() => { if (!isOriginal) toggleSelectDuplicate(reg.id) }}
+                                >
+                                  <TableCell className="text-center" onClick={e => e.stopPropagation()}>
+                                    {!isOriginal ? (
+                                      <Checkbox
+                                        checked={isChecked}
+                                        onCheckedChange={() => toggleSelectDuplicate(reg.id)}
+                                      />
+                                    ) : (
+                                      <span className="text-green-600 text-base leading-none">✓</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="font-mono text-xs text-muted-foreground">#{reg.id}</TableCell>
+                                  <TableCell className="text-xs">{formatDate(reg.date)}</TableCell>
+                                  <TableCell className="text-xs">
+                                    {reg.nombre_alumno ? (
+                                      <div>
+                                        <div className="font-medium">{reg.nombre_alumno}</div>
+                                        <div className="text-muted-foreground">{reg.carnet ?? 'Sin carnet'}</div>
+                                      </div>
+                                    ) : (
+                                      <span className="text-muted-foreground italic">Sin alumno</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline" className="text-xs">{reg.status ?? '-'}</Badge>
+                                  </TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">{reg.created_at ?? '-'}</TableCell>
+                                  <TableCell>
+                                    {isOriginal ? (
+                                      <Badge className="text-xs bg-green-100 text-green-800 border border-green-300 hover:bg-green-100">
+                                        ✓ Original
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className={`text-xs ${isChecked ? 'border-red-400 bg-red-50 text-red-700' : 'border-orange-300 text-orange-700'}`}>
+                                        {isChecked ? '✗ A eliminar' : 'Duplicado'}
+                                      </Badge>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>
@@ -1436,6 +1836,96 @@ const PaymentReconciliation = () => {
                     <TableCell>
                       <Badge variant="outline" className="text-amber-700 border-amber-400 bg-amber-50 capitalize">
                         {c.status || 'imported'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={() => openVinculacionModalWithRecord(c as any)}
+                      >
+                        <LinkIcon className="h-3 w-3 mr-1" />
+                        Vincular
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </TabsContent>
+
+      <TabsContent value="revision_manual" className="space-y-6">
+        <Alert className="bg-red-50 border-red-200">
+          <AlertCircle className="h-4 w-4 text-red-600" />
+          <AlertTitle className="text-red-900">Conciliaciones para Revisión Manual</AlertTitle>
+          <AlertDescription className="text-red-800">
+            Registros con posibles diferencias o sin prospecto identificado que tienen un match probable en Kardex.
+            Revise y use <strong>Vincular</strong> para conciliarlos manualmente.
+          </AlertDescription>
+        </Alert>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por banco, referencia, monto o #matches..."
+              className="pl-9"
+              value={searchManualReview}
+              onChange={(e) => setSearchManualReview(e.target.value)}
+            />
+          </div>
+          <Button variant="outline" onClick={() => loadManualReview(searchManualReview)} disabled={loadingManualReview}>
+            {loadingManualReview ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+            Actualizar
+          </Button>
+        </div>
+
+        {loadingManualReview ? (
+          <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed rounded-lg">
+            <Loader2 className="h-12 w-12 text-muted-foreground mb-4 opacity-20 animate-spin" />
+            <h4 className="font-medium">Cargando revisión manual…</h4>
+          </div>
+        ) : filteredManualReview.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed rounded-lg">
+            <CheckCircle2 className="h-12 w-12 text-green-400 mb-4 opacity-60" />
+            <h4 className="font-medium">Sin registros para revisión manual</h4>
+          </div>
+        ) : (
+          <div className="rounded-md border">
+            <div className="bg-red-50/50 px-4 py-2 border-b flex items-center justify-between">
+              <span className="text-sm font-medium text-red-900">
+                {filteredManualReview.length} registro{filteredManualReview.length !== 1 ? "s" : ""} con match probable
+              </span>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead>Banco</TableHead>
+                  <TableHead>Referencia</TableHead>
+                  <TableHead>Monto</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Matches Kardex</TableHead>
+                  <TableHead className="text-right">Acción</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredManualReview.map((c) => (
+                  <TableRow key={c.id} className="bg-red-50/20 hover:bg-red-50/50">
+                    <TableCell className="text-sm">{formatDate(c.date)}</TableCell>
+                    <TableCell className="font-medium">{c.bank || '-'}</TableCell>
+                    <TableCell className="font-mono text-xs">{c.reference || '-'}</TableCell>
+                    <TableCell className="font-semibold">Q {Number(c.amount || 0).toFixed(2)}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-red-700 border-red-300 bg-red-50 capitalize">
+                        {c.status || 'imported'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50">
+                        {c.match_count} candidato{c.match_count !== 1 ? 's' : ''}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">

@@ -138,6 +138,7 @@ interface WelcomeData {
     fecha_limite_fase: string | null
     observaciones: string | null
     dias_en_fase: number
+    dias_restantes: number
     prioridad: string
   }>
 }
@@ -1613,8 +1614,17 @@ export default function WelcomeView() {
                                 </Badge>
                               </td>
                               <td className="p-2 text-center">
-                                <span className={item.dias_en_fase >= 7 ? 'font-semibold text-amber-600' : ''}>
+                                <span className={
+                                  (item.dias_restantes ?? 1) <= 0
+                                    ? 'font-semibold text-red-600'
+                                    : (item.dias_restantes ?? 1) <= 2
+                                      ? 'font-semibold text-amber-600'
+                                      : ''
+                                }>
                                   {item.dias_en_fase} día{item.dias_en_fase !== 1 ? 's' : ''}
+                                  {(item.dias_restantes ?? 1) <= 0 && (
+                                    <span className="ml-1 text-xs text-red-500">(vencido)</span>
+                                  )}
                                 </span>
                               </td>
                               <td className="p-2 text-center text-xs text-muted-foreground">

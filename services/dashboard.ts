@@ -109,6 +109,7 @@ export const fetchProspectosAprobacion = async (): Promise<{
     fecha_limite_fase: string | null
     observaciones: string | null
     dias_en_fase: number
+    dias_restantes: number
     prioridad: string
   }>
   stats: {
