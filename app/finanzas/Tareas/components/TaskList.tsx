@@ -438,12 +438,12 @@ const TaskList = () => {
             setPriorityFilter('all')
             setQuery('')
           }}>
-            Limpiar filtrossetCreateOpen(true)}>
+            Limpiar filtros
+          </Button>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4 mr-1" />
             Nueva Tarea
-          
           </Button>
-          <Button size="sm" onClick={() => (window.location.href = '/finanzas/Tareas?tab=notes')}>Nueva Tarea</Button>
           <Button size="sm" variant="outline" onClick={clearHiddenTasks}>
             Mostrar ocultas
           </Button>

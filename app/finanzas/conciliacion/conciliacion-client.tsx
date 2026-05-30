@@ -258,6 +258,7 @@ export default function ConciliacionClient() {
         programa_id: programaFilter === "todos" ? undefined : Number(programaFilter),
         page: pagePend,
         per_page: pageSizePend,
+        search: debouncedSearch.trim() || undefined,
       })
       setPreviewPendientes(data)
       if (data.pagination) {
@@ -282,6 +283,7 @@ export default function ConciliacionClient() {
         programa_id: programaFilter === "todos" ? undefined : Number(programaFilter),
         page: pageConc,
         per_page: pageSizeConc,
+        search: debouncedSearch.trim() || undefined,
       })
       setPreviewConciliados(data)
       if (data.pagination) {
@@ -329,7 +331,7 @@ export default function ConciliacionClient() {
       loadPendientesFromKardex()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromDate, toDate, bankFilter, programaFilter])
+  }, [fromDate, toDate, bankFilter, programaFilter, debouncedSearch])
 
   useEffect(() => {
     if (activeTab === "conciliados" && tabsLoaded.has("conciliados")) {
@@ -337,7 +339,7 @@ export default function ConciliacionClient() {
       loadConciliadosFromKardex()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromDate, toDate, bankFilter, programaFilter])
+  }, [fromDate, toDate, bankFilter, programaFilter, debouncedSearch])
 
   // ===== Handlers =====
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

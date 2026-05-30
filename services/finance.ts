@@ -606,6 +606,7 @@ export const getKardexPendientes = async (params: {
   programa_id?: number;
   page?: number; // 🚀 Paginación del servidor
   per_page?: number; // 🚀 Paginación del servidor
+  search?: string; // 🔎 Búsqueda alumno/carnet/recibo
 } = {}) => {
   const res = await api.get("/conciliacion/pendientes-desde-kardex", { params })
   return res.data
@@ -702,6 +703,7 @@ export const getKardexConciliados = async (params: {
   programa_id?: number;
   page?: number; // 🚀 Paginación del servidor
   per_page?: number; // 🚀 Paginación del servidor
+  search?: string; // 🔎 Búsqueda alumno/carnet/recibo
 } = {}) => {
   const res = await api.get("/conciliacion/conciliados-desde-kardex", { params })
   return res.data
