@@ -202,7 +202,26 @@ const TaskList = () => {
           canComplete: true,
         }
       })
-  }Contables = (rows: TareaContable[]): TaskItem[] => {
+  }
+
+  const mapRevisionManual = (rows: ConciliacionRevisionManual[]): TaskItem[] => {
+    return rows.map((row, idx) => ({
+      id: 200000 + idx,
+      key: `revision_manual:${row.id}`,
+      title: `Revisar conciliación ${row.reference || 'sin referencia'} (${row.bank || 'Sin banco'})`,
+      status: 'action_required',
+      priority: 'critical',
+      category: 'payment_distribution',
+      owner: 'Conciliación',
+      dueDate: row.date || new Date().toISOString().slice(0, 10),
+      amount: Number(row.amount || 0),
+      sourceType: 'revision_manual',
+      originalId: row.id,
+      canComplete: false,
+    }))
+  }
+
+  const mapTareasContables = (rows: TareaContable[]): TaskItem[] => {
     return rows
       .filter((row) => !row.completada)
       .map((row, idx) => ({
@@ -218,26 +237,7 @@ const TaskList = () => {
         sourceType: 'tarea_contable',
         originalId: row.id,
         canComplete: true,
-        canDed: row.id,
-      canComplete: false,
-    }))
-  }
-
-  const mapTareasGenericas = (rows: Tarea[]): TaskItem[] => {
-    return rows
-      .filter((row) => !row.completada)
-      .map((row, idContables(),
-      ])
-
-      const realTasks = [
-        ...mapNotasFactura(notasRes.data),
-        ...mapRevisionManual(revisionRes.conciliaciones ?? []),
-        ...mapTareasContable,
-        owner: 'Seguimiento',
-        dueDate: row.fecha,
-        sourceType: 'tarea_generica',
-        originalId: row.id,
-        canComplete: true,
+        canDelete: true,
       }))
   }
 
@@ -247,13 +247,13 @@ const TaskList = () => {
       const [notasRes, revisionRes, tareasRes] = await Promise.all([
         getNotasPagoResumen({ page: 1, per_page: 200 }),
         getConciliacionesRevisionManual(),
-        fetchTareas(),
+        fetchTareasContables(),
       ])
 
       const realTasks = [
         ...mapNotasFactura(notasRes.data),
         ...mapRevisionManual(revisionRes.conciliaciones ?? []),
-        ...mapTareasGenericas(tareasRes ?? []),
+        ...mapTareasContables(tareasRes ?? []),
       ]
 
       setTasks(dedupeTasks(realTasks))
