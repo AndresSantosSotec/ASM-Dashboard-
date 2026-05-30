@@ -21,6 +21,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import RawLogViewer from "./RawLogViewer"
 import {
   AlertTriangle,
   ArrowDownUp,
@@ -259,6 +261,13 @@ export default function DebugLogsPage() {
         </div>
       </div>
 
+      <Tabs defaultValue="parsed" className="w-full space-y-4">
+        <TabsList>
+          <TabsTrigger value="parsed">Logs estructurados</TabsTrigger>
+          <TabsTrigger value="raw">Laravel Log (Crudo)</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="parsed" className="space-y-4">
       {/* Resumen por nivel */}
       <div className="flex flex-wrap gap-2">
         {nivelesSummary.map((n) => {
@@ -593,6 +602,12 @@ export default function DebugLogsPage() {
           )}
         </div>
       )}
+        </TabsContent>
+
+        <TabsContent value="raw">
+          <RawLogViewer />
+        </TabsContent>
+      </Tabs>
 
       {/* Dialog confirmar limpiar */}
       <Dialog open={confirmClear} onOpenChange={setConfirmClear}>

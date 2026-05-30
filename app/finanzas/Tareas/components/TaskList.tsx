@@ -6,15 +6,31 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle2, Clock3, AlertCircle, Search, Loader2 } from 'lucide-react'
 import {
-  fetchTareas,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { CheckCircle2, Clock3, AlertCircle, Search, Loader2, Plus, Trash2 } from 'lucide-react'
+import {
   getNotasPagoResumen,
   marcarFacturaEmitida,
-  updateTarea,
-  type Tarea,
   type NotaPagoResumen,
 } from '@/services/tareas'
+import {
+  fetchTareasContables,
+  createTareaContable,
+  updateTareaContable,
+  deleteTareaContable,
+  type TareaContable,
+  type TareaContablePrioridad,
+  type TareaContableCategoria,
+} from '@/services/tareas-contables'
 import { getConciliacionesRevisionManual, type ConciliacionRevisionManual } from '@/services/mantenimientos'
 import { toast } from '@/hooks/use-toast'
 
@@ -32,10 +48,11 @@ type TaskItem = {
   owner: string
   dueDate: string
   amount?: number
-  sourceType: 'nota_factura' | 'revision_manual' | 'tarea_generica'
+  sourceType: 'nota_factura' | 'revision_manual' | 'tarea_contable'
   carnet?: string
   originalId?: number
   canComplete?: boolean
+  canDelete?: boolean
 }
 
 const categoryLabel: Record<TaskCategory, string> = {
@@ -80,6 +97,25 @@ const TaskList = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all')
   const [priorityFilter, setPriorityFilter] = useState<'all' | TaskPriority>('all')
   const [activeSection, setActiveSection] = useState<'all' | TaskCategory>('all')
+  const [createOpen, setCreateOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [newTask, setNewTask] = useState<{
+    titulo: string
+    descripcion: string
+    fecha: string
+    prioridad: TareaContablePrioridad
+    categoria: TareaContableCategoria
+    responsable: string
+    monto: string
+  }>({
+    titulo: '',
+    descripcion: '',
+    fecha: new Date().toISOString().slice(0, 10),
+    prioridad: 'medium',
+    categoria: 'reminder',
+    responsable: 'Contabilidad',
+    monto: '',
+  })
 
   useEffect(() => {
     try {
@@ -166,21 +202,23 @@ const TaskList = () => {
           canComplete: true,
         }
       })
-  }
-
-  const mapRevisionManual = (rows: ConciliacionRevisionManual[]): TaskItem[] => {
-    return rows.map((row, idx) => ({
-      id: 200000 + idx,
-      key: `revision_manual:${row.id}`,
-      title: `Revisar conciliación ${row.reference || 'sin referencia'} (${row.bank || 'Sin banco'})`,
-      status: 'action_required',
-      priority: 'critical',
-      category: 'payment_distribution',
-      owner: 'Conciliación',
-      dueDate: row.date || new Date().toISOString().slice(0, 10),
-      amount: Number(row.amount || 0),
-      sourceType: 'revision_manual',
-      originalId: row.id,
+  }Contables = (rows: TareaContable[]): TaskItem[] => {
+    return rows
+      .filter((row) => !row.completada)
+      .map((row, idx) => ({
+        id: 300000 + idx,
+        key: `tarea_contable:${row.id}`,
+        title: row.titulo,
+        status: (row.estado ?? 'pending') as TaskStatus,
+        priority: (row.prioridad ?? 'medium') as TaskPriority,
+        category: (row.categoria ?? 'reminder') as TaskCategory,
+        owner: row.responsable || 'Contabilidad',
+        dueDate: row.fecha,
+        amount: row.monto != null ? Number(row.monto) : undefined,
+        sourceType: 'tarea_contable',
+        originalId: row.id,
+        canComplete: true,
+        canDed: row.id,
       canComplete: false,
     }))
   }
@@ -188,13 +226,13 @@ const TaskList = () => {
   const mapTareasGenericas = (rows: Tarea[]): TaskItem[] => {
     return rows
       .filter((row) => !row.completada)
-      .map((row, idx) => ({
-        id: 300000 + idx,
-        key: `tarea_generica:${row.id}`,
-        title: row.titulo,
-        status: 'pending',
-        priority: 'medium',
-        category: 'reminder',
+      .map((row, idContables(),
+      ])
+
+      const realTasks = [
+        ...mapNotasFactura(notasRes.data),
+        ...mapRevisionManual(revisionRes.conciliaciones ?? []),
+        ...mapTareasContable,
         owner: 'Seguimiento',
         dueDate: row.fecha,
         sourceType: 'tarea_generica',
@@ -265,6 +303,71 @@ const TaskList = () => {
     setTasks(prev => prev.map(item => (item.id === id ? { ...item, status: nextStatus } : item)))
   }
 
+  const handleCreate = async () => {
+    if (!newTask.titulo.trim() || !newTask.fecha) {
+      toast({
+        title: 'Datos incompletos',
+        description: 'Indica al menos un título y la fecha.',
+        variant: 'destructive',
+      })
+      return
+    }
+    try {
+      setCreating(true)
+      await createTareaContable({
+        titulo: newTask.titulo.trim(),
+        descripcion: newTask.descripcion.trim() || undefined,
+        fecha: newTask.fecha,
+        prioridad: newTask.prioridad,
+        categoria: newTask.categoria,
+        responsable: newTask.responsable.trim() || undefined,
+        monto: newTask.monto ? Number(newTask.monto) : null,
+      })
+      toast({
+        title: 'Tarea creada',
+        description: 'La tarea contable se registró correctamente.',
+      })
+      setCreateOpen(false)
+      setNewTask({
+        titulo: '',
+        descripcion: '',
+        fecha: new Date().toISOString().slice(0, 10),
+        prioridad: 'medium',
+        categoria: 'reminder',
+        responsable: 'Contabilidad',
+        monto: '',
+      })
+      await loadBoardData()
+    } catch (error: any) {
+      toast({
+        title: 'No se pudo crear la tarea',
+        description: error?.response?.data?.message || error?.message || 'Error desconocido.',
+        variant: 'destructive',
+      })
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const handleDelete = async (task: TaskItem) => {
+    if (task.sourceType !== 'tarea_contable' || !task.originalId) return
+    if (!window.confirm('¿Eliminar esta tarea contable?')) return
+    try {
+      setProcessingId(task.id)
+      await deleteTareaContable(task.originalId)
+      setTasks(prev => prev.filter(t => t.id !== task.id))
+      toast({ title: 'Tarea eliminada', description: 'La tarea contable se eliminó.' })
+    } catch (error: any) {
+      toast({
+        title: 'No se pudo eliminar',
+        description: error?.response?.data?.message || error?.message || 'Error desconocido.',
+        variant: 'destructive',
+      })
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
   const handleComplete = async (task: TaskItem) => {
     if (!task.canComplete) {
       window.location.href = '/finanzas/Tareas?tab=reconciliation&view=manual_review'
@@ -276,8 +379,8 @@ const TaskList = () => {
 
       if (task.sourceType === 'nota_factura' && task.carnet) {
         await marcarFacturaEmitida(task.carnet, true)
-      }
-
+      }contable' && task.originalId) {
+        await updateTareaContable
       if (task.sourceType === 'tarea_generica' && task.originalId) {
         await updateTarea(task.originalId, { completada: true })
       }
@@ -335,7 +438,10 @@ const TaskList = () => {
             setPriorityFilter('all')
             setQuery('')
           }}>
-            Limpiar filtros
+            Limpiar filtrossetCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            Nueva Tarea
+          
           </Button>
           <Button size="sm" onClick={() => (window.location.href = '/finanzas/Tareas?tab=notes')}>Nueva Tarea</Button>
           <Button size="sm" variant="outline" onClick={clearHiddenTasks}>
@@ -461,6 +567,16 @@ const TaskList = () => {
                         >
                           Ocultar
                         </Button>
+                        {task.canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={processingId === task.id}
+                            onClick={() => handleDelete(task)}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -477,6 +593,120 @@ const TaskList = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Nueva tarea contable</DialogTitle>
+            <DialogDescription>
+              Registra una tarea exclusiva del área contable. No se mezcla con las tareas de asesores.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 py-2">
+            <div className="grid gap-1">
+              <Label htmlFor="tc-titulo">Título *</Label>
+              <Input
+                id="tc-titulo"
+                value={newTask.titulo}
+                onChange={(e) => setNewTask((p) => ({ ...p, titulo: e.target.value }))}
+                placeholder="Ej. Conciliar transferencia BAM 12345"
+              />
+            </div>
+
+            <div className="grid gap-1">
+              <Label htmlFor="tc-desc">Descripción</Label>
+              <Textarea
+                id="tc-desc"
+                value={newTask.descripcion}
+                onChange={(e) => setNewTask((p) => ({ ...p, descripcion: e.target.value }))}
+                placeholder="Detalle de la tarea contable"
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1">
+                <Label htmlFor="tc-fecha">Fecha *</Label>
+                <Input
+                  id="tc-fecha"
+                  type="date"
+                  value={newTask.fecha}
+                  onChange={(e) => setNewTask((p) => ({ ...p, fecha: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-1">
+                <Label htmlFor="tc-monto">Monto (Q)</Label>
+                <Input
+                  id="tc-monto"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={newTask.monto}
+                  onChange={(e) => setNewTask((p) => ({ ...p, monto: e.target.value }))}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1">
+                <Label>Prioridad</Label>
+                <Select
+                  value={newTask.prioridad}
+                  onValueChange={(v) => setNewTask((p) => ({ ...p, prioridad: v as TareaContablePrioridad }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="critical">Crítica</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                    <SelectItem value="medium">Media</SelectItem>
+                    <SelectItem value="low">Baja</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1">
+                <Label>Categoría</Label>
+                <Select
+                  value={newTask.categoria}
+                  onValueChange={(v) => setNewTask((p) => ({ ...p, categoria: v as TareaContableCategoria }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="invoice">Facturas</SelectItem>
+                    <SelectItem value="payment_distribution">Distribución</SelectItem>
+                    <SelectItem value="reminder">Recordatorio</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-1">
+              <Label htmlFor="tc-resp">Responsable</Label>
+              <Input
+                id="tc-resp"
+                value={newTask.responsable}
+                onChange={(e) => setNewTask((p) => ({ ...p, responsable: e.target.value }))}
+                placeholder="Contabilidad"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreate} disabled={creating}>
+              {creating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Crear tarea
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
