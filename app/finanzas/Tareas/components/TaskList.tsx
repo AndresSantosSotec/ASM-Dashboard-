@@ -379,10 +379,10 @@ const TaskList = () => {
 
       if (task.sourceType === 'nota_factura' && task.carnet) {
         await marcarFacturaEmitida(task.carnet, true)
-      }contable' && task.originalId) {
-        await updateTareaContable
-      if (task.sourceType === 'tarea_generica' && task.originalId) {
-        await updateTarea(task.originalId, { completada: true })
+      }
+
+      if (task.sourceType === 'tarea_contable' && task.originalId) {
+        await updateTareaContable(task.originalId, { completada: true })
       }
 
       updateStatus(task.id, 'done')
