@@ -161,8 +161,12 @@ export default function ConciliacionClient() {
   // filtros
   const [bankFilter, setBankFilter] = useState<string>("todos")
   const [programaFilter, setProgramaFilter] = useState<string>("todos")
-  const [search, setSearch] = useState<string>("")
-  const debouncedSearch = useDebouncedValue(search, 350)
+  const [searchAlumno, setSearchAlumno] = useState<string>("")
+  const [searchCarnet, setSearchCarnet] = useState<string>("")
+  const [searchReferencia, setSearchReferencia] = useState<string>("")
+  const debouncedAlumno = useDebouncedValue(searchAlumno, 350)
+  const debouncedCarnet = useDebouncedValue(searchCarnet, 350)
+  const debouncedReferencia = useDebouncedValue(searchReferencia, 350)
   const [fromDate, setFromDate] = useState<string>("") // YYYY-MM-DD
   const [toDate, setToDate] = useState<string>("") // YYYY-MM-DD
   
@@ -244,7 +248,7 @@ export default function ConciliacionClient() {
   useEffect(() => {
     setPagePend(1)
     setPageConc(1)
-  }, [debouncedSearch, bankFilter, programaFilter, fromDate, toDate])
+  }, [debouncedAlumno, debouncedCarnet, debouncedReferencia, bankFilter, programaFilter, fromDate, toDate])
 
   // ====== Cargar PENDIENTES desde Kardex (backend) - 🚀 CON PAGINACIÓN DEL SERVIDOR ======
   const loadPendientesFromKardex = async () => {
@@ -258,7 +262,9 @@ export default function ConciliacionClient() {
         programa_id: programaFilter === "todos" ? undefined : Number(programaFilter),
         page: pagePend,
         per_page: pageSizePend,
-        search: debouncedSearch.trim() || undefined,
+        search_alumno: debouncedAlumno.trim() || undefined,
+        search_carnet: debouncedCarnet.trim() || undefined,
+        search_referencia: debouncedReferencia.trim() || undefined,
       })
       setPreviewPendientes(data)
       if (data.pagination) {
@@ -283,7 +289,9 @@ export default function ConciliacionClient() {
         programa_id: programaFilter === "todos" ? undefined : Number(programaFilter),
         page: pageConc,
         per_page: pageSizeConc,
-        search: debouncedSearch.trim() || undefined,
+        search_alumno: debouncedAlumno.trim() || undefined,
+        search_carnet: debouncedCarnet.trim() || undefined,
+        search_referencia: debouncedReferencia.trim() || undefined,
       })
       setPreviewConciliados(data)
       if (data.pagination) {
@@ -331,7 +339,7 @@ export default function ConciliacionClient() {
       loadPendientesFromKardex()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromDate, toDate, bankFilter, programaFilter, debouncedSearch])
+  }, [fromDate, toDate, bankFilter, programaFilter, debouncedAlumno, debouncedCarnet, debouncedReferencia])
 
   useEffect(() => {
     if (activeTab === "conciliados" && tabsLoaded.has("conciliados")) {
@@ -339,7 +347,7 @@ export default function ConciliacionClient() {
       loadConciliadosFromKardex()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromDate, toDate, bankFilter, programaFilter, debouncedSearch])
+  }, [fromDate, toDate, bankFilter, programaFilter, debouncedAlumno, debouncedCarnet, debouncedReferencia])
 
   // ===== Handlers =====
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -486,54 +494,39 @@ export default function ConciliacionClient() {
   }
 
   /** ===== Filtros + búsqueda ===== */
+  const matchesSearches = (r: PreviewResultItem) => {
+    const alumno = (r.alumno_detectado || r.input.alumno || "").toLowerCase()
+    const carnet = (r.input.carnet || "").toLowerCase()
+    const recibo = (r.input.recibo || "").toLowerCase()
+    if (debouncedAlumno.trim() && !alumno.includes(debouncedAlumno.toLowerCase().trim())) return false
+    if (debouncedCarnet.trim() && !carnet.includes(debouncedCarnet.toLowerCase().trim())) return false
+    if (debouncedReferencia.trim() && !recibo.includes(debouncedReferencia.toLowerCase().trim())) return false
+    return true
+  }
+
   const filterByCommon = (list: PreviewResultItem[]) => {
     const byBank =
       bankFilter === "todos" ? list : list.filter((r) => normalizeBank(r.input.banco) === normalizeBank(bankFilter))
-
-    if (!debouncedSearch.trim()) return byBank
-
-    const q = debouncedSearch.toLowerCase()
-    return byBank.filter((r) => {
-      const alumno = (r.alumno_detectado || r.input.alumno || "").toLowerCase()
-      const carnet = (r.input.carnet || "").toLowerCase()
-      const recibo = (r.input.recibo || "").toLowerCase()
-      return alumno.includes(q) || carnet.includes(q) || recibo.includes(q)
-    })
+    return byBank.filter(matchesSearches)
   }
 
   // 🚀 OPTIMIZACIÓN: Los resultados ya vienen paginados del servidor
   // Solo aplicar búsqueda local si es necesario
   const filteredPendientes = useMemo(() => {
     const list = previewPendientes?.results ?? []
-    // Los pendientes ya vienen filtrados del servidor (solo sin_coincidencia)
-    // Solo aplicar búsqueda local si hay texto
-    if (!debouncedSearch.trim()) return list
-    
-    const q = debouncedSearch.toLowerCase()
-    return list.filter((r) => {
-      const alumno = (r.alumno_detectado || r.input.alumno || "").toLowerCase()
-      const carnet = (r.input.carnet || "").toLowerCase()
-      const recibo = (r.input.recibo || "").toLowerCase()
-      return alumno.includes(q) || carnet.includes(q) || recibo.includes(q)
-    })
+    const noLocal = !debouncedAlumno.trim() && !debouncedCarnet.trim() && !debouncedReferencia.trim()
+    if (noLocal) return list
+    return list.filter(matchesSearches)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewPendientes, debouncedSearch])
+  }, [previewPendientes, debouncedAlumno, debouncedCarnet, debouncedReferencia])
 
   const filteredConciliados = useMemo(() => {
     const list = previewConciliados?.results ?? []
-    // Los conciliados ya vienen filtrados del servidor (solo conciliado)
-    // Solo aplicar búsqueda local si hay texto
-    if (!debouncedSearch.trim()) return list
-    
-    const q = debouncedSearch.toLowerCase()
-    return list.filter((r) => {
-      const alumno = (r.alumno_detectado || r.input.alumno || "").toLowerCase()
-      const carnet = (r.input.carnet || "").toLowerCase()
-      const recibo = (r.input.recibo || "").toLowerCase()
-      return alumno.includes(q) || carnet.includes(q) || recibo.includes(q)
-    })
+    const noLocal = !debouncedAlumno.trim() && !debouncedCarnet.trim() && !debouncedReferencia.trim()
+    if (noLocal) return list
+    return list.filter(matchesSearches)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewConciliados, debouncedSearch])
+  }, [previewConciliados, debouncedAlumno, debouncedCarnet, debouncedReferencia])
 
   /** ===== Paginación aplicada - 🚀 USANDO PAGINACIÓN DEL SERVIDOR ===== */
   const pendPage = useMemo(() => {
@@ -615,15 +608,37 @@ export default function ConciliacionClient() {
   )
 
   const SearchBox = (
-    <div className="relative w-full max-w-sm">
-      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-      <Input
-        type="search"
-        placeholder="Buscar por alumno, carnet o referencia..."
-        className="pl-8"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full">
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          type="search"
+          placeholder="Alumno (nombre)"
+          className="pl-8"
+          value={searchAlumno}
+          onChange={(e) => setSearchAlumno(e.target.value)}
+        />
+      </div>
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          type="search"
+          placeholder="Carnet"
+          className="pl-8"
+          value={searchCarnet}
+          onChange={(e) => setSearchCarnet(e.target.value)}
+        />
+      </div>
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          type="search"
+          placeholder="Referencia / No. boleta"
+          className="pl-8"
+          value={searchReferencia}
+          onChange={(e) => setSearchReferencia(e.target.value)}
+        />
+      </div>
     </div>
   )
 
