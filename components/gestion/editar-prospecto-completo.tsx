@@ -682,10 +682,13 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
       }
 
       // 🆕 Actualizar datos financieros en estudiante_programa si existe
-      if (estudiantePrograma && datosAcademicos.programa) {
+      // Usar epIdEnEdicion para determinar qué programa actualizar (puede ser diferente al primer programa)
+      const programaIdParaActualizar = epIdEnEdicion ?? estudiantePrograma?.id
+      
+      if (programaIdParaActualizar && datosAcademicos.programa) {
         try {
           // Calcular fecha_fin basada en fecha_inicio + duracion_meses
-          const fechaInicio = datosAcademicos.fechaInicio || new Date().toISOString().split('T')[0]
+          const fechaInicio = datosAcademicos.fechaInicioEspecifica || datosAcademicos.fechaInicio || new Date().toISOString().split('T')[0]
           const duracionMeses = parseInt(datosFinancieros.cantidadMeses || datosAcademicos.duracion || "12")
           const fechaFin = new Date(fechaInicio)
           fechaFin.setMonth(fechaFin.getMonth() + duracionMeses)
@@ -702,7 +705,12 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
             convenio_id: datosFinancieros.convenioId || null,
           }
 
-          const resFinanciero = await fetch(`${API_URL}/estudiante-programa/${estudiantePrograma.id}`, {
+          console.log("📝 Actualizando estudiante_programa:", { 
+            id: programaIdParaActualizar, 
+            payload: payloadFinanciero 
+          })
+
+          const resFinanciero = await fetch(`${API_URL}/estudiante-programa/${programaIdParaActualizar}`, {
             method: "PUT",
             headers: {
               "Content-Type": "application/json",
@@ -713,19 +721,41 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
 
           if (!resFinanciero.ok) {
             const errorData = await resFinanciero.json()
-            console.warn("⚠️ Error actualizando datos financieros:", errorData)
-            // No lanzar error, solo alertar que los datos del prospecto se guardaron pero no los financieros
+            console.error("❌ Error actualizando datos financieros:", errorData)
+            // Mostrar el error específico del backend
             await Swal.fire({
               icon: "warning",
               title: "Actualización parcial",
-              text: "Los datos del prospecto se guardaron, pero hubo un error al actualizar los datos financieros. Verifique e intente nuevamente.",
+              text: `Los datos del prospecto se guardaron, pero hubo un error al actualizar los datos financieros: ${errorData.message || "Error desconocido"}. Verifique e intente nuevamente.`,
             })
+            // No lanzar error para que el modal se cierre y el usuario pueda ver los cambios básicos
           } else {
-            console.log("✅ Datos financieros actualizados correctamente")
+            console.log("✅ Datos financieros actualizados correctamente para estudiante_programa:", programaIdParaActualizar)
           }
         } catch (errFinanciero: any) {
           console.error("❌ Error actualizando datos financieros:", errFinanciero)
-          // No bloquear la actualización del prospecto
+          // Mostrar error específico
+          await Swal.fire({
+            icon: "error",
+            title: "Error actualizando plan",
+            text: errFinanciero.message || "No se pudo actualizar el plan de pagos. Los datos del prospecto se guardaron correctamente.",
+          })
+        }
+      } else {
+        // Si no hay programa asignado, alertar al usuario
+        console.warn("⚠️ No se puede actualizar estudiante_programa: no hay programa asignado", {
+          programaIdParaActualizar,
+          datosAcademicos_programa: datosAcademicos.programa,
+          epIdEnEdicion,
+          estudianteProgramaId: estudiantePrograma?.id
+        })
+        
+        if (!datosAcademicos.programa) {
+          await Swal.fire({
+            icon: "warning",
+            title: "Sin programa asignado",
+            text: "Los datos del prospecto se guardaron, pero no se pudo actualizar el plan porque no hay un programa seleccionado. Asigne un programa al prospecto.",
+          })
         }
       }
 
@@ -811,6 +841,34 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
     })
     return Array.from(map.values())
   }, [programas])
+
+  // 🆕 Sincronizar duración entre datosAcademicos y datosFinancieros
+  // BUG FIX: Cuando el usuario edita la duración en Datos Académicos, 
+  // sincronizarla con cantidadMeses en Datos Financieros para que el PUT funcione correctamente
+  useEffect(() => {
+    if (datosAcademicos.duracion && datosAcademicos.duracion !== datosFinancieros.cantidadMeses) {
+      console.log("🔄 Sincronizando duración:", datosAcademicos.duracion, "→ cantidadMeses")
+      setDatosFinancieros(prev => ({ ...prev, cantidadMeses: datosAcademicos.duracion }))
+    }
+  }, [datosAcademicos.duracion])
+
+  // 🆕 Recalcular inversión total automáticamente cuando cambian los componentes del costo
+  useEffect(() => {
+    const inscripcion = parseFloat(datosFinancieros.inscripcion || "0")
+    const cuotaMensual = parseFloat(datosFinancieros.cuotaMensual || "0")
+    const cantidadMeses = parseInt(datosFinancieros.cantidadMeses || "0")
+    
+    if (cantidadMeses > 0) {
+      const total = inscripcion + (cuotaMensual * cantidadMeses)
+      const totalStr = total.toFixed(2)
+      
+      // Solo actualizar si cambió para evitar bucles infinitos
+      if (datosFinancieros.inversionTotal !== totalStr) {
+        console.log("💰 Recalculando inversión total:", totalStr)
+        setDatosFinancieros(prev => ({ ...prev, inversionTotal: totalStr }))
+      }
+    }
+  }, [datosFinancieros.inscripcion, datosFinancieros.cuotaMensual, datosFinancieros.cantidadMeses])
 
   // Calcular precios cuando cambia el programa académico (solo si NO estamos editando un programa inscrito)
   // ✅ Si estamos editando un programa existente (epIdEnEdicion), los datos vienen del backend y no se sobrescriben
