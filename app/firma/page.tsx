@@ -29,6 +29,8 @@ import {
   Download,
   LayoutGrid,
   TableIcon,
+  Loader2,
+  AlertCircle,
 } from "lucide-react"
 import Swal from "sweetalert2"
 import ContratoVistaModal from "@/components/firma/ContratoVistaModal"
@@ -74,30 +76,58 @@ export default function FirmaPage() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
   const [currentPage, setCurrentPage] = useState(1)
   const [searchTerm, setSearchTerm] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
   const itemsPerPage = 9
 
   useEffect(() => {
     const token = localStorage.getItem("token") || ""
+    const controller = new AbortController()
+    // Fallback: si el backend no responde en 20s, cancelar y mostrar error
+    const timeoutId = setTimeout(() => controller.abort(), 20000)
+
+    setIsLoading(true)
+    setLoadError(null)
+
     fetch(`${API_BASE_URL}/api/contactos-enviados`, {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
       },
+      signal: controller.signal,
     })
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
       .then((data: unknown) => {
         const arr: ContactoEnviado[] = Array.isArray(data) ? data : []
-        
-        // El backend ya filtra y deduplica, pero por seguridad validamos aquí también
-        console.log("Contratos recibidos del backend:", arr.length)
-        
-        setEnviadosHoy(arr)
+        // Filtrar items malformados (sin prospecto) para evitar crashes en el render
+        const safe = arr.filter((e) => e && typeof e === "object" && e.prospecto)
+        console.log("Contratos recibidos del backend:", arr.length, "válidos:", safe.length)
+        setEnviadosHoy(safe)
       })
       .catch((err) => {
-        console.error("Error cargando envíos:", err)
-        Swal.fire("Error", "No se pudieron cargar los contratos.", "error")
+        if (err?.name === "AbortError") {
+          setLoadError("La carga tardó demasiado. Verifica tu conexión e inténtalo de nuevo.")
+        } else {
+          console.error("Error cargando envíos:", err)
+          setLoadError(err?.message || "No se pudieron cargar los contratos.")
+        }
       })
-  }, [])
+      .finally(() => {
+        clearTimeout(timeoutId)
+        setIsLoading(false)
+      })
+
+    return () => {
+      clearTimeout(timeoutId)
+      controller.abort()
+    }
+  }, [reloadKey])
+
+  const handleReload = () => setReloadKey((k) => k + 1)
 
   const handleDiscard = async (id: number) => {
     const result = await Swal.fire({
@@ -233,28 +263,39 @@ export default function FirmaPage() {
     return { texto: 'Pendiente', color: 'bg-gray-100 text-gray-700 border-gray-300' }
   }
 
+  const safeTime = (value?: string | null) => {
+    if (!value) return null
+    const d = new Date(value)
+    if (isNaN(d.getTime())) return null
+    return d.toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })
+  }
+  const safeDate = (value?: string | null) => {
+    if (!value) return null
+    const d = new Date(value)
+    if (isNaN(d.getTime())) return null
+    return d.toLocaleDateString("es-GT", {
+      day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+    })
+  }
+
   const renderCard = (env: ContactoEnviado) => {
     const estado = getEstado(env)
+    const nombre = env.prospecto?.nombre_completo || 'Sin nombre'
+    const horaEnvio = safeTime(env.fecha_envio)
+    const horaFirma = safeTime(env.fecha_firma_estudiante)
 
     return (
       <Card key={env.id}>
         <CardHeader className="p-4 flex flex-wrap gap-2 justify-between items-start sm:items-center">
           <div>
             <CardTitle className="text-base">
-              {env.prospecto.nombre_completo || 'Sin nombre'}
+              {nombre}
             </CardTitle>
             <CardDescription>
-              Enviado:{" "}
-              {new Date(env.fecha_envio).toLocaleTimeString("es-GT", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-              {env.fecha_firma_estudiante && (
+              Enviado: {horaEnvio ?? '—'}
+              {horaFirma && (
                 <>
-                  {" | "}Firmado: {new Date(env.fecha_firma_estudiante).toLocaleTimeString("es-GT", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {" | "}Firmado: {horaFirma}
                 </>
               )}
             </CardDescription>
@@ -290,7 +331,7 @@ export default function FirmaPage() {
               variant="outline"
               size="sm"
               className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-              onClick={() => handleDescargarContrato(env.id, env.prospecto.nombre_completo || 'Sin_nombre')}
+              onClick={() => handleDescargarContrato(env.id, nombre)}
             >
               <Download className="h-4 w-4 mr-1" /> Descargar PDF
             </Button>
@@ -331,35 +372,20 @@ export default function FirmaPage() {
             ) : (
               data.map(env => {
                 const estado = getEstado(env)
+                const nombre = env.prospecto?.nombre_completo || 'Sin nombre'
                 return (
                   <TableRow key={env.id}>
                     <TableCell className="font-medium">
-                      {env.prospecto.nombre_completo || 'Sin nombre'}
+                      {nombre}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={estado.color}>
                         {estado.texto}
                       </Badge>
                     </TableCell>
+                    <TableCell>{safeDate(env.fecha_envio) ?? '—'}</TableCell>
                     <TableCell>
-                      {new Date(env.fecha_envio).toLocaleDateString("es-GT", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </TableCell>
-                    <TableCell>
-                      {env.fecha_firma_estudiante ? (
-                        new Date(env.fecha_firma_estudiante).toLocaleDateString("es-GT", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      ) : (
+                      {safeDate(env.fecha_firma_estudiante) ?? (
                         <span className="text-gray-400">-</span>
                       )}
                     </TableCell>
@@ -379,7 +405,7 @@ export default function FirmaPage() {
                           variant="outline"
                           size="sm"
                           className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                          onClick={() => handleDescargarContrato(env.id, env.prospecto.nombre_completo || 'Sin_nombre')}
+                          onClick={() => handleDescargarContrato(env.id, nombre)}
                         >
                           <Download className="h-4 w-4" />
                         </Button>
@@ -495,6 +521,20 @@ export default function FirmaPage() {
           </CardHeader>
 
           <CardContent>
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <Loader2 className="h-10 w-10 animate-spin text-gray-500" />
+                <p className="text-sm text-muted-foreground">Cargando contratos…</p>
+              </div>
+            ) : loadError ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <AlertCircle className="h-10 w-10 text-red-500" />
+                <p className="text-sm text-red-700 text-center max-w-md">{loadError}</p>
+                <Button variant="outline" size="sm" onClick={handleReload}>
+                  Reintentar
+                </Button>
+              </div>
+            ) : (
             <Tabs defaultValue="todos" onValueChange={() => setCurrentPage(1)}>
               <TabsList className="mb-4">
                 <TabsTrigger value="todos">Todos</TabsTrigger>
@@ -652,6 +692,7 @@ export default function FirmaPage() {
                 })()}
               </TabsContent>
             </Tabs>
+            )}
           </CardContent>
         </Card>
 

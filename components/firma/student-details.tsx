@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { CheckCircle, ZoomIn, ZoomOut, RotateCw, Loader2, Upload, Save, Trash2, Star } from "lucide-react"
+import { CheckCircle, ZoomIn, ZoomOut, RotateCw, Loader2, Upload, Save, Trash2, Star, AlertCircle } from "lucide-react"
 import Swal from 'sweetalert2'
 import { API_BASE_URL } from '@/utils/apiConfig'
 
@@ -74,6 +74,22 @@ export function StudentDetails() {
   const [moneda, setMoneda] = useState<"GTQ" | "USD">("GTQ")
   const TASA_CAMBIO = 8
 
+  // Estado de carga de los 3 fetches críticos (prospecto, programas, usuario)
+  // Si alguno falla o tarda más de 20s, mostramos error con botón de Reintentar
+  // en lugar de un spinner infinito.
+  const [studentLoadState, setStudentLoadState] = useState<"loading" | "ok" | "error">("loading")
+  const [programasLoadState, setProgramasLoadState] = useState<"loading" | "ok" | "error">("loading")
+  const [userLoadState, setUserLoadState] = useState<"loading" | "ok" | "error">("loading")
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
+  const handleRetryLoad = () => {
+    setLoadError(null)
+    setStudentLoadState("loading")
+    setProgramasLoadState("loading")
+    setUserLoadState("loading")
+    setRetryKey((k) => k + 1)
+  }
+
   // Firmas guardadas
   interface FirmaGuardada { id: number; nombre: string; imagen_base64: string; es_predeterminada: boolean }
   const [firmasGuardadas, setFirmasGuardadas] = useState<FirmaGuardada[]>([])
@@ -120,72 +136,117 @@ export function StudentDetails() {
   // 1) Traer prospecto
   useEffect(() => {
     if (!studentId) return
-      ; (async () => {
-        try {
-          const token = localStorage.getItem("token")
-          const res = await fetch(
-            `${API_BASE_URL}/api/prospectos/${studentId}`,
-            { headers: { Authorization: `Bearer ${token}` } }
-          )
-          const json = await res.json()
-          console.log("Prospecto recibido:", json.data)
-          setStudent({
-            id: String(json.data.id),
-            name: json.data.nombre_completo || "Sin nombre",
-            email:
-              json.data.correo_electronico ||
-              json.data.correo ||
-              json.data.email ||
-              "",
-            dpi: json.data.numero_identificacion || "",
-          })
-          setProspectStatus(json.data.status ?? null)
-          if (json.data.moneda === "USD") setMoneda("USD")
-        } catch (err) {
-          console.error(err)
-        }
-      })()
-  }, [studentId])
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 20000)
+    ;(async () => {
+      try {
+        const token = localStorage.getItem("token")
+        const res = await fetch(
+          `${API_BASE_URL}/api/prospectos/${studentId}`,
+          { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }
+        )
+        if (!res.ok) throw new Error(`HTTP ${res.status} al cargar prospecto`)
+        const json = await res.json()
+        const data = json?.data
+        if (!data) throw new Error("Respuesta inválida del prospecto")
+        console.log("Prospecto recibido:", data)
+        setStudent({
+          id: String(data.id),
+          name: data.nombre_completo || "Sin nombre",
+          email:
+            data.correo_electronico ||
+            data.correo ||
+            data.email ||
+            "",
+          dpi: data.numero_identificacion || "",
+        })
+        setProspectStatus(data.status ?? null)
+        if (data.moneda === "USD") setMoneda("USD")
+        setStudentLoadState("ok")
+      } catch (err: any) {
+        console.error("Error cargando prospecto:", err)
+        setStudentLoadState("error")
+        setLoadError((prev) => prev ?? (err?.name === "AbortError"
+          ? "La carga del prospecto tardó demasiado."
+          : `No se pudo cargar el prospecto: ${err?.message ?? "error desconocido"}`))
+      } finally {
+        clearTimeout(timeoutId)
+      }
+    })()
+    return () => {
+      clearTimeout(timeoutId)
+      controller.abort()
+    }
+  }, [studentId, retryKey])
 
   // 2) Traer programas del prospecto
   useEffect(() => {
     if (!studentId) return
-      ; (async () => {
-        try {
-          const token = localStorage.getItem("token")
-          const res = await fetch(
-            `${API_BASE_URL}/api/estudiante-programa?prospecto_id=${studentId}`,
-            { headers: { Authorization: `Bearer ${token}` } }
-          )
-          if (!res.ok) throw new Error("Error al cargar programas")
-          const data: ProgramaItem[] = await res.json()
-          console.log("Programas recibidos:", data)
-          setProgramas(data)
-        } catch (err) {
-          console.error(err)
-        }
-      })()
-  }, [studentId])
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 20000)
+    ;(async () => {
+      try {
+        const token = localStorage.getItem("token")
+        const res = await fetch(
+          `${API_BASE_URL}/api/estudiante-programa?prospecto_id=${studentId}`,
+          { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }
+        )
+        if (!res.ok) throw new Error(`HTTP ${res.status} al cargar programas`)
+        const data: ProgramaItem[] = await res.json()
+        console.log("Programas recibidos:", data)
+        setProgramas(Array.isArray(data) ? data : [])
+        setProgramasLoadState("ok")
+      } catch (err: any) {
+        console.error("Error cargando programas:", err)
+        setProgramasLoadState("error")
+        setLoadError((prev) => prev ?? (err?.name === "AbortError"
+          ? "La carga de programas tardó demasiado."
+          : `No se pudieron cargar los programas: ${err?.message ?? "error desconocido"}`))
+      } finally {
+        clearTimeout(timeoutId)
+      }
+    })()
+    return () => {
+      clearTimeout(timeoutId)
+      controller.abort()
+    }
+  }, [studentId, retryKey])
 
   // 3) Traer usuario autenticado
   useEffect(() => {
-    ; (async () => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 20000)
+    ;(async () => {
       try {
         const token = localStorage.getItem("token")
         const res = await fetch(`${API_BASE_URL}/api/user`, {
           headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+          signal: controller.signal,
         })
+        if (!res.ok) throw new Error(`HTTP ${res.status} al cargar usuario`)
         const user: User = await res.json()
+        if (!user || typeof user !== "object") throw new Error("Respuesta inválida del usuario")
         console.log("Usuario recibido:", user)
         setCurrentUser(user)
         setStudent((prev) =>
           prev ? { ...prev, email: prev.email || user.email } : prev
         )
-      } catch (err) {
-        console.error(err)
+        setUserLoadState("ok")
+      } catch (err: any) {
+        console.error("Error cargando usuario:", err)
+        setUserLoadState("error")
+        setLoadError((prev) => prev ?? (err?.name === "AbortError"
+          ? "La carga del usuario tardó demasiado."
+          : `No se pudo cargar el usuario: ${err?.message ?? "error desconocido"}`))
+      } finally {
+        clearTimeout(timeoutId)
       }
     })()
-  }, [])
+    return () => {
+      clearTimeout(timeoutId)
+      controller.abort()
+    }
+  }, [retryKey])
 
   // 3.5) Traer documentos del prospecto
   useEffect(() => {
@@ -595,11 +656,59 @@ export function StudentDetails() {
     router.push("/firma")
   }
 
-  // 8) Loading states
+  // 8) Loading / Error states (evita spinner infinito)
+  const anyError =
+    studentLoadState === "error" ||
+    programasLoadState === "error" ||
+    userLoadState === "error"
+  const allLoaded =
+    studentLoadState === "ok" &&
+    programasLoadState === "ok" &&
+    userLoadState === "ok"
+
+  if (anyError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 p-4">
+        <AlertCircle className="h-12 w-12 text-red-500" />
+        <p className="text-sm text-red-700 text-center max-w-md">
+          {loadError ?? "No se pudo cargar la información del estudiante."}
+        </p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleRetryLoad}>
+            Reintentar
+          </Button>
+          <Button variant="ghost" onClick={() => router.push("/firma")}>
+            Volver
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (allLoaded && programas.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 p-4">
+        <AlertCircle className="h-12 w-12 text-amber-500" />
+        <p className="text-sm text-amber-800 text-center max-w-md">
+          Este prospecto no tiene programas asignados. No se puede generar el contrato hasta que se le asigne al menos un programa.
+        </p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleRetryLoad}>
+            Reintentar
+          </Button>
+          <Button variant="ghost" onClick={() => router.push("/firma")}>
+            Volver
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   if (!student || programas.length === 0 || !currentUser) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
         <Loader2 className="animate-spin h-12 w-12 text-gray-500" />
+        <p className="text-sm text-muted-foreground">Cargando información del estudiante…</p>
       </div>
     )
   }
