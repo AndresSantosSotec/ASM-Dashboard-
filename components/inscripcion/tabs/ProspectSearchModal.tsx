@@ -99,6 +99,8 @@ export default function ProspectSearchModal({
           puesto: p.puesto ?? "",
           telefonoCorporativo: p.telefono_corporativo ?? "",
           direccionEmpresa: p.direccion_empresa ?? "",
+          sectorEmpresa: p.sector_empresa ?? "",
+          ingresosAproximados: p.ingresos_aproximados ?? "",
           
           // Datos académicos
           programaInteres: p.interes ?? "", // ID del programa

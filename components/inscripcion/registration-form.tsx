@@ -26,6 +26,7 @@ import FinancieroTab from "./tabs/FinancieroTab"
 import DocumentosTab, { DOCUMENTOS_DEFAULT } from "./tabs/DocumentosTab"
 import ProspectSearchModal from "./tabs/ProspectSearchModal"
 import DraftManager from "./DraftManager"
+import FichaNotasInstitucionales from "./FichaNotasInstitucionales"
 import type { ProgramaConDuracion } from "./types"
 import type { DuplicateProspect } from "@/hooks/useDuplicateProspectCheck"
 import { useDraftCache } from "@/hooks/useDraftCache"
@@ -52,7 +53,7 @@ const INITIAL_ACADEMICO: DatosAcademicos = {
 
 const INITIAL_LABORAL: DatosLaborales = {
   empresa: "", puesto: "", telefonoCorporativo: "", departamento: "",
-  sectorEmpresa: "", direccionEmpresa: ""
+  sectorEmpresa: "", direccionEmpresa: "", ingresosAproximados: "",
 }
 
 const INITIAL_FINANCIERO: DatosFinancieros = {
@@ -113,6 +114,7 @@ export default function RegistrationForm() {
       direccionEmpresa: (datosLaborales.direccionEmpresa || "").trim() || null,
       ultimoTituloObtenido: datosAcademicos.ultimoTitulo || null,
       institucionTitulo: (datosAcademicos.institucionAnterior || "").trim() || null,
+      carreraUltimoTitulo: (datosAcademicos.carrera || "").trim() || null,
       anioGraduacion: datosAcademicos.añoGraduacion ? Number(datosAcademicos.añoGraduacion) : null,
       cantidadCursosAprobados: datosAcademicos.cursosAprobados ? Number(datosAcademicos.cursosAprobados) : null,
       modalidad: datosAcademicos.modalidad || null,
@@ -122,6 +124,9 @@ export default function RegistrationForm() {
       medioConocimientoInstitucion: datosAcademicos.medioConocio || null,
       metodoPago: datosFinancieros.formaPago || null,
       diaEstudio: datosAcademicos.diaEstudio || null,
+      observaciones: (datosAcademicos.observaciones || "").trim() || null,
+      sectorEmpresa: (datosLaborales.sectorEmpresa || "").trim() || null,
+      ingresosAproximados: (datosLaborales.ingresosAproximados || "").trim() || null,
       interes: datosAcademicos.titulo1 || datosAcademicos.programa || null,
       status: "Preinscripción",
       moneda: datosFinancieros.moneda || "GTQ",
@@ -187,6 +192,7 @@ export default function RegistrationForm() {
             ? new Date(data.fecha_nacimiento).toISOString().split("T")[0]
             : "",
           direccion: data.direccion_residencia || "",
+          esReinscripcion: !!data.es_reinscripcion,
         }))
 
         setDatosLaborales((prev) => ({
@@ -197,6 +203,7 @@ export default function RegistrationForm() {
           departamento: data.departamento || "",
           direccionEmpresa: data.direccion_empresa || "",
           sectorEmpresa: data.sector_empresa || "",
+          ingresosAproximados: data.ingresos_aproximados || "",
         }))
 
         const programas = Array.isArray(data.programas) ? data.programas : []
@@ -247,6 +254,7 @@ export default function RegistrationForm() {
           cursosAprobados: data.cantidad_cursos_aprobados?.toString() || "",
           diaEstudio: (data.dia_estudio as DatosAcademicos["diaEstudio"]) || "jueves",
           observaciones: data.observaciones || "",
+          carrera: data.carrera_ultimo_titulo || "",
         }))
 
         // Siempre traer datos financieros del programa principal (lo integrado en Alerta Alumno Nuevo)
@@ -405,7 +413,8 @@ export default function RegistrationForm() {
       telefonoCorporativo: dup.telefono_corporativo || "",
       departamento: dup.departamento || "",
       direccionEmpresa: dup.direccion_empresa || "",
-      sectorEmpresa: "",
+      sectorEmpresa: dup.sector_empresa || "",
+      ingresosAproximados: dup.ingresos_aproximados || "",
     }))
 
     // Cargar datos académicos
@@ -772,6 +781,8 @@ export default function RegistrationForm() {
                 />
               </TabsContent>
             </Tabs>
+
+            <FichaNotasInstitucionales />
           </CardContent>
         </Card>
 
@@ -803,7 +814,8 @@ export default function RegistrationForm() {
               telefonoCorporativo: p.telefonoCorporativo || "",
               departamento: p.departamento || "",
               direccionEmpresa: p.direccionEmpresa || "",
-              sectorEmpresa: "",
+              sectorEmpresa: p.sectorEmpresa || "",
+              ingresosAproximados: p.ingresosAproximados || "",
             }))
 
             // 🎓 Cargar datos académicos automáticamente

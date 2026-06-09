@@ -507,6 +507,12 @@ export default function ContratoVistaModal({
 
                 <p>
                   Confirmo que tengo:<br />
+                  {contrato.prospecto?.cantidad_cursos_aprobados != null && (
+                    <>
+                      — {contrato.prospecto.cantidad_cursos_aprobados}{" "}
+                      {contrato.prospecto.cantidad_cursos_aprobados === 1 ? "curso aprobado" : "cursos aprobados"}.<br />
+                    </>
+                  )}
                   — Declaración de estar plenamente informado(a) y de acuerdo con que mi día de
                   estudio puede ser modificado durante el transcurso de la carrera, y que
                   los cursos del área común pueden variar según la programación anual.

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import { API_BASE_URL } from '@/utils/apiConfig'
+import FichaNotasInstitucionales from "@/components/inscripcion/FichaNotasInstitucionales"
 
 interface DatosContrato {
   prospecto: string
@@ -15,6 +16,7 @@ interface DatosContrato {
   convenio_id: number | null
   asesor: string
   fecha: string
+  cantidad_cursos_aprobados?: number | null
   /** Doble/triple titulación: lista de programas con nombre y duración */
   programas_inscritos?: { nombre: string; duracion_meses: number }[]
   es_doble_titulacion?: boolean
@@ -47,6 +49,7 @@ interface FichaInscripcion {
     telefono_corporativo: string
     departamento: string
     direccion_empresa: string
+    ingresos_aproximados?: string | null
   }
   datos_academicos: {
     programa: string
@@ -61,6 +64,7 @@ interface FichaInscripcion {
     dia_estudio: string
     fecha_inicio: string
     medio_conocio: string
+    cursos_aprobados?: number | string | null
   }
   datos_financieros: {
     tiene_convenio: boolean
@@ -339,6 +343,17 @@ export default function FirmarContratoPage() {
   const datos = contrato.datos_contrato
   const TASA_CAMBIO = 8
   const esUSD = fichaInscripcion?.datos_financieros?.moneda === "USD"
+  const cursosAprobadosRaw =
+    datos.cantidad_cursos_aprobados ??
+    fichaInscripcion?.datos_academicos?.cursos_aprobados ??
+    prospecto?.cantidad_cursos_aprobados ??
+    null
+  const cursosAprobados =
+    cursosAprobadosRaw !== null &&
+    cursosAprobadosRaw !== undefined &&
+    String(cursosAprobadosRaw).trim() !== ""
+      ? Number(cursosAprobadosRaw)
+      : null
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900" style={{ colorScheme: 'light' }}>
@@ -434,6 +449,7 @@ export default function FirmarContratoPage() {
                   { label: "Teléfono corporativo", value: fichaInscripcion.datos_laborales.telefono_corporativo },
                   { label: "Departamento", value: getDepartamentoNombre(fichaInscripcion.datos_laborales.departamento) },
                   { label: "Dirección de la empresa", value: fichaInscripcion.datos_laborales.direccion_empresa, full: true },
+                  { label: "Ingresos aproximados", value: fichaInscripcion.datos_laborales.ingresos_aproximados },
                 ].filter(f => f.value && f.value.toString().trim() !== "" && f.value.toString().toLowerCase() !== "null" && f.value.toString().toLowerCase() !== "na" && f.value.toString().toLowerCase() !== "n/a")
                   .map((f, i) => (
                     <div
@@ -482,6 +498,7 @@ export default function FirmarContratoPage() {
                       { label: "Día de estudio", value: fichaInscripcion.datos_academicos.dia_estudio },
                       { label: "Fecha de inicio", value: fichaInscripcion.datos_academicos.fecha_inicio },
                       { label: "¿Cómo conoció ASM?", value: fichaInscripcion.datos_academicos.medio_conocio },
+                      { label: "Cursos aprobados", value: fichaInscripcion.datos_academicos.cursos_aprobados },
                     ]
                       .filter(f => f.value && f.value.toString().trim() !== "" && f.value.toString().toLowerCase() !== "null" && f.value.toString().toLowerCase() !== "na" && f.value.toString().toLowerCase() !== "n/a")
                       .map((f, i) => (
@@ -503,6 +520,7 @@ export default function FirmarContratoPage() {
                     { label: "Día de estudio", value: fichaInscripcion.datos_academicos.dia_estudio },
                     { label: "Fecha de inicio", value: fichaInscripcion.datos_academicos.fecha_inicio },
                     { label: "¿Cómo conoció ASM?", value: fichaInscripcion.datos_academicos.medio_conocio },
+                    { label: "Cursos aprobados", value: fichaInscripcion.datos_academicos.cursos_aprobados },
                   ]
                     .filter(f => f.value && f.value.toString().trim() !== "" && f.value.toString().toLowerCase() !== "null" && f.value.toString().toLowerCase() !== "na" && f.value.toString().toLowerCase() !== "n/a")
                     .map((f, i) => (
@@ -654,13 +672,7 @@ export default function FirmarContratoPage() {
                 </tbody>
               </table>
 
-              <div className="bg-slate-50 border-l-4 border-[#1e264d] p-3 m-3 text-xs text-slate-500">
-                <ul className="list-disc ml-4 space-y-1">
-                  <li>La cuota de casos puede pagarse 50% al inicio y 50% a mitad de carrera.</li>
-                  <li>El título se emite al completar los cursos y cancelar la totalidad de pagos.</li>
-                  <li>Los pagos de cuotas se realizan del 1 al 5 de cada mes; a partir del 6 se genera mora (Q50.00).</li>
-                </ul>
-              </div>
+              <FichaNotasInstitucionales compact className="m-3" />
             </div>
 
             {/* 6. DOCUMENTOS ADICIONALES REQUERIDOS */}
@@ -787,13 +799,17 @@ export default function FirmarContratoPage() {
             </p>
 
             <p className="text-justify">
-              Confirmo que he recibido toda la información necesaria sobre los
-              requisitos académicos y administrativos para mi programa.
-            </p>
-
-            <p className="text-justify">
-              Declaro que estoy plenamente informado(a) y de acuerdo con que mi día
-              de estudio puede ser modificado durante el transcurso de la carrera.
+              Confirmo que tengo:<br />
+              {cursosAprobados != null && (
+                <>
+                  — {cursosAprobados} {cursosAprobados === 1 ? "curso aprobado" : "cursos aprobados"}.<br />
+                </>
+              )}
+              — Declaración de estar plenamente informado(a) y de acuerdo con que mi día
+              de estudio puede ser modificado durante el transcurso de la carrera,
+              y que los cursos del área común pueden variar según la programación anual.
+              Reconozco que, al inscribirme, me uniré a un canal de WhatsApp, cuya
+              participación es obligatoria durante toda la duración de mi carrera.
             </p>
 
             <p className="text-justify">

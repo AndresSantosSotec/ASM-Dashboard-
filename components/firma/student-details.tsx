@@ -51,6 +51,16 @@ interface User {
   email: string
 }
 
+/** Ignora respuestas de fetch canceladas al desmontar el componente o cambiar de ruta. */
+function isStaleRequestError(err: unknown, cancelled: boolean): boolean {
+  if (cancelled) return true
+  const isAbort =
+    (err instanceof DOMException && err.name === "AbortError") ||
+    (err instanceof Error && err.name === "AbortError")
+  // AbortError sin timeout = cancelación normal (navegación / Strict Mode)
+  return isAbort
+}
+
 export function StudentDetails() {
   const { id: studentId } = useParams()
   const router = useRouter()
@@ -72,6 +82,7 @@ export function StudentDetails() {
   const [documentos, setDocumentos] = useState<string[]>([])
   const [prospectStatus, setProspectStatus] = useState<string | null>(null)
   const [moneda, setMoneda] = useState<"GTQ" | "USD">("GTQ")
+  const [cursosAprobados, setCursosAprobados] = useState<number | null>(null)
   const TASA_CAMBIO = 8
 
   // Estado de carga de los 3 fetches críticos (prospecto, programas, usuario)
@@ -137,7 +148,12 @@ export function StudentDetails() {
   useEffect(() => {
     if (!studentId) return
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 20000)
+    let cancelled = false
+    let timedOut = false
+    const timeoutId = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, 20000)
     ;(async () => {
       try {
         const token = localStorage.getItem("token")
@@ -145,11 +161,11 @@ export function StudentDetails() {
           `${API_BASE_URL}/api/prospectos/${studentId}`,
           { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }
         )
+        if (cancelled) return
         if (!res.ok) throw new Error(`HTTP ${res.status} al cargar prospecto`)
         const json = await res.json()
         const data = json?.data
         if (!data) throw new Error("Respuesta inválida del prospecto")
-        console.log("Prospecto recibido:", data)
         setStudent({
           id: String(data.id),
           name: data.nombre_completo || "Sin nombre",
@@ -162,18 +178,30 @@ export function StudentDetails() {
         })
         setProspectStatus(data.status ?? null)
         if (data.moneda === "USD") setMoneda("USD")
+        const cursos = data.cantidad_cursos_aprobados
+        setCursosAprobados(
+          cursos !== null && cursos !== undefined && String(cursos).trim() !== ""
+            ? Number(cursos)
+            : null
+        )
         setStudentLoadState("ok")
-      } catch (err: any) {
+      } catch (err: unknown) {
+        if (isStaleRequestError(err, cancelled)) {
+          if (timedOut && !cancelled) {
+            setStudentLoadState("error")
+            setLoadError((prev) => prev ?? "La carga del prospecto tardó demasiado.")
+          }
+          return
+        }
         console.error("Error cargando prospecto:", err)
         setStudentLoadState("error")
-        setLoadError((prev) => prev ?? (err?.name === "AbortError"
-          ? "La carga del prospecto tardó demasiado."
-          : `No se pudo cargar el prospecto: ${err?.message ?? "error desconocido"}`))
+        setLoadError((prev) => prev ?? `No se pudo cargar el prospecto: ${err instanceof Error ? err.message : "error desconocido"}`)
       } finally {
         clearTimeout(timeoutId)
       }
     })()
     return () => {
+      cancelled = true
       clearTimeout(timeoutId)
       controller.abort()
     }
@@ -183,7 +211,12 @@ export function StudentDetails() {
   useEffect(() => {
     if (!studentId) return
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 20000)
+    let cancelled = false
+    let timedOut = false
+    const timeoutId = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, 20000)
     ;(async () => {
       try {
         const token = localStorage.getItem("token")
@@ -191,22 +224,28 @@ export function StudentDetails() {
           `${API_BASE_URL}/api/estudiante-programa?prospecto_id=${studentId}`,
           { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }
         )
+        if (cancelled) return
         if (!res.ok) throw new Error(`HTTP ${res.status} al cargar programas`)
         const data: ProgramaItem[] = await res.json()
-        console.log("Programas recibidos:", data)
         setProgramas(Array.isArray(data) ? data : [])
         setProgramasLoadState("ok")
-      } catch (err: any) {
+      } catch (err: unknown) {
+        if (isStaleRequestError(err, cancelled)) {
+          if (timedOut && !cancelled) {
+            setProgramasLoadState("error")
+            setLoadError((prev) => prev ?? "La carga de programas tardó demasiado.")
+          }
+          return
+        }
         console.error("Error cargando programas:", err)
         setProgramasLoadState("error")
-        setLoadError((prev) => prev ?? (err?.name === "AbortError"
-          ? "La carga de programas tardó demasiado."
-          : `No se pudieron cargar los programas: ${err?.message ?? "error desconocido"}`))
+        setLoadError((prev) => prev ?? `No se pudieron cargar los programas: ${err instanceof Error ? err.message : "error desconocido"}`)
       } finally {
         clearTimeout(timeoutId)
       }
     })()
     return () => {
+      cancelled = true
       clearTimeout(timeoutId)
       controller.abort()
     }
@@ -215,7 +254,12 @@ export function StudentDetails() {
   // 3) Traer usuario autenticado
   useEffect(() => {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 20000)
+    let cancelled = false
+    let timedOut = false
+    const timeoutId = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, 20000)
     ;(async () => {
       try {
         const token = localStorage.getItem("token")
@@ -223,26 +267,32 @@ export function StudentDetails() {
           headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
           signal: controller.signal,
         })
+        if (cancelled) return
         if (!res.ok) throw new Error(`HTTP ${res.status} al cargar usuario`)
         const user: User = await res.json()
         if (!user || typeof user !== "object") throw new Error("Respuesta inválida del usuario")
-        console.log("Usuario recibido:", user)
         setCurrentUser(user)
         setStudent((prev) =>
           prev ? { ...prev, email: prev.email || user.email } : prev
         )
         setUserLoadState("ok")
-      } catch (err: any) {
+      } catch (err: unknown) {
+        if (isStaleRequestError(err, cancelled)) {
+          if (timedOut && !cancelled) {
+            setUserLoadState("error")
+            setLoadError((prev) => prev ?? "La carga del usuario tardó demasiado.")
+          }
+          return
+        }
         console.error("Error cargando usuario:", err)
         setUserLoadState("error")
-        setLoadError((prev) => prev ?? (err?.name === "AbortError"
-          ? "La carga del usuario tardó demasiado."
-          : `No se pudo cargar el usuario: ${err?.message ?? "error desconocido"}`))
+        setLoadError((prev) => prev ?? `No se pudo cargar el usuario: ${err instanceof Error ? err.message : "error desconocido"}`)
       } finally {
         clearTimeout(timeoutId)
       }
     })()
     return () => {
+      cancelled = true
       clearTimeout(timeoutId)
       controller.abort()
     }
@@ -251,24 +301,32 @@ export function StudentDetails() {
   // 3.5) Traer documentos del prospecto
   useEffect(() => {
     if (!studentId) return
-      ; (async () => {
-        try {
-          const token = localStorage.getItem("token")
-          const res = await fetch(`${API_BASE_URL}/api/documentos`, {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-          if (!res.ok) throw new Error("Error al cargar documentos")
-          const allDocs = await res.json()
-          // Filtrar solo los de este prospecto
-          const prospectoId = Number(studentId)
-          const docsProspecto = allDocs
-            .filter((d: any) => d.prospecto_id === prospectoId)
-            .map((d: any) => d.tipo_documento)
-          setDocumentos(docsProspecto)
-        } catch (err) {
-          console.error("Error cargando documentos:", err)
-        }
-      })()
+    const controller = new AbortController()
+    let cancelled = false
+    ;(async () => {
+      try {
+        const token = localStorage.getItem("token")
+        const res = await fetch(`${API_BASE_URL}/api/documentos`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        })
+        if (cancelled) return
+        if (!res.ok) throw new Error("Error al cargar documentos")
+        const allDocs = await res.json()
+        const prospectoId = Number(studentId)
+        const docsProspecto = allDocs
+          .filter((d: any) => d.prospecto_id === prospectoId)
+          .map((d: any) => d.tipo_documento)
+        setDocumentos(docsProspecto)
+      } catch (err) {
+        if (isStaleRequestError(err, cancelled)) return
+        console.error("Error cargando documentos:", err)
+      }
+    })()
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
   }, [studentId])
 
   // 4) Inicializar canvas
@@ -568,6 +626,7 @@ export function StudentDetails() {
                 ? `${currentUser.first_name} ${currentUser.last_name}`
                 : "",
               fecha: formattedDate,
+              cantidad_cursos_aprobados: cursosAprobados,
             },
           }),
         }
@@ -762,6 +821,12 @@ export function StudentDetails() {
                 <span className="font-medium">Programa:</span> {programaFinanciero.programa.abreviatura} – {programaFinanciero.programa.nombre_del_programa}
                 {" · "}
                 <span className="font-medium">Duración:</span> {programaFinanciero.duracion_meses ?? programaFinanciero.programa.meses} meses
+                {cursosAprobados != null && (
+                  <>
+                    {" · "}
+                    <span className="font-medium">Cursos aprobados:</span> {cursosAprobados}
+                  </>
+                )}
               </p>
             )
           )}
@@ -875,11 +940,13 @@ export function StudentDetails() {
               Sí: ________
             </p>
             <p>
-              Confirmo que he recibido toda la información necesaria sobre los
-              requisitos académicos y administrativos para mi programa.
-            </p>
-            <p>
-              Declaro que estoy plenamente informado(a) y de acuerdo con que mi día
+              Confirmo que tengo:<br />
+              {cursosAprobados != null && (
+                <>
+                  — {cursosAprobados} {cursosAprobados === 1 ? "curso aprobado" : "cursos aprobados"}.<br />
+                </>
+              )}
+              — Declaración de estar plenamente informado(a) y de acuerdo con que mi día
               de estudio puede ser modificado durante el transcurso de la carrera,
               y que los cursos del área común pueden variar según la programación
               anual. Reconozco que, al inscribirme, me uniré a un canal de WhatsApp,

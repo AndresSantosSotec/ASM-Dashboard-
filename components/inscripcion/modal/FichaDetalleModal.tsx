@@ -93,6 +93,7 @@ export default function FichaDetalleModal({
     ["Teléfono corp.", laborales.telefonoCorporativo],
     ["Departamento", laborales.departamento],
     ["Dirección empresa", laborales.direccionEmpresa],
+    ["Ingresos aproximados", laborales.ingresosAproximados],
   ]
 
   const camposFinancieros: [string, any][] = [

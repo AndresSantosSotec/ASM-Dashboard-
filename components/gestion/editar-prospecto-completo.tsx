@@ -21,6 +21,12 @@ import ReciboPagoGenerator from "@/components/inscripcion/ReciboPagoGenerator"
 import { Switch } from "@/components/ui/switch"
 import type { DatosAcademicos, DatosFinancieros, DatosLaborales } from "@/components/inscripcion/types"
 import axios from "axios"
+import {
+  getMedioConocimientoToSave,
+  MEDIO_CONOCIMIENTO_LABELS,
+  MEDIO_CONOCIMIENTO_OPCIONES,
+  resolveMedioConocimiento,
+} from "@/utils/medioConocimiento"
 
 interface ProspectoCompleto {
   id: string
@@ -107,6 +113,8 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
     tieneConvenio: false,
   })
   const [datosLaborales, setDatosLaborales] = useState<Partial<DatosLaborales>>({})
+  const [showOtherMedio, setShowOtherMedio] = useState(false)
+  const [medioOrigenPersonalizado, setMedioOrigenPersonalizado] = useState("")
 
   // Cargar datos del prospecto y ficha
   useEffect(() => {
@@ -172,6 +180,16 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
           moneda: data.moneda || "GTQ",
         })
 
+        const medioResuelto = resolveMedioConocimiento(data.medio_conocimiento_institucion)
+        setShowOtherMedio(medioResuelto.isCustom)
+        setMedioOrigenPersonalizado(medioResuelto.customText)
+        if (medioResuelto.isCustom) {
+          setFormData((prev) => ({
+            ...prev,
+            medio_conocimiento_institucion: "otros",
+          }))
+        }
+
         // Usar programas inscritos directamente del prospecto (eager-loaded)
         const prospectoPrograms = Array.isArray(data.programas) ? data.programas : []
         if (prospectoPrograms.length > 0) {
@@ -235,6 +253,13 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
 
           setDatosAcademicos(academicosBase)
 
+          if (academicosBase.observaciones) {
+            setFormData((prev) => ({
+              ...prev,
+              observaciones: String(academicosBase.observaciones),
+            }))
+          }
+
           // Cargar datos financieros — SI tiene ficha, cargar los datos guardados del estudiante
           if (fichaData.financieros) {
             const fin = { ...fichaData.financieros }
@@ -268,10 +293,12 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
             fechaTallerIntegracion: toDateStr(data.fecha_taller_integracion),
             ultimoTitulo: data.ultimo_titulo_obtenido || undefined,
             institucionAnterior: data.institucion_titulo || undefined,
+            carrera: data.carrera_ultimo_titulo || undefined,
             añoGraduacion: data.anio_graduacion || undefined,
             cursosAprobados: data.cantidad_cursos_aprobados || undefined,
             diaEstudio: data.dia_estudio || undefined,
             medioConocio: data.medio_conocimiento_institucion || undefined,
+            observaciones: data.observaciones || undefined,
           }
 
           // Poblar programa y duracion desde programa inscrito
@@ -317,6 +344,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
             telefonoCorporativo: data.telefono_corporativo || undefined,
             direccionEmpresa: data.direccion_empresa || undefined,
             sectorEmpresa: data.sector_empresa || undefined,
+            ingresosAproximados: data.ingresos_aproximados || undefined,
           })
         }
 
@@ -631,6 +659,15 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
     try {
       const token = localStorage.getItem("token")
 
+      const medioGuardar = getMedioConocimientoToSave(
+        formData.medio_conocimiento_institucion,
+        medioOrigenPersonalizado
+      )
+      const cursosAprobadosNum =
+        datosAcademicos.cursosAprobados && String(datosAcademicos.cursosAprobados).trim() !== ""
+          ? Number(datosAcademicos.cursosAprobados)
+          : null
+
       const payload = {
         nombreCompleto: formData.nombre_completo,
         telefono: formData.telefono || null,
@@ -643,7 +680,8 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
         observaciones: formData.observaciones || null,
         interes: formData.interes || null,
         status: formData.status,
-        medio_conocimiento_institucion: formData.medio_conocimiento_institucion || null,
+        medio_conocimiento_institucion: medioGuardar,
+        medioConocimientoInstitucion: medioGuardar,
         // Datos académicos
         modalidad: datosAcademicos.modalidad || null,
         fechaInicioEspecifica: datosAcademicos.fechaInicioEspecifica || null,
@@ -651,8 +689,9 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
         fechaTallerIntegracion: datosAcademicos.fechaTallerIntegracion || null,
         ultimoTituloObtenido: datosAcademicos.ultimoTitulo || null,
         institucionTitulo: datosAcademicos.institucionAnterior || null,
+        carreraUltimoTitulo: (datosAcademicos.carrera || "").trim() || null,
         anioGraduacion: datosAcademicos.añoGraduacion || null,
-        cantidadCursosAprobados: datosAcademicos.cursosAprobados || null,
+        cantidadCursosAprobados: cursosAprobadosNum,
         diaEstudio: datosAcademicos.diaEstudio || null,
         // Datos financieros del prospecto (solo método de pago y convenio van a prospectos)
         metodoPago: datosFinancieros.formaPago || null,
@@ -661,6 +700,7 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
         telefonoCorporativo: datosLaborales.telefonoCorporativo || null,
         direccionEmpresa: datosLaborales.direccionEmpresa || null,
         sectorEmpresa: datosLaborales.sectorEmpresa || null,
+        ingresosAproximados: datosLaborales.ingresosAproximados || null,
         // Moneda
         moneda: formData.moneda || "GTQ",
       }
@@ -1093,25 +1133,42 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                   <div>
                     <label className="block text-sm font-medium mb-1">Medio de Conocimiento</label>
                     <Select
-                      value={formData.medio_conocimiento_institucion || ""}
-                      onValueChange={(v) => handleChange("medio_conocimiento_institucion", v)}
+                      value={showOtherMedio ? "otros" : (formData.medio_conocimiento_institucion || "")}
+                      onValueChange={(v) => {
+                        if (v === "otros") {
+                          setShowOtherMedio(true)
+                          setMedioOrigenPersonalizado("")
+                          handleChange("medio_conocimiento_institucion", "otros")
+                        } else {
+                          setShowOtherMedio(false)
+                          setMedioOrigenPersonalizado("")
+                          handleChange("medio_conocimiento_institucion", v)
+                        }
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccione origen" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="facebook">Facebook</SelectItem>
-                        <SelectItem value="instagram">Instagram</SelectItem>
-                        <SelectItem value="linkedin">LinkedIn</SelectItem>
-                        <SelectItem value="referido">Referido</SelectItem>
-                        <SelectItem value="whatsapp_corporativo">WhatsApp Corporativo</SelectItem>
-                        <SelectItem value="pagina_web">Página Web</SelectItem>
-                        <SelectItem value="actividades_escritorio">Actividades de Escritorio</SelectItem>
-                        <SelectItem value="meeting">Meeting</SelectItem>
-                        <SelectItem value="otros">Otros</SelectItem>
+                        {MEDIO_CONOCIMIENTO_OPCIONES.map((opcion) => (
+                          <SelectItem key={opcion} value={opcion}>
+                            {MEDIO_CONOCIMIENTO_LABELS[opcion] || opcion}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {showOtherMedio && (
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Especifique el origen</label>
+                      <Input
+                        value={medioOrigenPersonalizado}
+                        onChange={(e) => setMedioOrigenPersonalizado(e.target.value)}
+                        placeholder="Ingrese cómo conoció ASM"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="border-t pt-4">
@@ -1983,6 +2040,18 @@ export default function EditarProspectoCompleto({ prospectoId, onClose, onUpdate
                       value={datosLaborales.sectorEmpresa || ""}
                       onChange={(e) => setDatosLaborales(prev => ({ ...prev, sectorEmpresa: e.target.value }))}
                       placeholder="Sector empresarial"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1 flex items-center gap-2">
+                      Ingresos aproximados
+                      {hasField(datosLaborales.ingresosAproximados) && <CheckCircle className="h-4 w-4 text-green-500" />}
+                    </label>
+                    <Input
+                      value={datosLaborales.ingresosAproximados || ""}
+                      onChange={(e) => setDatosLaborales(prev => ({ ...prev, ingresosAproximados: e.target.value }))}
+                      placeholder="Ej: Q 8,500 mensuales"
                     />
                   </div>
                 </div>

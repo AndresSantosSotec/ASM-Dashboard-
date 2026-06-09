@@ -84,8 +84,12 @@ export default function FirmaPage() {
   useEffect(() => {
     const token = localStorage.getItem("token") || ""
     const controller = new AbortController()
-    // Fallback: si el backend no responde en 20s, cancelar y mostrar error
-    const timeoutId = setTimeout(() => controller.abort(), 20000)
+    let cancelled = false
+    let timedOut = false
+    const timeoutId = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, 20000)
 
     setIsLoading(true)
     setLoadError(null)
@@ -102,26 +106,28 @@ export default function FirmaPage() {
         return r.json()
       })
       .then((data: unknown) => {
+        if (cancelled) return
         const arr: ContactoEnviado[] = Array.isArray(data) ? data : []
-        // Filtrar items malformados (sin prospecto) para evitar crashes en el render
         const safe = arr.filter((e) => e && typeof e === "object" && e.prospecto)
-        console.log("Contratos recibidos del backend:", arr.length, "válidos:", safe.length)
         setEnviadosHoy(safe)
       })
       .catch((err) => {
-        if (err?.name === "AbortError") {
+        if (cancelled) return
+        if (err?.name === "AbortError" && timedOut) {
           setLoadError("La carga tardó demasiado. Verifica tu conexión e inténtalo de nuevo.")
-        } else {
-          console.error("Error cargando envíos:", err)
-          setLoadError(err?.message || "No se pudieron cargar los contratos.")
+          return
         }
+        if (err?.name === "AbortError") return
+        console.error("Error cargando envíos:", err)
+        setLoadError(err?.message || "No se pudieron cargar los contratos.")
       })
       .finally(() => {
         clearTimeout(timeoutId)
-        setIsLoading(false)
+        if (!cancelled) setIsLoading(false)
       })
 
     return () => {
+      cancelled = true
       clearTimeout(timeoutId)
       controller.abort()
     }

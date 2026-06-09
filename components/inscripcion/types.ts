@@ -14,6 +14,8 @@ export interface Prospecto {
   telefonoCorporativo: string;
   departamento: string;
   direccionEmpresa?: string;
+  ingresosAproximados?: string;
+  sectorEmpresa?: string;
   estado: string;
   fechaRegistro?: string;
   programaInteres: string;
@@ -59,6 +61,7 @@ export interface DatosLaborales {
   departamento: string;
   sectorEmpresa: string;
   direccionEmpresa: string;
+  ingresosAproximados: string;
 }
 
 export interface DatosAcademicos {

@@ -522,7 +522,6 @@ export default function FinancieroTab({
             ]);
           })()}
         />
-        <SmallPrint />
       </div>
 
       {/* — Navegación — */}
@@ -617,16 +616,6 @@ function TableSimple({
           ))}
         </tbody>
       </table>
-    </div>
-  )
-}
-
-function SmallPrint() {
-  return (
-    <div className="mt-4 text-xs text-gray-600 space-y-1">
-      <p>* La cuota de casos puede pagarse 50 % al inicio y 50 % a mitad de carrera.</p>
-      <p>* El título se emite al completar los cursos y cancelar la totalidad de pagos.</p>
-      <p>* Los pagos de cuotas se realizan del 1 al 5 de cada mes; a partir del 6 se genera mora (Q50.00).</p>
     </div>
   )
 }

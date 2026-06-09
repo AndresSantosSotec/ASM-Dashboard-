@@ -144,6 +144,7 @@ async function buildFromProspecto(
       departamento: departamentoNombre,
       direccionEmpresa: prospecto.direccion_empresa,
       sectorEmpresa: prospecto.sector_empresa,
+      ingresosAproximados: prospecto.ingresos_aproximados,
     },
     academicos: {
       modalidad: prospecto.modalidad,
@@ -156,6 +157,7 @@ async function buildFromProspecto(
       añoGraduacion: prospecto.anio_graduacion,
       medioConocio: prospecto.medio_conocimiento_institucion,
       cursosAprobados: prospecto.cantidad_cursos_aprobados,
+      observaciones: prospecto.observaciones,
       diaEstudio: (() => {
         const diasValidos = [
           "lunes",

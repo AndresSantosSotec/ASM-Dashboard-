@@ -55,6 +55,7 @@ export default function LaboralTab({ datos, setDatos, goPrev, goNext }: Props) {
         departamento:        datos.departamento || "",
         sectorEmpresa:       datos.sectorEmpresa || "",
         direccionEmpresa:    datos.direccionEmpresa || "",
+        ingresosAproximados: datos.ingresosAproximados || "",
       })
 
       // Cargar departamentos desde API
@@ -144,6 +145,18 @@ export default function LaboralTab({ datos, setDatos, goPrev, goNext }: Props) {
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        {/* Ingresos aproximados */}
+        <div className="space-y-2">
+          <Label>Ingresos aproximados</Label>
+          <Input
+            value={datos.ingresosAproximados || ""}
+            onChange={(e) =>
+              setDatos({ ...datos, ingresosAproximados: e.target.value })
+            }
+            placeholder="Ej: Q 8,500 mensuales"
+          />
         </div>
 
         {/* Dirección de la empresa */}

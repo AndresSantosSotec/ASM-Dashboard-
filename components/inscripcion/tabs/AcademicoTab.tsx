@@ -17,6 +17,12 @@ import {
 import axios from "axios"
 import { API_BASE_URL } from "@/utils/apiConfig"
 import { DatosAcademicos } from "../types"
+import {
+  getMedioConocimientoToSave,
+  MEDIO_CONOCIMIENTO_LABELS,
+  MEDIO_CONOCIMIENTO_OPCIONES,
+  resolveMedioConocimiento,
+} from "@/utils/medioConocimiento"
 
 interface Programa {
   id: number
@@ -42,29 +48,23 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
   const diasDisponibles = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado","domingo"]
 
   const titulos = ["diversificado", "tecnico", "licenciatura", "maestria", "doctorado", "cierre_pensum", "Carrera Universitaria Incompleta"] as const
-  const medios = [
-    "facebook",
-    "instagram",
-    "linkedin",
-    "referido",
-    "whatsapp_corporativo",
-    "pagina_web",
-    "actividades_escritorio",
-    "meeting",
-    "otros",
-  ] as const
+  const medios = MEDIO_CONOCIMIENTO_OPCIONES
+  const medioLabels = MEDIO_CONOCIMIENTO_LABELS
 
-  const medioLabels: Record<string, string> = {
-    facebook: "Facebook",
-    instagram: "Instagram",
-    linkedin: "LinkedIn",
-    referido: "Referido",
-    whatsapp_corporativo: "WhatsApp Corporativo",
-    pagina_web: "Página Web",
-    actividades_escritorio: "Actividades de Escritorio",
-    meeting: "Meeting",
-    otros: "Otros",
-  }
+  const [showOtherMedio, setShowOtherMedio] = useState(false)
+  const [medioOrigenPersonalizado, setMedioOrigenPersonalizado] = useState("")
+  const [medioSelectValue, setMedioSelectValue] = useState("")
+
+  useEffect(() => {
+    const resolved = resolveMedioConocimiento(datos.medioConocio)
+    setShowOtherMedio(resolved.isCustom)
+    setMedioOrigenPersonalizado(resolved.customText)
+    setMedioSelectValue(resolved.selectValue)
+    if (resolved.isCustom && resolved.valueToSave !== datos.medioConocio) {
+      setDatos((prev) => ({ ...prev, medioConocio: resolved.valueToSave as DatosAcademicos["medioConocio"] }))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const [programas, setProgramas] = useState<Programa[]>([])
   const programasUnicos = useMemo(() => {
@@ -164,7 +164,10 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
       !!datos.fechaInicioEspecifica &&
       !!datos.fechaTallerInduccion &&
       !!datos.fechaTallerIntegracion &&
-      !!datos.medioConocio &&
+      !!getMedioConocimientoToSave(
+        showOtherMedio ? "otros" : medioSelectValue || datos.medioConocio,
+        medioOrigenPersonalizado
+      ) &&
       datos.titulo1 === datos.programa &&
       datos.titulo1_duracion.trim().length > 0
 
@@ -175,7 +178,7 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
 
     // Año de graduación OPCIONAL
     return baseValidation
-  }, [datos])
+  }, [datos, showOtherMedio, medioSelectValue, medioOrigenPersonalizado])
 
   const handleNext = () => {
     if (datos.titulo1 !== datos.programa) {
@@ -422,8 +425,20 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
             ¿Cómo conoció ASM? <RequiredAsterisk />
           </Label>
           <Select
-            value={datos.medioConocio}
-            onValueChange={(v) => setDatos({ ...datos, medioConocio: v as any })}
+            value={showOtherMedio ? "otros" : (medioSelectValue || datos.medioConocio || "")}
+            onValueChange={(v) => {
+              if (v === "otros") {
+                setShowOtherMedio(true)
+                setMedioSelectValue("otros")
+                setMedioOrigenPersonalizado("")
+                setDatos({ ...datos, medioConocio: "" as DatosAcademicos["medioConocio"] })
+              } else {
+                setShowOtherMedio(false)
+                setMedioSelectValue(v)
+                setMedioOrigenPersonalizado("")
+                setDatos({ ...datos, medioConocio: v as DatosAcademicos["medioConocio"] })
+              }
+            }}
           >
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar medio" />
@@ -437,6 +452,23 @@ export default function AcademicoTab({ datos, setDatos, goPrev, goNext }: Props)
             </SelectContent>
           </Select>
         </div>
+
+        {showOtherMedio && (
+          <div className="space-y-2 md:col-span-2">
+            <Label>
+              Especifique el origen <RequiredAsterisk />
+            </Label>
+            <Input
+              value={medioOrigenPersonalizado}
+              onChange={(e) => {
+                const value = e.target.value
+                setMedioOrigenPersonalizado(value)
+                setDatos({ ...datos, medioConocio: value as DatosAcademicos["medioConocio"] })
+              }}
+              placeholder="Ingrese cómo conoció ASM"
+            />
+          </div>
+        )}
 
         {/* Observaciones */}
         <div className="space-y-2 md:col-span-2">
