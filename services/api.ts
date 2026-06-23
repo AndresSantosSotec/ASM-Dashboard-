@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL } from '@/utils/apiConfig';
+import { dispatchPlatformLicenseLocked, isPlatformLicenseLockedPayload } from '@/services/platformLicense';
 
 // Create axios instance with environment variable
 export const api = axios.create({
@@ -37,7 +38,17 @@ api.interceptors.response.use(
     return response;
   },
   error => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status
+    const data = error.response?.data
+
+    if (status === 423 && isPlatformLicenseLockedPayload(data)) {
+      if (typeof window !== 'undefined') {
+        dispatchPlatformLicenseLocked(data)
+      }
+      return Promise.reject(error)
+    }
+
+    if (status === 401) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
         window.location.href = '/login';
