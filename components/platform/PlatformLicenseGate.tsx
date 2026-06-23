@@ -27,7 +27,7 @@ export default function PlatformLicenseGate({ children }: Props) {
       setStatus({
         locked: true,
         reason: "No se pudo verificar el estado de la licencia. Contacte a soporte.",
-        contact_phones: ["+502 4169-8467", "+502 4138-1907"],
+        contact_phones: ["+502 3218 0070"],
       })
     } finally {
       setChecking(false)
