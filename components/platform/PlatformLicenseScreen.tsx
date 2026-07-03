@@ -7,8 +7,6 @@ type Props = {
 }
 
 export default function PlatformLicenseScreen({ status }: Props) {
-  const phones = status.contact_phones?.filter(Boolean) ?? ["+502 3218 0070"]
-
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#0c1220] p-6">
       <div className="w-full max-w-xl rounded-xl border border-red-500/30 bg-white p-8 shadow-2xl dark:bg-[#111827]">
@@ -40,14 +38,6 @@ export default function PlatformLicenseScreen({ status }: Props) {
           {status.reason && !status.reason.includes("Modo prueba") && (
             <p className="text-xs text-slate-500">{status.reason}</p>
           )}
-        </div>
-
-        <div className="mt-6 text-center">
-          {phones.map((phone) => (
-            <p key={phone} className="text-xl font-bold text-[#1e264d] dark:text-white">
-              {phone}
-            </p>
-          ))}
         </div>
       </div>
     </div>
